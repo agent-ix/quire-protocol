@@ -24,7 +24,8 @@ consumer is this library's strict protocol admission and linking API.
 ## Preconditions
 
 The composed baseline has an accepted immutable protocol candidate, and the
-native compiler publishes exact artifact bytes, version, source revision,
+native compiler publishes an accepted versioned compiled-protocol artifact
+contract plus exact artifact bytes, producer revision, source revision,
 selected-rule digests, dependency closure, profile, and required features.
 
 ## Inputs
@@ -57,7 +58,9 @@ producer contract directly.
 
 ## Dependencies
 
-The A-owned immutable profile candidate and compiler artifact contract must be accepted.
+The A-owned immutable profile candidate and versioned compiled-protocol artifact
+contract must both be accepted. A prose definition or native source file cannot
+substitute for the compiled interface because this repository owns no parser.
 
 ## Notes
 
@@ -67,4 +70,3 @@ predates integrated FR-061/FR-062 bytes, so this test is planned rather than run
 ## Traceability
 
 Verifies FR-001 and FR-002.
-

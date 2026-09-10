@@ -65,6 +65,8 @@ digests join these components without merging their authority.
 ## Risks
 
 - The composed source baseline is still draft; A owns the new immutable candidate.
+- The current composed proposal defines semantic profiles but no accepted
+  versioned compiled-protocol artifact interface; admission cannot parse prose or source.
 - F's current result consumer omits canonical progress, closure, settlement, and support facts.
 - Engineering Assurance issue 34 has not published the required Rust producer boundary.
 - `AGPL-3.0-or-later` is selected; every later dependency and retained artifact
