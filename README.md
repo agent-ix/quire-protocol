@@ -12,7 +12,8 @@ Repository bootstrap, QUOIN specification review, and implementation planning
 are complete. There is no library implementation, released artifact, or
 qualification claim yet. Implementation uses `AGPL-3.0-or-later` and is gated
 on an accepted composed Quire profile whose immutable candidate pins the
-reviewed protocol/result rule bytes.
+reviewed protocol/result rule bytes and on the native compiler's accepted
+versioned compiled-protocol artifact contract.
 
 ## Boundary
 
