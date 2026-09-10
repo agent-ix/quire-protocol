@@ -92,7 +92,7 @@ by downstream integrations; no adapter may introduce another semantic model.
 
 ### Static and Assurance Test
 
-- [ ] **TC-010** (NFR-003 AC-1..AC-2 and measurements): enforce Rust-only executable paths, manual workflows, forbidden unsafe code, compiler-checked trace bindings, and shared assurance ownership.
+- [ ] **TC-010** (NFR-003-AC-1..AC-6): use the accepted shared Rust checker to enforce every executable/dependency path, manual workflows, forbidden unsafe code, compiler-checked trace bindings, external Quoin containment, and shared assurance ownership without a local scanner.
 
 ### Integration Tests
 
