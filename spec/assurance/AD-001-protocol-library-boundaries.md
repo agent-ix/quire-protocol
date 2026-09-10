@@ -58,7 +58,10 @@ digests join these components without merging their authority.
   projection, realizability, refinement, or composition algorithm.
 - Keep canonical protocol results richer than E02 and implement only the reviewed
   total source-bound projection.
-- Use RFC 8785 JCS for every digest or semantic identity preimage.
+- Use RFC 8785 JCS for every digest or semantic identity preimage, admit bare
+  JSON numbers only within the exact interoperable integer interval, and require
+  contract-defined canonical non-number encodings for wider integers and exact
+  rationals. Producer-owned digest domains remain distinct typed inputs.
 - Reuse Engineering Assurance and Quoin rather than adding execution or evidence infrastructure.
 - Select no external choreography library until E03 admits an exact candidate.
 

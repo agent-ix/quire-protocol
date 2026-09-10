@@ -23,6 +23,7 @@ compiled-artifact interface.
 - Protocol artifact bytes plus the exact accepted compiled-artifact contract and
   declared contract versions.
 - Exact candidate, source revision, selected-rule, dependency, and profile identities.
+- The compiled-artifact contract's versioned numeric wire profile.
 - Required feature set and strict-reader limits.
 
 ## Outputs
@@ -38,6 +39,18 @@ candidates. It SHALL retain the accepted candidate, artifact-contract, producer,
 and dependency identities without parsing native source or copying upstream
 formal semantics into a second locally authored profile.
 
+For every native integer or exact rational semantic value, the accepted
+compiled-artifact contract SHALL declare a typed encoding whose decode is
+injective over the admitted source domain. A bare JSON number is admissible only
+for an integer from `-9007199254740991` through `9007199254740991`; exact
+integers outside that interval and every rational SHALL use a contract-defined
+canonical non-number representation. The strict reader SHALL reject floats,
+negative zero, a non-canonical signed decimal form, an out-of-range signed-64
+integer, a zero or negative rational denominator, a non-reduced rational, or a
+numeric representation whose value changes after RFC 8785 serialization and
+decoding. It SHALL NOT reinterpret a producer-owned model/configuration digest
+through this artifact's numeric or JCS domain.
+
 ## Acceptance Criteria
 
 | ID | Criteria | Verification |
@@ -45,6 +58,7 @@ formal semantics into a second locally authored profile.
 | FR-001-AC-1 | Exact bytes under one accepted compiled-artifact contract, promoted candidate, producer revision, and complete dependency closure are admitted with every identity unchanged. | Test (TC-001) |
 | FR-001-AC-2 | Mutating each artifact-contract, producer, candidate, version, revision, digest, dependency, profile, or required feature independently returns a typed refusal before semantic evaluation. | Test (TC-001) |
 | FR-001-AC-3 | A draft, superseded, unknown, or internally resealed candidate cannot be selected through display-name equality or a locally authored substitute. | Test (TC-001) |
+| FR-001-AC-4 | Every declared numeric minimum and maximum, the signed-64 extrema in fields whose source domains admit them, and every normalized exact-rational boundary round-trip without loss under the selected numeric wire profile; an unsafe bare JSON number, non-canonical integer/rational form, field-domain or signed-64 overflow, or cross-domain producer-digest substitution refuses before semantic evaluation. | Test (TC-001, IT-001) |
 
 ## Dependencies
 

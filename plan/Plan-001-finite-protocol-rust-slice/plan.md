@@ -46,7 +46,8 @@ relationships:
 
 - `accepted native Quire candidate 1-draft.4 + accepted compiled-artifact contract -> FR-001`
   Reason: admission must bind exact promoted semantics and a closed typed meaning
-  for compiler-produced bytes; candidate prose cannot serve as that interface.
+  for compiler-produced bytes, including a lossless versioned numeric wire
+  profile; candidate prose cannot serve as that interface.
 - `FR-001 -> FR-002`
   Reason: only an admitted profile can be linked into the local representation.
 - `FR-002 -> FR-003, FR-004`
@@ -78,7 +79,7 @@ by downstream integrations; no adapter may introduce another semantic model.
 
 ### Property and Model Tests
 
-- [ ] **TC-001** (FR-001 AC-1..AC-3): accept only exact promoted profile bytes and reject every one-axis identity, state, and feature mutation.
+- [ ] **TC-001** (FR-001 AC-1..AC-4): accept only exact promoted profile bytes and reject every one-axis identity, state, feature, unsafe-number, non-canonical exact-number, field/signed-64 overflow, invalid-rational, and cross-domain digest mutation.
 - [ ] **TC-002** (FR-002 AC-1..AC-4): link typed identities, legal interleavings, joins, bounded iteration, channel premises, and visible choices; reject each invalid graph mutation.
 - [ ] **TC-003** (FR-003 AC-1..AC-5): discriminate effects, attempts, registration, commits, retries, recovery, missing authority, and business-I/O purity.
 - [ ] **TC-004** (FR-004 AC-1..AC-4): compare batch and incremental finite conformance over legal permutations and every adverse execution state.
@@ -95,7 +96,7 @@ by downstream integrations; no adapter may introduce another semantic model.
 
 ### Integration Tests
 
-- [ ] **IT-001 SC-01..SC-04** (FR-001, FR-002): consume the accepted native compiler artifact without a local parser or identity reinterpretation.
+- [ ] **IT-001 SC-01..SC-05** (FR-001, FR-002): consume the accepted native compiler artifact without a local parser, numeric loss, digest-domain substitution, or identity reinterpretation.
 - [ ] **IT-002 SC-01..SC-04** (FR-003, FR-004, FR-006): consume accepted observation and temporal facts without duplicating their producer semantics.
 - [ ] **IT-003 SC-01..SC-05** (FR-006, FR-007, NFR-003): publish typed results through Engineering Assurance, E02, and Quoin without a local runner, transcript parser, or evidence store.
 
@@ -103,7 +104,7 @@ by downstream integrations; no adapter may introduce another semantic model.
 
 ### Track A: Critical Path (serial)
 
-- **A1 = Task-001** Admit the selected profile and establish the crate — Hard; exit: exact promoted bytes admit through a Rust API and every near-match refuses before evaluation.
+- **A1 = Task-001** Admit the selected profile and establish the crate — Hard; exit: exact promoted bytes and lossless numeric values admit through a Rust API while every identity or representation near-match refuses before evaluation.
 - **A2 = Task-002** Link the finite representation — Hard; exit: all legal finite graphs link with exact identities and every construction-fatal defect returns no graph.
 - **A3 = Task-003** Assess compensation state — Hard; exit: registration, retries, commits, and recovery follow only authored facts with no business execution.
 - **A4 = Task-004** Assess finite conformance — Hard; exit: batch and settled incremental evaluation agree across every legal interleaving.
@@ -151,7 +152,7 @@ All Cargo work remains serialized on the shared workstation even when source own
 
 ## Coordination Rules
 
-- Accept A's proposed immutable candidate `1-draft.4` through the composed review and accept the native compiler's versioned compiled-protocol artifact contract tracked by [quire-spec-language#40](https://github.com/agent-ix/quire-spec-language/issues/40) before Task-001 writes source or dependency manifests; apply the selected `AGPL-3.0-or-later` policy to all authored implementation and dependencies.
+- Accept A's proposed immutable candidate `1-draft.4` through the composed review and accept the native compiler's versioned compiled-protocol artifact contract, including its lossless numeric wire profile, tracked by [quire-spec-language#40](https://github.com/agent-ix/quire-spec-language/issues/40) before Task-001 writes source or dependency manifests; apply the selected `AGPL-3.0-or-later` policy to all authored implementation and dependencies.
 - Keep native Quire grammar, temporal semantics, observation production, producer execution, evidence retention, and qualification disposition in their owning repositories.
 - Freeze each accepted interface revision before its integration task and refuse unknown versions rather than adding compatibility fallbacks.
 - One writer owns the shared representation, refusal, and canonical-result types; consumers merge after those contracts.
