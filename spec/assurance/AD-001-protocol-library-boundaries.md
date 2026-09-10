@@ -67,5 +67,6 @@ digests join these components without merging their authority.
 - The composed source baseline is still draft; A owns the new immutable candidate.
 - F's current result consumer omits canonical progress, closure, settlement, and support facts.
 - Engineering Assurance issue 34 has not published the required Rust producer boundary.
-- The exact outbound SPDX license remains undecided and blocks implementation source.
+- `AGPL-3.0-or-later` is selected; every later dependency and retained artifact
+  still requires exact license, provenance, and compatibility review before use.
 - Performance budgets and the production corpus are owner inputs and cannot be invented.
