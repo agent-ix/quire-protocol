@@ -32,7 +32,7 @@ producer, license, implementation plan, and retained corpus remain explicit gate
 | FR-005 | FR-005-AC-1, FR-005-AC-2, FR-005-AC-3, FR-005-AC-4, FR-005-AC-5 | TC-005 | 🚧 Planned |
 | FR-006 | FR-006-AC-1, FR-006-AC-2, FR-006-AC-3, FR-006-AC-4, FR-006-AC-5, FR-006-AC-6 | TC-006, IT-002, IT-003 | 🚧 Planned |
 | FR-007 | FR-007-AC-1, FR-007-AC-2, FR-007-AC-3, FR-007-AC-4, FR-007-AC-5 | TC-007, IT-003 | 🚧 Planned |
-| FR-008 | FR-008-AC-1, FR-008-AC-2, FR-008-AC-3, FR-008-AC-4 | TC-011 | 🚧 Planned |
+| FR-008 | FR-008-AC-1, FR-008-AC-2, FR-008-AC-3, FR-008-AC-4, FR-008-AC-5, FR-008-AC-6, FR-008-AC-7, FR-008-AC-8 | TC-011 | 🚧 Planned |
 
 ## Non-Functional Requirement Coverage
 
@@ -64,7 +64,7 @@ producer, license, implementation plan, and retained corpus remain explicit gate
 | TC-008 | Reproduce results under equivalent presentations | Property | P0 | NFR-001-AC-1..NFR-001-AC-3 | 🚧 Planned |
 | TC-009 | Enforce every protocol resource boundary | Property | P0 | NFR-002-AC-1..NFR-002-AC-4 | 🚧 Planned |
 | TC-010 | Preserve Rust and shared assurance containment | Static | P0 | NFR-003 | 🚧 Planned |
-| TC-011 | Return typed refusals without text parsing | Property | P0 | FR-008 | 🚧 Planned |
+| TC-011 | Return typed refusals without text parsing | Property | P0 | FR-008-AC-1..FR-008-AC-8 | 🚧 Planned |
 
 ## Test Execution Summary
 
