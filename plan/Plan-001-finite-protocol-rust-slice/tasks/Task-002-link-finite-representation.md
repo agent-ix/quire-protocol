@@ -20,10 +20,15 @@ validation from the admitted selected profile.
 ## Subtasks
 
 - [ ] Write TC-002 model and mutation cases before the linker.
-- [ ] Define distinct newtypes for every definition, instance, role, endpoint, channel, message, delivery, attempt, and effect identity.
+- [ ] Define distinct newtypes for every definition, role instance, workflow
+  instance, participant, component, endpoint, channel, message, send, receive,
+  delivery, attempt, and effect identity.
 - [ ] Link authored causal, join, iteration, channel, and choice-visibility premises without using input order or display text.
 - [ ] Accumulate independently established located diagnostics while ensuring any construction-fatal refusal returns no linked representation.
-- [ ] Prove legal interleavings preserve the same authored graph and invalid mutations reach their intended guard.
+- [ ] Prove legal interleavings preserve the same authored graph; every source
+  FR-050..FR-054 identity, control, termination, channel, choice and visibility
+  mutation reaches its intended guard; and every authored semantic change alters
+  protocol identity while presentation changes do not.
 
 ## Deliverables
 
