@@ -14,14 +14,16 @@ relationships:
 ## Scope
 
 After the composed review accepts A's proposed immutable native Quire candidate
-`1-draft.4` and the native compiler publishes an accepted versioned compiled-
-protocol artifact contract, establish the `AGPL-3.0-or-later`, deny-by-default
+`1-draft.4` and [quire-spec-language#40](https://github.com/agent-ix/quire-spec-language/issues/40)
+publishes an accepted versioned compiled-protocol artifact contract, establish the
+`AGPL-3.0-or-later`, deny-by-default
 Rust library and implement exact profile admission without a parser or locally
 authored formal profile.
 
 ## Subtasks
 
-- [ ] Apply the selected `AGPL-3.0-or-later` license and complete dependency compatibility review before adding `Cargo.toml` or source.
+- [x] Apply the selected `AGPL-3.0-or-later` license and record its compatibility policy.
+- [ ] Complete dependency compatibility review before adding `Cargo.toml` or source.
 - [ ] Write TC-001 first with the accepted artifact and every one-axis contract,
   producer, identity, state, resealing, and feature mutation.
 - [ ] Add the minimal Rust crate with forbidden unsafe code, denied warnings, pinned dependencies, and no automatic workflow trigger.
@@ -36,5 +38,6 @@ authored formal profile.
 
 - Blocked by acceptance of proposed candidate `1-draft.4`, which carries the
   integrated FR-061/FR-062 bytes but is not yet adopted, and by the A-owned
-  versioned compiled-protocol artifact contract needed to consume typed bytes.
+  versioned compiled-protocol artifact contract tracked by
+  [quire-spec-language#40](https://github.com/agent-ix/quire-spec-language/issues/40).
 - No source or dependency manifest may be added while either source gate remains open.

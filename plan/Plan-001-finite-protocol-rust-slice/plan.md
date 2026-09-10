@@ -151,7 +151,7 @@ All Cargo work remains serialized on the shared workstation even when source own
 
 ## Coordination Rules
 
-- Accept A's proposed immutable candidate `1-draft.4` through the composed review and accept the native compiler's versioned compiled-protocol artifact contract before Task-001 writes source or dependency manifests; apply the selected `AGPL-3.0-or-later` policy to all authored implementation and dependencies.
+- Accept A's proposed immutable candidate `1-draft.4` through the composed review and accept the native compiler's versioned compiled-protocol artifact contract tracked by [quire-spec-language#40](https://github.com/agent-ix/quire-spec-language/issues/40) before Task-001 writes source or dependency manifests; apply the selected `AGPL-3.0-or-later` policy to all authored implementation and dependencies.
 - Keep native Quire grammar, temporal semantics, observation production, producer execution, evidence retention, and qualification disposition in their owning repositories.
 - Freeze each accepted interface revision before its integration task and refuse unknown versions rather than adding compatibility fallbacks.
 - One writer owns the shared representation, refusal, and canonical-result types; consumers merge after those contracts.
