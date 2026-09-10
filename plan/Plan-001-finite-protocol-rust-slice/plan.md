@@ -88,7 +88,7 @@ by downstream integrations; no adapter may introduce another semantic model.
 - [ ] **TC-007** (FR-007 AC-1..AC-5): exercise the total FR-062-to-E02 map, finding preservation, derived identities, adequacy separation, and refusals.
 - [ ] **TC-008** (NFR-001-AC-1..AC-3): prove byte identity and ordered-outcome identity across admitted-equivalent presentations while independently discriminating every named semantic identity and preserving authored/causal order.
 - [ ] **TC-009** (NFR-002-AC-1..AC-4): bidirectionally reconcile the complete source-bound resource inventory, probe below/at/above every authored maximum and caller limit, kill inventory and guard mutants, and prove zero business/compensation calls.
-- [ ] **TC-011** (FR-008 AC-1..AC-4): enumerate typed refusal fields, source codes, unknown versions, rendering independence, and partial-output rules.
+- [ ] **TC-011** (FR-008-AC-1..AC-8): enumerate typed refusal fields, exact diagnostic catalogs, source codes/stages/prerequisites, paired and simultaneous causes, unknown versions, location absence, rendering independence, and partial-output rules.
 
 ### Static and Assurance Test
 

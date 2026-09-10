@@ -22,7 +22,7 @@ complete typed refusal envelope shared by every public operation.
 
 ## Subtasks
 
-- [ ] Write TC-006 and TC-011 table, topology, mutation, and strict-reader cases first.
+- [ ] Write TC-006 and TC-011 table, topology, diagnostic-catalog, paired-cause, simultaneous-disposition, mutation, and strict-reader cases first.
 - [ ] Represent truth, adequacy, decision-scope progress/closure,
   surrounding-execution progress/closure, settlement, support, claim dispositions,
   limitations, and provenance as orthogonal typed fields.
@@ -30,7 +30,8 @@ complete typed refusal envelope shared by every public operation.
   supersession, exact dependency/source identities, and refusal of every
   progress/closure scope collapse or cross-wire.
 - [ ] Canonicalize every digest and identity comparison through one RFC 8785 implementation and reject unknown contract versions.
-- [ ] Make refusal identity independent of rendering while preserving stable domain, source code, identity/location, and cause order.
+- [ ] Make refusal identity independent of rendering while preserving the exact diagnostic catalog, stable domain/source code, originating stage/prerequisites, explicit location availability, paired causes, simultaneous dispositions, and cause order.
+- [ ] Refuse catalog drift or erased source stages and prove that repeated display names cannot invent a missing source location.
 
 ## Deliverables
 

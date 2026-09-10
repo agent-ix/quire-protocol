@@ -10,19 +10,31 @@ relationships:
 
 ## Description
 
-Verify the refusal envelope across every public failure domain, source code,
-identity/location, cause, rendering, unknown-version, and partial-output rule.
+Verify the refusal envelope across every public failure domain, source catalog,
+code, stage/prerequisite, identity/location, cause, rendering, unknown-version,
+simultaneous-disposition, and partial-output rule.
 
 ## Test Procedure
 
 Generate one failure from every public operation and selected source code. Mutate
-the domain, code, affected identity, source location, cause order, display text,
-locale, source version, and partial-output state independently; add an unknown
-future code and a failed advanced claim beside valid finite conformance.
+the domain, diagnostic-catalog identity/revision/digest, code, originating stage,
+prerequisites, affected identity, source location, cause order, display text,
+locale, source version, and partial-output state independently. Add an unknown
+future code and a failed advanced claim beside valid finite conformance. Pass a
+failure through a wrapper that erases its stage, remove source context, and use a
+repeated display name to attempt location reconstruction.
+
+Exercise paired causes for missing versus conflicting definition, wrong anchor
+versus missing observation, unknown syntax versus prohibited recognized
+construct, unproved definedness versus runtime logical violation, and resource-
+incomplete versus unsupported execution. Combine an independent invalid-input
+and missing-input disposition, then set the diagnostic-detail budget to zero.
 
 ## Expected Results
 
-Typed fields alone determine identity and behavior. Unknown contracts remain
-unsupported, fatal operations emit no success value, and only explicitly
-independent claim results survive another claim's failure.
-
+Typed fields alone determine identity and behavior. Catalog or stage drift
+refuses; unknown contracts retain their opaque original selection/value behind
+the local unsupported classification; absent context stays absent; paired and
+simultaneous causes remain distinct even with no diagnostic detail. Fatal
+operations emit no success value, and only explicitly independent claim results
+survive another claim's failure.
