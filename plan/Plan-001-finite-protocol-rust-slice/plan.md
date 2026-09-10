@@ -44,7 +44,7 @@ relationships:
 
 ## Dependency Graph
 
-- `owner license choice + accepted successor native Quire candidate -> FR-001`
+- `owner license choice + accepted native Quire candidate 1-draft.4 -> FR-001`
   Reason: implementation dependencies cannot be selected before the outbound
   license is fixed, and admission must bind exact promoted bytes that do not yet exist.
 - `FR-001 -> FR-002`
@@ -151,7 +151,7 @@ All Cargo work remains serialized on the shared workstation even when source own
 
 ## Coordination Rules
 
-- Select the exact SPDX license and accept A's successor immutable candidate before Task-001 writes source or dependency manifests.
+- Select the exact SPDX license and accept A's proposed immutable candidate `1-draft.4` through the composed review before Task-001 writes source or dependency manifests.
 - Keep native Quire grammar, temporal semantics, observation production, producer execution, evidence retention, and qualification disposition in their owning repositories.
 - Freeze each accepted interface revision before its integration task and refuse unknown versions rather than adding compatibility fallbacks.
 - One writer owns the shared representation, refusal, and canonical-result types; consumers merge after those contracts.

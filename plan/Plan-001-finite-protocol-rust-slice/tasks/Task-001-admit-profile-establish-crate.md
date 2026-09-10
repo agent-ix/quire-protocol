@@ -13,9 +13,10 @@ relationships:
 
 ## Scope
 
-After the owner selects the outbound SPDX license and A publishes the successor
-immutable native Quire candidate, establish the deny-by-default Rust library and
-implement exact profile admission without a parser or locally authored formal profile.
+After the owner selects the outbound SPDX license and the composed review accepts
+A's proposed immutable native Quire candidate `1-draft.4`, establish the
+deny-by-default Rust library and implement exact profile admission without a
+parser or locally authored formal profile.
 
 ## Subtasks
 
@@ -31,5 +32,6 @@ implement exact profile admission without a parser or locally authored formal pr
 
 ## Notes
 
-- Blocked by the owner's exact SPDX decision and A's successor to `1-draft.3` carrying integrated FR-061/FR-062 bytes.
+- Blocked by the owner's exact SPDX decision and acceptance of proposed candidate
+  `1-draft.4`, which carries the integrated FR-061/FR-062 bytes but is not yet adopted.
 - No source or dependency manifest may be added while either gate remains open.
