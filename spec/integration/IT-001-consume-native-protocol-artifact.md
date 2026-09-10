@@ -27,11 +27,14 @@ The composed baseline has an accepted immutable protocol candidate, and the
 native compiler publishes an accepted versioned compiled-protocol artifact
 contract plus exact artifact bytes, producer revision, source revision,
 selected-rule digests, dependency closure, profile, and required features.
+The producer contract also declares one lossless numeric wire profile for native
+signed-64 integers and exact rationals before the consumer reads semantic fields.
 
 ## Inputs
 
 One accepted compiled finite protocol plus changed-version, changed-digest,
-unknown-feature, ambiguous-binding, and stale-candidate variants.
+unknown-feature, ambiguous-binding, stale-candidate, unsafe-number,
+non-canonical-exact-number and cross-domain-digest variants.
 
 ## Test Procedure
 
@@ -41,8 +44,12 @@ unknown-feature, ambiguous-binding, and stale-candidate variants.
    - IT-001-SC-02: the finite graph and source references match the producer contract.
 3. Submit each one-axis producer-contract mutation.
    - IT-001-SC-03: every mutation refuses before semantic evaluation.
-4. Inspect the dependency and source inventory.
-   - IT-001-SC-04: no second parser, formal frontend, or foreign runtime participates.
+4. Submit exact signed-64 and rational boundaries plus each invalid or lossy
+   numeric representation.
+   - IT-001-SC-04: exact values round-trip byte-identically; unsafe, ambiguous,
+     out-of-range and cross-domain forms refuse before semantic evaluation.
+5. Inspect the dependency and source inventory.
+   - IT-001-SC-05: no second parser, formal frontend, or foreign runtime participates.
 
 ## Expected Results
 
