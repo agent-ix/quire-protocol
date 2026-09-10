@@ -9,7 +9,7 @@ okf_version: "0.1"
 ## Contents
 
 * [Plan-001: Finite native Quire protocol Rust slice](./plan.md) - Plan overview, dependency graph, tests, tracks, and gates.
-* [Task-001: Admit the selected profile and establish the Rust crate](./tasks/Task-001-admit-profile-establish-crate.md) - Apply the selected AGPL policy, resolve the candidate and compiled-artifact gates, and implement strict admission.
+* [Task-001: Admit the selected profile and establish the Rust crate](./tasks/Task-001-admit-profile-establish-crate.md) - Apply the selected AGPL policy, resolve the accepted-baseline and compiled-artifact gates, and implement strict admission.
 * [Task-002: Link the finite protocol representation](./tasks/Task-002-link-finite-representation.md) - Build the identity-preserving finite graph and located diagnostics.
 * [Task-003: Assess compensation state](./tasks/Task-003-assess-compensation-state.md) - Implement activation, registration, retry, commit, and recovery assessment.
 * [Task-004: Assess finite global conformance](./tasks/Task-004-assess-finite-conformance.md) - Implement bounded batch and incremental conformance.

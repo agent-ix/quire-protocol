@@ -18,8 +18,9 @@ relationships:
 ## Overview
 
 This matrix plans the first Rust implementation slice. No row claims executed
-coverage. The source candidate, F consumer correction, Engineering Assurance
-producer, license, implementation plan, and retained corpus remain explicit gates.
+coverage. The accepted frozen source baseline, F consumer correction, Engineering
+Assurance producer, license, implementation plan, and retained corpus remain
+explicit gates.
 
 ## Functional Requirement Coverage
 

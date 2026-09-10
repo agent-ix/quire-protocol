@@ -44,10 +44,10 @@ relationships:
 
 ## Dependency Graph
 
-- `accepted native Quire candidate 1-draft.4 + accepted compiled-artifact contract -> FR-001`
+- `accepted frozen native Quire baseline + accepted compiled-artifact contract -> FR-001`
   Reason: admission must bind exact promoted semantics and a closed typed meaning
   for compiler-produced bytes, including a lossless versioned numeric wire
-  profile; candidate prose cannot serve as that interface.
+  profile; specification prose cannot serve as that interface.
 - `FR-001 -> FR-002`
   Reason: only an admitted profile can be linked into the local representation.
 - `FR-002 -> FR-003, FR-004`
@@ -152,7 +152,7 @@ All Cargo work remains serialized on the shared workstation even when source own
 
 ## Coordination Rules
 
-- Accept A's proposed immutable candidate `1-draft.4` through the composed review and accept the native compiler's versioned compiled-protocol artifact contract, including its lossless numeric wire profile, tracked by [quire-spec-language#40](https://github.com/agent-ix/quire-spec-language/issues/40) before Task-001 writes source or dependency manifests; apply the selected `AGPL-3.0-or-later` policy to all authored implementation and dependencies.
+- Accept and freeze A's coherent composed baseline through the composed review, then accept the native compiler's versioned compiled-protocol artifact contract, including its lossless numeric wire profile, tracked by [quire-spec-language#40](https://github.com/agent-ix/quire-spec-language/issues/40), before Task-001 writes source or dependency manifests; apply the selected `AGPL-3.0-or-later` policy to all authored implementation and dependencies.
 - Keep native Quire grammar, temporal semantics, observation production, producer execution, evidence retention, and qualification disposition in their owning repositories.
 - Freeze each accepted interface revision before its integration task and refuse unknown versions rather than adding compatibility fallbacks.
 - One writer owns the shared representation, refusal, and canonical-result types; consumers merge after those contracts.

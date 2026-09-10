@@ -23,8 +23,9 @@ consumer is this library's strict protocol admission and linking API.
 
 ## Preconditions
 
-The composed baseline has an accepted immutable protocol candidate, and the
-native compiler publishes an accepted versioned compiled-protocol artifact
+The composed specification has an accepted coherent baseline with one frozen
+immutable protocol profile, and the native compiler publishes an accepted
+versioned compiled-protocol artifact
 contract plus exact artifact bytes, producer revision, source revision,
 selected-rule digests, dependency closure, profile, and required features.
 The producer contract also declares one lossless numeric wire profile for native
@@ -33,7 +34,7 @@ signed-64 integers and exact rationals before the consumer reads semantic fields
 ## Inputs
 
 One accepted compiled finite protocol plus changed-version, changed-digest,
-unknown-feature, ambiguous-binding, stale-candidate, unsafe-number,
+unknown-feature, ambiguous-binding, stale-baseline, unsafe-number,
 non-canonical-exact-number and cross-domain-digest variants.
 
 ## Test Procedure
@@ -65,14 +66,14 @@ producer contract directly.
 
 ## Dependencies
 
-The A-owned immutable profile candidate and versioned compiled-protocol artifact
+The A-owned accepted frozen profile and versioned compiled-protocol artifact
 contract must both be accepted. A prose definition or native source file cannot
 substitute for the compiled interface because this repository owns no parser.
 
 ## Notes
 
-The current composed baseline remains draft and existing candidate `1-draft.3`
-predates integrated FR-061/FR-062 bytes, so this test is planned rather than run.
+The current composed specification remains a working draft and has not frozen an
+accepted baseline, so this test is planned rather than run.
 
 ## Traceability
 

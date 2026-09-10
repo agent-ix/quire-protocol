@@ -11,15 +11,15 @@ relationships:
 ## Description
 
 Verify strict admission for exact compiled protocol bytes and refusal for every
-one-axis artifact-contract, producer, candidate, revision, digest, dependency,
-profile, feature, and numeric-wire mutation.
+one-axis artifact-contract, producer, accepted source-baseline, revision, digest,
+dependency, profile, feature, and numeric-wire mutation.
 
 ## Test Procedure
 
-Build one valid retained compiled-artifact fixture after the upstream candidate
+Build one valid retained compiled-artifact fixture after the upstream baseline
 and artifact contract are accepted. Admit it, then independently mutate every
 identity-bearing field, artifact-contract version, and producer revision; replace
-its bytes while resealing an internal field; select every non-promoted candidate
+its bytes while resealing an internal field; select every unaccepted baseline
 state; and remove each required feature. For every compiled integer and exact
 rational field, exercise its own declared minimum and maximum plus zero. Use
 separate fields whose declared source domains admit the signed-64 minimum and

@@ -27,7 +27,7 @@ relationships:
 
 ## Statement
 
-For identical source, candidate/profile, model, compiled-protocol, request,
+For identical source, accepted source-baseline/profile, model, compiled-protocol, request,
 binding, input, observation, decision-scope progress/closure,
 surrounding-execution progress/closure, complete-global-conformance closure,
 producer, implementation, and backend identities, the library SHALL produce
@@ -70,7 +70,7 @@ compare bytes, ordered typed outcomes, and complete provenance.
 | ID | Criteria | Verification |
 | --- | --- | --- |
 | NFR-001-AC-1 | Every permitted map-order, locale, allocation-layout and causally independent arrival-order permutation that preserves all admitted identities produces byte-identical canonical JSON, identical ordered semantic outcomes and complete identical provenance. | Test (TC-008) |
-| NFR-001-AC-2 | Independently changing each named source, candidate/profile, model, compiled-protocol, request, binding, input, observation, decision-scope progress/closure, surrounding-execution progress/closure, complete-global-conformance closure, producer, implementation or backend identity changes the affected result identity or returns a typed refusal. | Test (TC-008) |
+| NFR-001-AC-2 | Independently changing each named source, accepted source-baseline/profile, model, compiled-protocol, request, binding, input, observation, decision-scope progress/closure, surrounding-execution progress/closure, complete-global-conformance closure, producer, implementation or backend identity changes the affected result identity or returns a typed refusal. | Test (TC-008) |
 | NFR-001-AC-3 | Unordered semantic sets use their declared canonical order, while authored sequences and causal order remain unchanged and an identity-changing source presentation is never treated as equivalent. | Test (TC-008) |
 
 ## Dependencies

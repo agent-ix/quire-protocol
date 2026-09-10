@@ -30,8 +30,9 @@ standards_alignment:
 ## 1. Purpose
 
 This specification governs the first-party Rust library that consumes one exact
-promoted native Quire protocol profile and implements its bounded representation,
-compensation, finite conformance, canonical result, and E02 projection contracts.
+accepted and frozen native Quire protocol profile and implements its bounded
+representation, compensation, finite conformance, canonical result, and E02
+projection contracts.
 The authored formal meaning remains in `agent-ix/quire-specification`; this
 repository owns its strict implementation and evidence-backed conformance.
 
@@ -39,7 +40,7 @@ repository owns its strict implementation and evidence-backed conformance.
 
 ### 2.1 In Scope
 
-- Strict admission of one immutable selected protocol profile and dependency closure.
+- Strict admission of one accepted, immutable selected protocol profile and dependency closure.
 - Typed finite protocol representation and identity preservation.
 - Activation, compensation registration, commit, retry, and recovery assessment.
 - Bounded finite global replay and settled incremental conformance.
@@ -164,8 +165,8 @@ review and semantic QUOIN `/gap-analysis` over one unchanged head.
 ## 14. Lifecycle Status
 
 The repository is specification-only. Every test is planned and every
-implementation requirement remains unimplemented until the source candidate,
-license, specification review, and implementation plan gates close.
+implementation requirement remains unimplemented until the accepted source
+baseline, license, specification review, and implementation plan gates close.
 
 ## 15. Governance Notes
 
@@ -179,4 +180,3 @@ agent's owned producer or evidence surface.
 - `agent-ix/quire-verification` FR-007 and `quire-verification/e02-draft-2`.
 - `agent-ix/engineering-assurance` issue 34 producer-execution boundary.
 - `agent-ix/quire-research` PT01, PT02, E03, and setup issue 33.
-

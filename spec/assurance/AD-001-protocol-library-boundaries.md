@@ -67,7 +67,7 @@ digests join these components without merging their authority.
 
 ## Risks
 
-- The composed source baseline is still draft; A owns the new immutable candidate.
+- The composed source remains a working draft; A owns acceptance and the coherent baseline freeze.
 - The current composed proposal defines semantic profiles but no accepted
   versioned compiled-protocol artifact interface; admission cannot parse prose or source.
 - F's current result consumer omits canonical progress, closure, settlement, and support facts.

@@ -26,7 +26,7 @@ substitution, or identity reinterpretation.
 - [ ] Retain every producer identity and source reference through the public API.
 - [ ] Round-trip field-boundary and admitted signed-64/exact-rational values through
   the accepted versioned numeric wire profile without loss or alternate form.
-- [ ] Mutate version, digest, feature, binding, candidate state, numeric
+- [ ] Mutate version, digest, feature, binding, baseline-selection state, numeric
   representation, and digest domain independently and prove refusal precedes evaluation.
 - [ ] Inventory the dependency graph to prove no second frontend participates.
 
