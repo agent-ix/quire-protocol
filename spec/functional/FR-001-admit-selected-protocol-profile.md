@@ -58,7 +58,7 @@ through this artifact's numeric or JCS domain.
 | FR-001-AC-1 | Exact bytes under one accepted compiled-artifact contract, promoted candidate, producer revision, and complete dependency closure are admitted with every identity unchanged. | Test (TC-001) |
 | FR-001-AC-2 | Mutating each artifact-contract, producer, candidate, version, revision, digest, dependency, profile, or required feature independently returns a typed refusal before semantic evaluation. | Test (TC-001) |
 | FR-001-AC-3 | A draft, superseded, unknown, or internally resealed candidate cannot be selected through display-name equality or a locally authored substitute. | Test (TC-001) |
-| FR-001-AC-4 | Every minimum, maximum and exact rational value round-trips without loss under the selected numeric wire profile; an unsafe bare JSON number, non-canonical integer/rational form, out-of-range value, or cross-domain producer-digest substitution refuses before semantic evaluation. | Test (TC-001, IT-001) |
+| FR-001-AC-4 | Every declared numeric minimum and maximum, the signed-64 extrema in fields whose source domains admit them, and every normalized exact-rational boundary round-trip without loss under the selected numeric wire profile; an unsafe bare JSON number, non-canonical integer/rational form, field-domain or signed-64 overflow, or cross-domain producer-digest substitution refuses before semantic evaluation. | Test (TC-001, IT-001) |
 
 ## Dependencies
 

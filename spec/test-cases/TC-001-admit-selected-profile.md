@@ -21,13 +21,15 @@ and artifact contract are accepted. Admit it, then independently mutate every
 identity-bearing field, artifact-contract version, and producer revision; replace
 its bytes while resealing an internal field; select every non-promoted candidate
 state; and remove each required feature. For every compiled integer and exact
-rational field, exercise the declared minimum and maximum plus zero, then
-substitute the signed-64 extrema in the accepted exact form. Independently
-mutate those values to an unsafe bare JSON integer, float, negative zero,
-leading-zero or plus-prefixed decimal, signed-64 overflow, zero/negative rational
-denominator, non-reduced rational and a value that changes across RFC 8785
-serialization and decoding. Replace a producer-owned model/configuration digest
-with an otherwise similar artifact-domain JCS digest.
+rational field, exercise its own declared minimum and maximum plus zero. Use
+separate fields whose declared source domains admit the signed-64 minimum and
+maximum, and encode those extrema in the accepted exact form. Independently
+mutate the values below a field minimum, above a field maximum, to an unsafe bare
+JSON integer, float, negative zero, leading-zero or plus-prefixed decimal,
+signed-64 overflow, zero/negative rational denominator, non-reduced rational and
+a value that changes across RFC 8785 serialization and decoding. Replace a
+producer-owned model/configuration digest with an otherwise similar
+artifact-domain JCS digest.
 
 ## Expected Results
 
