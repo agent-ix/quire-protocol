@@ -11,18 +11,21 @@ relationships:
 ## Description
 
 Verify finite conformance across valid interleavings and every distinct adverse
-observation, progress, completeness, execution, and budget state.
+observation, decision-scope progress/closure, surrounding-execution
+progress/closure, complete-global-conformance closure, completeness, execution,
+and budget state.
 
 ## Test Procedure
 
 Replay the complete accepted branching/compensation corpus in batch and
 incrementally. Permute causally independent events, then inject unexpected,
 missing, misordered, duplicate-effect, cross-workflow, open, incomplete,
-unsupported, failed, and exhausted cases one at a time.
+unsupported, failed, and exhausted cases one at a time. Close decision scope,
+surrounding execution, and complete-global-conformance scope independently, then
+cross-wire each asserted closure identity and progress point.
 
 ## Expected Results
 
 Every valid permutation agrees. Each adverse case names its exact obligation and
-state. No open, incomplete, unsupported, failed, or exhausted case reports
-complete global conformance.
-
+state. Closing one scope does not close either other scope. No open, incomplete,
+unsupported, failed, or exhausted case reports complete global conformance.

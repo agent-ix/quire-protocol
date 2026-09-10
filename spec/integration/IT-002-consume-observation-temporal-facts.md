@@ -14,9 +14,10 @@ relationships:
 
 ## Objective
 
-Verify the F/E-owned observation, progress, closure, and temporal decision facts
-through compensation, finite conformance, and canonical result production
-without duplicating their producer semantics.
+Verify the F/E-owned observation, decision-scope progress/closure,
+surrounding-execution progress/closure, and temporal decision facts through
+compensation, finite conformance, and canonical result production without
+duplicating their producer semantics.
 
 ## Target Integration
 
@@ -42,7 +43,10 @@ mis-correlated observation, duplicate delivery, and late contradiction.
 2. Assess compensation and finite conformance.
    - IT-002-SC-02: every outcome follows only the selected protocol and temporal premises.
 3. Produce canonical results for decisive and non-decisive open prefixes.
-   - IT-002-SC-03: settlement, pending state, support, and surrounding progress remain distinct.
+   - IT-002-SC-03: settlement, pending state, support, decision-scope
+     progress/closure, and surrounding-execution progress/closure remain distinct;
+     independently change each progress/closure axis and require exact retention
+     or typed refusal without cross-scope substitution.
 4. Submit missing, changed, mis-correlated, duplicate, and contradictory facts.
    - IT-002-SC-04: each yields the exact refusal, violation, incompleteness, or linked supersession.
 
@@ -64,10 +68,10 @@ complete canonical-result input shape.
 
 ## Notes
 
-F's current consumer still omits required progress/closure, settlement, and
-decision-support fields; this test remains planned.
+F's composed consumer correction remains unaccepted until its strict-reader tests
+independently discriminate decision-scope and surrounding-execution
+progress/closure; this test remains planned.
 
 ## Traceability
 
 Verifies FR-003, FR-004, and FR-006.
-
