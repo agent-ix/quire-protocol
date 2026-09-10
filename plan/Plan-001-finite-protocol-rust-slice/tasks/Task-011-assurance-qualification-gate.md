@@ -25,9 +25,15 @@ interfaces, then run the complete local assurance gate on one unchanged head.
 
 ## Subtasks
 
-- [ ] Freeze the accepted Engineering Assurance issue 34, E02, and Quoin interface revisions.
+- [ ] Freeze the accepted Engineering Assurance issue 34, E02, Quoin interface,
+  Quoin containment (`quire-research#62`), and shared Rust language-checker
+  (`quire-research#64`) revisions.
 - [ ] Implement IT-003 SC-01 through SC-05 without a local runner, stdout verdict parser, evidence store, catalogue, sufficiency decision, or human disposition path.
-- [ ] Complete TC-010 over executable languages, Cargo metadata, dependencies, workflows, unsafe code, shared boundary symbols, and bare `ix-trace-rs` bindings.
+- [ ] Complete TC-010 with the accepted shared Rust checker over tracked sources,
+  shebangs, manifests, inline workflow commands, generated templates, runtime
+  dependencies, extensionless/renamed paths, Rust-wrapper bypasses, Cargo
+  metadata, workflows, unsafe code, shared boundary symbols, and bare
+  `ix-trace-rs` bindings; add no local scanner.
 - [ ] Run local formatting, denied-warning Clippy, tests, dependency policy, fuzz target compilation, fixture validation, and Quire validation/coverage with one Cargo job under the shared lock.
 - [ ] Apply `/home/peter/dev/agent-skills/rust-review/SKILL.md` and remediate every in-scope finding on the same head.
 - [ ] Run semantic QUOIN `/gap-analysis`, reconcile every task, matrix row, trace, and underspecified symbol, and close every in-scope gap.
