@@ -27,7 +27,7 @@ producer, license, implementation plan, and retained corpus remain explicit gate
 | --- | --- | --- | --- |
 | FR-001 | FR-001-AC-1, FR-001-AC-2, FR-001-AC-3, FR-001-AC-4 | TC-001, IT-001 | 🚧 Planned |
 | FR-002 | FR-002-AC-1, FR-002-AC-2, FR-002-AC-3, FR-002-AC-4 | TC-002, IT-001 | 🚧 Planned |
-| FR-003 | FR-003-AC-1, FR-003-AC-2, FR-003-AC-3, FR-003-AC-4, FR-003-AC-5 | TC-003, IT-002 | 🚧 Planned |
+| FR-003 | FR-003-AC-1, FR-003-AC-2, FR-003-AC-3, FR-003-AC-4, FR-003-AC-5, FR-003-AC-6, FR-003-AC-7 | TC-003, IT-002 | 🚧 Planned |
 | FR-004 | FR-004-AC-1, FR-004-AC-2, FR-004-AC-3, FR-004-AC-4 | TC-004, IT-002 | 🚧 Planned |
 | FR-005 | FR-005-AC-1, FR-005-AC-2, FR-005-AC-3, FR-005-AC-4 | TC-005 | 🚧 Planned |
 | FR-006 | FR-006-AC-1, FR-006-AC-2, FR-006-AC-3, FR-006-AC-4, FR-006-AC-5, FR-006-AC-6 | TC-006, IT-002, IT-003 | 🚧 Planned |

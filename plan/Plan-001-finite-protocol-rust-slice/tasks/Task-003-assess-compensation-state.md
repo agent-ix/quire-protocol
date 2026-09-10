@@ -14,15 +14,24 @@ relationships:
 
 ## Scope
 
-Implement pure activation, effect, registration, retry, commit, and recovery
+Implement pure activation, trigger/capture/anchor binding, effect,
+replay-idempotent registration, retry, commit, and full/partial recovery
 assessment over the linked protocol and accepted producer facts.
 
 ## Subtasks
 
-- [ ] Write TC-003 state-transition and adverse-path cases first.
+- [ ] Write TC-003 activation, state-transition, relation, idempotence, and
+  adverse-path cases first.
+- [ ] Derive triggered, inactive and activation-unknown only from exact
+  workflow/role/effect/predicate/capture/anchor identities and the applicable
+  progress, closure and completeness authority.
 - [ ] Preserve delivery, attempt, effect, registration, commit, and recovery identities as distinct types.
-- [ ] Register compensation only after the paired successful effect and enforce the authored finite retry and commit ordering.
-- [ ] Require exact population and completeness authority for aggregate partial recovery.
+- [ ] Register compensation only after the paired successful effect, preserve one
+  registration when that exact effect is replayed, and enforce authored finite
+  retry and commit ordering.
+- [ ] Evaluate full and partial recovery only through their exact authored
+  relation, captured target and achieved state; require exact population,
+  membership and completeness authority for aggregate partial recovery.
 - [ ] Prove the module performs no business or compensation I/O and derives no fact from successful transport alone.
 
 ## Deliverables
