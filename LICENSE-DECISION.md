@@ -1,20 +1,18 @@
-# License decision before implementation or publication
+# AGPL license decision for implementation
 
-Private bootstrap, 2026-09-10.
+Owner decision, 2026-09-10.
 
-The owner approved the private repository and Rust-only implementation boundary.
-The exact outbound SPDX license for implementation source has not yet been
-selected. The current ecosystem direction includes `AGPL-3.0-or-later` for
-`quire-verification` and Engineering Assurance, while reusable contract/runtime
-libraries retain `MIT OR Apache-2.0`; neither choice is inherited automatically.
+The owner selected **SPDX `AGPL-3.0-or-later`** as the default license for
+protocol implementations. All implementation source, tests, private interface
+drafts, and compatibility fixtures authored in this repository use that exact
+license. The corresponding license text is retained in `LICENSE`.
 
-No implementation source, dependency code, or external protocol library may be
-added until the owner accepts the exact outbound license and compatibility
-review. Existing source grants are preserved and are never relicensed by this
-repository. Repository visibility and license remain separate decisions.
+Before adding a dependency or external protocol artifact, record its exact
+version or revision, applicable license, feature set, provenance, purpose, and
+compatibility with `AGPL-3.0-or-later`. Existing source grants are preserved and
+are never relicensed by this repository. Repository visibility and license
+remain separate decisions.
 
-Every later release needs an included-file inventory, inbound rights, exact
-outbound license, dependency compatibility, notices, generated-content review,
-and explicit publication approval. This private bootstrap authorizes no public
-disclosure.
-
+Every later release needs an included-file inventory, inbound rights, dependency
+compatibility, notices, generated-content review, and explicit publication
+approval. This private decision authorizes no public disclosure.

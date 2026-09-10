@@ -14,6 +14,6 @@ the original evidence.
 
 Before adding a dependency, record its exact version or revision, license,
 feature set, provenance, purpose, and compatibility with the selected outbound
-license. No choreography or protocol implementation is selected for the initial
-finite slice. E03 remains the admission gate for any later specialized library.
-
+`AGPL-3.0-or-later` license. No choreography or protocol implementation is
+selected for the initial finite slice. E03 remains the admission gate for any
+later specialized library.

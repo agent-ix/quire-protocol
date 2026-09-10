@@ -21,6 +21,6 @@ this repository.
 - Run local checks only. Set `CARGO_BUILD_JOBS=1` and use
   `flock /tmp/quire-heavy-check.lock` for heavy Cargo work. Do not dispatch hosted CI.
 - Every GitHub Actions workflow must use `workflow_dispatch` as its only trigger.
-- Do not add implementation code until an exact outbound SPDX license is accepted.
+- License new implementation source and tests as `AGPL-3.0-or-later`; preserve
+  all imported grants and complete dependency compatibility review before use.
 - Preserve source, fixture, generated-artifact, and dependency rights and provenance.
-

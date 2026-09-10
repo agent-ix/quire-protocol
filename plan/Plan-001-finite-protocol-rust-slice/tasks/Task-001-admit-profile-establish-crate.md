@@ -13,14 +13,13 @@ relationships:
 
 ## Scope
 
-After the owner selects the outbound SPDX license and the composed review accepts
-A's proposed immutable native Quire candidate `1-draft.4`, establish the
-deny-by-default Rust library and implement exact profile admission without a
-parser or locally authored formal profile.
+After the composed review accepts A's proposed immutable native Quire candidate
+`1-draft.4`, establish the `AGPL-3.0-or-later`, deny-by-default Rust library and
+implement exact profile admission without a parser or locally authored formal profile.
 
 ## Subtasks
 
-- [ ] Record the selected SPDX license and complete dependency compatibility review before adding `Cargo.toml` or source.
+- [ ] Apply the selected `AGPL-3.0-or-later` license and complete dependency compatibility review before adding `Cargo.toml` or source.
 - [ ] Write TC-001 first with the accepted artifact and every one-axis identity, state, resealing, and feature mutation.
 - [ ] Add the minimal Rust crate with forbidden unsafe code, denied warnings, pinned dependencies, and no automatic workflow trigger.
 - [ ] Recompute all candidate and dependency identities before dependent reads and return the FR-008-compatible typed admission refusal.
@@ -32,6 +31,6 @@ parser or locally authored formal profile.
 
 ## Notes
 
-- Blocked by the owner's exact SPDX decision and acceptance of proposed candidate
-  `1-draft.4`, which carries the integrated FR-061/FR-062 bytes but is not yet adopted.
+- Blocked only by acceptance of proposed candidate `1-draft.4`, which carries the
+  integrated FR-061/FR-062 bytes but is not yet adopted.
 - No source or dependency manifest may be added while either gate remains open.

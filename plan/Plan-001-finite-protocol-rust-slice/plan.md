@@ -44,9 +44,9 @@ relationships:
 
 ## Dependency Graph
 
-- `owner license choice + accepted native Quire candidate 1-draft.4 -> FR-001`
-  Reason: implementation dependencies cannot be selected before the outbound
-  license is fixed, and admission must bind exact promoted bytes that do not yet exist.
+- `accepted native Quire candidate 1-draft.4 -> FR-001`
+  Reason: admission must bind exact promoted bytes; the owner has selected
+  `AGPL-3.0-or-later`, so license selection is no longer an implementation gate.
 - `FR-001 -> FR-002`
   Reason: only an admitted profile can be linked into the local representation.
 - `FR-002 -> FR-003, FR-004`
@@ -151,7 +151,7 @@ All Cargo work remains serialized on the shared workstation even when source own
 
 ## Coordination Rules
 
-- Select the exact SPDX license and accept A's proposed immutable candidate `1-draft.4` through the composed review before Task-001 writes source or dependency manifests.
+- Accept A's proposed immutable candidate `1-draft.4` through the composed review before Task-001 writes source or dependency manifests; apply the selected `AGPL-3.0-or-later` policy to all authored implementation and dependencies.
 - Keep native Quire grammar, temporal semantics, observation production, producer execution, evidence retention, and qualification disposition in their owning repositories.
 - Freeze each accepted interface revision before its integration task and refuse unknown versions rather than adding compatibility fallbacks.
 - One writer owns the shared representation, refusal, and canonical-result types; consumers merge after those contracts.

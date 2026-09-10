@@ -10,9 +10,9 @@ canonical protocol result, and the source-bound projection of that result into
 
 Repository bootstrap, QUOIN specification review, and implementation planning
 are complete. There is no library implementation, released artifact, or
-qualification claim yet. Implementation is gated on an accepted composed Quire
-profile whose immutable candidate pins the reviewed protocol/result rule bytes
-and on an exact outbound license decision.
+qualification claim yet. Implementation uses `AGPL-3.0-or-later` and is gated
+on an accepted composed Quire profile whose immutable candidate pins the
+reviewed protocol/result rule bytes.
 
 ## Boundary
 
