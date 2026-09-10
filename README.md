@@ -8,11 +8,11 @@ canonical protocol result, and the source-bound projection of that result into
 
 ## Status
 
-Repository bootstrap and specification are in progress. There is no library
-implementation, released artifact, or qualification claim yet. Implementation
-is gated on an accepted composed Quire profile whose immutable candidate pins
-the reviewed protocol/result rule bytes, completion of this repository's QUOIN
-specification review and implementation plan, and an exact license decision.
+Repository bootstrap, QUOIN specification review, and implementation planning
+are complete. There is no library implementation, released artifact, or
+qualification claim yet. Implementation is gated on an accepted composed Quire
+profile whose immutable candidate pins the reviewed protocol/result rule bytes
+and on an exact outbound license decision.
 
 ## Boundary
 
@@ -53,4 +53,3 @@ from this repository bootstrap.
 
 See [the specification](spec/spec.md), [contributor instructions](AGENTS.md),
 [license decision](LICENSE-DECISION.md), and [artifact and rights policy](ARTIFACTS.md).
-
