@@ -39,7 +39,7 @@ relationships:
 ### Non-Functional Requirements
 
 - [ ] **NFR-001**: Reproduce semantic results and canonical bytes.
-- [ ] **NFR-002**: Enforce every caller-supplied resource bound.
+- [ ] **NFR-002**: Enforce every authored protocol and caller-supplied resource bound.
 - [ ] **NFR-003**: Preserve the Rust and shared-assurance boundary.
 
 ## Dependency Graph
@@ -86,8 +86,8 @@ by downstream integrations; no adapter may introduce another semantic model.
 - [ ] **TC-005** (FR-005 AC-1..AC-5): keep all requested claim dispositions independent, strictly retain each fragment/backend/assumption/premise/source/derived-artifact tuple, and refuse unsupported or failed backends without fallback.
 - [ ] **TC-006** (FR-006 AC-1..AC-6): enumerate canonical-result rows, strict reads, support topology, independent decision-scope/surrounding-execution progress and closure, decisive settlement, and immutable supersession.
 - [ ] **TC-007** (FR-007 AC-1..AC-5): exercise the total FR-062-to-E02 map, finding preservation, derived identities, adequacy separation, and refusals.
-- [ ] **TC-008** (NFR-001 criteria): prove byte identity across equivalent presentations and discrimination across semantic mutations.
-- [ ] **TC-009** (NFR-002 criteria): probe below, at, and above every owner limit and kill each isolated guard-removal mutant.
+- [ ] **TC-008** (NFR-001-AC-1..AC-3): prove byte identity and ordered-outcome identity across admitted-equivalent presentations while independently discriminating every named semantic identity and preserving authored/causal order.
+- [ ] **TC-009** (NFR-002-AC-1..AC-4): bidirectionally reconcile the complete source-bound resource inventory, probe below/at/above every authored maximum and caller limit, kill inventory and guard mutants, and prove zero business/compensation calls.
 - [ ] **TC-011** (FR-008 AC-1..AC-4): enumerate typed refusal fields, source codes, unknown versions, rendering independence, and partial-output rules.
 
 ### Static and Assurance Test

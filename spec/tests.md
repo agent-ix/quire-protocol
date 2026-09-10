@@ -39,7 +39,7 @@ producer, license, implementation plan, and retained corpus remain explicit gate
 | Non-Functional Req | Verification Method | Evidence/Test Cases | Status |
 | --- | --- | --- | --- |
 | NFR-001 | Property and metamorphic testing | TC-008 | 🚧 Planned |
-| NFR-002 | Property and mutation testing | TC-009 | 🚧 Planned |
+| NFR-002 | Property, mutation, and source-bound inventory inspection | TC-009 | 🚧 Planned |
 | NFR-003 | Static analysis, architecture inspection, Rust review, Quire coverage, gap analysis | TC-010, IT-003 | 🚧 Planned |
 
 ## Integration Coverage
@@ -61,8 +61,8 @@ producer, license, implementation plan, and retained corpus remain explicit gate
 | TC-005 | Separate protocol claim dispositions | Property | P0 | FR-005 | 🚧 Planned |
 | TC-006 | Produce and strictly read canonical protocol results | Property | P0 | FR-006 | 🚧 Planned |
 | TC-007 | Project canonical protocol results to E02 | Property | P0 | FR-007 | 🚧 Planned |
-| TC-008 | Reproduce results under equivalent presentations | Property | P0 | NFR-001 | 🚧 Planned |
-| TC-009 | Enforce every protocol resource boundary | Property | P0 | NFR-002 | 🚧 Planned |
+| TC-008 | Reproduce results under equivalent presentations | Property | P0 | NFR-001-AC-1..NFR-001-AC-3 | 🚧 Planned |
+| TC-009 | Enforce every protocol resource boundary | Property | P0 | NFR-002-AC-1..NFR-002-AC-4 | 🚧 Planned |
 | TC-010 | Preserve Rust and shared assurance containment | Static | P0 | NFR-003 | 🚧 Planned |
 | TC-011 | Return typed refusals without text parsing | Property | P0 | FR-008 | 🚧 Planned |
 
