@@ -82,9 +82,9 @@ by downstream integrations; no adapter may introduce another semantic model.
 - [ ] **TC-001** (FR-001 AC-1..AC-4): accept only exact promoted profile bytes and reject every one-axis identity, state, feature, unsafe-number, non-canonical exact-number, field/signed-64 overflow, invalid-rational, and cross-domain digest mutation.
 - [ ] **TC-002** (FR-002 AC-1..AC-4): link typed identities, legal interleavings, joins, bounded iteration, channel premises, and visible choices; reject each invalid graph mutation.
 - [ ] **TC-003** (FR-003 AC-1..AC-5): discriminate effects, attempts, registration, commits, retries, recovery, missing authority, and business-I/O purity.
-- [ ] **TC-004** (FR-004 AC-1..AC-4): compare batch and incremental finite conformance over legal permutations and every adverse execution state.
+- [ ] **TC-004** (FR-004 AC-1..AC-4): compare batch and incremental finite conformance over legal permutations, independently varied decision-scope/surrounding/global-conformance closure, and every adverse execution state.
 - [ ] **TC-005** (FR-005 AC-1..AC-4): keep all requested claim dispositions independent and refuse unsupported or failed backends without fallback.
-- [ ] **TC-006** (FR-006 AC-1..AC-6): enumerate canonical-result rows, strict reads, support topology, decisive settlement, and immutable supersession.
+- [ ] **TC-006** (FR-006 AC-1..AC-6): enumerate canonical-result rows, strict reads, support topology, independent decision-scope/surrounding-execution progress and closure, decisive settlement, and immutable supersession.
 - [ ] **TC-007** (FR-007 AC-1..AC-5): exercise the total FR-062-to-E02 map, finding preservation, derived identities, adequacy separation, and refusals.
 - [ ] **TC-008** (NFR-001 criteria): prove byte identity across equivalent presentations and discrimination across semantic mutations.
 - [ ] **TC-009** (NFR-002 criteria): probe below, at, and above every owner limit and kill each isolated guard-removal mutant.

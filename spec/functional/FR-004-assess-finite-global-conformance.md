@@ -18,12 +18,15 @@ relationships:
 
 When finite global conformance is requested, the evaluator SHALL assess the exact
 admitted observation history against the linked protocol's causal, channel,
-activation, compensation, progress, completeness, and closure premises.
+activation, compensation, decision-scope progress/closure,
+surrounding-execution progress/closure, completeness, and declared
+complete-global-conformance premises.
 
 ## Inputs
 
 A linked finite protocol, bound observation history, exact assessment request,
-progress/closure facts, resource budget, and evaluator identity.
+independent decision-scope and surrounding-execution progress/closure facts,
+resource budget, and evaluator identity.
 
 ## Outputs
 
@@ -35,8 +38,11 @@ incomplete, refused, failed, unsupported, or exhausted causes.
 The evaluator SHALL accept every observation order permitted by the authored
 partial order. It SHALL report unexpected, missing, misordered, duplicated, and
 mis-correlated observations without repairing them. The evaluator SHALL NOT
-report complete global success for an open or incomplete history. Batch replay and settled incremental
-assessment over identical semantic inputs SHALL produce the same result.
+report complete global success until the selected complete-global-conformance
+closure and completeness premises hold. Closing a decision scope SHALL NOT close
+the surrounding execution or establish complete global conformance. Batch replay
+and settled incremental assessment over identical semantic inputs SHALL produce
+the same result.
 
 ## Acceptance Criteria
 
@@ -44,7 +50,7 @@ assessment over identical semantic inputs SHALL produce the same result.
 | --- | --- | --- |
 | FR-004-AC-1 | Every permitted split-shipment and compensation interleaving produces the same conformant obligation set. | Test (TC-004) |
 | FR-004-AC-2 | Unexpected, missing, causally misordered, duplicate-effect, and cross-workflow observations identify the exact affected obligation. | Test (TC-004) |
-| FR-004-AC-3 | Open, incomplete, unsupported, failed, and exhausted assessments cannot become complete global success. | Test (TC-004) |
+| FR-004-AC-3 | Decision-scope progress/closure, surrounding-execution progress/closure and complete-global-conformance closure remain independent; changing or closing one cannot close another, and open, incomplete, unsupported, failed or exhausted assessments cannot become complete global success. | Test (TC-004) |
 | FR-004-AC-4 | Batch replay and settled incremental assessment are semantically identical for every permutation of the same admitted facts. | Test (TC-004) |
 
 ## Dependencies

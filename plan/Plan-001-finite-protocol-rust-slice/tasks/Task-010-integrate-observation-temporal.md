@@ -16,15 +16,18 @@ relationships:
 
 ## Scope
 
-Exercise accepted F/E-owned progress, closure, settlement, decision-support,
-observation, and temporal facts through compensation, conformance, and canonical results.
+Exercise accepted F/E-owned decision-scope and surrounding-execution
+progress/closure, settlement, decision-support, observation, and temporal facts
+through compensation, conformance, and canonical results.
 
 ## Subtasks
 
 - [ ] Freeze exact accepted observation and temporal producer revisions with all canonical-result input dimensions.
 - [ ] Implement IT-002 SC-01 through SC-04 as Rust integration tests.
 - [ ] Preserve producer identities and authorities without deriving missing facts or copying producer semantics.
-- [ ] Exercise decisive and non-decisive open prefixes, missing support, changed closure, mis-correlation, duplication, and late contradiction.
+- [ ] Exercise decisive and non-decisive open prefixes, missing support,
+  independently changed or cross-wired decision-scope/surrounding-execution
+  progress and closure, mis-correlation, duplication, and late contradiction.
 - [ ] Prove every adverse case yields its exact refusal, violation, incompleteness, or immutable supersession outcome.
 
 ## Deliverables

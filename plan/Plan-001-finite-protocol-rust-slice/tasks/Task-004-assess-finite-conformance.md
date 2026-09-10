@@ -16,13 +16,17 @@ relationships:
 ## Scope
 
 Implement bounded batch and settled-incremental conformance over the finite graph,
-compensation facts, execution progress, and completeness authority.
+compensation facts, independent decision-scope and surrounding-execution
+progress/closure, completeness authority, and declared complete-global-conformance
+closure.
 
 ## Subtasks
 
 - [ ] Write TC-004 batch/incremental equivalence and legal-interleaving model cases first.
 - [ ] Report unexpected, missing, misordered, duplicate-effect, cross-workflow, and compensation violations against exact obligations.
-- [ ] Keep open, incomplete, unsupported, failed, and exhausted outcomes distinct from complete conformance.
+- [ ] Keep decision-scope progress/closure, surrounding-execution
+  progress/closure, complete-global-conformance closure, and open, incomplete,
+  unsupported, failed and exhausted outcomes independently observable.
 - [ ] Ensure decisive open-subject results require the selected temporal rule and all declared decision support.
 - [ ] Exercise every boundary with deterministic scheduling and no hidden wall-clock ordering premise.
 
