@@ -81,7 +81,7 @@ by downstream integrations; no adapter may introduce another semantic model.
 
 - [ ] **TC-001** (FR-001 AC-1..AC-4): accept only exact promoted profile bytes and reject every one-axis identity, state, feature, unsafe-number, non-canonical exact-number, field/signed-64 overflow, invalid-rational, and cross-domain digest mutation.
 - [ ] **TC-002** (FR-002 AC-1..AC-4): link every FR-050..FR-054 typed identity, legal interleaving, join, bounded progress/termination, channel premise, and owned visible choice; reject each invalid source mutation and discriminate semantic from presentation changes.
-- [ ] **TC-003** (FR-003 AC-1..AC-5): discriminate effects, attempts, registration, commits, retries, recovery, missing authority, and business-I/O purity.
+- [ ] **TC-003** (FR-003 AC-1..AC-7): discriminate trigger/capture/anchor activation, effects, replay-idempotent registration, commits, retries, full/partial recovery relations, population authority, missing inputs, and business-I/O purity.
 - [ ] **TC-004** (FR-004 AC-1..AC-4): compare batch and incremental finite conformance over legal permutations, independently varied decision-scope/surrounding/global-conformance closure, and every adverse execution state.
 - [ ] **TC-005** (FR-005 AC-1..AC-4): keep all requested claim dispositions independent and refuse unsupported or failed backends without fallback.
 - [ ] **TC-006** (FR-006 AC-1..AC-6): enumerate canonical-result rows, strict reads, support topology, independent decision-scope/surrounding-execution progress and closure, decisive settlement, and immutable supersession.
