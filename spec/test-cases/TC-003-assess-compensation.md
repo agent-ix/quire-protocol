@@ -25,6 +25,11 @@ post-commit compensation, bounded and one-over retries, timed-out attempt, and
 duplicate effect. Evaluate the same achieved state under authored full-restoration
 and partial-recovery relations, then vary captured targets, relationship,
 population membership, and completeness authority independently.
+Run every assessment with action-capable business-operation and compensation-
+operation doubles and assert their zero-call counters. Mutate the evaluator API
+and dependency inventory independently to admit one network, storage, telemetry,
+business-operation, or compensation-operation capability, and require the
+purity boundary test to reject each mutation before assessment.
 
 ## Expected Results
 
@@ -32,5 +37,5 @@ Activation states and every captured identity remain exact. Only the paired
 successful effect creates one registration, including after replay. Each
 attempt/effect and ordering outcome remains distinct; full and partial recovery
 follow only their exact authored relation and complete inputs; missing authority
-cannot become success. A static implementation audit finds no network, storage,
-telemetry, business-operation, or compensation-operation I/O.
+cannot become success. Every action-capable counter remains zero, and each
+I/O-capability API or dependency mutation fails for its intended reason.
