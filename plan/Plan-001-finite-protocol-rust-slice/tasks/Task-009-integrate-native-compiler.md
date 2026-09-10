@@ -16,14 +16,18 @@ relationships:
 ## Scope
 
 Exercise the accepted A-owned compiler artifact through admission and linking
-without adding a parser, source frontend, or identity reinterpretation.
+without adding a parser, source frontend, numeric reinterpretation, digest-domain
+substitution, or identity reinterpretation.
 
 ## Subtasks
 
 - [ ] Freeze the exact accepted compiler artifact contract and fixture revisions.
-- [ ] Implement IT-001 SC-01 through SC-04 as Rust integration tests.
+- [ ] Implement IT-001 SC-01 through SC-05 as Rust integration tests.
 - [ ] Retain every producer identity and source reference through the public API.
-- [ ] Mutate version, digest, feature, binding, and candidate state independently and prove refusal precedes evaluation.
+- [ ] Round-trip field-boundary and admitted signed-64/exact-rational values through
+  the accepted versioned numeric wire profile without loss or alternate form.
+- [ ] Mutate version, digest, feature, binding, candidate state, numeric
+  representation, and digest domain independently and prove refusal precedes evaluation.
 - [ ] Inventory the dependency graph to prove no second frontend participates.
 
 ## Deliverables
