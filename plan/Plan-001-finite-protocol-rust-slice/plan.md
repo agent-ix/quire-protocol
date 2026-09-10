@@ -83,7 +83,7 @@ by downstream integrations; no adapter may introduce another semantic model.
 - [ ] **TC-002** (FR-002 AC-1..AC-4): link every FR-050..FR-054 typed identity, legal interleaving, join, bounded progress/termination, channel premise, and owned visible choice; reject each invalid source mutation and discriminate semantic from presentation changes.
 - [ ] **TC-003** (FR-003 AC-1..AC-7): discriminate trigger/capture/anchor activation, effects, replay-idempotent registration, commits, retries, full/partial recovery relations, population authority, missing inputs, and business-I/O purity.
 - [ ] **TC-004** (FR-004 AC-1..AC-4): compare batch and incremental finite conformance over legal permutations, independently varied decision-scope/surrounding/global-conformance closure, and every adverse execution state.
-- [ ] **TC-005** (FR-005 AC-1..AC-4): keep all requested claim dispositions independent and refuse unsupported or failed backends without fallback.
+- [ ] **TC-005** (FR-005 AC-1..AC-5): keep all requested claim dispositions independent, strictly retain each fragment/backend/assumption/premise/source/derived-artifact tuple, and refuse unsupported or failed backends without fallback.
 - [ ] **TC-006** (FR-006 AC-1..AC-6): enumerate canonical-result rows, strict reads, support topology, independent decision-scope/surrounding-execution progress and closure, decisive settlement, and immutable supersession.
 - [ ] **TC-007** (FR-007 AC-1..AC-5): exercise the total FR-062-to-E02 map, finding preservation, derived identities, adequacy separation, and refusals.
 - [ ] **TC-008** (NFR-001 criteria): prove byte identity across equivalent presentations and discrimination across semantic mutations.

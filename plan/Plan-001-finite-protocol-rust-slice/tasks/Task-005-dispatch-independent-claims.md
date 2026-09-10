@@ -22,6 +22,9 @@ unsupported, failed, and independently established outcomes without fallback pro
 - [ ] Write TC-005 controls for every supported and unsupported claim combination first.
 - [ ] Define separate conformance, monitorability, projection, realizability, refinement, and composition dispositions.
 - [ ] Reject circular assumptions and backend identity/version mismatches before dispatch.
+- [ ] Retain and strictly match each claim's exact admitted fragment, backend,
+  assumptions, communication/visibility/environment premises, source identities,
+  and derived-artifact correspondence.
 - [ ] Preserve finite conformance when another requested claim is unsupported or fails.
 - [ ] Verify no local heuristic or alternate backend converts a missing capability into success.
 
