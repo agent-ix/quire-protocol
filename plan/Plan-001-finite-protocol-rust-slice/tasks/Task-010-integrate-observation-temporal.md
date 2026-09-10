@@ -1,0 +1,36 @@
+---
+id: Task-010
+title: "Integrate observation and temporal facts"
+type: Task
+status: blocked
+track: B
+priority: P0
+relationships:
+  - { target: ix://agent-ix/quire-protocol/Task-006, type: depends_on }
+  - { target: ix://agent-ix/quire-protocol/FR-003, type: references }
+  - { target: ix://agent-ix/quire-protocol/FR-004, type: references }
+  - { target: ix://agent-ix/quire-protocol/FR-006, type: references }
+  - { target: ix://agent-ix/quire-protocol/IT-002, type: verifies }
+---
+# Task-010: Integrate Observation and Temporal Facts
+
+## Scope
+
+Exercise accepted F/E-owned progress, closure, settlement, decision-support,
+observation, and temporal facts through compensation, conformance, and canonical results.
+
+## Subtasks
+
+- [ ] Freeze exact accepted observation and temporal producer revisions with all canonical-result input dimensions.
+- [ ] Implement IT-002 SC-01 through SC-04 as Rust integration tests.
+- [ ] Preserve producer identities and authorities without deriving missing facts or copying producer semantics.
+- [ ] Exercise decisive and non-decisive open prefixes, missing support, changed closure, mis-correlation, duplication, and late contradiction.
+- [ ] Prove every adverse case yields its exact refusal, violation, incompleteness, or immutable supersession outcome.
+
+## Deliverables
+
+- Pinned producer contracts, Rust IT-002 harness and fixtures, adverse-path controls, and trace bindings.
+
+## Notes
+
+- Blocked by Task-006, F's complete canonical-result consumer, and the accepted temporal profile.
