@@ -18,7 +18,7 @@ discrimination across semantic mutations.
 Generate map-member-order, locale, allocation-layout, and permitted causally
 independent arrival-order permutations while preserving all admitted identities,
 authored sequences, and causal order. Then independently mutate the source,
-candidate/profile, model, compiled-protocol, request, binding, input,
+accepted source-baseline/profile, model, compiled-protocol, request, binding, input,
 observation, each decision-scope and surrounding-execution progress/closure
 axis, complete-global-conformance closure, producer, implementation, and backend
 identity.

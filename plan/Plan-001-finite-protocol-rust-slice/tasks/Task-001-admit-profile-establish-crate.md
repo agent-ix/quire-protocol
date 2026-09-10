@@ -13,8 +13,8 @@ relationships:
 
 ## Scope
 
-After the composed review accepts A's proposed immutable native Quire candidate
-`1-draft.4` and [quire-spec-language#40](https://github.com/agent-ix/quire-spec-language/issues/40)
+After the composed review accepts and freezes A's coherent native Quire baseline
+and [quire-spec-language#40](https://github.com/agent-ix/quire-spec-language/issues/40)
 publishes an accepted versioned compiled-protocol artifact contract, establish the
 `AGPL-3.0-or-later`, deny-by-default
 Rust library and implement exact profile admission without a parser or locally
@@ -29,17 +29,17 @@ through the contract's lossless numeric wire profile.
   producer, identity, state, resealing, feature, unsafe-number,
   non-canonical-number, boundary, invalid-rational, and digest-domain mutation.
 - [ ] Add the minimal Rust crate with forbidden unsafe code, denied warnings, pinned dependencies, and no automatic workflow trigger.
-- [ ] Recompute all candidate and dependency identities before dependent reads and return the FR-008-compatible typed admission refusal.
+- [ ] Recompute all accepted-baseline and dependency identities before dependent reads and return the FR-008-compatible typed admission refusal.
 - [ ] Bind every acceptance test to FR-001 and its upstream source obligations with bare `ix-trace-rs` declarations.
 
 ## Deliverables
 
-- Reviewed license record, Rust crate boundary, selected candidate fixture, strict admission API, and TC-001.
+- Reviewed license record, Rust crate boundary, accepted-baseline fixture, strict admission API, and TC-001.
 
 ## Notes
 
-- Blocked by acceptance of proposed candidate `1-draft.4`, which carries the
-  integrated FR-061/FR-062 bytes but is not yet adopted, and by the A-owned
+- Blocked by acceptance and exact freeze of the coherent composed baseline, which
+  must carry the integrated FR-061/FR-062 semantics, and by the A-owned
   versioned compiled-protocol artifact contract and numeric wire profile tracked by
   [quire-spec-language#40](https://github.com/agent-ix/quire-spec-language/issues/40).
 - No source or dependency manifest may be added while either source gate remains open.
