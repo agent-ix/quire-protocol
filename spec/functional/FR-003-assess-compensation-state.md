@@ -56,7 +56,7 @@ successful business effect or recovery relation.
 | FR-003-AC-4 | Failed, timed-out, duplicate and successful compensation attempts/effects remain distinct and retain their exact attempt, effect and registration identities. | Test (TC-003) |
 | FR-003-AC-5 | An achieved partial state may satisfy an authored partial-recovery relation while failing full restoration; either success requires the exact authored relation, captured target, achieved state and applicable complete population. | Test (TC-003) |
 | FR-003-AC-6 | Missing trigger, state, effect, commit, population, membership or completeness authority cannot produce activation, registration or recovery success. | Test (TC-003) |
-| FR-003-AC-7 | The implementation performs no network, storage, telemetry, business-operation or compensation-operation I/O while assessing compensation. | Analysis (TC-003) |
+| FR-003-AC-7 | The implementation performs no network, storage, telemetry, business-operation or compensation-operation I/O while assessing compensation. | Test (TC-003, TC-009) |
 
 ## Dependencies
 

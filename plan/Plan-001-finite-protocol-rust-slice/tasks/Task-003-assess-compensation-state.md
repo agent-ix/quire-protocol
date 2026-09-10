@@ -32,7 +32,9 @@ assessment over the linked protocol and accepted producer facts.
 - [ ] Evaluate full and partial recovery only through their exact authored
   relation, captured target and achieved state; require exact population,
   membership and completeness authority for aggregate partial recovery.
-- [ ] Prove the module performs no business or compensation I/O and derives no fact from successful transport alone.
+- [ ] Prove with zero-call action-capable doubles and API/dependency mutations
+  that the module admits no network, storage, telemetry, business-operation, or
+  compensation-operation I/O and derives no fact from successful transport alone.
 
 ## Deliverables
 
