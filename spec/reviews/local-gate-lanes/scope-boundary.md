@@ -1,5 +1,5 @@
 ---
-id: SR-025
+id: SR-029
 title: "Scope review of the local verification gate definition"
 type: SpecReview
 analysis: scope-boundary

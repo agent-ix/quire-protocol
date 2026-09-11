@@ -1,5 +1,5 @@
 ---
-id: SR-026
+id: SR-030
 title: "EARS review of the local verification gate definition"
 type: SpecReview
 analysis: ears-conformance
