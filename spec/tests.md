@@ -63,7 +63,7 @@ change the planned status of FR-001, FR-002, or IT-001's full scenario matrix.
 | Test ID | Title | Type | Priority | Traces To | Status |
 | --- | --- | --- | --- | --- | --- |
 | TC-001 | Admit only the selected protocol profile | Property | P0 | FR-001 | 🚧 Planned |
-| TC-002 | Link and discriminate finite protocol structure | Property | P0 | FR-002 | 🚧 Planned |
+| TC-002 | Link and discriminate finite protocol structure | Property | P0 | FR-002 | 🚧 Planned (FR-002-AC-1 identity set executing; AC-2..AC-4 unwritten) |
 | TC-003 | Assess compensation, retry, commit, and recovery | Property | P0 | FR-003 | 🚧 Planned |
 | TC-004 | Assess finite global conformance | Property | P0 | FR-004 | 🚧 Planned |
 | TC-005 | Separate protocol claim dispositions | Property | P0 | FR-005 | 🚧 Planned |
