@@ -4,7 +4,7 @@ title: "Failure-domain review of the reproduction record (chunk C-31)"
 type: SpecReview
 analysis: failure-domain
 scope: "NFR-001-AC-1..AC-3 and issue #10 box 5, as implemented by `src/repro.rs` and `tests/tc_008_reproduction_record.rs` on `agent-b/c31-repro-identities` over base 48db0398d60523f15eb97978d919673cf27cde40"
-review_set: partial
+review_set: subset
 relationships:
   - { target: ix://agent-ix/quire-protocol/NFR-001, type: reviews }
 ---
@@ -22,6 +22,44 @@ The review found no unresolved defaulting path in the module. Two structural
 gaps are recorded as follow-ups rather than fixed here, because they belong to
 chunks that own the files concerned.
 
+## Verdict
+
+**CONDITIONAL** — no unresolved high finding remains. The `high` rows below are
+recorded at the severity of the defect class they close, which is this repo's
+existing SpecReview convention (see SR-002); each is resolved inside this change
+and evidenced by a named test. The findings still open are two `medium` and two
+`low`, every one of them routed to the chunk that owns the file concerned rather
+than fixed across an ownership boundary.
+
+## Assurance Context
+
+`AP-001` (`spec/assurance/AP-001-protocol-implementation.md`, `profile_version:
+0.2`, `status: proposed`) applies: its scope is one exact `quire-protocol` Rust
+candidate, and its `impact-identity-substitution` assessment — changed source,
+dependency, observation, profile, result or adapter bytes retaining an accepted
+identity, severity `critical`, control reference `NFR-001` — is the impact this
+change's controls sit under.
+
+* **Evaluated revision.** Worktree `agent-b/c31-repro-identities`, change
+  `src/repro.rs` + `tests/tc_008_reproduction_record.rs`, over base
+  `agent-b/c00-lib-facade` at `48db039`. The diff is the evaluated unit; no
+  other path in the repository was changed or evaluated.
+* **Context examined.** `AP-001` impact assessments; `NFR-001` and its three
+  acceptance criteria; `TC-008`; the `TM-001` TC-008 row; the module-ownership
+  boundaries recorded in `src/lib.rs`.
+* **Context unavailable.** Selected architecture, measurement, independence and
+  producer-reliance evidence for `AP-001` is unavailable at this revision: the
+  canonical result record (`src/result/`, chunk C-26), the refusal envelope
+  (`src/refusal/`, chunk C-01) and the RFC 8785 result-domain digest
+  (`src/digest/jcs.rs`, chunk C-11) are all unlanded on this base, so no
+  end-to-end identity-substitution path exists yet to measure against. This
+  change contributes one control under `impact-identity-substitution` and does
+  not discharge it.
+* **Structural-gap evidence.** Two structural gaps are recorded as open findings
+  (FND-007, FND-008) rather than closed.
+* **Active exceptions.** None. No `#[allow]`, no advisory waiver, no gate
+  narrowed or skipped by this change.
+
 ## Findings
 
 | ID | Severity | Summary | Refs |
@@ -34,7 +72,8 @@ chunks that own the files concerned.
 | FND-006 | low | Resolved: the enums are closed, not `#[non_exhaustive]`, and the reason is documented in the module header and the pull-request body. Weighing C-07's precedent: a `#[non_exhaustive]` enum forces downstream wildcard arms, and a wildcard arm silently absorbs a variant added later — which would defeat the independent assertability this chunk exists to deliver. Every `match` in the module is exhaustive with no `_` arm, and a static test rejects `_ =>` on any executable line. | NFR-001; TC-008 |
 | FND-007 | medium | Open, routed to chunk C-01: this module defines its own `ReproductionRefusal` enum with B-owned stable codes rather than an envelope, because `src/refusal/` is owned by chunk C-01 (SR-032) and is unlanded on this base. The five codes are expected to map into `ProtocolRefusal` in the `result` domain once C-01 lands. No envelope was built here. | FR-008-AC-1 |
 | FND-008 | medium | Open, routed to chunk C-30: `ToolchainIdentity` and `CorpusIdentity` retain caller-supplied `Vec<u8>` and `String` with no length bound, so they are unbounded retention sites under NFR-002-AC-3. They are flagged here rather than bounded, because the resource-site inventory and its boundary cases belong to C-30 over C-29's guard framework. | NFR-002-AC-3 |
-| FND-009 | low | Open, routed to chunk C-26: the record is standalone in `src/repro.rs` and is not yet embedded as provenance on the canonical protocol result, because `src/result/` is owned by C-26 and is unlanded. NFR-001-AC-1's requirement that equivalent presentations produce "complete identical provenance" therefore remains planned, not executed. | FR-006-AC-1; NFR-001-AC-1 |
+| FND-009 | low | Open, no owner needed: `ReproductionRefusal::ALL` cannot be compile-checked against the enum without a derive macro, and this crate's dependency set is closed (COLLISION-7 gives the one `Cargo.toml` slot in this wave to chunk C-11). A sixth variant would still force three exhaustive matches to be edited and would break the asserted `ALL.len()`, so the omission is loud rather than silent; the limitation and the hand-edit it implies are documented on the constant. | NFR-001; TC-008 |
+| FND-010 | low | Open, routed to chunk C-26: the record is standalone in `src/repro.rs` and is not yet embedded as provenance on the canonical protocol result, because `src/result/` is owned by C-26 and is unlanded. NFR-001-AC-1's requirement that equivalent presentations produce "complete identical provenance" therefore remains planned, not executed. | FR-006-AC-1; NFR-001-AC-1 |
 
 ## Coverage assessed
 

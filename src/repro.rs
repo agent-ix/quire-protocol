@@ -325,6 +325,13 @@ pub enum ReproductionRefusal {
 
 impl ReproductionRefusal {
     /// Every refusal this module can produce.
+    ///
+    /// Rust cannot compile-check that this array covers the enum without a
+    /// derive macro, and this crate's dependency set is closed, so a new
+    /// variant must be added here by hand. The three exhaustive matches below
+    /// (`code`, `input_kind`, `is_absence`) each fail to compile until the new
+    /// variant is considered, and `tc_008_every_refusal_has_its_own_code_and_kind`
+    /// asserts this array's length, so the omission is loud rather than silent.
     pub const ALL: [Self; 5] = [
         Self::SeedAbsent,
         Self::ToolchainIdentityAbsent,

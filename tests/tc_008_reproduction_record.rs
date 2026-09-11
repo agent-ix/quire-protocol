@@ -403,7 +403,13 @@ fn tc_008_every_refusal_has_its_own_code_and_kind() {
     );
 }
 
-/// Tracing: TC-008, NFR-001-AC-2, NFR-003-AC-2, Task-008.
+/// Tracing: TC-008, NFR-001-AC-2, Task-008.
+///
+/// A source-inspection test, and deliberately supplementary: the *behaviour* of
+/// a defaulted seed is already caught by `tc_008_absent_seed_refuses_with_its_own_code`
+/// and `tc_008_absent_seed_never_becomes_zero`. What no runtime path can reach
+/// is the construct's absence from code paths that do not exist yet, which is
+/// what this test holds closed for every future edit to the module.
 #[test]
 #[trace("TC-008", "NFR-001-AC-2", "Task-008")]
 fn tc_008_reproduction_module_contains_no_default_or_fallback_read() {
