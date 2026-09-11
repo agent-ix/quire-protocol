@@ -8,6 +8,42 @@
 
 #![forbid(unsafe_code)]
 
+// ---------------------------------------------------------------------------
+// Facade reservation (chunk C-00).
+//
+// Every module the planned chunk set needs is declared here in one commit so
+// that no later PR has to edit this file to introduce its module (COLLISION-1).
+// Each module below is empty and documents the chunk that owns its body; a
+// module is declared here only so that its owner can fill it without touching
+// the facade. After this commit `src/lib.rs` changes only to append a
+// re-export, in the module order established here.
+// ---------------------------------------------------------------------------
+
+/// Count, allocation and deadline guards. Owner chunk: C-29 (submodule: C-30).
+pub mod bounds;
+/// Claim disposition product type and registry. Owner chunk: C-22 (submodules: C-23, C-24).
+pub mod claims;
+/// Five-axis closure and outcome lattice. Owner chunk: C-15.
+pub mod closure;
+/// Compensation algebra, purity, activation and recovery. Owner chunks: C-16..C-19.
+pub mod compensation;
+/// Batch and settled-incremental conformance evaluation. Owner chunks: C-20, C-21.
+pub mod conformance;
+/// Producer-domain and result-domain digests. Owner chunks: C-10, C-11.
+pub mod digest;
+/// Protocol identity newtypes. Owner chunk: C-07.
+pub mod ids;
+/// Independently selected inventory and axis discrimination. Owner chunks: C-04, C-05.
+pub mod inventory;
+/// Finite linked-protocol graph and its located diagnostics. Owner chunks: C-12, C-13.
+pub mod link;
+/// B-owned typed refusal envelope. Owner chunk: C-01 (submodules: C-02, C-03).
+pub mod refusal;
+/// Seed, toolchain and corpus reproduction record. Owner chunk: C-31.
+pub mod repro;
+/// Canonical protocol result record. Owner chunk: C-26 (submodules: C-27, C-28).
+pub mod result;
+
 pub use quire_spec_language::protocol_artifact::wire;
 pub use quire_spec_language::protocol_artifact::{
     AdmittedModel, AdmittedPackage, Candidate, Error, Expected, ExpectedDeclaration,
