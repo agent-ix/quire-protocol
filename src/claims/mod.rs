@@ -1,10 +1,152 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Claim disposition product type and registry. Owner chunk: **C-22**.
 //!
-//! C-22 lands conformance, monitorability, projection, realizability, refinement
-//! and composition as six separate dispositions held simultaneously in one
-//! record, each independently `supported | unsupported | failed | established`,
-//! with no aggregate verdict field a caller could mistake for a result.
+//! FR-005 requires the dispatcher to return "one independent execution
+//! disposition per exact claim without inferring a stronger claim". This module
+//! is the record that holds those dispositions: conformance, monitorability,
+//! projection, realizability, refinement and composition, held **simultaneously
+//! and independently** in one value.
+//!
+//! # The defining constraint: there is no aggregate verdict
+//!
+//! [`ClaimDispositions`] exposes **no** field, constant or method whose value is
+//! a single roll-up of the six. No `overall`, no `verdict`, no `ok`, no
+//! `passed`, no `status`, no `is_success`, and no collection whose emptiness is
+//! a verdict. This is the whole point of the chunk: a rolled-up "did it pass"
+//! value is exactly how an unsupported or a refused claim disappears into an
+//! apparent success, and once such an accessor exists every caller reads it in
+//! preference to the six facts it hides.
+//!
+//! A caller that genuinely wants a summary must compute it from all six, in the
+//! open, at the call site — for example by walking [`Claim::ALL`] and
+//! [`ClaimDispositions::establishes`], or by inspecting all six slots of
+//! [`ClaimDispositions::refusal_per_claim`]. That is deliberately more typing
+//! than reading one field, because the summary is the caller's assertion and not
+//! this record's fact.
+//!
+//! Two rules keep the surface honest, and
+//! `tests/tc_005_claim_dispositions.rs` proves both rather than asserting them:
+//!
+//! 1. **Single-claim accessors depend on one field only.** Every accessor that
+//!    takes a [`Claim`] reads that claim's disposition and nothing else, so it
+//!    cannot smuggle a roll-up through a parameter. Proved by varying the other
+//!    five over the whole record space and requiring a bit-identical answer.
+//! 2. **All-claim accessors are injective.** Every accessor that ranges over all
+//!    six returns a value from which all six dispositions can be recovered — it
+//!    is a re-presentation, never a summary. Proved by enumerating all
+//!    5<sup>6</sup> = 15 625 records and requiring 15 625 distinct outputs. An
+//!    accessor that collapsed the six could not be injective, so this test fails
+//!    the moment one is added.
+//!
+//! The two rules are joined by an audit table in the test, and the table is not
+//! allowed to be decorative: every entry must be *called* by the test that
+//! enforces its classification, checked by reading the test's own source. So a
+//! verdict cannot be admitted by classifying it and quietly not testing it.
+//!
+//! Three mutants were run against the finished tests and each was killed:
+//! adding a `pub fn established(self) -> bool` roll-up fails the surface audit;
+//! classifying and wiring that roll-up as an all-claims accessor fails
+//! injectivity (2 images for 15 625 records); and making a single-claim accessor
+//! peek at a second field fails both independence tests.
+//!
+//! [`ClaimDispositions::refusal_per_claim`] returns a fixed-size
+//! `[Option<ClaimRefusal>; 6]` rather than a `Vec` for the same reason: a `Vec`
+//! offers `is_empty()`, which is a one-call verdict. A six-slot array always has
+//! six slots, so a caller must look at each one.
+//!
+//! # Deliberate divergence from the sibling closure lattice
+//!
+//! `crate::closure` (chunk C-15) *does* expose an aggregate — its five axes
+//! together answer one question, "was complete global conformance established",
+//! and its witness type is that answer. The six claim dispositions answer six
+//! unrelated questions. There is no single question for them to answer, so there
+//! is deliberately no equivalent of `complete_global_conformance` here, and no
+//! witness type. The shapes differ because the semantics differ.
+//!
+//! # `NotRequested` is this module's "not required" trap
+//!
+//! C-15's `GlobalConformanceClosure::NotRequired` is a genuine observation that
+//! nevertheless does **not** admit: a claim that never required global closure
+//! never established it. The analogue here is
+//! [`ConformanceDisposition::NotRequested`] and its five siblings. FR-005 is
+//! written for claims that *were* requested, so the plan's four states
+//! (`supported | unsupported | failed | established`) are the requested-claim
+//! states; a fifth state is required because a record must be able to say "this
+//! claim was never requested" without borrowing a state that means something
+//! else. Folding "not requested" into `Unsupported` would be a false statement
+//! about the backend's capability, and folding it into `Failed` would be a false
+//! refusal. Like `NotRequired`, `NotRequested` does not establish anything, and
+//! it carries its own refusal code so that a consumer can branch on it.
+//!
+//! Downstream chunks C-26 and C-27 must branch on claim kind before treating
+//! `NotRequested` as adverse, exactly as PR #33's follow-up 3 requires for
+//! `NotRequired`. This record is what they branch on.
+//!
+//! # Why the six dispositions are six types and not six values of one enum
+//!
+//! Each disposition is its own type ([`ConformanceDisposition`],
+//! [`MonitorabilityDisposition`], …). One shared enum would make the six fields
+//! assignable to each other, so a copy-paste error could silently write the
+//! projection result into the refinement field and no test could see it. With
+//! six types that is a compile error:
+//!
+//! ```compile_fail
+//! use quire_protocol::claims::{ConformanceDisposition, ProjectionDisposition};
+//! let _: ProjectionDisposition = ConformanceDisposition::Established;
+//! ```
+//!
+//! There is also no way to fabricate an establishing state for a claim from
+//! another claim's establishing state:
+//!
+//! ```compile_fail
+//! use quire_protocol::claims::{ClaimDispositions, ConformanceDisposition};
+//! let mut d = ClaimDispositions::NOTHING_REQUESTED;
+//! d.refinement = ConformanceDisposition::Established;
+//! ```
+//!
+//! # Closed enums, not `#[non_exhaustive]`
+//!
+//! Every public enum here is **closed**. The reasoning follows C-07 (PR #37):
+//! `#[non_exhaustive]` forces every downstream `match` to carry a wildcard arm,
+//! and a wildcard arm silently absorbs any variant added later. For this module
+//! that failure is worse than elsewhere, because the variant most likely to be
+//! added is a seventh claim kind or a sixth disposition state — precisely the
+//! thing that must not be quietly classified as "nothing to report". Closed
+//! enums move that classification to compile time: adding a claim breaks
+//! [`Claim::index`], [`Claim::code`], [`ClaimDispositions::state_code`],
+//! [`ClaimDispositions::establishes`] and [`ClaimDispositions::refusal`]; adding
+//! a disposition state breaks that state's `index`, `code`, `establishes` and
+//! `refusal`. No `match` in this module has a `_` arm, and the module denies
+//! `clippy::wildcard_enum_match_arm` so none can be added.
+//!
+//! The cost is real and accepted: a later variant is a breaking change for
+//! downstream crates. B is consumed inside this ecosystem, and a break that
+//! names every site needing a decision is the outcome we want.
+//!
+//! # Known limit of the declared value sets
+//!
+//! [`ClaimDisposition::VALUES`] and [`Claim::ALL`] are hand-declared, and stable
+//! Rust cannot assert at compile time that they list every variant.
+//! `tc_005_declared_value_sets_are_exhaustive` checks their length and
+//! uniqueness, and the exhaustive matches above are the real defence. Closing
+//! the remaining gap needs a derive macro, which needs a `Cargo.toml`
+//! dependency, which is serialised to one chunk per wave (COLLISION-7) — so it
+//! is a follow-up, not a silent omission.
+//!
+//! # Boundary
+//!
+//! This module owns the disposition product type and the claim registry only. It
+//! does not retain admitted fragments, backends or premises (chunk C-23), does
+//! not dispatch, match backends or reject circular assumptions (chunk C-24), and
+//! does not produce a protocol result (chunk C-26). It owns no refusal envelope:
+//! the stable code strings minted here are expected to be mapped into the
+//! repo-wide `ProtocolRefusal` envelope and its refusal-code namespace by chunk
+//! C-01, which owns that namespace.
+
+#![deny(clippy::wildcard_enum_match_arm)]
+
+use core::fmt::Debug;
+use core::hash::Hash;
 
 /// Fragment, backend and premise retention. Owner chunk: **C-23**.
 ///
@@ -19,3 +161,445 @@ pub mod premises;
 /// identity/version mismatches as distinct codes, and the rule that a selected
 /// backend failure invokes no fallback.
 pub mod dispatch;
+
+// ---------------------------------------------------------------------------
+// The claim registry
+// ---------------------------------------------------------------------------
+
+/// The six protocol claims FR-005 names.
+///
+/// Closed on purpose — see the module documentation. A seventh claim fails to
+/// compile in [`Claim::index`], [`Claim::code`], [`ClaimDispositions::state_code`],
+/// [`ClaimDispositions::establishes`] and [`ClaimDispositions::refusal`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Claim {
+    /// Finite conformance of the admitted protocol against its obligations.
+    Conformance,
+    /// Whether the admitted protocol can be monitored as authored.
+    Monitorability,
+    /// Whether the admitted protocol projects onto its participants.
+    Projection,
+    /// Whether an implementation realizing the admitted protocol exists.
+    Realizability,
+    /// Whether the admitted protocol refines its declared abstraction.
+    Refinement,
+    /// Whether the admitted protocol composes with its declared context.
+    Composition,
+}
+
+impl Claim {
+    /// Every claim, in declared order. This order is the reporting order.
+    pub const ALL: [Self; 6] = [
+        Self::Conformance,
+        Self::Monitorability,
+        Self::Projection,
+        Self::Realizability,
+        Self::Refinement,
+        Self::Composition,
+    ];
+
+    /// Declared position of this claim within [`Claim::ALL`].
+    pub fn index(self) -> usize {
+        match self {
+            Self::Conformance => 0,
+            Self::Monitorability => 1,
+            Self::Projection => 2,
+            Self::Realizability => 3,
+            Self::Refinement => 4,
+            Self::Composition => 5,
+        }
+    }
+
+    /// The stable code naming this claim. Distinct across all six.
+    pub fn code(self) -> &'static str {
+        match self {
+            Self::Conformance => "conformance",
+            Self::Monitorability => "monitorability",
+            Self::Projection => "projection",
+            Self::Realizability => "realizability",
+            Self::Refinement => "refinement",
+            Self::Composition => "composition",
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// The disposition contract
+// ---------------------------------------------------------------------------
+
+/// One claim's execution disposition.
+///
+/// Each of the six claims has its own implementing type, so no two dispositions
+/// are assignable to each other and a disposition cannot be moved between
+/// fields. Every method is an exhaustive `match` with no `_` arm, so a new
+/// state fails to compile rather than defaulting to "not established".
+pub trait ClaimDisposition: Copy + Debug + Eq + Hash + Sized + 'static {
+    /// The claim this disposition belongs to.
+    const CLAIM: Claim;
+
+    /// Every state of this disposition, in declared order.
+    const VALUES: &'static [Self];
+
+    /// The state of a claim that was never requested.
+    const NOT_REQUESTED: Self;
+
+    /// Declared position of this state within [`Self::VALUES`].
+    fn index(self) -> usize;
+
+    /// The stable code naming this exact state of this exact claim.
+    ///
+    /// Distinct across every state of every claim, so a test that asserts a code
+    /// cannot accidentally be satisfied by another claim's state.
+    fn code(self) -> &'static str;
+
+    /// Whether this state establishes its claim.
+    ///
+    /// Exactly one state per disposition returns `true`. `NotRequested`,
+    /// `Supported`, `Unsupported` and `Failed` all return `false`, each for its
+    /// own reason, and each keeps its own code.
+    fn establishes(self) -> bool;
+
+    /// The refusal this state raises when it does not establish its claim.
+    ///
+    /// Each implementing type returns its own [`ClaimRefusal`] variant carrying
+    /// its own state, so every refusal is independently assertable on its own
+    /// typed variant.
+    fn refusal(self) -> ClaimRefusal;
+}
+
+/// Declare one claim's disposition type: five states, its own codes, its own
+/// refusal variant.
+///
+/// The states are identical in shape across the six claims but deliberately not
+/// identical in type. Writing them by macro keeps six independent types without
+/// six copies of the same `match` drifting apart.
+macro_rules! declare_disposition {
+    (
+        $(#[$meta:meta])*
+        $name:ident, $claim:ident, $prefix:literal, $refusal:ident
+    ) => {
+        $(#[$meta])*
+        ///
+        /// Closed on purpose: a sixth state must break the four exhaustive
+        /// matches below rather than default into "not established".
+        #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+        pub enum $name {
+            /// The claim was never requested. A genuine observation, and not an
+            /// establishment: a claim nobody asked for was never decided.
+            NotRequested,
+            /// The selected backend can decide the claim, which has not been
+            /// decided yet. Capability is not a result.
+            Supported,
+            /// The selected backend cannot decide the claim. A missing
+            /// capability, never a failure and never a success.
+            Unsupported,
+            /// The selected backend decided the claim and it did not hold, or
+            /// the backend itself failed on this claim. Distinct from
+            /// `Unsupported`: the capability was present.
+            Failed,
+            /// The claim is established.
+            Established,
+        }
+
+        impl ClaimDisposition for $name {
+            const CLAIM: Claim = Claim::$claim;
+
+            const VALUES: &'static [Self] = &[
+                Self::NotRequested,
+                Self::Supported,
+                Self::Unsupported,
+                Self::Failed,
+                Self::Established,
+            ];
+
+            const NOT_REQUESTED: Self = Self::NotRequested;
+
+            fn index(self) -> usize {
+                match self {
+                    Self::NotRequested => 0,
+                    Self::Supported => 1,
+                    Self::Unsupported => 2,
+                    Self::Failed => 3,
+                    Self::Established => 4,
+                }
+            }
+
+            fn code(self) -> &'static str {
+                match self {
+                    Self::NotRequested => concat!($prefix, "/not-requested"),
+                    Self::Supported => concat!($prefix, "/supported"),
+                    Self::Unsupported => concat!($prefix, "/unsupported"),
+                    Self::Failed => concat!($prefix, "/failed"),
+                    Self::Established => concat!($prefix, "/established"),
+                }
+            }
+
+            fn establishes(self) -> bool {
+                match self {
+                    Self::NotRequested => false,
+                    Self::Supported => false,
+                    Self::Unsupported => false,
+                    Self::Failed => false,
+                    Self::Established => true,
+                }
+            }
+
+            fn refusal(self) -> ClaimRefusal {
+                ClaimRefusal::$refusal(self)
+            }
+        }
+    };
+}
+
+declare_disposition!(
+    /// The conformance claim's disposition.
+    ConformanceDisposition,
+    Conformance,
+    "conformance",
+    Conformance
+);
+declare_disposition!(
+    /// The monitorability claim's disposition.
+    MonitorabilityDisposition,
+    Monitorability,
+    "monitorability",
+    Monitorability
+);
+declare_disposition!(
+    /// The projection claim's disposition.
+    ProjectionDisposition,
+    Projection,
+    "projection",
+    Projection
+);
+declare_disposition!(
+    /// The realizability claim's disposition.
+    RealizabilityDisposition,
+    Realizability,
+    "realizability",
+    Realizability
+);
+declare_disposition!(
+    /// The refinement claim's disposition.
+    RefinementDisposition,
+    Refinement,
+    "refinement",
+    Refinement
+);
+declare_disposition!(
+    /// The composition claim's disposition.
+    CompositionDisposition,
+    Composition,
+    "composition",
+    Composition
+);
+
+// ---------------------------------------------------------------------------
+// Refusals — one typed variant per claim, one stable code per state
+// ---------------------------------------------------------------------------
+
+/// A single reason one claim was not established.
+///
+/// One variant per claim, each carrying that claim's own disposition type, so a
+/// test asserts a refusal on its own typed variant and cannot be satisfied by
+/// another claim's refusal. The carried state gives the reason, and
+/// [`ClaimRefusal::code`] is distinct for every (claim, state) pair.
+///
+/// Closed on purpose: a seventh claim must break every `match` on this enum.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ClaimRefusal {
+    /// Conformance was not established; the state says why.
+    Conformance(ConformanceDisposition),
+    /// Monitorability was not established; the state says why.
+    Monitorability(MonitorabilityDisposition),
+    /// Projection was not established; the state says why.
+    Projection(ProjectionDisposition),
+    /// Realizability was not established; the state says why.
+    Realizability(RealizabilityDisposition),
+    /// Refinement was not established; the state says why.
+    Refinement(RefinementDisposition),
+    /// Composition was not established; the state says why.
+    Composition(CompositionDisposition),
+}
+
+impl ClaimRefusal {
+    /// The claim this refusal belongs to.
+    pub fn claim(self) -> Claim {
+        match self {
+            Self::Conformance(_) => Claim::Conformance,
+            Self::Monitorability(_) => Claim::Monitorability,
+            Self::Projection(_) => Claim::Projection,
+            Self::Realizability(_) => Claim::Realizability,
+            Self::Refinement(_) => Claim::Refinement,
+            Self::Composition(_) => Claim::Composition,
+        }
+    }
+
+    /// The stable code naming this refusal: its claim and its exact state.
+    ///
+    /// Distinct across all 24 non-establishing (claim, state) pairs.
+    pub fn code(self) -> &'static str {
+        match self {
+            Self::Conformance(state) => state.code(),
+            Self::Monitorability(state) => state.code(),
+            Self::Projection(state) => state.code(),
+            Self::Realizability(state) => state.code(),
+            Self::Refinement(state) => state.code(),
+            Self::Composition(state) => state.code(),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// The product record
+// ---------------------------------------------------------------------------
+
+/// The six claim dispositions, held simultaneously and independently.
+///
+/// The six fields have six unrelated types, so an operation on one is invisible
+/// to the other five by construction rather than by convention. There is no
+/// aggregate verdict field, method or constant — see the module documentation
+/// for what that means and how `tests/tc_005_claim_dispositions.rs` proves it.
+///
+/// A seventh disposition cannot be added silently:
+/// [`ClaimDispositions::refusal_per_claim`] and
+/// [`ClaimDispositions::state_codes`] destructure every field with no `..` rest
+/// pattern.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct ClaimDispositions {
+    /// The conformance claim.
+    pub conformance: ConformanceDisposition,
+    /// The monitorability claim.
+    pub monitorability: MonitorabilityDisposition,
+    /// The projection claim.
+    pub projection: ProjectionDisposition,
+    /// The realizability claim.
+    pub realizability: RealizabilityDisposition,
+    /// The refinement claim.
+    pub refinement: RefinementDisposition,
+    /// The composition claim.
+    pub composition: CompositionDisposition,
+}
+
+impl ClaimDispositions {
+    /// The record in which no claim was requested.
+    ///
+    /// This is a starting point for building a record, not a neutral or a
+    /// default: every one of its six dispositions is a positive statement that
+    /// the claim was never requested, and none of them establishes anything.
+    pub const NOTHING_REQUESTED: Self = Self {
+        conformance: ConformanceDisposition::NotRequested,
+        monitorability: MonitorabilityDisposition::NotRequested,
+        projection: ProjectionDisposition::NotRequested,
+        realizability: RealizabilityDisposition::NotRequested,
+        refinement: RefinementDisposition::NotRequested,
+        composition: CompositionDisposition::NotRequested,
+    };
+
+    /// The stable code of one claim's current state.
+    ///
+    /// Reads that claim's field and nothing else.
+    pub fn state_code(self, claim: Claim) -> &'static str {
+        match claim {
+            Claim::Conformance => self.conformance.code(),
+            Claim::Monitorability => self.monitorability.code(),
+            Claim::Projection => self.projection.code(),
+            Claim::Realizability => self.realizability.code(),
+            Claim::Refinement => self.refinement.code(),
+            Claim::Composition => self.composition.code(),
+        }
+    }
+
+    /// Whether one claim is established.
+    ///
+    /// Reads that claim's field and nothing else. This is a fact about a single
+    /// claim; it is not, and must not be turned into, a verdict over the six.
+    pub fn establishes(self, claim: Claim) -> bool {
+        match claim {
+            Claim::Conformance => self.conformance.establishes(),
+            Claim::Monitorability => self.monitorability.establishes(),
+            Claim::Projection => self.projection.establishes(),
+            Claim::Realizability => self.realizability.establishes(),
+            Claim::Refinement => self.refinement.establishes(),
+            Claim::Composition => self.composition.establishes(),
+        }
+    }
+
+    /// One claim's refusal, or `None` when that claim is established.
+    ///
+    /// Reads that claim's field and nothing else.
+    pub fn refusal(self, claim: Claim) -> Option<ClaimRefusal> {
+        match claim {
+            Claim::Conformance => claim_refusal(self.conformance),
+            Claim::Monitorability => claim_refusal(self.monitorability),
+            Claim::Projection => claim_refusal(self.projection),
+            Claim::Realizability => claim_refusal(self.realizability),
+            Claim::Refinement => claim_refusal(self.refinement),
+            Claim::Composition => claim_refusal(self.composition),
+        }
+    }
+
+    /// Every claim's refusal slot, in [`Claim::ALL`] order.
+    ///
+    /// A fixed-size array, never a `Vec`: a `Vec` would offer `is_empty()`,
+    /// which is a one-call verdict over the six. Six slots are always returned,
+    /// so a caller must look at each one. The result is injective over the whole
+    /// record space — all six dispositions can be recovered from it — which is
+    /// what makes it a re-presentation rather than a summary.
+    ///
+    /// The destructuring below has no `..` rest pattern on purpose: a seventh
+    /// disposition added to [`ClaimDispositions`] fails to compile here.
+    pub fn refusal_per_claim(self) -> [Option<ClaimRefusal>; 6] {
+        let Self {
+            conformance,
+            monitorability,
+            projection,
+            realizability,
+            refinement,
+            composition,
+        } = self;
+
+        [
+            claim_refusal(conformance),
+            claim_refusal(monitorability),
+            claim_refusal(projection),
+            claim_refusal(realizability),
+            claim_refusal(refinement),
+            claim_refusal(composition),
+        ]
+    }
+
+    /// Every claim's state code, in [`Claim::ALL`] order.
+    ///
+    /// Injective over the whole record space, for the same reason and with the
+    /// same consequence as [`ClaimDispositions::refusal_per_claim`]. The
+    /// destructuring has no `..` rest pattern.
+    pub fn state_codes(self) -> [&'static str; 6] {
+        let Self {
+            conformance,
+            monitorability,
+            projection,
+            realizability,
+            refinement,
+            composition,
+        } = self;
+
+        [
+            conformance.code(),
+            monitorability.code(),
+            projection.code(),
+            realizability.code(),
+            refinement.code(),
+            composition.code(),
+        ]
+    }
+}
+
+/// Lift one disposition into its own refusal, or `None` when it establishes.
+fn claim_refusal<D: ClaimDisposition>(state: D) -> Option<ClaimRefusal> {
+    if state.establishes() {
+        None
+    } else {
+        Some(state.refusal())
+    }
+}
