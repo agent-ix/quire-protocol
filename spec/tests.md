@@ -14,6 +14,7 @@ relationships:
   - { target: ix://agent-ix/quire-protocol/NFR-001, type: references }
   - { target: ix://agent-ix/quire-protocol/NFR-002, type: references }
   - { target: ix://agent-ix/quire-protocol/NFR-003, type: references }
+  - { target: ix://agent-ix/quire-protocol/NFR-004, type: references }
 ---
 ## Overview
 
@@ -47,6 +48,7 @@ change the planned status of FR-001, FR-002, or IT-001's full scenario matrix.
 | NFR-001 | Property and metamorphic testing | TC-008 | 🚧 Planned |
 | NFR-002 | Property, mutation, and source-bound inventory inspection | TC-009 | 🚧 Planned |
 | NFR-003 | Shared Rust language-boundary check, static analysis, architecture inspection, Rust review, Quire coverage, gap analysis | TC-010, IT-003 | 🚧 Planned |
+| NFR-004 | Cargo metadata inspection, conditional-compilation inventory, enumerated gate execution over one unchanged head, per-criterion negative controls | TC-012, IT-003 | 🚧 Planned |
 
 ## Integration Coverage
 
@@ -54,7 +56,7 @@ change the planned status of FR-001, FR-002, or IT-001's full scenario matrix.
 | --- | --- | --- | --- |
 | IT-001 | Native compiler artifact to protocol library | FR-001, FR-002 | 🚧 Planned |
 | IT-002 | Observation and temporal facts to protocol evaluator/result | FR-003, FR-004, FR-006 | 🚧 Planned |
-| IT-003 | Protocol result through Engineering Assurance, E02, and Quoin | FR-006, FR-007, NFR-003 | 🚧 Planned |
+| IT-003 | Protocol result through Engineering Assurance, E02, and Quoin | FR-006, FR-007, NFR-003, NFR-004 | 🚧 Planned |
 
 ## Test Case Summary
 
@@ -71,12 +73,13 @@ change the planned status of FR-001, FR-002, or IT-001's full scenario matrix.
 | TC-009 | Enforce every protocol resource boundary | Property | P0 | NFR-002-AC-1..NFR-002-AC-4 | 🚧 Planned |
 | TC-010 | Preserve Rust and shared assurance containment | Static | P0 | NFR-003-AC-1..NFR-003-AC-6 | 🚧 Planned |
 | TC-011 | Return typed refusals without text parsing | Property | P0 | FR-008-AC-1..FR-008-AC-8 | 🚧 Planned |
+| TC-012 | Run the local verification gate and refuse an undefined lane | Static | P0 | NFR-004-AC-1..NFR-004-AC-10 | 🚧 Planned |
 
 ## Test Execution Summary
 
 | Category | Total | Passed | Failed | Blocked | Planned |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Property | 10 | 0 | 0 | 0 | 10 |
-| Static/Inspection | 1 | 0 | 0 | 0 | 1 |
+| Static/Inspection | 2 | 0 | 0 | 0 | 2 |
 | Integration | 3 | 0 | 0 | 0 | 3 |
-| Overall | 14 | 0 | 0 | 0 | 14 |
+| Overall | 15 | 0 | 0 | 0 | 15 |
