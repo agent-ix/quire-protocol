@@ -22,6 +22,12 @@ coverage. The accepted frozen source baseline, F consumer correction, Engineerin
 Assurance producer, license, implementation plan, and retained corpus remain
 explicit gates.
 
+TC-010 is the one standing row: its local Rust containment audit runs in every
+gate, so its status is maintained continuously rather than at the qualification
+gate. The Test Execution Summary totals below are **not** updated by the change
+that made TC-010 partial; totals are recomputed in one dedicated bookkeeping pass
+so that concurrent chunks do not each increment a shared counter.
+
 Task-009 has a separately invoked producer-fixture smoke lane for its first
 consumer increment. Its tests remain `#[ignore]` because they require A's
 stripped release producer output and retain A's draft wire labels; they do not
@@ -46,7 +52,7 @@ change the planned status of FR-001, FR-002, or IT-001's full scenario matrix.
 | --- | --- | --- | --- |
 | NFR-001 | Property and metamorphic testing | TC-008 | 🚧 Planned |
 | NFR-002 | Property, mutation, and source-bound inventory inspection | TC-009 | 🚧 Planned |
-| NFR-003 | Shared Rust language-boundary check, static analysis, architecture inspection, Rust review, Quire coverage, gap analysis | TC-010, IT-003 | 🚧 Planned |
+| NFR-003 | Shared Rust language-boundary check, static analysis, architecture inspection, Rust review, Quire coverage, gap analysis | TC-010, IT-003 | ⚠️ Partial — TC-010's standing local audit executes on every gate run; the shared checker, IT-003, Quire coverage and gap analysis remain planned |
 
 ## Integration Coverage
 
@@ -69,7 +75,7 @@ change the planned status of FR-001, FR-002, or IT-001's full scenario matrix.
 | TC-007 | Project canonical protocol results to E02 | Property | P0 | FR-007 | 🚧 Planned |
 | TC-008 | Reproduce results under equivalent presentations | Property | P0 | NFR-001-AC-1..NFR-001-AC-3 | 🚧 Planned |
 | TC-009 | Enforce every protocol resource boundary | Property | P0 | NFR-002-AC-1..NFR-002-AC-4 | 🚧 Planned |
-| TC-010 | Preserve Rust and shared assurance containment | Static | P0 | NFR-003-AC-1..NFR-003-AC-6 | 🚧 Planned |
+| TC-010 | Preserve Rust and shared assurance containment | Static | P0 | NFR-003-AC-1..NFR-003-AC-6 | ⚠️ Partial — `tests/tc_010_rust_boundary.rs` executes AC-1..AC-6 as a standing local audit; the shared-checker clause of AC-3 is unmet until `agent-ix/quire-research#64` publishes |
 | TC-011 | Return typed refusals without text parsing | Property | P0 | FR-008-AC-1..FR-008-AC-8 | 🚧 Planned |
 
 ## Test Execution Summary
