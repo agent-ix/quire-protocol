@@ -79,5 +79,12 @@ serialized with one build job while the shared workstation is loaded. Any
 hosted workflow must expose only `workflow_dispatch`; no hosted CI is dispatched
 from this repository bootstrap.
 
+The local verification gate — which commands run, in which configurations, and
+what risk each one detects — is defined by
+[NFR-004](spec/non-functional/NFR-004-define-local-verification-gate.md) and
+listed in [AGENTS.md](AGENTS.md). The crate is single-lane: it declares no Cargo
+feature and contains no conditional compilation, so there is no second
+configuration for a second lane to cover.
+
 See [the specification](spec/spec.md), [contributor instructions](AGENTS.md),
 [license decision](LICENSE-DECISION.md), and [artifact and rights policy](ARTIFACTS.md).
