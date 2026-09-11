@@ -8,5 +8,5 @@ accepted `quire.compiled-protocol/1` wire contract and public Rust reader; this
 crate adds no copied parser, encoder, formal semantics, or fixture corpus.
 
 `ix-trace-rs` at `2ce4ebf47f726b9d76388220545cd0abda8a5cfb` is a test-only trace
-attribute dependency already used by the A-owned producer. Its license and
-compatibility must be verified from its pinned manifest before promotion.
+attribute dependency already used by the A-owned producer. Its pinned manifest
+declares `AGPL-3.0-or-later`, compatible with this repository's license.

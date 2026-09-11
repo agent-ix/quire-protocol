@@ -41,3 +41,8 @@ substitution, or identity reinterpretation.
   `84975dd687d38d9b24eae84b7356e3f24cdc7b42` (merged PRs 52, 55 and 58).
 - This increment consumes that boundary directly. It does not take ownership of
   later protocol conformance, execution, compensation assessment or E02 work.
+- It supplies a fixture-driven smoke lane for positive admission plus selected
+  one-axis seal, producer identity, feature and numeric refusals. The lane is
+  deliberately tagged to IT-001/Task-009 only: its producer fixture retains
+  A's draft wire labels, while the frozen-baseline FR acceptance cases remain
+  open work under this task.

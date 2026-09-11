@@ -22,6 +22,8 @@ pub use quire_spec_language::ByteDigest;
 /// `expected` must be built before this call from independently selected source,
 /// model, definition/dependency, contract, producer, and output identities. The
 /// offered payload has no authority to select or repair any of those values.
+/// Feature identifiers are checked by A's accepted in-contract allowlist: the
+/// public reader does not expose a separate caller-selected feature-set input.
 ///
 /// A successful result contains A's linked typed package. A refusal is returned
 /// before this crate can expose a package for any failed seal, identity, feature,
