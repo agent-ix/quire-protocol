@@ -6,7 +6,14 @@ use std::{fs, path::Path};
 use ix_trace_rs::trace;
 use quire_contract_ir as ir;
 use quire_protocol::{
-    admit_and_link, wire, AdmittedModel, ByteDigest, Expected, ExpectedDeclaration,
+    admit_and_link,
+    digest::producer::{CrossDomainDigest, DigestDomain, DigestSlot, OfferedDomain},
+    inventory::{
+        axis::SelectionAxis,
+        map::{admit_discriminating, AdmissionRefusal},
+        SelectedInventory,
+    },
+    wire, AdmittedModel, AdmittedPackage, ByteDigest, Expected, ExpectedDeclaration,
     ExpectedForeignSource, ExpectedSource, Invalid, Limits, SuppliedDependency,
 };
 use quire_spec_language::{
@@ -145,6 +152,32 @@ impl Fixture {
         selection: &Selection,
         bytes: &[u8],
     ) -> quire_protocol::Report<quire_protocol::AdmittedPackage> {
+        self.offer(selection, bytes, |bytes, expected| {
+            admit_and_link(bytes, expected, Limits::default())
+        })
+    }
+
+    /// Offer the same bytes through B's discriminating consumer boundary, which
+    /// resolves A's single shared `Invalid::Selection` code against B's own
+    /// independently selected inventory and guards the digest domains first.
+    fn discriminate(
+        &self,
+        selection: &Selection,
+        bytes: &[u8],
+    ) -> Result<AdmittedPackage, AdmissionRefusal> {
+        self.offer(selection, bytes, |bytes, expected| {
+            admit_discriminating(bytes, expected, Limits::default())
+        })
+    }
+
+    /// Build the independently selected acceptance context once and hand it to
+    /// the chosen consumer entry point.
+    fn offer<T>(
+        &self,
+        selection: &Selection,
+        bytes: &[u8],
+        entry: impl FnOnce(&[u8], &Expected<'_>) -> T,
+    ) -> T {
         assert_eq!(
             selection.dependencies.len(),
             self.dependency_bytes.len(),
@@ -199,7 +232,7 @@ impl Fixture {
                 declarations,
             })
             .collect::<Vec<_>>();
-        admit_and_link(
+        entry(
             bytes,
             &Expected {
                 artifact: &selection.artifact,
@@ -211,7 +244,6 @@ impl Fixture {
                 dependencies: &dependencies,
                 models: &models,
             },
-            Limits::default(),
         )
     }
 }
@@ -336,12 +368,13 @@ fn it_001_refuses_one_axis_producer_identity_change() {
         b"native_protocol_handovv",
     );
     let selection = resealed(&fixture.selection, &changed);
-    let error = fixture
-        .admit_selected(&selection, &changed)
-        .into_result()
-        .unwrap_err();
-    assert!(
-        matches!(error, quire_protocol::Error::Invalid(Invalid::Selection)),
+    // The producer implementation label is its own axis: A collapses it into
+    // the shared `Invalid::Selection`, so this asserts B's own producer-identity
+    // code, which no other landed mutation can produce.
+    let error = fixture.discriminate(&selection, &changed).unwrap_err();
+    assert_eq!(
+        error,
+        AdmissionRefusal::Selection(SelectionAxis::ProducerIdentity),
         "got {error:?}"
     );
 }
@@ -436,12 +469,12 @@ fn it_001_refuses_one_axis_stale_baseline_selection() {
         mutated_baseline_field("\"value\":\"1-draft.2\"", "\"value\":\"1-draft.7\"").as_bytes(),
     );
     let selection = resealed(&fixture.selection, &changed);
-    let error = fixture
-        .admit_selected(&selection, &changed)
-        .into_result()
-        .unwrap_err();
-    assert!(
-        matches!(error, quire_protocol::Error::Invalid(Invalid::Selection)),
+    // A superseded revision of the selected baseline identity: the baseline
+    // selection state moved, not the baseline's identity and not its digest.
+    let error = fixture.discriminate(&selection, &changed).unwrap_err();
+    assert_eq!(
+        error,
+        AdmissionRefusal::Selection(SelectionAxis::BaselineSelectionState),
         "got {error:?}"
     );
 }
@@ -462,12 +495,12 @@ fn it_001_refuses_one_axis_changed_baseline_digest() {
         mutated_baseline_field("4985acdb06", "4985acdb07").as_bytes(),
     );
     let selection = resealed(&fixture.selection, &changed);
-    let error = fixture
-        .admit_selected(&selection, &changed)
-        .into_result()
-        .unwrap_err();
-    assert!(
-        matches!(error, quire_protocol::Error::Invalid(Invalid::Selection)),
+    // The value diverges inside the baseline's own producer digest domain, so
+    // this is the digest axis and not the cross-domain axis below.
+    let error = fixture.discriminate(&selection, &changed).unwrap_err();
+    assert_eq!(
+        error,
+        AdmissionRefusal::Selection(SelectionAxis::BaselineDigest),
         "got {error:?}"
     );
 }
@@ -488,12 +521,64 @@ fn it_001_refuses_one_axis_cross_domain_baseline_digest() {
         mutated_baseline_field("\"sha256:6f9cb8", "\"sha512:6f9cb8").as_bytes(),
     );
     let selection = resealed(&fixture.selection, &changed);
-    let error = fixture
-        .admit_selected(&selection, &changed)
-        .into_result()
-        .unwrap_err();
-    assert!(
-        matches!(error, quire_protocol::Error::Json { .. }),
+    // A parse failure would prove nothing here: it would only say the label is
+    // unknown to A's `ByteDigest`, which a well-formed substitution avoids
+    // entirely. B must refuse this on the digest-domain axis itself.
+    let error = fixture.discriminate(&selection, &changed).unwrap_err();
+    assert_eq!(
+        error,
+        AdmissionRefusal::CrossDomainDigest(CrossDomainDigest {
+            slot: DigestSlot::Baseline,
+            selected: DigestDomain::ProducerArtifactBytes,
+            offered: OfferedDomain::ForeignLabel("sha512".to_owned()),
+            value: "sha512:6f9cb8bf8521ca51a5e6340511b545db43001879446a59c5c87efe4985acdb06"
+                .to_owned(),
+        }),
+        "got {error:?}"
+    );
+}
+
+/// The load-bearing case: a cross-domain substitution that **parses cleanly**.
+///
+/// The offered value is a syntactically perfect `sha256:` digest. It is simply
+/// the digest of a different domain — B's own RFC 8785/JCS protocol-result
+/// digest of the same baseline reference, copied into the slot that accepts
+/// only the producer's exact-bytes digest. Nothing about its spelling is wrong,
+/// so no parser and no syntactic guard can refuse it; only an independently
+/// selected inventory that holds both domains can tell the two apart.
+///
+/// Tracing: IT-001, FR-001-AC-4.
+#[test]
+#[ignore = "requires QUIRE_PROTOCOL_A_FIXTURE generated by A's stripped release producer"]
+#[trace("IT-001", "FR-001-AC-4")]
+fn it_001_refuses_well_formed_cross_domain_baseline_digest() {
+    let root = fixture_root();
+    let fixture = Fixture::load(&root);
+    let bytes = fs::read(root.join("compiled-protocol.json")).expect("A compiled bytes");
+    let result_domain = fixture.offer(&fixture.selection, &bytes, |_, expected| {
+        SelectedInventory::from_expected(expected)
+            .expect("B selections canonicalise")
+            .result_domain_text(DigestSlot::Baseline)
+            .expect("baseline is a selected slot")
+    });
+    let selected_digest = fixture.selection.baseline.digest.to_string();
+    assert_ne!(result_domain, selected_digest);
+    assert!(result_domain.starts_with("sha256:"));
+    let changed = replace_unique(
+        &bytes,
+        BASELINE_FIELD.as_bytes(),
+        mutated_baseline_field(&selected_digest, &result_domain).as_bytes(),
+    );
+    let selection = resealed(&fixture.selection, &changed);
+    let error = fixture.discriminate(&selection, &changed).unwrap_err();
+    assert_eq!(
+        error,
+        AdmissionRefusal::CrossDomainDigest(CrossDomainDigest {
+            slot: DigestSlot::Baseline,
+            selected: DigestDomain::ProducerArtifactBytes,
+            offered: OfferedDomain::Identified(DigestDomain::ProtocolResultJcs),
+            value: result_domain,
+        }),
         "got {error:?}"
     );
 }
