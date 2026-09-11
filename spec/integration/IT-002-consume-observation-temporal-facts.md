@@ -73,15 +73,19 @@ closure.
 
 ## Dependencies
 
-F-owned FR-115/TC-145/IT-051 and the E-owned temporal profile must preserve the
-complete canonical-result input shape.
+F-owned FR-115/FR-116, TC-145/TC-146, IT-051 and the output-mapping contract plus
+the E-owned temporal profile must preserve the complete canonical-result input
+shape.
 
 ## Notes
 
-F's composed consumer correction remains unaccepted until its strict-reader
-tests independently discriminate decision-scope and surrounding-execution
-progress/closure plus the complete-global-conformance closure record and
-premises; this test remains planned.
+Quire Specification PR #15 at
+`d8d984b542fe30f65b6e07f4a07b2d1f81d3962b` now specifies the required
+independent decision-scope and surrounding-execution progress/closure axes plus
+the complete-global-conformance closure record and premise mutations through
+both F consumer paths. The content dependency is ready, while the revision
+remains unaccepted until the composed baseline is reviewed and promoted. This
+integration test remains planned.
 
 ## Traceability
 
