@@ -39,4 +39,9 @@ compensation, conformance, and canonical results.
 
 ## Notes
 
-- Blocked by Task-006, F's complete canonical-result consumer, and the accepted temporal profile.
+- F's complete canonical-result consumer shape is present in Quire Specification
+  PR #15 at `d8d984b542fe30f65b6e07f4a07b2d1f81d3962b`, including all five
+  progress/closure axes and premise mutations. It remains an unaccepted input
+  until the composed baseline is reviewed and promoted.
+- Blocked by Task-006, composed acceptance of that F consumer, and the accepted
+  temporal profile.
