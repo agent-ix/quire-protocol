@@ -8,6 +8,10 @@ description = "Strict consumer boundary for accepted native Quire protocol packa
 
 [dependencies]
 quire-spec-language = { git = "https://github.com/agent-ix/quire-spec-language", rev = "84975dd687d38d9b24eae84b7356e3f24cdc7b42" }
+# Reading the offer's already-published members and serialising B's own
+# selections through A's `Serialize` impls. B adds no schema, grammar or wire
+# decoder of its own: every record shape used here is A's.
+serde_json = "=1.0.151"
 
 [dev-dependencies]
 ix-trace-rs = { git = "https://github.com/agent-ix/ix-trace-rs", rev = "2ce4ebf47f726b9d76388220545cd0abda8a5cfb" }
