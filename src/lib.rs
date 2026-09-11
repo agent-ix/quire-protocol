@@ -46,10 +46,9 @@ pub mod result;
 
 pub use quire_spec_language::protocol_artifact::wire;
 pub use quire_spec_language::protocol_artifact::{
-    encode_candidate, AdmittedModel, AdmittedPackage, Candidate, Error, ExactInteger,
-    ExactRational, Expected, ExpectedDeclaration, ExpectedForeignSource, ExpectedSource, Invalid,
-    Limits, NumberComponent, NumberError, NumberWire, ProtocolNumber, Report, SuppliedDependency,
-    Unsupported, NUMERIC_PROFILE,
+    AdmittedModel, AdmittedPackage, Candidate, Error, Expected, ExpectedDeclaration,
+    ExpectedForeignSource, ExpectedSource, Invalid, Limits, NumberComponent, NumberError, Report,
+    SuppliedDependency, Unsupported,
 };
 pub use quire_spec_language::ByteDigest;
 
