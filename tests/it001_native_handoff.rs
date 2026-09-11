@@ -255,26 +255,39 @@ fn replace_once(bytes: &[u8], before: &[u8], after: &[u8]) -> Vec<u8> {
     changed
 }
 
-fn replace_all(bytes: &[u8], before: &[u8], after: &[u8]) -> Vec<u8> {
+/// The complete top-level `baseline` field as A's producer emits it. Scoping a
+/// mutation to this literal keeps the axis under test on the baseline selection:
+/// the same artifact also appears in the dependency inventory, and a mutation
+/// that moved both could be refused by either check.
+const BASELINE_FIELD: &str = concat!(
+    r#""baseline":{"refVersion":"ix.artifact-ref/3-draft","kind":"source","#,
+    r#""authority":"ix://agent-ix/quire-specification","identity":"ix:native","#,
+    r#""revision":{"namespace":"quire/native-definition-revision","value":"1-draft.2"},"#,
+    r#""digest":"sha256:6f9cb8bf8521ca51a5e6340511b545db43001879446a59c5c87efe4985acdb06","#,
+    r#""wire":{"identity":"text/markdown","version":"1"}}"#,
+);
+
+/// Replace a target that must occur exactly once, so a future A fixture cannot
+/// silently widen a one-axis mutation across additional fields.
+fn replace_unique(bytes: &[u8], before: &[u8], after: &[u8]) -> Vec<u8> {
     assert_eq!(
         before.len(),
         after.len(),
         "mutation preserves compact wire length"
     );
-    let mut changed = bytes.to_vec();
-    let mut index = 0;
-    let mut replacements = 0;
-    while let Some(found) = changed[index..]
+    let occurrences = bytes
         .windows(before.len())
-        .position(|window| window == before)
-    {
-        let at = index + found;
-        changed[at..at + before.len()].copy_from_slice(after);
-        index = at + before.len();
-        replacements += 1;
-    }
-    assert!(replacements > 0, "fixture contains mutation target");
-    changed
+        .filter(|window| *window == before)
+        .count();
+    assert_eq!(occurrences, 1, "mutation target must identify one field");
+    replace_once(bytes, before, after)
+}
+
+/// One baseline field with exactly one substring respelled in place.
+fn mutated_baseline_field(before: &str, after: &str) -> String {
+    assert_eq!(before.len(), after.len());
+    assert_eq!(BASELINE_FIELD.matches(before).count(), 1);
+    BASELINE_FIELD.replace(before, after)
 }
 
 /// Tracing: IT-001, Task-009.
@@ -415,12 +428,12 @@ fn it_001_refuses_one_axis_stale_baseline_selection() {
     let root = fixture_root();
     let fixture = Fixture::load(&root);
     let bytes = fs::read(root.join("compiled-protocol.json")).expect("A compiled bytes");
-    // Every occurrence moves together, so the offer stays internally consistent
-    // and disagrees only with B's independently frozen baseline selection.
-    let changed = replace_all(
+    // Only the top-level baseline revision moves. B's frozen selection, not the
+    // offer, decides which semantic baseline is accepted.
+    let changed = replace_unique(
         &bytes,
-        b"\"quire/native-definition-revision\",\"value\":\"1-draft.2\"",
-        b"\"quire/native-definition-revision\",\"value\":\"1-draft.1\"",
+        BASELINE_FIELD.as_bytes(),
+        mutated_baseline_field("\"value\":\"1-draft.2\"", "\"value\":\"1-draft.7\"").as_bytes(),
     );
     let selection = resealed(&fixture.selection, &changed);
     let error = fixture
@@ -441,10 +454,12 @@ fn it_001_refuses_one_axis_changed_baseline_digest() {
     let root = fixture_root();
     let fixture = Fixture::load(&root);
     let bytes = fs::read(root.join("compiled-protocol.json")).expect("A compiled bytes");
-    let changed = replace_all(
+    // The same artifact stays correct in the dependency inventory, so only the
+    // baseline digest check can refuse this offer.
+    let changed = replace_unique(
         &bytes,
-        b"sha256:6f9cb8bf8521ca51a5e6340511b545db43001879446a59c5c87efe4985acdb06",
-        b"sha256:6f9cb8bf8521ca51a5e6340511b545db43001879446a59c5c87efe4985acdb07",
+        BASELINE_FIELD.as_bytes(),
+        mutated_baseline_field("4985acdb06", "4985acdb07").as_bytes(),
     );
     let selection = resealed(&fixture.selection, &changed);
     let error = fixture
@@ -465,11 +480,12 @@ fn it_001_refuses_one_axis_cross_domain_baseline_digest() {
     let root = fixture_root();
     let fixture = Fixture::load(&root);
     let bytes = fs::read(root.join("compiled-protocol.json")).expect("A compiled bytes");
-    // Only the digest domain label moves; the hexadecimal body is unchanged.
-    let changed = replace_all(
+    // Only the baseline digest's domain label moves; its hexadecimal body and
+    // every other digest in the offer are unchanged.
+    let changed = replace_unique(
         &bytes,
-        b"sha256:6f9cb8bf8521ca51a5e6340511b545db43001879446a59c5c87efe4985acdb06",
-        b"sha512:6f9cb8bf8521ca51a5e6340511b545db43001879446a59c5c87efe4985acdb06",
+        BASELINE_FIELD.as_bytes(),
+        mutated_baseline_field("\"sha256:6f9cb8", "\"sha512:6f9cb8").as_bytes(),
     );
     let selection = resealed(&fixture.selection, &changed);
     let error = fixture
