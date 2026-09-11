@@ -278,9 +278,6 @@ macro_rules! identities {
             }
 
             impl $name {
-                /// The kind this identity belongs to.
-                pub const KIND: IdentityKind = IdentityKind::$kind;
-
                 /// Retain a producer identity exactly as offered.
                 ///
                 /// `identity` is copied byte for byte: it is not trimmed,

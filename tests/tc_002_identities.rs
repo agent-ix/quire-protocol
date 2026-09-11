@@ -221,3 +221,43 @@ fn tc_002_wire_package_identities_round_trip_unchanged() {
     assert_ne!(retained, other);
     assert_eq!(retained.display_text(), other.display_text());
 }
+
+#[trace("TC-002", "Task-002")]
+#[test]
+fn tc_002_compile_fail_proof_is_present() {
+    // The compile-time half of FR-002-AC-1 is proved by `compile_fail`
+    // documentation tests, which cannot themselves carry a trace attribute.
+    // This traced test binds that evidence to TC-002 and fails if the proof is
+    // deleted, narrowed, or left covering only some of the identities.
+    let module = include_str!("../src/ids.rs");
+
+    let cases = module.matches("```compile_fail").count();
+    assert_eq!(
+        cases, 19,
+        "expected sixteen adjacent-pair cases plus three no-parse cases"
+    );
+
+    for name in [
+        "DefinitionId",
+        "RoleInstanceId",
+        "WorkflowInstanceId",
+        "ParticipantId",
+        "ComponentId",
+        "EndpointId",
+        "ChannelId",
+        "MessageId",
+        "SendId",
+        "ReceiveId",
+        "DeliveryId",
+        "AttemptId",
+        "EffectId",
+        "RegistrationId",
+        "CommitId",
+        "RecoveryId",
+    ] {
+        assert!(
+            module.contains(&format!("fn takes(_: {name})")),
+            "{name} is never the expected type in a compile-fail case"
+        );
+    }
+}
