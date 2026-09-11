@@ -24,11 +24,15 @@ complete typed refusal envelope shared by every public operation.
 
 - [ ] Write TC-006 and TC-011 table, topology, diagnostic-catalog, paired-cause, simultaneous-disposition, mutation, and strict-reader cases first.
 - [ ] Represent truth, adequacy, decision-scope progress/closure,
-  surrounding-execution progress/closure, settlement, support, claim dispositions,
-  limitations, and provenance as orthogonal typed fields.
+  surrounding-execution progress/closure, complete-global-conformance closure,
+  settlement, support, claim dispositions, limitations, and provenance as
+  orthogonal typed fields.
 - [ ] Validate predecessor existence, acyclicity, no self-reference, immutable
   supersession, exact dependency/source identities, and refusal of every
   progress/closure scope collapse or cross-wire.
+- [ ] Independently omit, duplicate, cross-wire, scope-mutate, and
+  identity-mutate every required execution, branch, and workflow global-closure
+  premise while holding an independently settled per-obligation truth fixed.
 - [ ] Canonicalize every digest and identity comparison through one RFC 8785 implementation and reject unknown contract versions.
 - [ ] Make refusal identity independent of rendering while preserving the exact diagnostic catalog, stable domain/source code, originating stage/prerequisites, explicit location availability, paired causes, simultaneous dispositions, and cause order.
 - [ ] Refuse catalog drift or erased source stages and prove that repeated display names cannot invent a missing source location.

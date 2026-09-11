@@ -15,9 +15,10 @@ relationships:
 ## Objective
 
 Verify the F/E-owned observation, decision-scope progress/closure,
-surrounding-execution progress/closure, and temporal decision facts through
-compensation, finite conformance, and canonical result production without
-duplicating their producer semantics.
+surrounding-execution progress/closure, and temporal decision facts plus the
+B-owned complete-global-conformance closure record through compensation, finite
+conformance, and canonical result production without duplicating producer
+semantics.
 
 ## Target Integration
 
@@ -28,12 +29,15 @@ consumer is the protocol evaluator and canonical result producer.
 
 The observation-output consumer preserves decision-scope and surrounding
 execution progress/closure, settlement basis, decision support, completeness,
-and exact producer identities. The temporal profile is accepted.
+and exact producer identities. PT02 adds an independently typed
+complete-global-conformance closure record with exact execution, branch, and
+workflow premises. The temporal profile is accepted.
 
 ## Inputs
 
 Complete and open valid histories, a decisive witness, a decisive
-counterexample, a non-decisive prefix, missing support, changed closure,
+counterexample, a non-decisive prefix, missing support, each
+complete-global-conformance closure state and premise set, changed closure,
 mis-correlated observation, duplicate delivery, and late contradiction.
 
 ## Test Procedure
@@ -44,16 +48,22 @@ mis-correlated observation, duplicate delivery, and late contradiction.
    - IT-002-SC-02: every outcome follows only the selected protocol and temporal premises.
 3. Produce canonical results for decisive and non-decisive open prefixes.
    - IT-002-SC-03: settlement, pending state, support, decision-scope
-     progress/closure, and surrounding-execution progress/closure remain distinct;
-     independently change each progress/closure axis and require exact retention
-     or typed refusal without cross-scope substitution.
+     progress/closure, surrounding-execution progress/closure, and
+     complete-global-conformance closure remain distinct; independently change
+     each progress/closure axis and require exact retention or typed refusal
+     without cross-scope substitution.
 4. Submit missing, changed, mis-correlated, duplicate, and contradictory facts.
-   - IT-002-SC-04: each yields the exact refusal, violation, incompleteness, or linked supersession.
+   - IT-002-SC-04: independently omit, duplicate, cross-wire, scope-mutate, or
+     identity-mutate each required global execution, branch, and workflow
+     premise; each adverse input yields the exact refusal, violation,
+     incompleteness, or linked supersession without changing independent truth.
 
 ## Expected Results
 
 The protocol library consumes producer facts without reinterpreting them. No
-missing or contradictory fact improves truth, adequacy, recovery, or conformance.
+missing or contradictory fact improves truth, adequacy, recovery, or
+conformance, and no scoped closure substitutes for complete-global-conformance
+closure.
 
 ## Metadata
 
@@ -68,9 +78,10 @@ complete canonical-result input shape.
 
 ## Notes
 
-F's composed consumer correction remains unaccepted until its strict-reader tests
-independently discriminate decision-scope and surrounding-execution
-progress/closure; this test remains planned.
+F's composed consumer correction remains unaccepted until its strict-reader
+tests independently discriminate decision-scope and surrounding-execution
+progress/closure plus the complete-global-conformance closure record and
+premises; this test remains planned.
 
 ## Traceability
 

@@ -23,7 +23,8 @@ every orthogonal fact and exact identity required by source requirement FR-061.
 ## Inputs
 
 One exact request, assessment dispositions, decision-scope progress/closure,
-surrounding-execution progress/closure, completeness facts, assumptions,
+surrounding-execution progress/closure, the complete-global-conformance closure
+record when global conformance is requested, completeness facts, assumptions,
 decision support, adequacy, provenance, limitations, and applicable prior result.
 
 ## Outputs
@@ -34,9 +35,16 @@ One canonical protocol result plus its non-self-referential RFC 8785
 ## Behavior
 
 The producer SHALL keep execution, decision-scope progress, decision-scope
-closure, surrounding-execution progress, surrounding-execution closure, truth,
-settlement basis, activation, participation, assumptions, completeness,
-observation adequacy, protocol adequacy, claim, and provenance separate.
+closure, surrounding-execution progress, surrounding-execution closure,
+complete-global-conformance closure, truth, settlement basis, activation,
+participation, assumptions, completeness, observation adequacy, protocol
+adequacy, claim, and provenance separate. For a global-conformance claim, the
+complete-global-conformance closure record SHALL carry one state from `closed`,
+`open`, `incomplete`, or `contradicted` plus the exact required execution,
+branch, and workflow closure-premise identities. For another claim it SHALL be
+`not-required` with no global premise set. No other closure axis, completed
+assessment, settled truth, or completeness fact can substitute for that record
+or one of its premises.
 The strict reader SHALL enforce the complete FR-061 result-combination table,
 recompute identities, and reject missing, cyclic, self-referential, or falsely
 independent support.
@@ -50,10 +58,11 @@ the earlier result.
 | --- | --- | --- |
 | FR-006-AC-1 | Every valid FR-061 result-combination row is accepted and every one-axis forbidden combination is refused. | Test (TC-006) |
 | FR-006-AC-2 | Settled truth on an open subject requires exact complete decisive support whose truth is preserved by every admitted continuation. | Test (TC-006) |
-| FR-006-AC-3 | Assumption, observation-adequacy, protocol-adequacy, execution, truth, activation, participation, decision-scope progress, decision-scope closure, surrounding-execution progress, surrounding-execution closure, settlement, claim, and completeness mutations remain independently observable. | Test (TC-006) |
-| FR-006-AC-4 | Every source, profile, model, protocol, request, binding, input, backend, decision-scope progress/closure, surrounding-execution progress/closure, settlement, support, producer, and prior-result identity is recomputed or strictly matched. | Test (TC-006) |
+| FR-006-AC-3 | Assumption, observation-adequacy, protocol-adequacy, execution, truth, activation, participation, decision-scope progress, decision-scope closure, surrounding-execution progress, surrounding-execution closure, complete-global-conformance closure, settlement, claim, and completeness mutations remain independently observable. | Test (TC-006) |
+| FR-006-AC-4 | Every source, profile, model, protocol, request, binding, input, backend, decision-scope progress/closure, surrounding-execution progress/closure, complete-global-conformance closure, settlement, support, producer, and prior-result identity is recomputed or strictly matched. | Test (TC-006) |
 | FR-006-AC-5 | Support lineage rejects missing predecessors, cycles, self-reference, and invented independence while retaining shared and derived relations. | Test (TC-006) |
 | FR-006-AC-6 | A later contradiction emits a new linked result and cannot rewrite or reseal the earlier artifact. | Test (TC-006) |
+| FR-006-AC-7 | Independently omitting, duplicating, cross-wiring, changing scope on, or changing the identity of every required execution, branch, and workflow global-closure premise refuses the record or prevents complete global success while leaving an independently settled per-obligation truth unchanged. | Test (TC-006) |
 
 ## Dependencies
 

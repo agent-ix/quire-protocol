@@ -17,8 +17,9 @@ relationships:
 ## Scope
 
 Exercise accepted F/E-owned decision-scope and surrounding-execution
-progress/closure, settlement, decision-support, observation, and temporal facts
-through compensation, conformance, and canonical results.
+progress/closure, the PT02-owned complete-global-conformance closure record,
+settlement, decision-support, observation, and temporal facts through
+compensation, conformance, and canonical results.
 
 ## Subtasks
 
@@ -27,7 +28,9 @@ through compensation, conformance, and canonical results.
 - [ ] Preserve producer identities and authorities without deriving missing facts or copying producer semantics.
 - [ ] Exercise decisive and non-decisive open prefixes, missing support,
   independently changed or cross-wired decision-scope/surrounding-execution
-  progress and closure, mis-correlation, duplication, and late contradiction.
+  progress and closure, every global closure state and required execution,
+  branch, and workflow premise mutation, mis-correlation, duplication, and late
+  contradiction.
 - [ ] Prove every adverse case yields its exact refusal, violation, incompleteness, or immutable supersession outcome.
 
 ## Deliverables

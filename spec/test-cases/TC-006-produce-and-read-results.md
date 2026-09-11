@@ -20,12 +20,19 @@ identity independently. Exercise independent/shared/derived/unknown support,
 missing predecessors, cycles, self-reference, decisive and non-decisive open
 prefixes, missing support, and later contradictions. Independently mutate and
 cross-wire decision-scope progress, decision-scope closure,
-surrounding-execution progress, and surrounding-execution closure; attempt to
-use any one of them as another or as complete-global-conformance closure.
+surrounding-execution progress, surrounding-execution closure, and
+complete-global-conformance closure; attempt to use any one as another. For
+each global-closure state, independently omit, duplicate, cross-wire, change
+scope on, and change identity on every required execution, branch, and workflow
+premise. Exercise `not-required` on each non-global claim and refuse it on a
+global claim or when it carries a global premise. Keep one independently
+settled per-obligation truth fixed through every global-closure mutation.
 
 ## Expected Results
 
 All valid rows round-trip to byte-identical canonical results. Every scope-axis
-collapse, cross-wire, forbidden combination, or lineage defect refuses. A late
-contradiction creates a new linked result while the earlier bytes and identity
-remain unchanged.
+collapse, cross-wire, forbidden combination, or lineage defect refuses.
+Complete global success requires the exact `closed` global record and complete
+premise set; an incomplete record prevents global success without changing the
+fixed per-obligation truth. A late contradiction creates a new linked result
+while the earlier bytes and identity remain unchanged.
