@@ -2,7 +2,7 @@
 id: Task-009
 title: "Integrate the native compiler artifact"
 type: Task
-status: blocked
+status: in_progress
 track: B
 priority: P0
 relationships:
@@ -36,5 +36,8 @@ substitution, or identity reinterpretation.
 
 ## Notes
 
-- Blocked by Task-002 and the accepted successor compiler artifact contract.
-- May proceed independently of Tasks 003 through 008 once those gates close.
+- A's accepted `quire.compiled-protocol/1` contract, public Rust reader and
+  four-unit producer recipe are available at `quire-spec-language` commit
+  `84975dd687d38d9b24eae84b7356e3f24cdc7b42` (merged PRs 52, 55 and 58).
+- This increment consumes that boundary directly. It does not take ownership of
+  later protocol conformance, execution, compensation assessment or E02 work.
