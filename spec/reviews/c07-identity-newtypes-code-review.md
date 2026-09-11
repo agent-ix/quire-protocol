@@ -1,5 +1,5 @@
 ---
-id: SR-025
+id: SR-031
 title: "Code review of the closed protocol identity newtype set"
 type: SpecReview
 analysis: code-review
