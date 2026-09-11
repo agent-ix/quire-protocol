@@ -38,9 +38,13 @@
 //!    literal — a generated executable template.
 //! 7. It is a hosted-workflow file carrying an inline command step, or a
 //!    trigger other than `workflow_dispatch` (NFR-003-AC-1).
-//! 8. Its extension is one this audit does not classify at all. An unknown
-//!    extension is reported, not passed: a census that silently admits what it
-//!    has no rule for is a tripwire tuned to pass.
+//! 8. Its extension is one this audit does not classify at all, or it is an
+//!    extensionless name not on [`INERT_FILE_NAMES`]. An unknown path is
+//!    reported, not passed: a census that silently admits what it has no rule
+//!    for is a tripwire tuned to pass.
+//! 9. It is a symbolic link. Links are recorded and never followed — following
+//!    one would let the census vouch for bytes outside the audited tree, and a
+//!    link to an ancestor would make the walk non-terminating.
 //!
 //! **Not** executable logic, and deliberately out of scope: `.md` prose, `.toml`
 //! and `.lock` configuration, `.json`/`.yaml` data and vendored producer
@@ -240,7 +244,20 @@ const INERT_EXTENSIONS: &[&str] = &[
 ];
 
 /// Extensionless file names that carry no interpreter.
-const INERT_FILE_NAMES: &[&str] = &["LICENSE", "NOTICE", "CODEOWNERS"];
+///
+/// Dot-files are listed here individually rather than skipped as a class: a
+/// leading dot is not evidence of inertness. `.envrc` is a shell script that
+/// something sources, and skipping every dot-file would let it in unexamined.
+const INERT_FILE_NAMES: &[&str] = &[
+    ".editorconfig",
+    ".gitattributes",
+    ".gitignore",
+    ".gitkeep",
+    ".gitmodules",
+    "CODEOWNERS",
+    "LICENSE",
+    "NOTICE",
+];
 
 /// File names another tool executes as a command manifest.
 const COMMAND_MANIFEST_NAMES: &[&str] = &[
@@ -398,6 +415,10 @@ struct TreeFile {
     relative: String,
     bytes: Vec<u8>,
     executable: bool,
+    /// A symbolic link is recorded, never followed: following one would let the
+    /// census vouch for bytes outside the audited tree, and a link to an
+    /// ancestor directory would make the walk non-terminating.
+    symlink: bool,
 }
 
 #[cfg(unix)]
@@ -433,10 +454,16 @@ fn walk_into(root: &Path, dir: &Path, rules: &[Ignore], out: &mut Vec<TreeFile>)
         if relative == ".git" || ignored(&relative, rules) {
             continue;
         }
-        let metadata = entry
-            .metadata()
+        let metadata = fs::symlink_metadata(&path)
             .unwrap_or_else(|error| panic!("TC-010: metadata for {path:?}: {error}"));
-        if metadata.is_dir() {
+        if metadata.file_type().is_symlink() {
+            out.push(TreeFile {
+                relative,
+                bytes: Vec::new(),
+                executable: false,
+                symlink: true,
+            });
+        } else if metadata.is_dir() {
             walk_into(root, &path, rules, out);
         } else if metadata.is_file() {
             out.push(TreeFile {
@@ -444,6 +471,7 @@ fn walk_into(root: &Path, dir: &Path, rules: &[Ignore], out: &mut Vec<TreeFile>)
                 bytes: fs::read(&path)
                     .unwrap_or_else(|error| panic!("TC-010: read {path:?}: {error}")),
                 executable: executable_bit(&metadata),
+                symlink: false,
             });
         }
     }
@@ -473,6 +501,22 @@ fn has_interpreter_marker(bytes: &[u8], is_rust: bool) -> bool {
     !(is_rust && bytes.get(2) == Some(&b'['))
 }
 
+/// Inspect one walked entry. A symlink is reported rather than resolved: its
+/// target may be an unaudited executable outside the tree.
+fn inspect_tree_file(file: &TreeFile) -> Vec<Finding> {
+    if file.symlink {
+        return vec![Finding::new(
+            Rule::ExecutablePath,
+            &file.relative,
+            "symbolic link: the audit does not follow links, so it cannot vouch for the \
+             target. Replace it with a tracked Rust path, or record it on the allowlist \
+             with a reason and a ticket."
+                .to_owned(),
+        )];
+    }
+    inspect_file(&file.relative, &file.bytes, file.executable)
+}
+
 /// Inspect one file. Pure over its inputs, so every rule can be fired against
 /// synthetic content without touching the disk.
 fn inspect_file(relative: &str, bytes: &[u8], executable: bool) -> Vec<Finding> {
@@ -499,7 +543,7 @@ fn inspect_file(relative: &str, bytes: &[u8], executable: bool) -> Vec<Finding> 
                 ),
             ));
         }
-    } else if !INERT_FILE_NAMES.contains(&name) && !name.starts_with('.') {
+    } else if !INERT_FILE_NAMES.contains(&name) {
         findings.push(Finding::new(
             Rule::ExecutablePath,
             relative,
@@ -804,7 +848,7 @@ fn raw_census() -> Vec<Finding> {
         if extension(&file.relative) == Some("rs") {
             rust_files += 1;
         }
-        findings.extend(inspect_file(&file.relative, &file.bytes, file.executable));
+        findings.extend(inspect_tree_file(&file));
     }
     assert!(
         rust_files > 0,
@@ -1126,10 +1170,7 @@ fn tc_010_walker_reaches_a_planted_violation_on_disk() {
         "TC-010: the walker must honour .gitignore, saw {relatives:?}"
     );
 
-    let findings: Vec<Finding> = walked
-        .iter()
-        .flat_map(|file| inspect_file(&file.relative, &file.bytes, file.executable))
-        .collect();
+    let findings: Vec<Finding> = walked.iter().flat_map(inspect_tree_file).collect();
     assert!(
         findings
             .iter()
@@ -1137,7 +1178,39 @@ fn tc_010_walker_reaches_a_planted_violation_on_disk() {
         "TC-010: the planted script must be reported, found {findings:?}"
     );
 
+    #[cfg(unix)]
+    {
+        // A link is a rename bypass with an extra step: the tracked path looks
+        // harmless and the bytes live somewhere the audit never reads.
+        std::os::unix::fs::symlink("/usr/bin/env", root.join("linked"))
+            .expect("TC-010: plant a symbolic link");
+        let relinked = walk(&root);
+        let link = relinked
+            .iter()
+            .find(|file| file.relative == "linked")
+            .expect("TC-010: the walker must record a symbolic link");
+        assert!(link.symlink, "TC-010: the link must be recorded as one");
+        let findings = inspect_tree_file(link);
+        assert!(
+            findings
+                .iter()
+                .any(|finding| finding.detail.contains("symbolic link")),
+            "TC-010: a symbolic link must be reported, found {findings:?}"
+        );
+    }
+
     fs::remove_dir_all(&root).expect("TC-010: remove the planted tree");
+}
+
+#[trace("NFR-003-AC-3", "TC-010")]
+#[test]
+fn tc_010_dot_files_are_classified_not_skipped() {
+    // A leading dot is not evidence of inertness: `.envrc` is a shell script.
+    fires(".envrc", "export PATH=/tmp\n", Rule::ExecutablePath);
+    assert!(
+        inspect_file(".gitignore", b"/target/\n", false).is_empty(),
+        "TC-010: a recorded inert dot-file must pass"
+    );
 }
 
 #[trace("NFR-003-AC-3", "TC-010")]
