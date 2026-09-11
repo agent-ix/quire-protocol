@@ -12,3 +12,24 @@ this local fixture before it reads `compiled-protocol.json`, then independently
 loads the corresponding source, model, producer, and dependency bytes from the
 actual producer directory. Updating this selection requires a deliberate B
 review together with A revision, license, and digest provenance.
+
+## Running the IT-001 lane
+
+The lane is `#[ignore]`d by default because it consumes A's real producer output,
+which is generated rather than vendored. Generate it once from
+`quire-spec-language` at the pinned revision `84975dd`:
+
+```console
+CARGO_PROFILE_RELEASE_STRIP=symbols cargo run --locked --offline --release \
+  --example native_protocol_handoff -- /tmp/quire-native-handoff-it001
+```
+
+Then run the lane against that directory:
+
+```console
+CARGO_BUILD_JOBS=1 QUIRE_PROTOCOL_A_FIXTURE=/tmp/quire-native-handoff-it001 \
+  flock /tmp/quire-heavy-check.lock \
+  cargo test --locked --test it001_native_handoff -- --ignored --test-threads=1
+```
+
+No hosted CI runs this lane; per `AGENTS.md` it is a local check.
