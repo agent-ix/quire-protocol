@@ -22,6 +22,11 @@ coverage. The accepted frozen source baseline, F consumer correction, Engineerin
 Assurance producer, license, implementation plan, and retained corpus remain
 explicit gates.
 
+Task-009 has a separately invoked producer-fixture smoke lane for its first
+consumer increment. Its tests remain `#[ignore]` because they require A's
+stripped release producer output and retain A's draft wire labels; they do not
+change the planned status of FR-001, FR-002, or IT-001's full scenario matrix.
+
 ## Functional Requirement Coverage
 
 | Functional Req | Acceptance Criteria | Test Cases | Coverage Status |
