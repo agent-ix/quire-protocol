@@ -252,7 +252,8 @@ fn tc_004_axes_are_independently_settable() {
 
 /// Changing one axis changes no other axis's established status.
 ///
-/// FR-061: "The result producer SHALL NOT use completeness, assessment
+/// `ix://agent-ix/quire-specification/FR-061`: "The result producer SHALL
+/// NOT use completeness, assessment
 /// execution or any other progress/closure fact as a substitute for any closure
 /// axis."
 ///
@@ -296,7 +297,8 @@ fn tc_004_changing_one_axis_changes_no_other() {
 
 /// A closed scope axis does not substitute for the global closure axis.
 ///
-/// FR-284: "A label equal to `closed` or `open` on one of the four axes and on
+/// `ix://agent-ix/quire-specification/FR-284`: "A label equal to `closed` or
+/// `open` on one of the four axes and on
 /// the fifth is one label string in two distinct vocabularies."
 ///
 /// Tracing: TC-004, FR-004-AC-3.
@@ -332,8 +334,10 @@ fn tc_004_scoped_closure_cannot_substitute_for_global_closure() {
 
 /// An omitted axis refuses and is never defaulted.
 ///
-/// FR-284: "an absent axis compares only to absence. It is never defaulted to
-/// `open` or to `closed`: FR-061 requires that 'A strict reader SHALL refuse an
+/// `ix://agent-ix/quire-specification/FR-284`: "an absent axis compares only
+/// to absence. It is never defaulted to `open` or to `closed`:
+/// `ix://agent-ix/quire-specification/FR-061` requires that 'A strict reader
+/// SHALL refuse an
 /// omitted required axis'."
 ///
 /// Tracing: TC-004, FR-004-AC-3.

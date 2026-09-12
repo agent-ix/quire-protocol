@@ -97,12 +97,20 @@ The four words below are not interchangeable, and no total mixes them.
 
   ```
   $ quire coverage --scope /home/peter/dev/quire-protocol
-  Coverage: 24/322 rows backed (7%)
+  Coverage: 23/322 rows backed (7%)
   ```
 
-  Twenty-four rows: FR-001 3 of 5, FR-002 1 of 5, FR-004 1 of 4, FR-006 1 of 8,
-  FR-008 1 of 9, FR-011 3 of 7, FR-015 3 of 5, FR-028 5 of 6, NFR-001 2 of 3,
-  plus 4 of the 14 test-case rows.
+  Twenty-three rows: FR-001 3 of 5, FR-004 1 of 4, FR-006 1 of 8, FR-008 1 of 9,
+  FR-011 3 of 7, FR-015 3 of 5, FR-028 5 of 6, NFR-001 2 of 3, plus 4 of the 14
+  test-case rows.
+
+  FR-002 is 0 of 5, and was 1 of 5 until this measurement. The row that went is
+  `FR-002-AC-1`, which `tests/it001_native_handoff.rs` tagged. The owner has
+  ruled that criterion unresolved until runtime instance identities exist (issue
+  #4), so the tag is gone and the figure fell by one. It fell because the
+  measurement got more honest, not because anything stopped working: that test
+  is `#[ignore]`d, so the criterion was never checked by a run in the first
+  place.
 
   The gap between 229 test-backed and 24 engine-bound is not a contradiction —
   the two words mean different things, and the definitions above say so — but it
@@ -114,7 +122,8 @@ The four words below are not interchangeable, and no total mixes them.
   the only thing that binds a test to a criterion, so a criterion a test
   exercises without naming it stays unbound however this matrix describes it.
   Tagging `tc_004`, `tc_006`, `tc_002` and `tc_008` at criterion level took
-  coverage from 13 rows to 24 without changing one line of test logic.
+  coverage from 13 rows to 24 without changing one line of test logic, and
+  removing one criterion a test could not check took it back to 23.
 
   Two kinds of unbound symbol remain, and they are not the same thing:
 
@@ -138,9 +147,9 @@ The four words below are not interchangeable, and no total mixes them.
 
 Unbacked and unexecutable are disjoint and are never summed: an unbacked
 criterion has nothing to run, an unexecutable one has something to run and no
-way to run it today. A row whose Coverage Status reads test-backed is a statement
+way to run it today. A row whose Status reads test-backed is a statement
 about the row's cited test cases, not a per-criterion guarantee; the `N of M`
-figure in each Coverage Status cell is the per-criterion count and is the figure
+figure in each Status cell is the per-criterion count and is the figure
 to read.
 
 ### Why criteria stand unexecuted
@@ -195,7 +204,7 @@ handoff.
 Parent and atomic rows are both listed. FR-010..FR-018 carry `object:` and are
 in Domain Object Coverage instead.
 
-| Functional Req | Acceptance Criteria | Test Cases | Coverage Status |
+| Functional Req | Acceptance Criteria | Test Cases | Status |
 | --- | --- | --- | --- |
 | FR-001 | FR-001-AC-1, FR-001-AC-2, FR-001-AC-3, FR-001-AC-4, FR-001-AC-5 | TC-001 (AC-1..AC-4); IT-001 (AC-4, AC-5) | 🚧 Planned — 5 of 5 criteria backed, 0 unbacked. FR-001-AC-5 is integration-backed only and unexecutable: its sole backing is IT-001 SC-06/SC-06a, gated on A's final version 2 revision |
 | FR-002 | FR-002-AC-1, FR-002-AC-2, FR-002-AC-3, FR-002-AC-4, FR-002-AC-5 | TC-002 (AC-1..AC-4); IT-001 (AC-5) | 🚧 Planned — 5 of 5 criteria backed, 0 unbacked. FR-002-AC-5 is integration-backed only and unexecutable: its sole backing is IT-001 SC-08, gated on A's final version 2 revision |
@@ -249,7 +258,7 @@ forty-three name a test case or an integration scenario, and each named test
 case declares in its own Traceability section the object criteria it backs, so
 the reference resolves in both directions.
 
-| Object Req | Object type | Acceptance Criteria | Test Cases | Coverage Status |
+| Object Req | Object type | Acceptance Criteria | Test Cases | Status |
 | --- | --- | --- | --- | --- |
 | FR-010 | domain | FR-010-AC-1..AC-3 | none — all three criteria are Inspection | 🚧 Planned — 0 of 3 criteria test-backed; unbacked: FR-010-AC-1, FR-010-AC-2, FR-010-AC-3 |
 | FR-011 | value_object | FR-011-AC-1..AC-7 | TC-014 (AC-2..AC-6); none for FR-011-AC-1, FR-011-AC-7 | 🚧 Planned — 5 of 7 criteria test-backed; unbacked: FR-011-AC-1, FR-011-AC-7 (Inspection) |
