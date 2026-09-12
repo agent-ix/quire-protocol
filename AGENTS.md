@@ -12,6 +12,21 @@ this repository.
 - Treat `agent-ix/quire-specification` as the formal-clause source. Consume one
   promoted immutable profile and exact rule digests; do not rewrite protocol or
   temporal semantics locally.
+- **Find the owner before you declare a type.** This repository is a consumer in
+  a multi-repository ecosystem, and most types it handles are owned elsewhere.
+  Before adding any type, enum member, key, wire string or file schema, look up
+  its owner in the spec — the artifacts and their `ix://` references exist to
+  answer exactly that. If an owner publishes it, import it. If the spec shows no
+  owner, stop and ask; do not supply it locally and do not record the divergence
+  as though recording it settled anything. See `CLAUDE.md`.
+- **Never mirror another repository's type as a placeholder**, including while
+  that repository's work is still in progress. Waiting is correct; a local
+  stand-in is not, because every consumer of the stand-in has to be rewritten
+  once the real type lands.
+- **`tests/` is held to this identically.** Test-support code is where local
+  shadow vocabularies actually accumulate in this repository, and a shadow enum
+  under `tests/support/` makes assertions that cannot fail — it compares the
+  local labels to each other instead of to the owner's values.
 - Reuse the accepted Engineering Assurance Rust producer boundary. Do not add a
   local subprocess runner, stdout verdict parser, evidence store, verification
   catalogue, or human-disposition path.
