@@ -26,9 +26,10 @@ use std::path::{Path, PathBuf};
 
 use ix_trace_rs::trace;
 use quire_protocol::refusal::catalog::{
-    audit, lookup, malformation, unregistered_literals, CatalogDefect, CatalogDigest,
-    CatalogDigestUnavailable, CatalogSelection, CodeEntry, CodeModule, MalformedCode, RefusalCode,
-    RetainedBytes, UnregisteredLiteral, ENVELOPE_CODES, REGISTRY, UNREGISTERED_CODE,
+    audit, is_code_shape, lookup, lookup_in, malformation, unregistered_literals, CatalogDefect,
+    CatalogDigest, CatalogDigestUnavailable, CatalogSelection, CodeEntry, CodeModule,
+    MalformedCode, Provenance, RefusalCode, RetainedBytes, UnregisteredLiteral, ENVELOPE_CODES,
+    EXEMPT_LITERALS, REGISTRY, UNREGISTERED_CODE, UNSUPPORTED_SOURCE_CONTRACT,
 };
 use quire_protocol::refusal::{
     AffectedIdentity, Cause, CauseChain, CauseDetail, InvertedSpan, Location, OriginatingStage,
@@ -42,7 +43,7 @@ use quire_protocol::refusal::{
 
 /// The one code chunk C-01 mints, as a handle.
 fn unregistered_code() -> RefusalCode {
-    RefusalCode::of(&UNREGISTERED_CODE)
+    lookup(UNREGISTERED_CODE.code).expect("C-01's own code is registered")
 }
 
 /// A refusal with every FR-008-AC-1 field populated.
@@ -155,16 +156,38 @@ fn tc_011_every_envelope_field_is_readable_without_parsing() {
 #[test]
 #[trace("TC-011", "FR-008-AC-1")]
 fn tc_011_prerequisite_states_are_three_distinct_facts() {
-    // "the source said no" and "the source said nothing" are different facts,
-    // and neither is the other.
+    // Comparing the three fieldless variants to each other proves only that
+    // `derive(PartialEq)` exists. Each state is routed through a real envelope
+    // instead, so the test fails if a state stops reaching the envelope's
+    // identity — which is the fact FR-008 actually needs.
+    let refusal_with = |state| {
+        ProtocolRefusal::builder(
+            unregistered_code(),
+            CatalogSelection::local(),
+            OriginatingStage::SourceRecognition,
+        )
+        .prerequisite(Prerequisite::new(OriginatingStage::IdentityLinking, state))
+        .emitting_nothing()
+    };
+
     let states = [
         PrerequisiteState::Established,
         PrerequisiteState::NotEstablished,
         PrerequisiteState::Unavailable,
     ];
-    for (index, state) in states.iter().enumerate() {
-        for (other_index, other) in states.iter().enumerate() {
-            assert_eq!(index == other_index, state == other);
+    for (position, state) in states.iter().enumerate() {
+        let refusal = refusal_with(*state);
+        assert_eq!(
+            refusal.prerequisites(),
+            &[Prerequisite::new(OriginatingStage::IdentityLinking, *state)],
+            "the state is readable back without parsing"
+        );
+        for other in &states[..position] {
+            assert_ne!(
+                refusal,
+                refusal_with(*other),
+                "{state:?} and {other:?} must not produce one refusal identity"
+            );
         }
     }
 }
@@ -347,31 +370,51 @@ fn tc_011_unavailability_reasons_are_three_distinct_facts() {
 /// alphabetical order, so a chain that sorted would be caught.
 const ORDERED_CAUSES: [CodeEntry; 3] = [
     CodeEntry {
-        code: "zeta.cause.one",
+        provenance: Provenance::Minted,
+        code: "cause.zeta.one",
         domain: RefusalDomain::Assessment,
         retry: RetryDecision::Never,
         summary: "first declared cause",
     },
     CodeEntry {
-        code: "alpha.cause.two",
+        provenance: Provenance::Minted,
+        code: "cause.alpha.two",
         domain: RefusalDomain::Assessment,
         retry: RetryDecision::Never,
         summary: "second declared cause",
     },
     CodeEntry {
-        code: "mu.cause.three",
+        provenance: Provenance::Minted,
+        code: "cause.mu.three",
         domain: RefusalDomain::Assessment,
         retry: RetryDecision::Never,
         summary: "third declared cause",
     },
 ];
 
+/// The ordering codes as a registry, so the test reaches them the way
+/// production code does — through a lookup — rather than through a constructor
+/// that would accept an entry nothing registered.
+const ORDERED_CAUSE_MODULE: CodeModule = CodeModule {
+    root: "cause",
+    owner: "C-01-test",
+    module_path: "tests::tc_011_typed_refusals",
+    entries: &ORDERED_CAUSES,
+};
+
+const ORDERED_CAUSE_REGISTRY: &[CodeModule] = &[ORDERED_CAUSE_MODULE];
+
+/// One ordering code, by spelling.
+fn ordered_cause(code: &str) -> RefusalCode {
+    lookup_in(ORDERED_CAUSE_REGISTRY, code).expect("a registered test cause code")
+}
+
 #[test]
 #[trace("TC-011", "FR-008-AC-1")]
 fn tc_011_cause_order_is_declared_not_sorted() {
     let mut chain = CauseChain::new();
     for entry in &ORDERED_CAUSES {
-        chain.push(Cause::new(RefusalCode::of(entry)));
+        chain.push(Cause::new(ordered_cause(entry.code)));
     }
 
     let observed: Vec<&str> = chain
@@ -381,7 +424,7 @@ fn tc_011_cause_order_is_declared_not_sorted() {
         .collect();
     assert_eq!(
         observed,
-        vec!["zeta.cause.one", "alpha.cause.two", "mu.cause.three"],
+        vec!["cause.zeta.one", "cause.alpha.two", "cause.mu.three"],
         "causes are retained in declared order"
     );
 
@@ -392,7 +435,7 @@ fn tc_011_cause_order_is_declared_not_sorted() {
         "the fixture must not be accidentally sorted, or this proves nothing"
     );
     assert_eq!(
-        chain.position_of(RefusalCode::of(&ORDERED_CAUSES[2])),
+        chain.position_of(ordered_cause(ORDERED_CAUSES[2].code)),
         Some(2)
     );
 }
@@ -494,6 +537,7 @@ const COLLIDING_A: CodeModule = CodeModule {
     owner: "C-XX",
     module_path: "quire_protocol::refusal",
     entries: &[CodeEntry {
+        provenance: Provenance::Minted,
         code: "refusal.shared.spelling",
         domain: RefusalDomain::Representation,
         retry: RetryDecision::Never,
@@ -506,6 +550,7 @@ const COLLIDING_B: CodeModule = CodeModule {
     owner: "C-YY",
     module_path: "quire_protocol::elsewhere",
     entries: &[CodeEntry {
+        provenance: Provenance::Minted,
         code: "refusal.shared.spelling",
         domain: RefusalDomain::Representation,
         retry: RetryDecision::Never,
@@ -546,6 +591,7 @@ const STRAYING_ROOT: CodeModule = CodeModule {
     owner: "C-ZZ",
     module_path: "quire_protocol::elsewhere",
     entries: &[CodeEntry {
+        provenance: Provenance::Minted,
         code: "result.claimed.elsewhere",
         domain: RefusalDomain::Assessment,
         retry: RetryDecision::Never,
@@ -574,12 +620,14 @@ const MIXED_DOMAINS: CodeModule = CodeModule {
     module_path: "quire_protocol::elsewhere",
     entries: &[
         CodeEntry {
+            provenance: Provenance::Minted,
             code: "assessment.first.code",
             domain: RefusalDomain::Assessment,
             retry: RetryDecision::Never,
             summary: "one domain",
         },
         CodeEntry {
+            provenance: Provenance::Minted,
             code: "assessment.second.code",
             domain: RefusalDomain::Projection,
             retry: RetryDecision::Never,
@@ -634,16 +682,29 @@ fn tc_011_malformed_spellings_are_each_their_own_reason() {
         Some(MalformedCode::IllegalCharacter)
     );
     assert_eq!(malformation("refusal.code.unregistered"), None);
+    // The minted grammar binds minted codes. A spec-named code's spelling is
+    // the requirement's, and `unsupported-source-contract` deliberately does not
+    // satisfy it — see `tc_011_the_spec_named_code_is_registered_and_audits_clean`.
+    let mut minted = 0;
+    let mut spec_named = 0;
     for module in REGISTRY {
         for entry in module.entries {
-            assert_eq!(
-                malformation(entry.code),
-                None,
-                "{} is a registered code and must be well formed",
-                entry.code
-            );
+            match entry.provenance {
+                Provenance::Minted => {
+                    minted += 1;
+                    assert_eq!(
+                        malformation(entry.code),
+                        None,
+                        "{} is a registered minted code and must be well formed",
+                        entry.code
+                    );
+                }
+                Provenance::SpecNamed => spec_named += 1,
+            }
         }
     }
+    assert!(minted > 0, "the registry must carry minted codes");
+    assert_eq!(spec_named, 1, "FR-008 names exactly one local code");
 }
 
 const MALFORMED_MODULE: CodeModule = CodeModule {
@@ -651,6 +712,7 @@ const MALFORMED_MODULE: CodeModule = CodeModule {
     owner: "C-WW",
     module_path: "quire_protocol::elsewhere",
     entries: &[CodeEntry {
+        provenance: Provenance::Minted,
         code: "refusal.Bad_Code",
         domain: RefusalDomain::Representation,
         retry: RetryDecision::Never,
@@ -739,12 +801,22 @@ fn tc_011_literal_scan_detects_an_unregistered_code() {
         "an unregistered code under a reserved root is found, and nothing else is"
     );
 
-    // A registered code is not a finding, and a dotted literal under a root no
-    // module has reserved is not a finding either.
+    // A registered code is not a finding. A code-shaped literal that is not a
+    // code IS a finding, because shape cannot tell `cargo.toml` from the real
+    // two-segment code `outcome.open` — the sanctioned silencer is
+    // `EXEMPT_LITERALS`, never a weaker shape test.
+    assert_eq!(
+        unregistered_literals(REGISTRY, r#"let path = "cargo.toml";"#),
+        vec![UnregisteredLiteral {
+            literal: "cargo.toml".to_owned()
+        }],
+        "a code-shaped non-code is reported rather than guessed at"
+    );
+
     let clean = r#"
         let code = "refusal.code.unregistered";
         let other = "outcome.open";
-        let path = "cargo.toml";
+        let path = "spec/tests.md";
     "#;
     assert_eq!(unregistered_literals(REGISTRY, clean), Vec::new());
 }
@@ -803,4 +875,224 @@ fn tc_011_an_inverted_span_is_refused_at_construction() {
     // transposition rather than only that one happened.
     let inverted = SourceLocation::reported(b"unit-a", 40, 12).expect_err("inverted");
     assert_eq!((inverted.start, inverted.end), (40, 12));
+}
+
+// ---------------------------------------------------------------------------
+// Findings from the C-01 review: each test below fails on the defect it names
+// ---------------------------------------------------------------------------
+
+/// Every field the envelope's identity is built from actually changes identity.
+///
+/// Before this test, `code`, `causes`, `prerequisites` and `partial_output`
+/// could each be deleted from `identity_fields` with the whole suite still
+/// green. Two refusals differing only in code would then compare equal and hash
+/// equal, and a caller de-duplicating refusals into a set would lose one — and
+/// act on the survivor's retry decision.
+#[test]
+#[trace("TC-011", "FR-008-AC-2")]
+fn tc_011_every_identity_field_changes_identity() {
+    let plain = || {
+        ProtocolRefusal::builder(
+            unregistered_code(),
+            CatalogSelection::local(),
+            OriginatingStage::SourceRecognition,
+        )
+    };
+    let base = plain().emitting_nothing();
+
+    // Code.
+    let other_code = ProtocolRefusal::builder(
+        ordered_cause("cause.zeta.one"),
+        CatalogSelection::local(),
+        OriginatingStage::SourceRecognition,
+    )
+    .emitting_nothing();
+    assert_ne!(other_code, base, "the code is part of the identity");
+
+    // Causes.
+    assert_ne!(
+        plain()
+            .cause(Cause::new(ordered_cause("cause.zeta.one")))
+            .emitting_nothing(),
+        base,
+        "the cause chain is part of the identity"
+    );
+
+    // Prerequisites.
+    assert_ne!(
+        plain()
+            .prerequisite(Prerequisite::new(
+                OriginatingStage::IdentityLinking,
+                PrerequisiteState::NotEstablished,
+            ))
+            .emitting_nothing(),
+        base,
+        "prerequisites are part of the identity"
+    );
+
+    // Partial output: the same builder either emits nothing or retains an
+    // independent value, and those are different refusals.
+    let retaining = plain().retaining_independent(1_u8, Vec::new());
+    assert_ne!(
+        retaining.refusal(),
+        &base,
+        "the partial-output state is part of the identity"
+    );
+}
+
+/// Every originating stage renders to its own spelling.
+///
+/// `RefusalDomain` had this; `OriginatingStage` did not, and `ALL` was unused.
+/// Two stages spelled identically make FR-008's "a wrapper cannot erase or
+/// replace that stage" unobservable in the rendered form.
+#[test]
+#[trace("TC-011", "FR-008-AC-1")]
+fn tc_011_every_stage_has_its_own_spelling() {
+    let stages = OriginatingStage::ALL;
+    assert_eq!(stages.len(), 6, "FR-008 names six stages");
+    for (position, stage) in stages.iter().enumerate() {
+        assert!(!stage.as_str().is_empty());
+        for other in &stages[..position] {
+            assert_ne!(
+                stage.as_str(),
+                other.as_str(),
+                "{stage:?} and {other:?} render identically"
+            );
+        }
+        assert_ne!(stage, &stages[(position + 1) % stages.len()]);
+    }
+}
+
+/// FR-008's own code is registrable, and registered.
+///
+/// The catalog's minted grammar requires at least two dot-separated segments.
+/// `unsupported-source-contract` — the one code FR-008 names, and assigns to
+/// this repository — has none, so registering it used to fail the audit with
+/// `FewerThanTwoSegments` and `RootMismatch`. C-02 could not have registered
+/// its only code without deleting C-01's audit.
+#[test]
+#[trace("TC-011", "FR-008-AC-3")]
+fn tc_011_the_spec_named_code_is_registered_and_audits_clean() {
+    assert_eq!(
+        UNSUPPORTED_SOURCE_CONTRACT.provenance,
+        Provenance::SpecNamed
+    );
+    assert_eq!(
+        UNSUPPORTED_SOURCE_CONTRACT.code, "unsupported-source-contract",
+        "the requirement's spelling is the spelling"
+    );
+    assert!(
+        lookup("unsupported-source-contract").is_some(),
+        "FR-008's own code must be reachable through the registry"
+    );
+    assert_eq!(audit(REGISTRY), Vec::new(), "the real registry is clean");
+
+    // The minted grammar still rejects that shape, which is why the provenance
+    // distinction exists rather than the grammar simply being loosened.
+    assert_eq!(
+        malformation("unsupported-source-contract"),
+        Some(MalformedCode::FewerThanTwoSegments)
+    );
+}
+
+/// A code-shaped literal is a finding whatever root it sits under.
+///
+/// The scan used to ask whether some module had already reserved the literal's
+/// root, which made it a denylist: the first chunk to mint a code under any of
+/// the five FR-008 domain roots was invisible to it.
+#[test]
+#[trace("TC-011", "FR-008-AC-1")]
+fn tc_011_an_unreserved_root_is_still_a_finding() {
+    let source = r#"pub const INVENTED: &str = "admission.offer.rejected";"#;
+    let found = unregistered_literals(REGISTRY, source);
+    assert_eq!(
+        found,
+        vec![UnregisteredLiteral {
+            literal: "admission.offer.rejected".to_owned()
+        }],
+        "a code under a root nobody has reserved yet is still unregistered"
+    );
+    assert!(is_code_shape("admission.offer.rejected"));
+}
+
+/// A quote inside a char literal or a comment does not blind the scan.
+///
+/// The scan was a search for `"` bytes, so one `pub const QUOTE: char = '"';`
+/// shifted quote pairing and hid every code literal after it. Comments were
+/// read as source too, which made this module's own prose a finding for the
+/// first chunk to reserve a root it mentions.
+#[test]
+#[trace("TC-011", "FR-008-AC-1")]
+fn tc_011_a_quote_in_a_char_literal_or_comment_does_not_blind_the_scan() {
+    let hidden = "hidden.code.here";
+
+    let after_char_literal =
+        format!("pub const QUOTE: char = '\"';\npub const HIDDEN: &str = \"{hidden}\";");
+    assert_eq!(
+        unregistered_literals(REGISTRY, &after_char_literal),
+        vec![UnregisteredLiteral {
+            literal: hidden.to_owned()
+        }],
+        "a char literal holding a quote must not hide what follows it"
+    );
+
+    // Prose is not code: a literal that appears only inside a comment is not a
+    // finding, in either comment form.
+    let line_comment = format!("// a chunk writing a bare \"{hidden}\" in src/\nlet x = 1;");
+    assert_eq!(unregistered_literals(REGISTRY, &line_comment), Vec::new());
+
+    let block_comment = format!("/* outer /* nested \"{hidden}\" */ still inside */\nlet x = 1;");
+    assert_eq!(unregistered_literals(REGISTRY, &block_comment), Vec::new());
+
+    // And a real literal after a comment is still found.
+    let after_comment = format!("// prose\npub const HIDDEN: &str = \"{hidden}\";");
+    assert_eq!(
+        unregistered_literals(REGISTRY, &after_comment),
+        vec![UnregisteredLiteral {
+            literal: hidden.to_owned()
+        }]
+    );
+}
+
+/// A leading hyphen reports as a hyphen at an edge.
+///
+/// `HyphenAtSegmentEdge` documents "began or ended with a hyphen", but the
+/// letter check ran first, so the leading half was unreachable and the reported
+/// reason named the wrong defect.
+#[test]
+#[trace("TC-011", "FR-008-AC-1")]
+fn tc_011_a_leading_hyphen_is_a_hyphen_at_an_edge() {
+    assert_eq!(
+        malformation("refusal.-leading.code"),
+        Some(MalformedCode::HyphenAtSegmentEdge)
+    );
+    assert_eq!(
+        malformation("refusal.trailing-.code"),
+        Some(MalformedCode::HyphenAtSegmentEdge)
+    );
+    assert_eq!(
+        malformation("refusal.9numeric.code"),
+        Some(MalformedCode::SegmentDoesNotStartWithLetter)
+    );
+}
+
+/// Every exemption still corresponds to a literal in `src/`.
+///
+/// An exemption that no longer matches anything is worse than none: it sits in
+/// the allowlist silently pre-approving a spelling that a later chunk could
+/// take for a real code.
+#[test]
+#[trace("TC-011", "FR-008-AC-1")]
+fn tc_011_the_exemption_list_is_not_stale() {
+    let sources: String = source_files()
+        .into_iter()
+        .map(|path| fs::read_to_string(&path).expect("a readable src file"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    for exempt in EXEMPT_LITERALS {
+        assert!(
+            sources.contains(exempt),
+            "exemption {exempt} matches no literal in src/; remove it"
+        );
+    }
 }

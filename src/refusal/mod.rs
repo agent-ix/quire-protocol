@@ -177,7 +177,7 @@ pub enum RetryDecision {
 
 /// The originating stage FR-008 requires a refusal to retain.
 ///
-/// Closed: the five stages are named by FR-008's own behaviour clause. A
+/// Closed: the six stages are named by FR-008's own behaviour clause. A
 /// wrapper cannot erase or replace the stage because [`ProtocolRefusal`] has no
 /// setter for it — the only way to obtain a refusal is to build one with a
 /// stage, and the field is private.

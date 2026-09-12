@@ -31,7 +31,8 @@
 //! root**. No two modules may claim the same root, and inside `src/` a
 //! code-shaped string literal under a reserved root that is not registered here
 //! is a defect — see [`unregistered_literals`], which the TC-011 audit runs
-//! over every tracked `src/` file. That is what makes the audit repo-wide
+//! over every `.rs` file under `src/`, tracked or not. That is what makes the
+//! audit repo-wide
 //! rather than self-referential: a later chunk cannot mint a code by writing a
 //! bare string literal, it has to register it.
 
@@ -43,10 +44,33 @@ use super::{RefusalDomain, RetryDecision};
 // Catalog entries
 // ---------------------------------------------------------------------------
 
+/// Where a code's spelling comes from, which decides the grammar it must obey.
+///
+/// The two are not interchangeable. A chunk-minted code is namespaced so that
+/// thirty authors cannot collide; a spec-named code is a literal FR-008 itself
+/// writes down, and B does not get to re-spell it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum Provenance {
+    /// Minted by a chunk of this crate, under that chunk's reserved root.
+    /// Must be at least two dot-separated segments.
+    Minted,
+    /// Named verbatim by a requirement. The requirement's spelling is the
+    /// spelling, whatever shape it has.
+    ///
+    /// `unsupported-source-contract` is the case this exists for: FR-008 names
+    /// it as "the local `unsupported-source-contract` disposition this
+    /// requirement owns", and it carries no dot. A grammar that rejected it
+    /// would have made the one code the specification actually names
+    /// unregistrable — which is what this catalog did before.
+    SpecNamed,
+}
+
 /// One registered refusal code: its stable spelling and everything a caller may
 /// decide from it without reading display text.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct CodeEntry {
+    /// Where this spelling comes from, and therefore which grammar applies.
+    pub provenance: Provenance,
     /// The stable spelling. Lowercase, dot-separated, hyphen-joined words.
     ///
     /// This spelling is API: changing it is a breaking change, and
@@ -92,6 +116,7 @@ impl CodeModule {
 /// the original catalog selection and the original uninterpreted value, is
 /// FR-008-AC-3 and belongs to chunk C-02.
 pub const UNREGISTERED_CODE: CodeEntry = CodeEntry {
+    provenance: Provenance::Minted,
     code: "refusal.code.unregistered",
     domain: RefusalDomain::Representation,
     retry: RetryDecision::Never,
@@ -106,12 +131,146 @@ pub const ENVELOPE_CODES: CodeModule = CodeModule {
     entries: &[UNREGISTERED_CODE],
 };
 
+/// FR-008's own local disposition for an unknown source contract.
+///
+/// The requirement names this spelling verbatim and assigns it to this
+/// repository: "the local `unsupported-source-contract` disposition this
+/// requirement owns". It is registered here, by the chunk that owns the code
+/// namespace, so that C-02 — which owns the *behaviour* under FR-008-AC-3 —
+/// inherits a registered slot instead of a grammar that rejects its only code.
+///
+/// C-01 registers the spelling. C-01 does not decide when it is emitted.
+pub const UNSUPPORTED_SOURCE_CONTRACT: CodeEntry = CodeEntry {
+    provenance: Provenance::SpecNamed,
+    code: "unsupported-source-contract",
+    domain: RefusalDomain::Representation,
+    retry: RetryDecision::Never,
+    summary: "the source contract, revision or code is unknown and is retained uninterpreted",
+};
+
+/// FR-008's spec-named codes. The code is its own reserved root, so nothing
+/// may mint `unsupported-source-contract.anything` beside it.
+pub const SPEC_NAMED_CODES: CodeModule = CodeModule {
+    root: "unsupported-source-contract",
+    owner: "C-02",
+    module_path: "quire_protocol::refusal::catalog",
+    entries: &[UNSUPPORTED_SOURCE_CONTRACT],
+};
+
+/// The five closure-axis codes `crate::closure` emits, under the reserved root
+/// `closure`. Owner chunk: **C-15**.
+///
+/// C-15 landed before this catalog existed, so it spells these codes as string
+/// literals in `src/closure.rs` and had nowhere to register them. The repo-wide
+/// scan found all ten on the commit that introduced the allowlist — which is
+/// the scan working, and is precisely what the previous root-denylist could not
+/// see, because nothing had reserved `closure` or `outcome`.
+///
+/// Registering them here binds the two together: the scan now fails if
+/// `src/closure.rs` changes a spelling without changing this entry, and fails
+/// if an entry here names a code nothing emits.
+pub const CLOSURE_CODES: CodeModule = CodeModule {
+    root: "closure",
+    owner: "C-15",
+    module_path: "quire_protocol::closure",
+    entries: &[
+        CodeEntry {
+            provenance: Provenance::Minted,
+            code: "closure.decision-scope-progress.not-established",
+            domain: RefusalDomain::Assessment,
+            retry: RetryDecision::Never,
+            summary: "the decision-scope progress axis was not established",
+        },
+        CodeEntry {
+            provenance: Provenance::Minted,
+            code: "closure.decision-scope.not-closed",
+            domain: RefusalDomain::Assessment,
+            retry: RetryDecision::Never,
+            summary: "the decision-scope closure axis is not closed",
+        },
+        CodeEntry {
+            provenance: Provenance::Minted,
+            code: "closure.surrounding-execution-progress.not-established",
+            domain: RefusalDomain::Assessment,
+            retry: RetryDecision::Never,
+            summary: "the surrounding-execution progress axis was not established",
+        },
+        CodeEntry {
+            provenance: Provenance::Minted,
+            code: "closure.surrounding-execution.not-closed",
+            domain: RefusalDomain::Assessment,
+            retry: RetryDecision::Never,
+            summary: "the surrounding-execution closure axis is not closed",
+        },
+        CodeEntry {
+            provenance: Provenance::Minted,
+            code: "closure.complete-global-conformance.not-closed",
+            domain: RefusalDomain::Assessment,
+            retry: RetryDecision::Never,
+            summary: "complete global conformance was not established",
+        },
+    ],
+};
+
+/// The five outcome codes `crate::closure` emits, under the reserved root
+/// `outcome`. Owner chunk: **C-15**.
+///
+/// A separate module from [`CLOSURE_CODES`] because a module reserves one root
+/// and these are a second root, not because they have a second owner.
+pub const OUTCOME_CODES: CodeModule = CodeModule {
+    root: "outcome",
+    owner: "C-15",
+    module_path: "quire_protocol::closure",
+    entries: &[
+        CodeEntry {
+            provenance: Provenance::Minted,
+            code: "outcome.open",
+            domain: RefusalDomain::Assessment,
+            retry: RetryDecision::Never,
+            summary: "the assessment outcome is open",
+        },
+        CodeEntry {
+            provenance: Provenance::Minted,
+            code: "outcome.incomplete",
+            domain: RefusalDomain::Assessment,
+            retry: RetryDecision::Never,
+            summary: "the assessment outcome is incomplete",
+        },
+        CodeEntry {
+            provenance: Provenance::Minted,
+            code: "outcome.unsupported",
+            domain: RefusalDomain::Assessment,
+            retry: RetryDecision::Never,
+            summary: "the assessment outcome is unsupported",
+        },
+        CodeEntry {
+            provenance: Provenance::Minted,
+            code: "outcome.failed",
+            domain: RefusalDomain::Assessment,
+            retry: RetryDecision::Never,
+            summary: "the assessment outcome failed",
+        },
+        CodeEntry {
+            provenance: Provenance::Minted,
+            code: "outcome.exhausted",
+            domain: RefusalDomain::Assessment,
+            retry: RetryDecision::Never,
+            summary: "the assessment outcome exhausted its budget",
+        },
+    ],
+};
+
 /// Every code this crate may emit.
 ///
 /// A chunk that mints codes appends **one** `CodeModule` line here and defines
 /// its entries in its own file. That single line is the only part of this
 /// module a later chunk may touch (COLLISION-5).
-pub const REGISTRY: &[CodeModule] = &[ENVELOPE_CODES];
+pub const REGISTRY: &[CodeModule] = &[
+    ENVELOPE_CODES,
+    SPEC_NAMED_CODES,
+    CLOSURE_CODES,
+    OUTCOME_CODES,
+];
 
 /// The registered code with this exact spelling, if any.
 #[must_use]
@@ -137,7 +296,7 @@ pub fn lookup_in(registry: &'static [CodeModule], code: &str) -> Option<RefusalC
 
 /// A refusal code that is known to be registered.
 ///
-/// The only way to obtain one is from a catalog entry, so an envelope can never
+/// Every public constructor goes through a registry, so an envelope cannot
 /// carry a spelling nothing owns. Equality is over the stable spelling, never
 /// over the summary text.
 #[derive(Clone, Copy, Debug)]
@@ -147,8 +306,17 @@ pub struct RefusalCode {
 
 impl RefusalCode {
     /// Wrap a catalog entry.
-    #[must_use]
-    pub const fn of(entry: &'static CodeEntry) -> Self {
+    ///
+    /// Crate-private. `CodeEntry`'s fields are public so a chunk can declare
+    /// its own entries as consts, which means a public `of` accepted any
+    /// `&'static CodeEntry` at all — including one built inline and registered
+    /// nowhere. That made the doc claim above ("the only way to obtain one is
+    /// from a catalog entry, so an envelope can never carry a spelling nothing
+    /// owns") false, and the tests themselves used the hole.
+    ///
+    /// [`lookup`] and [`lookup_in`] are the public constructors, and both go
+    /// through a registry.
+    pub(crate) const fn of(entry: &'static CodeEntry) -> Self {
         Self { entry }
     }
 
@@ -410,19 +578,35 @@ pub fn audit(registry: &[CodeModule]) -> Vec<CatalogDefect> {
 
         let mut module_domain: Option<RefusalDomain> = None;
         for entry in module.entries {
-            if let Some(reason) = malformation(entry.code) {
-                defects.push(CatalogDefect::Malformed {
-                    code: entry.code,
-                    owner: module.owner,
-                    reason,
-                });
-            }
-            if root_of(entry.code) != Some(module.root) {
-                defects.push(CatalogDefect::RootMismatch {
-                    code: entry.code,
-                    root: module.root,
-                    owner: module.owner,
-                });
+            // The minted grammar is a namespacing rule, so it applies to
+            // minted codes. A spec-named code's spelling is the requirement's,
+            // and its whole code is its own root.
+            match entry.provenance {
+                Provenance::Minted => {
+                    if let Some(reason) = malformation(entry.code) {
+                        defects.push(CatalogDefect::Malformed {
+                            code: entry.code,
+                            owner: module.owner,
+                            reason,
+                        });
+                    }
+                    if root_of(entry.code) != Some(module.root) {
+                        defects.push(CatalogDefect::RootMismatch {
+                            code: entry.code,
+                            root: module.root,
+                            owner: module.owner,
+                        });
+                    }
+                }
+                Provenance::SpecNamed => {
+                    if entry.code != module.root {
+                        defects.push(CatalogDefect::RootMismatch {
+                            code: entry.code,
+                            root: module.root,
+                            owner: module.owner,
+                        });
+                    }
+                }
             }
             if let Some(&(code, first_owner)) =
                 seen_codes.iter().find(|(code, _)| *code == entry.code)
@@ -471,11 +655,14 @@ pub fn malformation(code: &str) -> Option<MalformedCode> {
         if segment.is_empty() {
             return Some(MalformedCode::EmptySegment);
         }
+        // Order matters: a leading hyphen is a hyphen at an edge, which is what
+        // the variant's own documentation says. Testing "starts with a letter"
+        // first made half of `HyphenAtSegmentEdge` unreachable.
+        if segment.starts_with('-') || segment.ends_with('-') {
+            return Some(MalformedCode::HyphenAtSegmentEdge);
+        }
         if !segment.starts_with(|character: char| character.is_ascii_lowercase()) {
             return Some(MalformedCode::SegmentDoesNotStartWithLetter);
-        }
-        if segment.ends_with('-') {
-            return Some(MalformedCode::HyphenAtSegmentEdge);
         }
         if !segment.chars().all(|character| {
             character.is_ascii_lowercase() || character.is_ascii_digit() || character == '-'
@@ -486,17 +673,21 @@ pub fn malformation(code: &str) -> Option<MalformedCode> {
     None
 }
 
-/// Whether a string literal is shaped like a refusal code under a root that a
-/// registry has reserved.
+/// Whether a string literal is shaped like a chunk-minted refusal code.
+///
+/// Shape only: at least two dot-separated segments, every segment lowercase
+/// alphanumeric with interior hyphens. It deliberately does **not** ask whether
+/// the root is reserved.
+///
+/// It used to. That made the repo-wide scan a denylist over roots that already
+/// existed, so the first chunk to mint a code under any of the five FR-008
+/// domain roots was invisible to it: appending
+/// `pub const INVENTED: &str = "admission.offer.rejected";` to any `src/` file
+/// passed the gate. An allowlist has no such hole — every code-shaped literal
+/// must be registered, whatever its root.
 #[must_use]
-pub fn is_reserved_code_shape(registry: &[CodeModule], literal: &str) -> bool {
-    if malformation(literal).is_some() {
-        return false;
-    }
-    let Some(root) = root_of(literal) else {
-        return false;
-    };
-    registry.iter().any(|module| module.root == root)
+pub fn is_code_shape(literal: &str) -> bool {
+    malformation(literal).is_none()
 }
 
 /// A code-shaped literal under a reserved root that no module registered.
@@ -516,6 +707,20 @@ pub struct UnregisteredLiteral {
 /// The scan is deliberately conservative. It looks only at double-quoted
 /// literals, and it only complains about roots a module has already reserved,
 /// so an unrelated dotted string such as a file name is never a finding.
+/// Code-shaped literals in `src/` that are deliberately not refusal codes.
+///
+/// The scan is an allowlist over shape, and shape cannot distinguish a code
+/// from anything else spelled as lowercase dotted segments — `cargo.toml` is a
+/// two-segment lowercase dotted string, and so is the real code
+/// `outcome.open`. So a genuine non-code literal is reported, and the sanctioned
+/// way to silence one is to name it here where a reviewer sees it, never to
+/// weaken the shape test.
+///
+/// Empty today. `tc_011_the_exemption_list_is_not_stale` fails if an entry here
+/// stops appearing in `src/`, so a stale exemption cannot sit here hiding a
+/// code that later takes the same spelling.
+pub const EXEMPT_LITERALS: &[&str] = &[];
+
 #[must_use]
 pub fn unregistered_literals(
     registry: &'static [CodeModule],
@@ -523,10 +728,13 @@ pub fn unregistered_literals(
 ) -> Vec<UnregisteredLiteral> {
     let mut found = Vec::new();
     for literal in string_literals(source) {
-        if !is_reserved_code_shape(registry, &literal) {
+        if !is_code_shape(&literal) {
             continue;
         }
         if lookup_in(registry, &literal).is_some() {
+            continue;
+        }
+        if EXEMPT_LITERALS.contains(&literal.as_str()) {
             continue;
         }
         let unregistered = UnregisteredLiteral { literal };
@@ -537,34 +745,96 @@ pub fn unregistered_literals(
     found
 }
 
-/// Every double-quoted literal in a Rust source text, escapes honoured.
+/// Every double-quoted string literal in a Rust source text.
 ///
-/// Raw strings are read as ordinary quoted text, which can only ever produce a
-/// superset of the literals in the file; a superset is safe here because an
-/// extra candidate is discarded unless it is shaped like a reserved code.
+/// This is a small lexer rather than a scan for `"` bytes, because a scan for
+/// `"` bytes is not a lexer and the difference is exploitable. The previous
+/// version treated every `"` as a delimiter wherever it appeared, so a single
+/// ordinary line —
+///
+/// ```text
+/// pub const QUOTE: char = '"';
+/// ```
+///
+/// — shifted quote pairing for the rest of the file and hid every code literal
+/// after it from the audit. Any odd number of `"` bytes inside char literals or
+/// comments did the same. Comments were scanned too, which made prose a finding
+/// and made this module's own doc comments a landmine for the first chunk to
+/// reserve a root they mention.
+///
+/// So the lexer skips what Rust skips: line comments, block comments (nested,
+/// as Rust nests them), char literals, and raw strings' leading `r#*`. Raw
+/// string *contents* are still read as ordinary text, which can only ever yield
+/// a superset of the real literals — safe here, because an extra candidate is
+/// discarded unless it is shaped like a code and unregistered.
 fn string_literals(source: &str) -> Vec<String> {
     let mut literals = Vec::new();
-    let mut characters = source.chars();
-    while let Some(character) = characters.next() {
-        if character != '"' {
+    let bytes: Vec<char> = source.chars().collect();
+    let mut index = 0;
+    let mut block_depth = 0usize;
+
+    while index < bytes.len() {
+        let character = bytes[index];
+
+        if block_depth > 0 {
+            if character == '/' && bytes.get(index + 1) == Some(&'*') {
+                block_depth += 1;
+                index += 2;
+            } else if character == '*' && bytes.get(index + 1) == Some(&'/') {
+                block_depth -= 1;
+                index += 2;
+            } else {
+                index += 1;
+            }
             continue;
         }
-        let mut literal = String::new();
-        loop {
-            match characters.next() {
-                None => break,
-                Some('\\') => {
-                    // Skip the escaped character: it can never be a dot, a
-                    // lowercase letter or a hyphen in a way that matters here.
-                    let _escaped = characters.next();
-                    literal.push('\\');
+
+        match character {
+            '/' if bytes.get(index + 1) == Some(&'/') => {
+                while index < bytes.len() && bytes[index] != '\n' {
+                    index += 1;
                 }
-                Some('"') => {
-                    literals.push(literal);
-                    break;
-                }
-                Some(other) => literal.push(other),
             }
+            '/' if bytes.get(index + 1) == Some(&'*') => {
+                block_depth = 1;
+                index += 2;
+            }
+            '\'' => {
+                // A char literal, a lifetime, or a label. Only a char literal
+                // can contain a quote, and only a char literal closes on `'`
+                // within a few characters.
+                index += 1;
+                if bytes.get(index) == Some(&'\\') {
+                    index += 2;
+                } else if index < bytes.len() && bytes.get(index + 1) == Some(&'\'') {
+                    index += 1;
+                }
+                if bytes.get(index) == Some(&'\'') {
+                    index += 1;
+                }
+            }
+            '"' => {
+                index += 1;
+                let mut literal = String::new();
+                while index < bytes.len() {
+                    match bytes[index] {
+                        '\\' => {
+                            literal.push('\\');
+                            index += 2;
+                        }
+                        '"' => {
+                            index += 1;
+                            break;
+                        }
+                        other => {
+                            literal.push(other);
+                            index += 1;
+                        }
+                    }
+                }
+                literals.push(literal);
+            }
+            _ => index += 1,
         }
     }
     literals
