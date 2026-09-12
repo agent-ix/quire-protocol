@@ -65,6 +65,24 @@ const CLAIMS_SOURCE: &str = include_str!("../src/claims/mod.rs");
 /// test that would then reject it.
 const TEST_SOURCE: &str = include_str!("tc_005_claim_dispositions.rs");
 
+/// Every file of the `claims` module.
+///
+/// The audit reads all of them. It used to read only `mod.rs`, and `premises.rs`
+/// and `dispatch.rs` are declared by `mod.rs`, so a second `impl ClaimDispositions`
+/// in either carried a verdict one file away from the audit — and the test went
+/// on asserting there was exactly one inherent impl block.
+const MODULE_SOURCES: &[(&str, &str)] = &[
+    ("src/claims/mod.rs", CLAIMS_SOURCE),
+    (
+        "src/claims/premises.rs",
+        include_str!("../src/claims/premises.rs"),
+    ),
+    (
+        "src/claims/dispatch.rs",
+        include_str!("../src/claims/dispatch.rs"),
+    ),
+];
+
 /// Number of states every disposition declares.
 const STATES: usize = 5;
 
@@ -254,40 +272,285 @@ fn single_claim_observation(
 // Source-text audit helpers
 // ---------------------------------------------------------------------------
 
-/// The body lines of the first block opened by `header` and closed by a `}` in
-/// column zero.
-fn block_body<'a>(source: &'a str, header: &str) -> Vec<&'a str> {
-    let mut lines = source.lines().skip_while(|line| line.trim() != header);
-    assert!(lines.next().is_some(), "block header not found: {header}");
-    lines.take_while(|line| *line != "}").collect()
+/// One Rust source file with comments, string literals and char literals
+/// replaced by spaces of the same length.
+///
+/// Every parser below reads this, never the raw text. Without it the audit is
+/// blinded by ordinary source: a `"` inside a char literal shifts quote
+/// pairing, and a `}` inside a string literal ends a block early. Both were
+/// demonstrated against the previous version — a literal containing a
+/// column-zero `}` placed in the last audited method hid every method after it.
+///
+/// Lengths are preserved so that byte offsets still line up with the original.
+fn stripped(source: &str) -> String {
+    let characters: Vec<char> = source.chars().collect();
+    let mut out = String::with_capacity(source.len());
+    let mut index = 0;
+    let mut block_depth = 0usize;
+
+    let blank = |text: &str, out: &mut String| {
+        for character in text.chars() {
+            out.push(if character == '\n' { '\n' } else { ' ' });
+        }
+    };
+
+    while index < characters.len() {
+        let character = characters[index];
+        if block_depth > 0 {
+            if character == '/' && characters.get(index + 1) == Some(&'*') {
+                block_depth += 1;
+                blank("  ", &mut out);
+                index += 2;
+            } else if character == '*' && characters.get(index + 1) == Some(&'/') {
+                block_depth -= 1;
+                blank("  ", &mut out);
+                index += 2;
+            } else {
+                blank(&character.to_string(), &mut out);
+                index += 1;
+            }
+            continue;
+        }
+        match character {
+            '/' if characters.get(index + 1) == Some(&'/') => {
+                while index < characters.len() && characters[index] != '\n' {
+                    blank(&characters[index].to_string(), &mut out);
+                    index += 1;
+                }
+            }
+            '/' if characters.get(index + 1) == Some(&'*') => {
+                block_depth = 1;
+                blank("  ", &mut out);
+                index += 2;
+            }
+            '\'' => {
+                // A char literal, a lifetime or a label. Only a char literal
+                // can hold a quote or a brace.
+                let closes = if characters.get(index + 1) == Some(&'\\') {
+                    characters.get(index + 3) == Some(&'\'')
+                } else {
+                    characters.get(index + 2) == Some(&'\'')
+                };
+                if closes {
+                    let width = if characters.get(index + 1) == Some(&'\\') {
+                        4
+                    } else {
+                        3
+                    };
+                    for _ in 0..width {
+                        out.push(' ');
+                    }
+                    index += width;
+                } else {
+                    out.push(character);
+                    index += 1;
+                }
+            }
+            '"' => {
+                out.push(' ');
+                index += 1;
+                while index < characters.len() {
+                    match characters[index] {
+                        '\\' => {
+                            blank("  ", &mut out);
+                            index += 2;
+                        }
+                        '"' => {
+                            out.push(' ');
+                            index += 1;
+                            break;
+                        }
+                        other => {
+                            blank(&other.to_string(), &mut out);
+                            index += 1;
+                        }
+                    }
+                }
+            }
+            other => {
+                out.push(other);
+                index += 1;
+            }
+        }
+    }
+    out
 }
 
-/// Names introduced by `pub fn` in a block body.
-fn public_fn_names<'a>(body: &[&'a str]) -> Vec<&'a str> {
-    body.iter()
-        .filter_map(|line| line.trim().strip_prefix("pub fn "))
-        .filter_map(|rest| rest.split('(').next())
-        .collect()
+/// Every `impl` header in a stripped source, with its brace-matched body.
+///
+/// The header is everything between `impl` and its opening brace, with runs of
+/// whitespace collapsed, so a header rustfmt wrapped across lines reads the
+/// same as a single-line one. That wrapping was a live bypass: a trait name
+/// long enough to make rustfmt split `impl Trait` from `for ClaimDispositions`
+/// beat a check that required both on one line — and that split is rustfmt's
+/// own canonical output, not a contrivance.
+fn impl_blocks(source: &str) -> Vec<(String, String)> {
+    let characters: Vec<char> = source.chars().collect();
+    let mut blocks = Vec::new();
+    let mut index = 0;
+
+    while let Some(offset) = source[index..].find("impl") {
+        let at = index + offset;
+        let before_is_boundary = at == 0
+            || !characters
+                .get(at - 1)
+                .is_some_and(|c| c.is_alphanumeric() || *c == '_');
+        let after_is_boundary = !characters
+            .get(at + 4)
+            .is_some_and(|c| c.is_alphanumeric() || *c == '_');
+        index = at + 4;
+        if !before_is_boundary || !after_is_boundary {
+            continue;
+        }
+        let Some(open_offset) = source[at..].find('{') else {
+            continue;
+        };
+        let open = at + open_offset;
+        let header: String = source[at + 4..open]
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ");
+
+        let mut depth = 0usize;
+        let mut close = open;
+        for (position, character) in source[open..].char_indices() {
+            match character {
+                '{' => depth += 1,
+                '}' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        close = open + position;
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        blocks.push((header, source[open + 1..close].to_owned()));
+        index = close.max(index);
+    }
+    blocks
 }
 
-/// Names introduced by `pub const` in a block body.
-fn public_const_names<'a>(body: &[&'a str]) -> Vec<&'a str> {
-    body.iter()
+/// Names introduced by a `pub` function item, whatever modifiers precede `fn`.
+///
+/// `pub const fn`, `pub unsafe fn` and `pub extern "C" fn` are all public
+/// functions. The previous parser matched the literal prefix `pub fn `, so
+/// `pub const fn established_everywhere` was invisible to it — and the constant
+/// parser then mis-captured it and reported a "constant" named
+/// `fn established_everywhere(self) -> bool {`, which points a maintainer at
+/// the wrong defect.
+fn public_fn_names(body: &str) -> Vec<String> {
+    let mut names = Vec::new();
+    for line in body.lines() {
+        let line = line.trim();
+        let Some(rest) = line.strip_prefix("pub ") else {
+            continue;
+        };
+        let mut words = rest.split_whitespace();
+        let mut saw_fn = false;
+        for word in words.by_ref() {
+            if word == "fn" {
+                saw_fn = true;
+                break;
+            }
+            // Only modifiers may sit between `pub` and `fn`.
+            if !matches!(word, "const" | "unsafe" | "async" | "extern") && !word.starts_with('"') {
+                break;
+            }
+        }
+        if !saw_fn {
+            continue;
+        }
+        if let Some(name) = words.next().and_then(|word| word.split('(').next()) {
+            if !name.is_empty() {
+                names.push(name.split('<').next().unwrap_or(name).to_owned());
+            }
+        }
+    }
+    names
+}
+
+/// Names introduced by `pub const` in a block body, excluding `pub const fn`.
+fn public_const_names(body: &str) -> Vec<String> {
+    body.lines()
         .filter_map(|line| line.trim().strip_prefix("pub const "))
+        .filter(|rest| !rest.starts_with("fn "))
         .filter_map(|rest| rest.split(':').next())
-        .map(str::trim)
+        .map(|name| name.trim().to_owned())
         .collect()
 }
 
 /// Names introduced by `pub <name>:` fields in a block body.
-fn public_field_names<'a>(body: &[&'a str]) -> Vec<&'a str> {
-    body.iter()
-        .filter_map(|line| line.trim().strip_prefix("pub "))
+fn public_field_names(body: &str) -> Vec<String> {
+    body.lines()
+        .map(str::trim)
+        .filter_map(|line| line.strip_prefix("pub "))
         .filter(|rest| {
             rest.contains(':') && !rest.starts_with("fn ") && !rest.starts_with("const ")
         })
         .filter_map(|rest| rest.split(':').next())
+        .map(str::to_owned)
         .collect()
+}
+
+/// Every macro invocation name in a stripped body.
+///
+/// A macro invocation inside the audited impl block is refused outright. It is
+/// the worst bypass found: a `macro_rules!` expanding to a `pub fn` verdict,
+/// placed in the very block the audit claims to enumerate, was invisible to
+/// every line parser and passed fmt and clippy. Expanding macros is a job for a
+/// parser this test does not have, so the audit refuses the construct rather
+/// than pretending to read through it.
+fn macro_invocations(body: &str) -> Vec<String> {
+    let characters: Vec<char> = body.chars().collect();
+    let mut found = Vec::new();
+    for (index, character) in characters.iter().enumerate() {
+        if *character != '!' {
+            continue;
+        }
+        // `!=` is an operator, and a leading `!` is negation.
+        if characters.get(index + 1) == Some(&'=') {
+            continue;
+        }
+        let mut start = index;
+        while start > 0 && identifier_char(characters[start - 1]) {
+            start -= 1;
+        }
+        if start == index {
+            continue;
+        }
+        found.push(characters[start..index].iter().collect());
+    }
+    found
+}
+
+/// The brace-matched body of the `ClaimDispositions` struct declaration.
+fn record_struct_body(source: &str) -> String {
+    let header = "pub struct ClaimDispositions {";
+    let start = source
+        .find(header)
+        .expect("the record's struct declaration");
+    let open = start + header.len() - 1;
+    let mut depth = 0usize;
+    for (position, character) in source[open..].char_indices() {
+        match character {
+            '{' => depth += 1,
+            '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    return source[open + 1..open + position].to_owned();
+                }
+            }
+            _ => {}
+        }
+    }
+    panic!("unterminated struct body")
+}
+
+/// Whether `character` may appear in a Rust identifier.
+fn identifier_char(character: char) -> bool {
+    character.is_alphanumeric() || character == '_'
 }
 
 /// The source region from `marker` up to the next column-zero `}`.
@@ -330,7 +593,7 @@ fn uses_verdict_vocabulary(name: &str) -> bool {
 #[trace("TC-005", "FR-005-AC-1")]
 #[test]
 fn tc_005_six_dispositions_are_separate_fields() {
-    let fields = public_field_names(&block_body(CLAIMS_SOURCE, "pub struct ClaimDispositions {"));
+    let fields = public_field_names(&record_struct_body(&stripped(CLAIMS_SOURCE)));
     assert_eq!(
         fields, AUDITED_FIELDS,
         "the record must hold exactly the six FR-005 claims, in declared order"
@@ -687,13 +950,99 @@ fn tc_005_not_requested_establishes_nothing_and_is_its_own_state() {
 #[trace("TC-005", "FR-005-AC-1")]
 #[test]
 fn tc_005_no_aggregate_verdict_field() {
-    let fields = public_field_names(&block_body(CLAIMS_SOURCE, "pub struct ClaimDispositions {"));
-    let impl_body = block_body(CLAIMS_SOURCE, "impl ClaimDispositions {");
-    let methods = public_fn_names(&impl_body);
-    let constants = public_const_names(&impl_body);
+    // The whole module, not one file. `premises.rs` and `dispatch.rs` are
+    // declared by `mod.rs` and an inherent impl is legal in either, so reading
+    // only `mod.rs` left a verdict one file away from the audit.
+    let module: Vec<(&str, String)> = MODULE_SOURCES
+        .iter()
+        .map(|(name, source)| (*name, stripped(source)))
+        .collect();
+
+    // Exactly one `impl` in the whole module names the record, and it is the
+    // inherent block.
+    let mut naming_the_record = Vec::new();
+    for (file, source) in &module {
+        for (header, body) in impl_blocks(source) {
+            if header.contains("ClaimDispositions") {
+                naming_the_record.push((*file, header, body));
+            }
+        }
+    }
+    let headers: Vec<&str> = naming_the_record
+        .iter()
+        .map(|(_, header, _)| header.as_str())
+        .collect();
+    assert_eq!(
+        headers,
+        ["ClaimDispositions"],
+        "exactly one impl in the claims module may name the record, and it is \
+         the audited inherent block; found in {:?}",
+        naming_the_record
+            .iter()
+            .map(|(file, header, _)| (*file, header.as_str()))
+            .collect::<Vec<_>>()
+    );
+    let impl_body = &naming_the_record[0].2;
+
+    // No macro invocation inside it. A macro expanding to a `pub fn` verdict,
+    // in the very block this test enumerates, is invisible to every parser
+    // here; expansion is a job for a real parser, so the construct is refused
+    // rather than read through.
+    assert_eq!(
+        macro_invocations(impl_body),
+        Vec::<String>::new(),
+        "no macro may be invoked inside the audited impl block"
+    );
+
+    // No public free function anywhere in the module may take or return the
+    // record: that is a verdict with the receiver moved to a parameter.
+    for (file, source) in &module {
+        let mut module_level = source.clone();
+        for (_, body) in impl_blocks(source) {
+            module_level = module_level.replace(&body, "");
+        }
+        for name in public_fn_names(&module_level) {
+            let signature_line = source
+                .lines()
+                .find(|line| line.contains(&format!("fn {name}")))
+                .unwrap_or_default();
+            assert!(
+                !signature_line.contains("ClaimDispositions"),
+                "{file} declares a public free function `{name}` over the record; \
+                 a verdict is not made acceptable by moving the receiver into a \
+                 parameter"
+            );
+        }
+    }
+
+    // No inherent impl on a disposition type may take the record either.
+    for (file, source) in &module {
+        for (header, body) in impl_blocks(source) {
+            if header.contains("ClaimDispositions") || header.contains(" for ") {
+                continue;
+            }
+            for name in public_fn_names(&body) {
+                let signature_line = body
+                    .lines()
+                    .find(|line| line.contains(&format!("fn {name}")))
+                    .unwrap_or_default();
+                assert!(
+                    !signature_line.contains("ClaimDispositions"),
+                    "{file}: `impl {header}` declares `{name}` over the record"
+                );
+            }
+        }
+    }
+
+    let fields = public_field_names(&record_struct_body(&module[0].1));
+    let methods = public_fn_names(impl_body);
+    let constants = public_const_names(impl_body);
 
     assert_eq!(fields, AUDITED_FIELDS);
-    let audited_methods: Vec<&str> = AUDITED_METHODS.iter().map(|(name, _)| *name).collect();
+    let audited_methods: Vec<String> = AUDITED_METHODS
+        .iter()
+        .map(|(name, _)| (*name).to_owned())
+        .collect();
     assert_eq!(
         methods, audited_methods,
         "the public method surface of ClaimDispositions changed; classify the new \
@@ -701,12 +1050,7 @@ fn tc_005_no_aggregate_verdict_field() {
     );
     assert_eq!(constants, AUDITED_CONSTANTS);
 
-    for name in fields
-        .iter()
-        .chain(methods.iter())
-        .chain(constants.iter())
-        .copied()
-    {
+    for name in fields.iter().chain(methods.iter()).chain(constants.iter()) {
         assert!(
             !uses_verdict_vocabulary(name),
             "public name `{name}` on ClaimDispositions reads as a roll-up of the six"
@@ -722,40 +1066,6 @@ fn tc_005_no_aggregate_verdict_field() {
              enforces that classification"
         );
     }
-
-    // Exactly one inherent impl block, so the audited surface is the whole
-    // surface, and no trait shortcut re-introduces one.
-    assert_eq!(
-        CLAIMS_SOURCE.matches("impl ClaimDispositions").count(),
-        1,
-        "ClaimDispositions must have exactly one inherent impl block"
-    );
-    // Exactly one `impl` in this module mentions the record at all, and it is
-    // the audited inherent block.
-    //
-    // A list of forbidden spellings is a denylist, and a denylist is only as
-    // good as its entries. Two shapes slip past one:
-    //
-    // - `impl From<&ClaimDispositions> for bool` is not the string
-    //   `impl From<ClaimDispositions>`, and it offers `bool::from(&record)`.
-    // - the record can also be the *subject* of a conversion rather than its
-    //   target, so checking only `for ClaimDispositions` misses it entirely —
-    //   in that impl the text after `for` is `bool`.
-    //
-    // Counting every `impl` line that names the record catches both, and any
-    // third shape, whatever it is called. Every trait the record carries comes
-    // from the `derive` above, whose expansion adds no source text here, so the
-    // expected count is exactly one.
-    let impls: Vec<&str> = CLAIMS_SOURCE
-        .lines()
-        .filter(|line| line.trim_start().starts_with("impl") && line.contains("ClaimDispositions"))
-        .collect();
-    assert_eq!(
-        impls,
-        ["impl ClaimDispositions {"],
-        "ClaimDispositions must carry no hand-written trait impl: one is a \
-         verdict-shaped shortcut around the audited inherent surface"
-    );
 
     // `refusal_per_claim` is a fixed-size array, so there is no `is_empty()`
     // one-call verdict.
