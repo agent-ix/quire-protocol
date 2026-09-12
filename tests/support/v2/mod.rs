@@ -7,6 +7,7 @@
 //! artifact — `b-v2-delivery-index.json` is B's evidence index, written by B at pin
 //! time, and the offered bytes are carried through untouched.
 
+pub use quire_protocol::digest::producer::DigestDomain;
 use std::{
     env, fmt, fs,
     path::{Path, PathBuf},
@@ -501,33 +502,6 @@ impl OfferedAxis {
     }
 }
 
-/// The four digest domains that must stay separate across the version 2 selection.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum DigestDomain {
-    ProducerCanonical,
-    NativeRaw,
-    CompiledArtifact,
-    ProtocolResult,
-}
-
-impl DigestDomain {
-    pub const ALL: [Self; 4] = [
-        Self::ProducerCanonical,
-        Self::NativeRaw,
-        Self::CompiledArtifact,
-        Self::ProtocolResult,
-    ];
-
-    pub fn slug(self) -> &'static str {
-        match self {
-            Self::ProducerCanonical => "producer-canonical",
-            Self::NativeRaw => "native-raw",
-            Self::CompiledArtifact => "compiled-artifact",
-            Self::ProtocolResult => "protocol-result",
-        }
-    }
-}
-
 /// A producer input B must copy rather than recanonicalise.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ProducerInput {
@@ -756,7 +730,7 @@ pub fn static_scenarios() -> Vec<Scenario> {
                 continue;
             }
             scenarios.push(refusing(
-                format!("v2-digest-{}-as-{}", offered.slug(), slot.slug()),
+                format!("v2-digest-{}-as-{}", offered.as_str(), slot.as_str()),
                 "IT-001-SC-07",
                 ScenarioKind::DigestDomainSubstitution { offered, slot },
                 ExpectedRefusal::CrossDomainDigest { offered, slot },

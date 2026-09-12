@@ -91,20 +91,23 @@ fn static_corpus_substitutes_every_ordered_digest_domain_pair() {
                 assert!(
                     !present,
                     "{} substituted for itself is not a substitution",
-                    offered.slug()
+                    offered.as_str()
                 );
             } else {
                 assert!(
                     present,
                     "no substitution of {} into the {} slot",
-                    offered.slug(),
-                    slot.slug()
+                    offered.as_str(),
+                    slot.as_str()
                 );
                 pairs += 1;
             }
         }
     }
-    assert_eq!(pairs, 12);
+    // Two selected members (FR-015 selects from FR-201's nine), so two
+    // ordered pairs. An earlier revision asserted twelve, over a local
+    // four-member vocabulary FR-015 withdrew.
+    assert_eq!(pairs, 2);
 }
 
 #[test]

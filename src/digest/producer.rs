@@ -43,6 +43,9 @@ pub enum DigestDomain {
 }
 
 impl DigestDomain {
+    /// Both selected members, in the order `FR-015` tabulates the selection.
+    pub const ALL: [Self; 2] = [Self::RawArtifact, Self::VerificationJcs];
+
     /// Whether the domain is owned by the producer and therefore copied exactly.
     pub const fn is_producer_owned(self) -> bool {
         match self {
