@@ -382,6 +382,25 @@ fn tc_005_declared_value_sets_are_exhaustive() {
             claim.code()
         );
 
+        // Every state code is prefixed by its own claim's code.
+        //
+        // `declare_disposition!` takes the claim and the code prefix as two
+        // independent arguments, so the claim's name is written twice. The
+        // literal table in `tc_005_not_requested_establishes_nothing_and_is_its_own_state`
+        // already ties the two together, but only for the `NotRequested` state.
+        // This generalises that one row to all five states of all six claims, so
+        // the binding is a property of the macro rather than of one hand-written
+        // table that a later state could be added without.
+        for state in 0..STATES {
+            let code = state_code_of(claim, state);
+            assert_eq!(
+                code.split('/').next(),
+                Some(claim.code()),
+                "state code {code} is not prefixed by its own claim's code {}",
+                claim.code()
+            );
+        }
+
         let establishing: Vec<usize> = (0..STATES)
             .filter(|state| state_establishes(claim, *state))
             .collect();
@@ -391,6 +410,30 @@ fn tc_005_declared_value_sets_are_exhaustive() {
             "exactly one state of {} may establish it",
             claim.code()
         );
+    }
+
+    // Every declared position agrees with the state's own `index`, so
+    // `VALUES` is an ordered registry and not an unrelated list.
+    for (position, state) in ConformanceDisposition::VALUES.iter().enumerate() {
+        assert_eq!(state.index(), position);
+    }
+    for (position, state) in MonitorabilityDisposition::VALUES.iter().enumerate() {
+        assert_eq!(state.index(), position);
+    }
+    for (position, state) in ProjectionDisposition::VALUES.iter().enumerate() {
+        assert_eq!(state.index(), position);
+    }
+    for (position, state) in RealizabilityDisposition::VALUES.iter().enumerate() {
+        assert_eq!(state.index(), position);
+    }
+    for (position, state) in RefinementDisposition::VALUES.iter().enumerate() {
+        assert_eq!(state.index(), position);
+    }
+    for (position, state) in CompositionDisposition::VALUES.iter().enumerate() {
+        assert_eq!(state.index(), position);
+    }
+    for (position, claim) in Claim::ALL.iter().enumerate() {
+        assert_eq!(claim.index(), position);
     }
 
     assert_eq!(ConformanceDisposition::VALUES.len(), STATES);
@@ -580,9 +623,42 @@ fn tc_005_not_requested_establishes_nothing_and_is_its_own_state() {
         assert_ne!(refusal.code(), format!("{}/failed", claim.code()));
     }
 
+    // Every disposition's `NOT_REQUESTED` is that disposition's own
+    // not-requested state, and every one of them is in the record above.
     assert_eq!(
         ConformanceDisposition::NOT_REQUESTED,
         ConformanceDisposition::NotRequested
+    );
+    assert_eq!(
+        MonitorabilityDisposition::NOT_REQUESTED,
+        MonitorabilityDisposition::NotRequested
+    );
+    assert_eq!(
+        ProjectionDisposition::NOT_REQUESTED,
+        ProjectionDisposition::NotRequested
+    );
+    assert_eq!(
+        RealizabilityDisposition::NOT_REQUESTED,
+        RealizabilityDisposition::NotRequested
+    );
+    assert_eq!(
+        RefinementDisposition::NOT_REQUESTED,
+        RefinementDisposition::NotRequested
+    );
+    assert_eq!(
+        CompositionDisposition::NOT_REQUESTED,
+        CompositionDisposition::NotRequested
+    );
+    assert_eq!(
+        ClaimDispositions::NOTHING_REQUESTED,
+        ClaimDispositions {
+            conformance: ConformanceDisposition::NOT_REQUESTED,
+            monitorability: MonitorabilityDisposition::NOT_REQUESTED,
+            projection: ProjectionDisposition::NOT_REQUESTED,
+            realizability: RealizabilityDisposition::NOT_REQUESTED,
+            refinement: RefinementDisposition::NOT_REQUESTED,
+            composition: CompositionDisposition::NOT_REQUESTED,
+        }
     );
     assert_eq!(
         ClaimDispositions::NOTHING_REQUESTED.state_codes(),
@@ -654,19 +730,32 @@ fn tc_005_no_aggregate_verdict_field() {
         1,
         "ClaimDispositions must have exactly one inherent impl block"
     );
-    for forbidden in [
-        "impl Default for ClaimDispositions",
-        "impl From<ClaimDispositions>",
-        "impl core::fmt::Display for ClaimDispositions",
-        "impl std::fmt::Display for ClaimDispositions",
-        "impl core::ops::Deref for ClaimDispositions",
-        "impl std::ops::Deref for ClaimDispositions",
-    ] {
-        assert!(
-            !CLAIMS_SOURCE.contains(forbidden),
-            "`{forbidden}` would offer a verdict-shaped shortcut"
-        );
-    }
+    // Exactly one `impl` in this module mentions the record at all, and it is
+    // the audited inherent block.
+    //
+    // A list of forbidden spellings is a denylist, and a denylist is only as
+    // good as its entries. Two shapes slip past one:
+    //
+    // - `impl From<&ClaimDispositions> for bool` is not the string
+    //   `impl From<ClaimDispositions>`, and it offers `bool::from(&record)`.
+    // - the record can also be the *subject* of a conversion rather than its
+    //   target, so checking only `for ClaimDispositions` misses it entirely —
+    //   in that impl the text after `for` is `bool`.
+    //
+    // Counting every `impl` line that names the record catches both, and any
+    // third shape, whatever it is called. Every trait the record carries comes
+    // from the `derive` above, whose expansion adds no source text here, so the
+    // expected count is exactly one.
+    let impls: Vec<&str> = CLAIMS_SOURCE
+        .lines()
+        .filter(|line| line.trim_start().starts_with("impl") && line.contains("ClaimDispositions"))
+        .collect();
+    assert_eq!(
+        impls,
+        ["impl ClaimDispositions {"],
+        "ClaimDispositions must carry no hand-written trait impl: one is a \
+         verdict-shaped shortcut around the audited inherent surface"
+    );
 
     // `refusal_per_claim` is a fixed-size array, so there is no `is_empty()`
     // one-call verdict.
