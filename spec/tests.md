@@ -46,7 +46,7 @@ change the planned status of FR-001, FR-002, or IT-001's full scenario matrix.
 | Non-Functional Req | Verification Method | Evidence/Test Cases | Status |
 | --- | --- | --- | --- |
 | NFR-001 | Property and metamorphic testing | TC-008 | 🚧 Planned |
-| NFR-002 | Property, mutation, and source-bound inventory inspection | TC-009 | 🚧 Planned |
+| NFR-002 | Property, mutation, and source-bound inventory inspection | TC-009 | 🚧 Planned (guard slice executed, chunk C-29; the source-bound site inventory is C-30) |
 | NFR-003 | Shared Rust language-boundary check, static analysis, architecture inspection, Rust review, Quire coverage, gap analysis | TC-010, IT-003 | 🚧 Planned |
 | NFR-004 | Cargo metadata inspection, conditional-compilation inventory, enumerated gate execution over one unchanged head, per-criterion negative controls | TC-012, IT-003 | 🚧 Planned |
 
@@ -70,7 +70,7 @@ change the planned status of FR-001, FR-002, or IT-001's full scenario matrix.
 | TC-006 | Produce and strictly read canonical protocol results | Property | P0 | FR-006 | 🚧 Planned |
 | TC-007 | Project canonical protocol results to E02 | Property | P0 | FR-007 | 🚧 Planned |
 | TC-008 | Reproduce results under equivalent presentations | Property | P0 | NFR-001-AC-1..NFR-001-AC-3 | 🚧 Planned — reproduction-record slice executed (12 tests, chunk C-31); equivalent-presentation permutations and the full one-axis mutation matrix remain planned |
-| TC-009 | Enforce every protocol resource boundary | Property | P0 | NFR-002-AC-1..NFR-002-AC-4 | 🚧 Planned |
+| TC-009 | Enforce every protocol resource boundary | Property | P0 | NFR-002-AC-1..NFR-002-AC-4 | 🚧 Planned (count, allocation and deadline guards landed by `tests/tc_009_bounds.rs`, 18 tests, chunk C-29; the site inventory and its bidirectional reconciliation remain planned for C-30, and A's accumulation discipline is mirrored rather than read from A) |
 | TC-010 | Preserve Rust and shared assurance containment | Static | P0 | NFR-003-AC-1..NFR-003-AC-6 | 🚧 Planned |
 | TC-011 | Return typed refusals without text parsing | Property | P0 | FR-008-AC-1..FR-008-AC-8 | 🚧 Planned (envelope, code catalog and repo-wide code audit landed; AC-3/AC-6 pending catalog selection, AC-5 and the policy halves of AC-4/AC-8 pending the cause taxonomy) |
 | TC-012 | Run the local verification gate and refuse an undefined lane | Static | P0 | NFR-004-AC-1..NFR-004-AC-10 | 🚧 Planned |
