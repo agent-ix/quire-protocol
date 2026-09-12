@@ -136,11 +136,12 @@ Each gap is recorded in full by the part that depends on it. Summarised:
   mismatch receives." Both readings are quoted verbatim in
   [FR-035](./FR-035-map-source-states-to-e02.md); neither is adopted here.
   Owner: `quire-specification`.
-- **FR-062's mapping table is declared total over two source axes nobody
-  enumerates.** Participation and the four progress/closure axes are
-  unenumerated upstream (`FR-240`), and `FR-249` records that "Totality over an
-  unenumerated source domain is not established here". This requirement applies
-  every row the table states and asserts no totality. Recorded by
+- **FR-062's mapping table is declared total over a source axis nobody
+  enumerates.** Participation is unenumerated upstream (`FR-240`), and `FR-249`
+  records that "Totality over an unenumerated source domain is not established
+  here". The four progress/closure axes are no longer part of this gap: `FR-284`
+  declares them. This requirement applies every row the table states and asserts
+  no totality. Recorded by
   [FR-035](./FR-035-map-source-states-to-e02.md). Owner:
   `quire-specification`.
 - **Canonical source-result identity kind.** `FR-240` states that "The prose does not state whether that identity is

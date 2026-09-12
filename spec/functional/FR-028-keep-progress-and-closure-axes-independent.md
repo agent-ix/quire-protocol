@@ -99,17 +99,38 @@ the progress/assertion definition identity, revision or byte digest is a
 different authority, so this repository consumes the axis with its authority
 retained and never recomputes it.
 
+### The four scope axes are now declared
+
+An earlier revision of this requirement recorded that four of the five axes had
+no member list anywhere, and that `FR-028-AC-1`'s independent-variation
+obligation was therefore unexecutable because "the value sets it would be
+changed across exist for the fifth axis only".
+
+`FR-284-scope-progress-and-closure-state` closes that gap. Each of
+decision-scope progress, decision-scope closure, surrounding-execution progress
+and surrounding-execution closure carries exactly one of `open` or `closed`, and
+`FR-284` states of the pair: "Both label strings are used by the accepted
+requirements for both scopes and for progress. This artifact mints no new
+spelling."
+
+`FR-028-AC-1` is executable. The product over the four axes and the fifth
+(`FR-247`, five members) is 2 x 2 x 2 x 2 x 5 = 80 states, each axis
+independently variable, and `TC-004` enumerates all of them.
+
+`FR-284` also names the labels an earlier revision of this repository had
+invented for those axes: "`not-started`, `advanced`, `stalled`, `unobserved` —
+named by no requirement. They are not members here and are not to be
+reintroduced by a consumer." They are withdrawn.
+
 ### Where the upstream vocabulary does not yet reach
 
-- **Four of the five axes have no member list anywhere.** `FR-258`'s open gap
-  states it plainly: "No requirement declares a closed vocabulary for
-  decision-scope progress, decision-scope closure, surrounding-execution
-  progress, surrounding-execution closure or input completeness", and "No member
-  list is invented here." `FR-240` records the same absence from the result side
-  — FR-061 "never lists their member states ... No member list is invented here."
-  FR-028-AC-1 requires each axis to be independently changed; the value sets it
-  would be changed across exist for the fifth axis only. The owner is
-  `agent-ix/quire-specification`.
+- **Input completeness has no member list.** `FR-258`'s remaining open gap:
+  "Input completeness is not covered by it. FR-094-AC-3 names the axis
+  'complete/incomplete input' while holding it distinct from 'Open/closed
+  decision scope, open/closed surrounding execution' ... No requirement declares
+  a closed vocabulary for that axis, and none is invented here." The owner is
+  `agent-ix/quire-specification`. This requirement names the axis and enumerates
+  nothing for it.
 - **Canonical result identity is undeclared.** `FR-240`'s open gap records that
   no requirement states "whether the identity is authored by the producer or
   derived from named components", that no key order is established, and that no

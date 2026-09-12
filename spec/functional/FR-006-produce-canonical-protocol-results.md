@@ -140,13 +140,13 @@ Each gap is recorded in full by the part that depends on it. Summarised:
   by [FR-031](./FR-031-canonical-result-identity-and-digest.md) and
   [FR-033](./FR-033-preserve-result-lineage-integrity.md). Owner:
   `quire-specification`.
-- **The four progress/closure axes are unenumerated upstream.** FR-240 records:
-  "no requirement declares a closed vocabulary. No member list is invented
-  here." This requirement and IT-002-SC-03 both require decision-scope and
-  surrounding-execution progress and closure to remain distinct and to be
-  independently mutated. That obligation stands; the member lists it would be
-  mutated across do not exist upstream. Recorded by
-  [FR-032](./FR-032-retain-orthogonal-result-axes.md).
+- **The four progress/closure axes are declared.** `FR-284-scope-progress-and-closure-state`
+  types them: each of decision-scope progress, decision-scope closure,
+  surrounding-execution progress and surrounding-execution closure carries
+  exactly one of `open` or `closed`, and `FR-284` "mints no new spelling".
+  Adopted by reference; this requirement enumerates no member. Input
+  completeness remains outside that vocabulary with no member list, and is
+  `agent-ix/quire-specification`'s (`FR-258` open gap).
 - **Settlement basis membership is not stated uniformly upstream.**
   `FR-243-settlement-basis` carries a section headed "Recorded divergence:
   membership is not stated uniformly", opening: "Four requirements state this

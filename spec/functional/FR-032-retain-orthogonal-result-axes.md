@@ -126,13 +126,13 @@ reconciled with it.
 
 ### Where the upstream vocabulary does not yet reach
 
-- **The four progress/closure axes are unenumerated upstream.** `FR-240` records:
-  "no requirement declares a closed vocabulary. No member list is invented
-  here." This requirement and IT-002-SC-03 both require decision-scope and
-  surrounding-execution progress and closure to remain distinct and to be
-  independently mutated. That obligation stands; the member lists it would be
-  mutated across do not exist upstream. Owner: `quire-specification`, in FR-061
-  or FR-094.
+- **The four progress/closure axes are declared.** `FR-284-scope-progress-and-closure-state`
+  types them: each of decision-scope progress, decision-scope closure,
+  surrounding-execution progress and surrounding-execution closure carries
+  exactly one of `open` or `closed`, and `FR-284` "mints no new spelling".
+  Adopted by reference; this requirement enumerates no member. Input
+  completeness remains outside that vocabulary with no member list, and is
+  `agent-ix/quire-specification`'s (`FR-258` open gap).
 - **Participation is unenumerated at the source.** `FR-240` records:
   "Participation is unenumerated at the source." Its Open gap adds that the only
   enumerated participation vocabulary in the specification is FR-062's E02

@@ -112,15 +112,13 @@ this repository's others.
   in the *authored*/*derived*/*value* trichotomy. Every criterion above compares
   two assessments of *one* fact set; without a key, the two paths cannot be shown
   to have been given the same set. The owner is `agent-ix/quire-specification`.
-- **The four progress/closure axes have no member list anywhere.** `FR-258`'s
-  open gap states that "No requirement declares a closed vocabulary for
-  decision-scope progress, decision-scope closure, surrounding-execution
-  progress, surrounding-execution closure or input completeness", and that "No
-  member list is invented here." `FR-240` records the same absence from the
-  result side: FR-061 "never lists their member states". FR-041-AC-1 requires the
-  two paths to agree on each axis; the value sets that agreement is compared over
-  exist for the fifth axis only. The owner is
-  `agent-ix/quire-specification`.
+- **The four progress/closure axes are declared.** `FR-284-scope-progress-and-closure-state`
+  types them: each of decision-scope progress, decision-scope closure,
+  surrounding-execution progress and surrounding-execution closure carries
+  exactly one of `open` or `closed`, and `FR-284` "mints no new spelling".
+  Adopted by reference; FR-041-AC-1 compares the two paths over those member sets. Input
+  completeness remains outside that vocabulary with no member list, and is
+  `agent-ix/quire-specification`'s (`FR-258` open gap).
 - **Settlement-basis membership is not stated uniformly.** `FR-243`'s open gap:
   "FR-091 lists four members where FR-061, FR-094-AC-7 and FR-115 list five. No
   requirement states whether FR-091's evaluator may emit `unavailable`. Both

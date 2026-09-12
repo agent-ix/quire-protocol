@@ -127,9 +127,10 @@ The gaps are recorded once, in the part that depends on each:
   that a duplicate business effect is undetectable under its declared key and
   that its disposition is contradicted, and that cross-workflow correlation
   rests on an unfixed endpoint key.
-- `FR-028` records that four of the five axes have no member list anywhere, that
-  the canonical result's own identity is undeclared, and that closure at a
-  deadline crosses an unresolved half-open/inclusive boundary conflict.
+- `FR-028` records that input completeness has no member list, that the
+  canonical result's own identity is undeclared, and that closure at a deadline
+  crosses an unresolved half-open/inclusive boundary conflict. The four
+  progress/closure axes it previously listed here are now declared by `FR-284`.
 
 Every one of those is owned by `agent-ix/quire-specification`. None is supplied
 locally.
