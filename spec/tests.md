@@ -71,19 +71,24 @@ not be counted as backing symbols for any IT-001 scenario.
 
 Requirements carrying `object:` specify the consumer-boundary vocabulary. They
 are separated from the behavioural table because they define nouns rather than
-behaviour, and because most are verified by inspection of the artifact set.
+behaviour.
+
+Sixty-six criteria across the nine. Twenty-one verify by inspection or analysis;
+the rest name a test case, and each named test case declares the object criteria
+it backs in its own Traceability section, so the reference resolves in both
+directions.
 
 | Object Req | Object type | Acceptance Criteria | Test Cases | Coverage Status |
 | --- | --- | --- | --- | --- |
 | FR-010 | domain | FR-010-AC-1..AC-3 | — (Inspection) | 🚧 Planned |
 | FR-011 | value_object | FR-011-AC-1..AC-7 | TC-014 | 🚧 Planned |
-| FR-012 | entity | see artifact | TC-013 | 🚧 Planned |
-| FR-013 | value_object | see artifact | TC-014 | 🚧 Planned |
-| FR-014 | value_object | see artifact | TC-011, TC-014 | 🚧 Planned |
-| FR-015 | enumeration | see artifact | TC-006, TC-014 | 🚧 Planned — the production and `/2` enums are two different vocabularies; FR-015 records the divergence as unreconciled |
-| FR-016 | enumeration | see artifact | TC-009 | 🚧 Planned |
-| FR-017 | entity | see artifact | — (Inspection) | 🚧 Planned |
-| FR-018 | entity | see artifact | TC-013 | 🚧 Planned |
+| FR-012 | entity | FR-012-AC-1..AC-8 | TC-013 | 🚧 Planned |
+| FR-013 | value_object | FR-013-AC-1..AC-8 | TC-001, TC-014 | 🚧 Planned |
+| FR-014 | value_object | FR-014-AC-1..AC-8 | TC-011, TC-014 | 🚧 Planned |
+| FR-015 | enumeration | FR-015-AC-1..AC-7 | TC-001, TC-014 | 🚧 Planned — the production and `/2` digest enums are two different vocabularies sharing one member name; FR-015 records the divergence as unreconciled |
+| FR-016 | enumeration | FR-016-AC-1..AC-8 | TC-008, TC-009, TC-011, TC-013 | 🚧 Planned |
+| FR-017 | entity | FR-017-AC-1..AC-8 | TC-008, TC-009, TC-010, TC-013 | 🚧 Planned |
+| FR-018 | entity | FR-018-AC-1..AC-9 | TC-013 | 🚧 Planned |
 
 ## Non-Functional Requirement Coverage
 

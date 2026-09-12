@@ -38,3 +38,6 @@ the local unsupported classification; absent context stays absent; paired and
 simultaneous causes remain distinct even with no diagnostic detail. Fatal
 operations emit no success value, and only explicitly independent claim results
 survive another claim's failure.
+
+## Traceability
+This test case additionally backs criteria on the object requirements FR-014, FR-016, which cite it as their verification. Those criteria are exercised by the same procedure above; a change here that stops exercising them is a change to their coverage, not only to this test case's.

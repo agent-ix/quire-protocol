@@ -81,3 +81,5 @@ refusal is ambiguous about which entry caused it.
 ## Traceability
 
 Verifies FR-009-AC-1 through FR-009-AC-7 and contributes to NFR-003.
+
+This test case additionally backs criteria on the object requirements FR-012, FR-016, FR-017, FR-018, which cite it as their verification. Those criteria are exercised by the same procedure above; a change here that stops exercising them is a change to their coverage, not only to this test case's.

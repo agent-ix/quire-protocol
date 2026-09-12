@@ -39,3 +39,6 @@ identity and no parser or locally substituted profile. Every accepted numeric
 value decodes to the exact native value and re-encodes to identical canonical
 artifact bytes; no producer-owned digest is reinterpreted or equated across
 domains.
+
+## Traceability
+This test case additionally backs criteria on the object requirements FR-013, FR-015, which cite it as their verification. Those criteria are exercised by the same procedure above; a change here that stops exercising them is a change to their coverage, not only to this test case's.
