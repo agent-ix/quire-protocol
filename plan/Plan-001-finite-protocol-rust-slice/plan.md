@@ -146,7 +146,7 @@ All Cargo work remains serialized on the shared workstation even when source own
 | Task-006 | A | FR-006, FR-008 | TC-006, TC-011 | blocked |
 | Task-007 | A | FR-007 | TC-007 | blocked |
 | Task-008 | A | NFR-001, NFR-002 | TC-008, TC-009 | blocked |
-| Task-009 | B | FR-001, FR-002 | IT-001 | blocked |
+| Task-009 | B | FR-001, FR-002 | IT-001 | in progress; candidate evidence only, external promotion gate blocked |
 | Task-010 | B | FR-003, FR-004, FR-006 | IT-002 | blocked |
 | Task-011 | Gate | StR-001, FR-006, FR-007, NFR-003 | IT-003, TC-010 | blocked |
 

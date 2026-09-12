@@ -688,7 +688,7 @@ dependencies = [
 [[package]]
 name = "quire-spec-language"
 version = "0.1.0"
-source = "git+https://github.com/agent-ix/quire-spec-language?rev=84975dd687d38d9b24eae84b7356e3f24cdc7b42#84975dd687d38d9b24eae84b7356e3f24cdc7b42"
+source = "git+https://github.com/agent-ix/quire-spec-language?rev=5690c2b29c155ec72e21f5a7bb00fe1146b6f71a#5690c2b29c155ec72e21f5a7bb00fe1146b6f71a"
 dependencies = [
  "logos",
  "quire-contract-ir",
