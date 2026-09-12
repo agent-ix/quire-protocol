@@ -114,9 +114,9 @@ adopted as the key, not restated as a local one.
   needed; extending FR-015's table to name the second preimage is local work
   this requirement does not perform, and it must not be done by minting a label.
   Owner: [FR-015](./FR-015-digest-domain-selection.md).
-- **Result-identity derivation kind at the source.** `FR-240` records that "no
-  requirement states whether the identity is authored by the producer or derived
-  from named components." The derived projection identity is fully specified; the
+- **Result-identity derivation kind at the source.** `FR-240` states that "The prose does not state whether that identity is
+  authored by the producer or derived from the result's own components, so
+  this artifact declares neither." The derived projection identity is fully specified; the
   source identity it consumes is not. This requirement consumes the source
   identity as an exact opaque value and declares no kind for it. Owner:
   `quire-specification`.

@@ -143,9 +143,9 @@ Each gap is recorded in full by the part that depends on it. Summarised:
   every row the table states and asserts no totality. Recorded by
   [FR-035](./FR-035-map-source-states-to-e02.md). Owner:
   `quire-specification`.
-- **Canonical source-result identity kind.** `FR-240` records that "no
-  requirement states whether the identity is authored by the producer or derived
-  from named components." The projection consumes that identity as an exact
+- **Canonical source-result identity kind.** `FR-240` states that "The prose does not state whether that identity is
+  authored by the producer or derived from the result's own components, so
+  this artifact declares neither." The projection consumes that identity as an exact
   opaque value and declares no kind for it. Recorded by
   [FR-034](./FR-034-derive-e02-projection-identity.md). Owner:
   `quire-specification`.
