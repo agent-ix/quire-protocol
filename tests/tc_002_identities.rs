@@ -66,8 +66,15 @@ fn tc_002_newtypes_are_not_interchangeable() {
         "duplicate identity kind"
     );
 
-    let tags: HashSet<&str> = IdentityKind::ALL.iter().map(|kind| kind.tag()).collect();
-    assert_eq!(tags.len(), IdentityKind::ALL.len(), "two kinds share a tag");
+    // No tag assertion. An earlier revision compared a local `tag()` label per
+    // kind for uniqueness, which compared this crate's own labels to each other
+    // and so could not fail. Eight of those labels also collided exactly with
+    // `FR-210-protocol-subject-vocabulary`'s published members, and `FR-210`
+    // rules the other eight are not protocol subjects at all: "A consumer that
+    // needs to hold a channel, registration, commit boundary or recovery
+    // relation apart from a protocol subject does so by referencing the object
+    // artifact, not by minting a subject-kind label." The labels are gone; the
+    // kinds remain as a discriminator over this crate's own newtypes.
 }
 
 #[trace("TC-002", "Task-002")]
