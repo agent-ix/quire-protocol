@@ -64,7 +64,7 @@ conclude rather than about what it computes.
 | ID | Criteria | Verification |
 | --- | --- | --- |
 | FR-028-AC-1 | Decision-scope progress/closure, surrounding-execution progress/closure and complete-global-conformance closure remain independent; changing or closing one cannot change or close another. | Test (TC-004) |
-| FR-028-AC-2 | An open, incomplete, unsupported, failed or exhausted assessment cannot become complete global success. | Test (TC-004) |
+| FR-028-AC-2 | A refused, unsupported, resource-incomplete or failed assessment execution cannot become complete global success, and an open or incomplete closure axis cannot either. | Test (TC-004) |
 | FR-028-AC-3 | Closing a decision scope neither closes the surrounding execution nor establishes complete global conformance. | Test (TC-004) |
 | FR-028-AC-4 | A claim that is not global conformance carries `not-required` explicitly with no global premise set; a global premise supplied under `not-required`, a global claim marked `not-required`, and another progress/closure axis relabelled `not-required` are each refused. | Test (TC-004) |
 | FR-028-AC-5 | Omitting, duplicating, cross-wiring or scope-mismatching a required global closure premise withholds complete global success without changing an independently settled per-obligation truth. | Test (TC-004) |

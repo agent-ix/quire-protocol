@@ -134,7 +134,7 @@ fn tc_004_axis_labels_are_the_published_spellings() {
 ///
 /// Tracing: TC-004, FR-004-AC-3.
 #[test]
-#[trace("TC-004", "FR-004-AC-3")]
+#[trace("TC-004", "FR-028-AC-4")]
 fn tc_004_the_fifth_axis_members_are_not_scope_axis_members() {
     let scope: HashSet<&str> = ScopeState::ALL.iter().map(|s| s.label()).collect();
     for extra in ["incomplete", "contradicted", "not-required"] {
@@ -197,7 +197,7 @@ fn tc_004_exactly_one_state_per_axis_admits() {
 ///
 /// Tracing: TC-004, FR-004-AC-3.
 #[test]
-#[trace("TC-004", "FR-004-AC-3")]
+#[trace("TC-004", "FR-028-AC-4")]
 fn tc_004_not_required_does_not_establish_global_conformance() {
     assert!(!GlobalConformanceClosure::NotRequired.admits_complete_global_conformance());
     let mut closure = all_axes_admitting();
@@ -221,7 +221,7 @@ fn tc_004_not_required_does_not_establish_global_conformance() {
 ///
 /// Tracing: TC-004, FR-004-AC-3.
 #[test]
-#[trace("TC-004", "FR-004-AC-3")]
+#[trace("TC-004", "FR-004-AC-3", "FR-028-AC-1")]
 fn tc_004_axes_are_independently_settable() {
     let states = all_states();
     assert_eq!(states.len(), 80, "2 x 2 x 2 x 2 x 5");
@@ -258,7 +258,7 @@ fn tc_004_axes_are_independently_settable() {
 ///
 /// Tracing: TC-004, FR-004-AC-3.
 #[test]
-#[trace("TC-004", "FR-004-AC-3")]
+#[trace("TC-004", "FR-004-AC-3", "FR-028-AC-1", "FR-028-AC-3")]
 fn tc_004_changing_one_axis_changes_no_other() {
     let base = all_axes_admitting();
     for axis in Axis::ALL {
@@ -301,7 +301,7 @@ fn tc_004_changing_one_axis_changes_no_other() {
 ///
 /// Tracing: TC-004, FR-004-AC-3.
 #[test]
-#[trace("TC-004", "FR-004-AC-3")]
+#[trace("TC-004", "FR-004-AC-3", "FR-028-AC-3")]
 fn tc_004_scoped_closure_cannot_substitute_for_global_closure() {
     let closure = state(
         ScopeState::Closed,
@@ -338,7 +338,7 @@ fn tc_004_scoped_closure_cannot_substitute_for_global_closure() {
 ///
 /// Tracing: TC-004, FR-004-AC-3.
 #[test]
-#[trace("TC-004", "FR-004-AC-3")]
+#[trace("TC-004", "FR-028-AC-6")]
 fn tc_004_an_omitted_axis_refuses_and_is_never_defaulted() {
     let closed = ScopeState::Closed;
     let refusals = ClosureState::new(
@@ -360,7 +360,7 @@ fn tc_004_an_omitted_axis_refuses_and_is_never_defaulted() {
 ///
 /// Tracing: TC-004, FR-004-AC-3.
 #[test]
-#[trace("TC-004", "FR-004-AC-3")]
+#[trace("TC-004", "FR-028-AC-6")]
 fn tc_004_every_omitted_axis_is_reported_in_declared_order() {
     let refusals = ClosureState::new(None, None, None, None, None).expect_err("all omitted");
     assert_eq!(
@@ -380,7 +380,7 @@ fn tc_004_every_omitted_axis_is_reported_in_declared_order() {
 ///
 /// Tracing: TC-004, FR-004-AC-3.
 #[test]
-#[trace("TC-004", "FR-004-AC-3")]
+#[trace("TC-004", "FR-004-AC-3", "FR-028-AC-1")]
 fn tc_004_each_axis_refuses_on_its_own_variant() {
     let open = ScopeState::Open;
     let expected = [
@@ -486,7 +486,7 @@ fn tc_004_no_two_refusals_share_a_code() {
 ///
 /// Tracing: TC-004, FR-004-AC-3.
 #[test]
-#[trace("TC-004", "FR-004-AC-3")]
+#[trace("TC-004", "FR-004-AC-3", "FR-028-AC-2")]
 fn tc_004_no_non_completing_execution_becomes_complete_global_success() {
     for execution in AssessmentExecution::NON_COMPLETING {
         let refusals = ProtocolAssessment::new(all_axes_admitting(), execution)
@@ -505,7 +505,7 @@ fn tc_004_no_non_completing_execution_becomes_complete_global_success() {
 ///
 /// Tracing: TC-004, FR-004-AC-3.
 #[test]
-#[trace("TC-004", "FR-004-AC-3")]
+#[trace("TC-004", "FR-004-AC-3", "FR-028-AC-2")]
 fn tc_004_complete_global_success_needs_every_axis_and_completed() {
     ProtocolAssessment::new(all_axes_admitting(), AssessmentExecution::Completed)
         .complete_global_conformance()

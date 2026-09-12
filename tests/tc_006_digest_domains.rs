@@ -106,7 +106,7 @@ impl Selections {
 ///
 /// Tracing: TC-006, FR-001-AC-4.
 #[test]
-#[trace("TC-006", "FR-001-AC-4")]
+#[trace("TC-006", "FR-001-AC-4", "FR-015-AC-3")]
 fn tc_006_producer_reference_in_the_result_slot_refuses() {
     let selections = Selections::new();
     let inventory = selections.inventory();
@@ -133,7 +133,7 @@ fn tc_006_producer_reference_in_the_result_slot_refuses() {
 ///
 /// Tracing: TC-006, FR-001-AC-4.
 #[test]
-#[trace("TC-006", "FR-001-AC-4")]
+#[trace("TC-006", "FR-001-AC-4", "FR-015-AC-3")]
 fn tc_006_result_digest_in_a_producer_slot_refuses() {
     let selections = Selections::new();
     let inventory = selections.inventory();
@@ -233,7 +233,7 @@ fn tc_006_foreign_algorithm_label_is_cross_domain() {
 ///
 /// Tracing: TC-006, FR-001-AC-4.
 #[test]
-#[trace("TC-006", "FR-001-AC-4")]
+#[trace("TC-006", "FR-001-AC-4", "FR-015-AC-4")]
 fn tc_006_unselected_slot_is_explicit() {
     let selections = Selections::new();
     let inventory = selections.inventory();
@@ -254,7 +254,7 @@ fn tc_006_unselected_slot_is_explicit() {
 ///
 /// Tracing: TC-006, FR-001-AC-4.
 #[test]
-#[trace("TC-006", "FR-001-AC-4")]
+#[trace("TC-006", "FR-001-AC-4", "FR-015-AC-4")]
 fn tc_006_unlabelled_value_is_cross_domain() {
     let selections = Selections::new();
     let inventory = selections.inventory();
@@ -271,7 +271,7 @@ fn tc_006_unlabelled_value_is_cross_domain() {
 ///
 /// Tracing: TC-006, FR-006-AC-4.
 #[test]
-#[trace("TC-006", "FR-006-AC-4")]
+#[trace("TC-006", "FR-006-AC-4", "FR-015-AC-2")]
 fn tc_006_producer_reference_is_opaque_and_copied_exactly() {
     let text = "sha256:0000000000000000000000000000000000000000000000000000000000000001";
     let reference = ProducerDigestRef::copy_exact(DigestDomain::RawArtifact, text)

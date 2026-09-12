@@ -125,9 +125,9 @@ the specified vocabulary: it is upstream's, selected from, not minted.
 | ID | Criteria | Verification |
 | --- | --- | --- |
 | FR-015-AC-1 | Every digest domain label this repository uses is a member `FR-201` publishes, spelled exactly as published, and no label originates here. | Inspection |
-| FR-015-AC-2 | A producer reference arriving with an upstream domain label retains that label exactly through admission, linking and result production, and is never re-labelled. | Test (TC-001, TC-014) |
-| FR-015-AC-3 | A digest under one selected member compares unequal to a digest under another over identical bytes, in both directions. | Test (TC-014) |
-| FR-015-AC-4 | A digest whose domain is unselected compares only to absence; a comparison requiring a domain refuses rather than defaulting to a member. | Test (TC-014) |
+| FR-015-AC-2 | A producer reference arriving with an upstream domain label retains that label exactly through admission, linking and result production, and is never re-labelled. | Test (TC-001, TC-006, TC-014) |
+| FR-015-AC-3 | A digest under one selected member compares unequal to a digest under another over identical bytes, in both directions. | Test (TC-006, TC-014) |
+| FR-015-AC-4 | A digest whose domain is unselected compares only to absence; a comparison requiring a domain refuses rather than defaulting to a member. | Test (TC-006, TC-014) |
 | FR-015-AC-5 | No requirement, test or implementation in this repository declares a digest domain vocabulary of its own. | Inspection |
 
 ## Dependencies

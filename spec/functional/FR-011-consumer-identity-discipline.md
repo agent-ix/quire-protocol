@@ -118,11 +118,11 @@ outcome; inventing a key would author another party's semantics.
 | ID | Criteria | Verification |
 | --- | --- | --- |
 | FR-011-AC-1 | Every object specified in this repository declares one of the three upstream kinds and one authority, and declares no fourth kind. | Inspection |
-| FR-011-AC-2 | Changing only a display name, source path, span, message text, locale or rendering changes no object's identity, equality, or ordering position. | Test (TC-014) |
-| FR-011-AC-3 | A producer-authored identity is byte-equal to the producer bytes it arrived as; deriving, repairing, normalizing or recomputing one refuses rather than producing a repaired identity. | Test (TC-014) |
+| FR-011-AC-2 | Changing only a display name, source path, span, message text, locale or rendering changes no object's identity, equality, or ordering position. | Test (TC-002, TC-008, TC-014) |
+| FR-011-AC-3 | A producer-authored identity is byte-equal to the producer bytes it arrived as; deriving, repairing, normalizing or recomputing one refuses rather than producing a repaired identity. | Test (TC-002, TC-014) |
 | FR-011-AC-4 | A consumer-authored identity appears in no canonical result as a producer reference, and is accepted by no producer as a selector. | Test (TC-014) |
 | FR-011-AC-5 | A key component from one digest domain is unequal to a component from another domain over identical bytes, in both directions, for every ordered pair of domains. | Test (TC-014) |
-| FR-011-AC-6 | An absent kind, authority or key component compares equal only to absence, never to a default, an empty value, or a present component. | Test (TC-014) |
+| FR-011-AC-6 | An absent kind, authority or key component compares equal only to absence, never to a default, an empty value, or a present component. | Test (TC-008, TC-014) |
 | FR-011-AC-7 | An object whose collections admit duplicate, surplus, missing or reordered defects either declares a unique key and a total order, or names the owner that has not declared one and the exact unsettled question. | Inspection |
 
 ## Dependencies

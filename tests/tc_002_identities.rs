@@ -113,7 +113,7 @@ fn tc_002_each_newtype_reports_its_own_kind() {
     assert_eq!(RecoveryId::new(b"a", "a").kind(), IdentityKind::Recovery);
 }
 
-#[trace("TC-002", "Task-002")]
+#[trace("TC-002", "Task-002", "FR-011-AC-2")]
 #[test]
 fn tc_002_display_text_is_not_identity() {
     // Equal producer bytes, different display text: the same identity.
@@ -156,7 +156,7 @@ fn tc_002_display_text_is_not_identity() {
     assert_eq!(renamed.identity_bytes(), relabelled.identity_bytes());
 }
 
-#[trace("TC-002", "Task-002")]
+#[trace("TC-002", "Task-002", "FR-011-AC-3")]
 #[test]
 fn tc_002_identity_bytes_are_retained_unchanged() {
     // No trim, no case fold, no Unicode normalisation, no UTF-8 requirement.
@@ -191,7 +191,7 @@ fn tc_002_identity_bytes_are_retained_unchanged() {
     );
 }
 
-#[trace("TC-002", "Task-002")]
+#[trace("TC-002", "Task-002", "FR-011-AC-3")]
 #[test]
 fn tc_002_wire_package_identities_round_trip_unchanged() {
     // A `wire::Package` definition entry, taken as the producer offers it.

@@ -97,25 +97,34 @@ The four words below are not interchangeable, and no total mixes them.
 
   ```
   $ quire coverage --scope /home/peter/dev/quire-protocol
-  Coverage: 13/322 rows backed (4%)
+  Coverage: 24/322 rows backed (7%)
   ```
 
-  Thirteen rows, in six requirements: FR-001 3 of 5, FR-002 1 of 5, FR-004 1 of
-  4, FR-006 1 of 8, FR-008 1 of 9, NFR-001 2 of 3.
+  Twenty-four rows: FR-001 3 of 5, FR-002 1 of 5, FR-004 1 of 4, FR-006 1 of 8,
+  FR-008 1 of 9, FR-011 3 of 7, FR-015 3 of 5, FR-028 5 of 6, NFR-001 2 of 3,
+  plus 4 of the 14 test-case rows.
 
-  The gap between 229 test-backed and 13 engine-bound is not a contradiction —
+  The gap between 229 test-backed and 24 engine-bound is not a contradiction —
   the two words mean different things, and the definitions above say so — but it
   is the number that says how much of this specification a test currently
   reaches. **Read it as the coverage figure.** "Test-backed" says a criterion has
   somewhere to be tested; "engine-bound" says something tests it.
 
-  The commonest cause of the gap is a test file tagged at its parent's
-  criterion. `tests/tc_004_closure_axes.rs` is the clearest case: all fourteen of
-  its tests carry `#[trace("TC-004", "FR-004-AC-3")]`, so they bind one criterion
-  of FR-004 and none of FR-026, FR-027, FR-028 or FR-041, even though the matrix
-  rows for those four cite `TC-004` and are test-backed by the definition above.
-  Closing that needs per-criterion trace tags, and is tracked as implementation
-  work rather than corrected by editing this table.
+  The gap closes by tagging, never by editing this table. A trace attribute is
+  the only thing that binds a test to a criterion, so a criterion a test
+  exercises without naming it stays unbound however this matrix describes it.
+  Tagging `tc_004`, `tc_006`, `tc_002` and `tc_008` at criterion level took
+  coverage from 13 rows to 24 without changing one line of test logic.
+
+  Two kinds of unbound symbol remain, and they are not the same thing:
+
+  - **Deliberately unbound.** The 24 tests in `tests/it001_v2_intake.rs` carry
+    `Task-009` and no criterion, because they exercise this repository's own
+    fixture loader rather than any IT-001 scenario. Tagging them `IT-001` would
+    make 24 unexecuted scenarios look covered. They stay as they are.
+  - **Still under-tagged.** Tests that exercise a criterion they do not name.
+    `tests/it001_native_handoff.rs` is the largest remaining case, at 24 traces
+    over 4 criteria.
 
 - **Unexecutable** — a backing exists but cannot be run, so the criterion is
   neither passing nor failing. 12 of 288 criteria, all of them
@@ -302,8 +311,8 @@ a coverage claim in this matrix.
 Row counts, recomputed from the tree. Every matrix row above is counted exactly
 once, and `Blocked` means unexecutable — neither passing nor failing.
 
-Engine-measured binding, which is the figure to read for coverage, is 13 of 322
-rows (4%) — see **Engine-bound** above. The table below counts matrix rows and
+Engine-measured binding, which is the figure to read for coverage, is 24 of 322
+rows (7%) — see **Engine-bound** above. The table below counts matrix rows and
 their planned state; it does not measure binding.
 
 | Category | Total | Passed | Failed | Blocked | Planned |
@@ -326,8 +335,8 @@ fully blocked integration cannot score 100%. These totals follow that rule: the
 denominator is every authored acceptance criterion, and an unexecutable
 criterion is a zero inside it rather than a row removed from it.
 
-Engine-measured binding, which is the figure to read for coverage, is 13 of 322
-rows (4%) — see **Engine-bound** above. The table below counts matrix rows and
+Engine-measured binding, which is the figure to read for coverage, is 24 of 322
+rows (7%) — see **Engine-bound** above. The table below counts matrix rows and
 their planned state; it does not measure binding.
 
 | Category | Total | Passed | Failed | Blocked | Planned |

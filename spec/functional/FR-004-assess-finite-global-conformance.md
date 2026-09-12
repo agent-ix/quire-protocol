@@ -49,7 +49,7 @@ identity.
 ## Outputs
 
 Per-obligation and global results with exact satisfied, violated, pending,
-incomplete, refused, failed, unsupported, or exhausted causes.
+refused, unsupported, resource-incomplete or failed execution causes (`FR-241`).
 
 ## Behavior
 
@@ -86,7 +86,7 @@ rather than of their arrival (FR-041).
 | --- | --- | --- |
 | FR-004-AC-1 | Order invariance over the whole assessment is exactly what [FR-026](./FR-026-admit-every-permitted-observation-order.md) establishes: every permitted split-shipment and compensation interleaving produces the same conformant obligation set, and no other path reorders or re-presents the admitted history to obtain one. | Test (TC-004) |
 | FR-004-AC-2 | Adverse reporting over the whole assessment is exactly what [FR-027](./FR-027-report-adverse-observations-without-repair.md) produces: unexpected, missing, causally misordered, duplicate-effect, and cross-workflow observations identify the exact affected obligation, and no aggregate path repairs one to avoid reporting it. | Test (TC-004) |
-| FR-004-AC-3 | Axis independence over the whole assessment is exactly what [FR-028](./FR-028-keep-progress-and-closure-axes-independent.md) enforces: decision-scope progress/closure, surrounding-execution progress/closure and complete-global-conformance closure remain independent, changing or closing one cannot close another, and open, incomplete, unsupported, failed or exhausted assessments cannot become complete global success. | Test (TC-004) |
+| FR-004-AC-3 | Axis independence over the whole assessment is exactly what [FR-028](./FR-028-keep-progress-and-closure-axes-independent.md) enforces: decision-scope progress/closure, surrounding-execution progress/closure and complete-global-conformance closure remain independent, changing or closing one cannot close another, and a refused, unsupported, resource-incomplete or failed assessment execution cannot become complete global success. | Test (TC-004) |
 | FR-004-AC-4 | Path equivalence over the whole assessment is exactly what [FR-041](./FR-041-agree-across-batch-and-incremental-paths.md) establishes: batch replay and settled incremental assessment are semantically identical for every permutation of the same admitted facts, the incremental path settles a value strictly before the final fact on a history whose earlier prefix already contains every fact that value requires to be decided, and a divergence refuses rather than reporting agreement. | Test (TC-004) |
 
 ## Adopted vocabulary

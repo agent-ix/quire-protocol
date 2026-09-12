@@ -28,4 +28,4 @@ cross-wire each asserted closure identity and progress point.
 
 Every valid permutation agrees. Each adverse case names its exact obligation and
 state. Closing one scope does not close either other scope. No open, incomplete,
-unsupported, failed, or exhausted case reports complete global conformance.
+unsupported, resource-incomplete, or failed case reports complete global conformance.

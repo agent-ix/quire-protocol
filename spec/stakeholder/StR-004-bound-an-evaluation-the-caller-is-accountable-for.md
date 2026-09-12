@@ -49,8 +49,8 @@ Quire compiler and runtime integrators named as intended users of this
 specification, who host the evaluation inside their own resource envelope.
 Engineering Assurance is an affected party because it owns whole-process
 containment and external resource enforcement around this library, not inside it.
-The protocol verification owner is an affected party because a resource-exhausted
-answer must stay distinguishable from a violation.
+The protocol verification owner is an affected party because a
+`resource-incomplete` answer must stay distinguishable from a violation.
 
 ## Context and Assumptions
 

@@ -219,7 +219,7 @@ fn tc_008_empty_corpus_identity_refuses_distinctly_from_absent() {
 
 /// Tracing: TC-008, NFR-001-AC-2, Task-008.
 #[test]
-#[trace("TC-008", "NFR-001-AC-2", "Task-008")]
+#[trace("TC-008", "Task-008", "FR-011-AC-6")]
 fn tc_008_absent_seed_never_becomes_zero() {
     // The default-collapse bug in its exact shape: an unsupplied seed must not
     // arrive as the zero a `unwrap_or_default()` would have produced.
@@ -321,7 +321,7 @@ fn tc_008_two_different_identities_never_compare_equal() {
 
 /// Tracing: TC-008, NFR-001-AC-2, Task-008.
 #[test]
-#[trace("TC-008", "NFR-001-AC-2", "Task-008")]
+#[trace("TC-008", "Task-008", "FR-011-AC-2")]
 fn tc_008_display_text_is_not_identity() {
     // Equal bytes, different display text: the same toolchain.
     let rendered_one = ToolchainIdentity::new(TOOLCHAIN_BYTES, "rustc 1.98.0");
