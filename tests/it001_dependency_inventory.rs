@@ -14,9 +14,35 @@ const MANIFEST: &str = include_str!("../Cargo.toml");
 const LOCKFILE: &str = include_str!("../Cargo.lock");
 const LIBRARY: &str = include_str!("../src/lib.rs");
 
-/// A's accepted reader, pinned to the exact revision Task-009 froze.
+/// A's accepted reader, pinned to the exact revision this lane froze.
 const FRONTEND: &str = "quire-spec-language";
-const FRONTEND_REVISION: &str = "84975dd687d38d9b24eae84b7356e3f24cdc7b42";
+const FRONTEND_REVISION: &str = "04254a31071cc2d4c97e5c0707e1414141e55d89";
+
+/// The only non-frontend crate the published library links. It reads members A
+/// has already published and serialises B's own selections through A's
+/// `Serialize` impls; it carries no schema, grammar or wire decoder. It is named
+/// here so that a second such crate cannot enter unannounced.
+const SERIALISATION: &str = "serde_json";
+
+/// The library's frozen module set, established in one commit by the chunk
+/// facade (C-00). This is an exact set, not a filter: a module that appears
+/// without being added here fails the lane, so no unlisted module can carry
+/// protocol semantics.
+const LIBRARY_MODULES: &[&str] = &[
+    "bounds",
+    "claims",
+    "closure.rs",
+    "compensation",
+    "conformance",
+    "digest",
+    "ids.rs",
+    "inventory",
+    "lib.rs",
+    "link",
+    "refusal",
+    "repro.rs",
+    "result",
+];
 
 /// Every package the resolved graph is permitted to contain, B's own crate
 /// aside. This is the frozen inventory, not a filter: a package that appears
@@ -174,11 +200,13 @@ fn declared_packages(section: &str) -> BTreeSet<&str> {
 #[test]
 #[trace("IT-001", "Task-009")]
 fn it_001_declares_one_protocol_dependency() {
-    // The library links exactly one crate, and it is A's accepted reader at the
-    // exact frozen revision. Nothing else can reach the protocol path.
+    // The library links exactly one protocol frontend, and it is A's accepted
+    // reader at the exact frozen revision. The only other linked crate is the
+    // serialisation carrier named above. Nothing else can reach the protocol
+    // path.
     assert_eq!(
         declared_packages(manifest_section("[dependencies]")),
-        BTreeSet::from([FRONTEND])
+        BTreeSet::from([FRONTEND, SERIALISATION])
     );
     assert!(
         manifest_section("[dependencies]").contains(FRONTEND_REVISION),
@@ -235,18 +263,26 @@ fn it_001_resolves_one_frontend_in_the_whole_graph() {
 #[test]
 #[trace("IT-001", "Task-009")]
 fn it_001_library_source_only_delegates() {
-    // One library file, so no unlisted module can carry protocol semantics.
+    // The frozen module set, so no unlisted module can carry protocol semantics.
     let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
     let mut files = fs::read_dir(&source)
         .expect("library source directory")
         .map(|entry| entry.expect("library source entry").file_name())
         .collect::<Vec<_>>();
     files.sort();
-    assert_eq!(files, [std::ffi::OsString::from("lib.rs")]);
+    let frozen = LIBRARY_MODULES
+        .iter()
+        .map(std::ffi::OsString::from)
+        .collect::<Vec<_>>();
+    assert_eq!(files, frozen);
 
     // Exactly one function, and its whole body is a call into A's reader. B
     // adds no parser, decoder, numeric layer or alternate semantics: every
-    // other item in the library is a re-export of an A-owned name.
+    // other item in `lib.rs` is a re-export of an A-owned name.
+    //
+    // This counts `lib.rs` alone. The modules the facade reserves are empty on
+    // this head; a version 2 delegation adds a second function to this count
+    // when that lane lands.
     let functions = LIBRARY.match_indices("fn ").count();
     assert_eq!(
         functions, 1,
