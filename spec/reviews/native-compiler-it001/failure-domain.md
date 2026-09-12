@@ -9,12 +9,12 @@ review_set: all
 ## Summary
 
 The intake contract explicitly fails closed on selection, numeric, and binding
-mismatches before exposing a linked package. The remaining failure-domain risk
-is SC-05: a denylist is not positive proof that the public consumer path has no
-second reader or frontend.
+mismatches before exposing a linked package. The B-owned direct dependency and
+façade path now has a positive static inventory; the review retains the boundary
+that A-owned compiler internals are not locally re-audited.
 
 ## Findings
 
 | ID | Severity | Summary | Refs | Escape Cause |
 | --- | --- | --- | --- | --- |
-| FND-001 | high | SC-05 requires a positive inventory of the reader/parser-shaped dependency and source path, but the repository has no discriminating inventory test yet; absence of known foreign-runtime crates would not detect a second Rust frontend. | IT-001-SC-05; FR-001; FR-002; Task-009 | correct-requirement-no-evidence |
+| FND-001 | low | `it_001_inventory_identifies_one_b_owned_reader_path` now positively inventories B's direct production dependencies and single façade call. A's internal reader/compiler dependency graph remains producer-owned and is not a downstream qualification claim. | IT-001-SC-05; Task-009 | correct-requirement-no-evidence |

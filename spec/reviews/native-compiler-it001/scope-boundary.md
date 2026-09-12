@@ -10,12 +10,12 @@ review_set: all
 
 The contract correctly assigns native grammar, compiler emission, numeric-wire
 semantics, and canonicalization to quire-spec-language; this crate consumes the
-public reader and validates independently selected identities. The consumer
-still needs evidence that its dependency path contains only that reader, not a
-locally duplicated frontend.
+public reader and validates independently selected identities. A static Rust
+test now inventories B's direct production dependencies and verifies its sole
+façade reader call.
 
 ## Findings
 
 | ID | Severity | Summary | Refs | Escape Cause |
 | --- | --- | --- | --- | --- |
-| FND-001 | high | SC-05 names the required ownership boundary but lacks an implemented positive source/dependency inventory that identifies `quire_spec_language::protocol_artifact::read` as the sole native-reader entry point. | IT-001-SC-05; FR-001; FR-002; Task-009 | correct-requirement-no-evidence |
+| FND-001 | low | The positive inventory establishes B containment, not the internals of the A-owned reader; its accepted compiler/parser assurance remains an upstream producer obligation. | IT-001-SC-05; Task-009; quire-spec-language#40 | correct-requirement-no-evidence |
