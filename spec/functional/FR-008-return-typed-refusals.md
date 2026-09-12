@@ -13,6 +13,16 @@ relationships:
     type: depends_on
   - target: ix://agent-ix/quire-protocol/FR-007
     type: depends_on
+  - target: ix://agent-ix/quire-specification/FR-270
+    type: references
+  - target: ix://agent-ix/quire-specification/FR-271
+    type: references
+  - target: ix://agent-ix/quire-specification/FR-272
+    type: references
+  - target: ix://agent-ix/quire-specification/FR-273
+    type: references
+  - target: ix://agent-ix/quire-specification/FR-274
+    type: references
 ---
 # FR-008: Return typed source-bound refusals
 
@@ -74,6 +84,46 @@ result except the independent claim results expressly allowed by FR-005.
 | FR-008-AC-6 | Changing the selected diagnostic-catalog identity/revision/digest or erasing/replacing the originating stage refuses the response. | Test (TC-011) |
 | FR-008-AC-7 | Unavailable source context remains explicit and cannot become an invented location through repeated display names, paths, or message text. | Test (TC-011) |
 | FR-008-AC-8 | Simultaneous independent invalid and missing-input dispositions both remain represented under a zero-detail control and cannot produce overall success. | Test (TC-011) |
+
+## Adopted vocabulary
+
+The refusal **envelope** is B's, and this requirement owns it: the five-member
+domain, the partial-output state, the local `unsupported-source-contract`
+disposition, and the rule that two distinct refusal axes never share one typed
+identity. Its **interior** is upstream's:
+
+| Interior field | Upstream object |
+| --- | --- |
+| Diagnostic catalog identity/revision/digest | `FR-270-versioned-diagnostic-catalog` |
+| Diagnostic code | `FR-271-diagnostic-code-vocabulary` |
+| Typed cause | `FR-272-typed-diagnostic-cause` |
+| Originating stage | `FR-273-producer-stage` |
+| Location kind | `FR-274-diagnostic-location-kind` |
+
+### Where the upstream vocabulary does not yet reach
+
+Four of the five interiors carry open gaps that bear directly on this
+requirement's criteria:
+
+- **FR-271** records that "no requirement states which convention belongs to
+  which namespace", and places no literal code in a selected catalog.
+- **FR-272** records that the catalog "does not give those payload components
+  stable field names, a total order, or a spelling convention of their own", and
+  supplies none.
+- **FR-273** records a contradiction rather than an absence: "Two sources
+  enumerate the same axis and do not agree on its members" — FR-047 names six
+  producer stages, the proposed catalog names eleven, and upstream quotes both
+  verbatim and prefers neither. FR-008-AC-1 requires the originating stage, and
+  FR-008-AC-6 requires erasing or replacing it to refuse; both rest on an axis
+  whose membership is contested upstream.
+- **FR-274** records that it "states no discriminator tag, identifier spelling or
+  serialized form for the kinds themselves", and establishes no key or order for
+  a JSON field/index path or a runtime object/value path. FR-008-AC-7 requires
+  unavailable source context to stay explicit and never become an invented
+  location; the kinds it would discriminate have no serialized form upstream.
+
+These are cited as gaps, not resolved here. Selecting a member list locally would
+author a producer diagnostic vocabulary, which this repository does not own.
 
 ## Dependencies
 

@@ -11,6 +11,22 @@ relationships:
     type: depends_on
   - target: ix://agent-ix/quire-specification/FR-058
     type: depends_on
+  - target: ix://agent-ix/quire-specification/FR-230
+    type: references
+  - target: ix://agent-ix/quire-specification/FR-231
+    type: references
+  - target: ix://agent-ix/quire-specification/FR-232
+    type: references
+  - target: ix://agent-ix/quire-specification/FR-233
+    type: references
+  - target: ix://agent-ix/quire-specification/FR-234
+    type: references
+  - target: ix://agent-ix/quire-specification/FR-236
+    type: references
+  - target: ix://agent-ix/quire-specification/FR-239
+    type: references
+  - target: ix://agent-ix/quire-specification/FR-264
+    type: references
 ---
 # FR-003: Assess compensation state
 
@@ -57,6 +73,40 @@ successful business effect or recovery relation.
 | FR-003-AC-5 | An achieved partial state may satisfy an authored partial-recovery relation while failing full restoration; either success requires the exact authored relation, captured target, achieved state and applicable complete population. | Test (TC-003) |
 | FR-003-AC-6 | Missing trigger, state, effect, commit, population, membership or completeness authority cannot produce activation, registration or recovery success. | Test (TC-003) |
 | FR-003-AC-7 | The implementation performs no network, storage, telemetry, business-operation or compensation-operation I/O while assessing compensation. | Test (TC-003, TC-009) |
+
+## Adopted vocabulary
+
+| Noun | Upstream object | Identity kind |
+| --- | --- | --- |
+| Protocol obligation | `FR-230-protocol-obligation` | derived, keyed (clause subject, semantic trigger-event identity) |
+| Obligation activation state | `FR-231-obligation-activation-state` | value |
+| Activation capture | `FR-232-activation-capture` | value |
+| Compensation registration | `FR-233-compensation-registration` | derived, keyed (source compensation definition identity, established forward effect identity) |
+| Compensation obligation lifecycle | `FR-234-compensation-obligation-lifecycle` | value |
+| Compensation attempt outcome | `FR-236-compensation-attempt-outcome` | value |
+| Compensation retry policy | `FR-239-compensation-retry-policy` | value |
+| Membership rule | `FR-264-membership-rule` | value |
+
+`FR-233`'s key is exactly this requirement's replay rule: registration is keyed on
+(compensation definition identity, established forward effect identity), so
+replaying one effect identity cannot mint a second registration. The rule is
+adopted, not restated.
+
+### Where the upstream vocabulary does not yet reach
+
+- **Compensation attempt** — `FR-235-compensation-attempt` records that its
+  identity kind is "not established by the prose", that its key is "not
+  established — the prose states only what the key is *not*", and that no order
+  over attempts exists.
+- **Commit boundary** — `FR-237-commit-boundary` records that "no requirement
+  names the components that identify a commit boundary or a commit observation",
+  and warns that "the commit ordering checked by FR-057 is a causal order, not a
+  key order, and must not be read as one".
+- **Recovery relation** — `FR-238-recovery-relation` records that "no requirement
+  names the components that identify one recovery relation".
+- **Business effect duplication** — `FR-226-business-effect` states that its key
+  cannot detect a duplicate effect, which this requirement's partial-recovery
+  obligations depend on detecting.
 
 ## Dependencies
 

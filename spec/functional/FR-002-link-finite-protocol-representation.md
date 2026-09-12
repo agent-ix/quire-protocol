@@ -11,6 +11,24 @@ relationships:
     type: depends_on
   - target: ix://agent-ix/quire-specification/FR-054
     type: depends_on
+  - target: ix://agent-ix/quire-specification/FR-210
+    type: references
+  - target: ix://agent-ix/quire-specification/FR-216
+    type: references
+  - target: ix://agent-ix/quire-specification/FR-217
+    type: references
+  - target: ix://agent-ix/quire-specification/FR-220
+    type: references
+  - target: ix://agent-ix/quire-specification/FR-221
+    type: references
+  - target: ix://agent-ix/quire-specification/FR-227
+    type: references
+  - target: ix://agent-ix/quire-specification/FR-228
+    type: references
+  - target: ix://agent-ix/quire-specification/FR-252
+    type: references
+  - target: ix://agent-ix/quire-specification/FR-255
+    type: references
 ---
 # FR-002: Link the finite protocol representation
 
@@ -62,7 +80,48 @@ naming the offending binding axis and emitting no linked representation.
 | FR-002-AC-4 | Reordering equal-time input or changing presentation text cannot add a causal edge or change linked meaning, while changing an authored branch, join, iteration maximum, channel premise or visibility premise changes the linked protocol identity. | Test (TC-002) |
 | FR-002-AC-5 | A changed temporal-profile, clock-alternative or clock-parameter selection, and a temporal binding set that is missing, surplus, duplicated, reordered, foreign-owned or out of the declared range, each return a typed refusal naming the offending axis with no linked representation, while a complete, singly owned, correctly ordered, in-range binding set links. | Test (IT-001) |
 
+## Adopted vocabulary
+
+This requirement defines no protocol noun. Every subject it links is typed
+upstream, and the linker's obligation is to preserve those identities, never to
+establish them:
+
+| Noun | Upstream object | Identity kind |
+| --- | --- | --- |
+| Subject kind discrimination | `FR-210-protocol-subject-vocabulary` | value |
+| Channel premise (all six components) | `FR-216-channel-premise` | value |
+| Role internality / visibility | `FR-217-role-internality` | value |
+| Causal control graph | `FR-220-causal-control-graph` | derived |
+| Node occurrence | `FR-221-protocol-node-occurrence` | derived, keyed (static declaration path, workflow instance identity, iteration identity) |
+| Owned choice | `FR-227-owned-choice` | derived, via FR-221 |
+| Bounded control construct | `FR-228-bounded-control-construct` | value |
+| Temporal clock binding | `FR-252-temporal-clock-binding` | value |
+| Bounded temporal interval | `FR-255-bounded-temporal-interval` | value |
+
+### Where the upstream vocabulary does not yet reach
+
+Upstream records these as open gaps in its own artifacts. This requirement's
+obligations stand, but they rest on identities upstream has not established, and
+they cannot be discharged until it does:
+
+- **Delivery** — `FR-224-delivery` states that it "establishes no component that
+  distinguishes one delivery from another", and that neither a key nor a total
+  order exists in the prose. FR-002-AC-1 requires duplicate deliveries to retain
+  distinct exact identities; that criterion currently has no identity to retain.
+- **Operation attempt** — `FR-225-operation-attempt` records that "a retried
+  attempt is required to be retained as a second subject, and the prose supplies
+  no component that separates it from the first".
+- **Business effect** — `FR-226-business-effect` states that its declared key "is
+  constant across two effect claims at one static node within one workflow
+  instance, so two duplicate effects compare equal under it and the duplicate the
+  evaluator is required to detect is undetectable".
+- **Role, role instance, workflow instance, message, channel** — `FR-211` through
+  `FR-215` each declare identity kind *authored* and then state that "the prose
+  does not fix the key components". They may be cited for what identity excludes,
+  never for what constitutes it.
+
 ## Dependencies
 
 - [FR-001](./FR-001-admit-selected-protocol-profile.md).
-- `ix://agent-ix/quire-specification/FR-050` through `FR-054`.
+- `ix://agent-ix/quire-specification/FR-050` through `FR-054` define the source
+  semantics; `FR-210` through `FR-228`, `FR-252` and `FR-255` type the subjects.

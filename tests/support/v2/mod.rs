@@ -60,10 +60,12 @@ pub enum Absence {
     UnreadableDeliveryIndex { path: PathBuf, cause: String },
     /// One scenario has more than one registered mutation fixture.
     AmbiguousMutation { scenario: String },
-    /// Two bindings share one declaration-index key, so the key is not unique.
-    DuplicateBindingKey { declaration_index: u32 },
-    /// The indexed bindings are not in A's declared total order.
-    UnorderedBindings { at: u32, after: u32 },
+    /// Two bindings name one declaration, which A's rule forbids: bindings
+    /// "cannot repeat".
+    RepeatedBindingDeclaration { declaration: u32 },
+    /// The indexed bindings are not sorted by `declaration`, which A's rule
+    /// requires.
+    UnsortedBindings { at: u32, after: u32 },
 }
 
 impl fmt::Display for Absence {
@@ -87,11 +89,11 @@ impl fmt::Display for Absence {
             Self::AmbiguousMutation { scenario } => {
                 write!(f, "scenario {scenario} has more than one mutation fixture")
             }
-            Self::DuplicateBindingKey { declaration_index } => {
-                write!(f, "declaration index {declaration_index} is bound twice")
+            Self::RepeatedBindingDeclaration { declaration } => {
+                write!(f, "declaration {declaration} is bound more than once")
             }
-            Self::UnorderedBindings { at, after } => {
-                write!(f, "declaration index {at} is indexed after {after}")
+            Self::UnsortedBindings { at, after } => {
+                write!(f, "declaration {at} is indexed after {after}")
             }
         }
     }
@@ -143,15 +145,27 @@ pub struct IndexedTemporal {
     pub bindings: Vec<IndexedBinding>,
 }
 
-/// One temporal binding, addressed by A's declared unique declaration-index key.
+/// One temporal binding, addressed by A's `declaration` field.
 ///
-/// "Duplicate" and "reordered" in SC-08 are defined against this key and A's
-/// declared total order over it, not against position in the index file.
+/// A's `/2` wire contract states the whole rule in one sentence: "There is
+/// exactly one binding for every temporal declaration and none for other
+/// declaration families. Bindings sort by `declaration` and cannot repeat."
+/// That is cardinality, uniqueness and order, all keyed on `declaration`.
+///
+/// B does not restate it as a "declared key" or a "declared total order": A uses
+/// neither phrase, and the inflation would attribute to A a declaration it did
+/// not make. `quire-specification` settles none of it — FR-252 gives a clock
+/// binding a *value* identity whose key carries no declaration component, so two
+/// bindings on two different declarations compare equal upstream.
+///
+/// The checks below enforce A's sentence over B's own delivery index. They are
+/// B checking its retained evidence against A's published rule, not B deriving
+/// a rule of its own.
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct IndexedBinding {
     pub owner: String,
-    pub declaration_index: u32,
+    pub declaration: u32,
     pub path: String,
 }
 
@@ -246,25 +260,26 @@ impl Fixture {
             require(root, &format!("{:?}", input.role), &input.path)?;
         }
         require(root, "temporal-profile", &delivery_index.temporal.profile)?;
-        // A's declaration-index key must be unique and totally ordered before
-        // any "duplicate" or "reordered" mutation means anything.
+        // A's rule: bindings sort by `declaration` and cannot repeat. Without
+        // it holding over B's retained index, "duplicate" and "reordered" name
+        // nothing.
         let mut previous: Option<u32> = None;
         for binding in &delivery_index.temporal.bindings {
             require(root, "temporal-binding", &binding.path)?;
             if let Some(after) = previous {
-                if binding.declaration_index == after {
-                    return Err(Absence::DuplicateBindingKey {
-                        declaration_index: binding.declaration_index,
+                if binding.declaration == after {
+                    return Err(Absence::RepeatedBindingDeclaration {
+                        declaration: binding.declaration,
                     });
                 }
-                if binding.declaration_index < after {
-                    return Err(Absence::UnorderedBindings {
-                        at: binding.declaration_index,
+                if binding.declaration < after {
+                    return Err(Absence::UnsortedBindings {
+                        at: binding.declaration,
                         after,
                     });
                 }
             }
-            previous = Some(binding.declaration_index);
+            previous = Some(binding.declaration);
         }
         for mutation in &delivery_index.mutations {
             require(root, &mutation.scenario, &mutation.path)?;
@@ -591,7 +606,11 @@ impl CrossVersion {
     }
 }
 
-/// Where an input sits relative to a declared `/2` resource limit.
+/// Where the *budget* sits relative to what one unchanged input consumes.
+///
+/// The input is held constant and only the budget moves. This is a budget
+/// probe, not an input probe: an input below an inclusive maximum would
+/// legitimately admit, which is a different scenario and not this one.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum LimitBound {
     /// Exactly at the declared bound: must admit.
@@ -671,6 +690,10 @@ pub enum ExpectedRefusal {
     /// A temporal binding set that is wrong in one named way.
     TemporalBinding(TemporalBindingMutation),
     /// A budget one unit short of what the unchanged input consumes.
+    ///
+    /// Named a refusal identity here only because this corpus enumerates
+    /// non-admitting outcomes under one type. The outcome itself is NFR-002's
+    /// resource-incomplete kind, which FR-016 keeps distinct from a refusal.
     ExhaustedBudget { limit: String },
 }
 

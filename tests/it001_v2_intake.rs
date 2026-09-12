@@ -365,7 +365,7 @@ fn the_loader_indexes_the_temporal_and_mutation_evidence() {
         .first()
         .expect("at least one temporal binding");
     assert_eq!(binding.owner, "Workflow");
-    assert_eq!(binding.declaration_index, 0);
+    assert_eq!(binding.declaration, 0);
 
     let limit = delivery_index
         .limits
@@ -529,46 +529,47 @@ fn two_mutation_fixtures_for_one_scenario_are_refused() {
 /// mutation is indistinguishable from a legitimate binding set.
 #[test]
 #[trace("Task-009")]
-fn a_repeated_declaration_index_key_is_refused() {
+fn a_repeated_binding_declaration_is_refused() {
     let root = scratch("duplicate-binding-key");
     write_delivery(&root);
     rewrite_bindings(
         &root,
-        r#"{ "owner": "Workflow", "declaration_index": 0, "path": "inputs/binding-0.json" },
-      { "owner": "Workflow", "declaration_index": 0, "path": "inputs/binding-3.json" }"#,
+        r#"{ "owner": "Workflow", "declaration": 0, "path": "inputs/binding-0.json" },
+      { "owner": "Workflow", "declaration": 0, "path": "inputs/binding-3.json" }"#,
     );
     match Fixture::load_from(&root) {
-        Err(Absence::DuplicateBindingKey { declaration_index }) => {
-            assert_eq!(declaration_index, 0);
+        Err(Absence::RepeatedBindingDeclaration { declaration }) => {
+            assert_eq!(declaration, 0);
         }
-        other => panic!("expected a DuplicateBindingKey report, got {other:?}"),
+        other => panic!("expected a RepeatedBindingDeclaration report, got {other:?}"),
     }
 }
 
-/// A's declared total order must hold in the index. Without it, SC-08's
-/// "reordered" mutation is judged against file position rather than the key.
+/// A's rule says bindings "sort by `declaration`". Without that holding, SC-08's
+/// "reordered" mutation is judged against file position rather than A's rule.
 #[test]
 #[trace("Task-009")]
-fn bindings_out_of_the_declared_total_order_are_refused() {
+fn bindings_not_sorted_by_declaration_are_refused() {
     let root = scratch("unordered-bindings");
     write_delivery(&root);
     rewrite_bindings(
         &root,
-        r#"{ "owner": "Workflow", "declaration_index": 3, "path": "inputs/binding-3.json" },
-      { "owner": "Workflow", "declaration_index": 0, "path": "inputs/binding-0.json" }"#,
+        r#"{ "owner": "Workflow", "declaration": 3, "path": "inputs/binding-3.json" },
+      { "owner": "Workflow", "declaration": 0, "path": "inputs/binding-0.json" }"#,
     );
     match Fixture::load_from(&root) {
-        Err(Absence::UnorderedBindings { at, after }) => {
+        Err(Absence::UnsortedBindings { at, after }) => {
             assert_eq!((at, after), (0, 3));
         }
-        other => panic!("expected an UnorderedBindings report, got {other:?}"),
+        other => panic!("expected an UnsortedBindings report, got {other:?}"),
     }
 }
 
-/// A sparse but ascending key set is legitimate: the order is total, not dense.
+/// A sparse ascending declaration set is legitimate: A's rule says bindings sort
+/// by `declaration`, not that the declarations are contiguous.
 #[test]
 #[trace("Task-009")]
-fn a_sparse_ascending_declaration_index_set_is_accepted() {
+fn a_sparse_ascending_declaration_set_is_accepted() {
     let root = scratch("sparse-bindings");
     write_delivery(&root);
     let fixture = Fixture::load_from(&root).expect("assembled delivery");
@@ -577,7 +578,7 @@ fn a_sparse_ascending_declaration_index_set_is_accepted() {
         .temporal
         .bindings
         .iter()
-        .map(|binding| binding.declaration_index)
+        .map(|binding| binding.declaration)
         .collect();
     assert_eq!(keys, [0, 3]);
 }
@@ -678,8 +679,8 @@ fn write_delivery(root: &Path) {
     "clock_alternative": "wall",
     "clock_parameters": ["resolution"],
     "bindings": [
-      { "owner": "Workflow", "declaration_index": 0, "path": "inputs/binding-0.json" },
-      { "owner": "Workflow", "declaration_index": 3, "path": "inputs/binding-3.json" }
+      { "owner": "Workflow", "declaration": 0, "path": "inputs/binding-0.json" },
+      { "owner": "Workflow", "declaration": 3, "path": "inputs/binding-3.json" }
     ]
   },
   "limits": [{ "name": "declaration-count", "exact": 10000 }],

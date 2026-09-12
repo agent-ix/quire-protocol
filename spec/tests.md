@@ -30,6 +30,17 @@ consumer increment. Its tests remain `#[ignore]` because they require A's
 stripped release producer output and retain A's draft wire labels; they do not
 change the planned status of FR-001, FR-002, or IT-001's full scenario matrix.
 
+The nine object requirements FR-010..FR-018 are counted in the Domain Object
+Coverage table, not in the test-case totals: they are specified nouns, and the
+test cases that exercise them are already counted above.
+
+Every protocol, temporal and observation noun this repository's requirements use
+now resolves to an `ix://agent-ix/quire-specification/FR-2NN` reference rather
+than a local definition. Where an upstream artifact records an open gap, the
+dependent requirement cites the gap rather than supplying the missing identity,
+key or order. Those citations are why several criteria below stand as obligations
+that cannot yet be discharged — see `quire-specification` issues 28 and 29.
+
 IT-001 is split into two rows because `/1` and `/2` are separate contracts that
 may not substitute for each other. The `/2` row is planned and unexecuted. A's `protocol_artifact::v2` is
 implemented and under final integration; its public surface is recorded in
@@ -55,6 +66,24 @@ not be counted as backing symbols for any IT-001 scenario.
 | FR-007 | FR-007-AC-1, FR-007-AC-2, FR-007-AC-3, FR-007-AC-4, FR-007-AC-5 | TC-007, IT-003 | 🚧 Planned |
 | FR-008 | FR-008-AC-1, FR-008-AC-2, FR-008-AC-3, FR-008-AC-4, FR-008-AC-5, FR-008-AC-6, FR-008-AC-7, FR-008-AC-8 | TC-011 | 🚧 Planned |
 | FR-009 | FR-009-AC-1, FR-009-AC-2, FR-009-AC-3, FR-009-AC-4, FR-009-AC-5, FR-009-AC-6, FR-009-AC-7 | TC-013, IT-002, IT-003 | 🚧 Planned — TC-013 exercises resolution on B-owned fixtures with no external dependency; the IT rows stay gated on producer acceptance |
+
+## Domain Object Coverage
+
+Requirements carrying `object:` specify the consumer-boundary vocabulary. They
+are separated from the behavioural table because they define nouns rather than
+behaviour, and because most are verified by inspection of the artifact set.
+
+| Object Req | Object type | Acceptance Criteria | Test Cases | Coverage Status |
+| --- | --- | --- | --- | --- |
+| FR-010 | domain | FR-010-AC-1..AC-3 | — (Inspection) | 🚧 Planned |
+| FR-011 | value_object | FR-011-AC-1..AC-7 | TC-014 | 🚧 Planned |
+| FR-012 | entity | see artifact | TC-013 | 🚧 Planned |
+| FR-013 | value_object | see artifact | TC-014 | 🚧 Planned |
+| FR-014 | value_object | see artifact | TC-011, TC-014 | 🚧 Planned |
+| FR-015 | enumeration | see artifact | TC-006, TC-014 | 🚧 Planned — the production and `/2` enums are two different vocabularies; FR-015 records the divergence as unreconciled |
+| FR-016 | enumeration | see artifact | TC-009 | 🚧 Planned |
+| FR-017 | entity | see artifact | — (Inspection) | 🚧 Planned |
+| FR-018 | entity | see artifact | TC-013 | 🚧 Planned |
 
 ## Non-Functional Requirement Coverage
 
@@ -92,15 +121,16 @@ not be counted as backing symbols for any IT-001 scenario.
 | TC-011 | Return typed refusals without text parsing | Property | P0 | FR-008-AC-1..FR-008-AC-8 | 🚧 Planned |
 | TC-012 | Run the local verification gate and refuse an undefined lane | Static | P0 | NFR-004-AC-1..NFR-004-AC-10 | 🚧 Planned |
 | TC-013 | Resolve the version-lock manifest | Property | P0 | FR-009-AC-1..FR-009-AC-7 | 🚧 Planned — B-owned fixtures only; runnable without any external producer delivery |
+| TC-014 | Apply the consumer identity discipline | Property | P0 | FR-011-AC-1..FR-011-AC-7 | 🚧 Planned — B-owned fixtures only; runnable without any external producer delivery |
 
 ## Test Execution Summary
 
 | Category | Total | Passed | Failed | Blocked | Planned |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Property | 11 | 0 | 0 | 0 | 11 |
+| Property | 12 | 0 | 0 | 0 | 12 |
 | Static/Inspection | 2 | 0 | 0 | 0 | 2 |
 | Integration | 4 | 0 | 0 | 0 | 4 |
-| Overall | 17 | 0 | 0 | 0 | 17 |
+| Overall | 18 | 0 | 0 | 0 | 18 |
 
 The Integration count is four because IT-001 carries a separate `/1` and `/2`
 row; the two contracts may not substitute for each other, so one row cannot

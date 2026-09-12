@@ -176,7 +176,30 @@ agent's owned producer or evidence surface.
 
 ## 16. References
 
-- `agent-ix/quire-specification` FR-050 through FR-062 and NFR-020/NFR-021.
-- `agent-ix/quire-verification` FR-007 and `quire-verification/e02-draft-2`.
-- `agent-ix/engineering-assurance` issue 34 producer-execution boundary.
+Every external producer this specification consumes, and the artifact that
+defines its contract. An entry here is a reference, not a pin: FR-009's
+version-lock manifest carries the pinned revision and the resolution status, and
+its entry-status table records why each is currently `unresolved`.
+
+- `agent-ix/quire-specification` — the formal-clause source. FR-050 through
+  FR-062 and NFR-020/NFR-021 define the semantics this repository consumes;
+  FR-200 through FR-283 are the domain object layer it references for every
+  protocol, temporal and observation noun. Open questions this repository raised
+  against that layer are issues 28 and 29.
+- `agent-ix/quire-spec-language` — the A-owned native compiler and its
+  compiled-protocol artifact contracts. `quire.compiled-protocol/1` is the
+  current pin; `/2` is issue 40. This is the only native compiler reader in the
+  admitted path, and this repository adds no second one.
+- `agent-ix/quire-observation` — the F-owned observation producer interface,
+  carrying the scope facts and global closure record IT-002 consumes.
+- `agent-ix/quire-verification` FR-007 and `quire-verification/e02-draft-2` —
+  the E02 strict reader and its finding vocabulary.
+- `agent-ix/engineering-assurance` issue 34 — the producer-execution boundary.
+- `agent-ix/quoin` and `agent-ix/quire-research` issue 62 — the evidence
+  retention interface and its containment contract.
 - `agent-ix/quire-research` PT01, PT02, E03, and setup issue 33.
+
+The complete-global-conformance closure record is **not** an external reference.
+It is B-authored, landed in `quire-specification` through PR 22 from
+`agent-b/global-conformance-closure`, and takes no version-lock entry because no
+external owner can assert anything about it.

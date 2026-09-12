@@ -71,9 +71,30 @@ bound by that package, carried as `v2::ExpectedTemporal` over
 `v2::AdmittedPackage` report and its `Report`/`Error`/`Invalid`/`Unsupported`
 refusal boundary.
 
-Temporal bindings are addressed by A's declared unique declaration-index key
-under its declared total order. "Duplicate" and "reordered" are defined against
-that key and order, not against file position.
+Temporal binding cardinality, uniqueness and order are A's `/2` wire contract,
+quoted exactly: "There is exactly one binding for every temporal declaration and
+none for other declaration families. Bindings sort by `declaration` and cannot
+repeat."
+
+That sentence, and nothing stronger, is what B relies on. It settles `missing`
+and `surplus` through the cardinality rule, `duplicate` through the no-repeat
+rule, and `reordered` through the sort rule — all keyed on A's `declaration`
+field. B does not restate it as a "declared key" or a "declared total order":
+A uses neither phrase, and the inflation would attribute to A a declaration it
+did not make.
+
+`quire-specification` settles none of this. `FR-252-temporal-clock-binding`
+gives a clock binding identity kind *value* with a key that contains no
+declaration, owner or positional component, and a key order that is
+"lexicographic over the key components, for collection comparison only … it
+carries no causal meaning". Two bindings on two different declarations compare
+equal under it. The association between a binding and the declaration it binds
+is therefore A's wire concern, not an upstream semantic one.
+
+The sentence above lives in A's `docs/compiled-protocol-v2.md` on an unpublished
+branch. Under FR-009 that entry is `unresolved`, so the four mutations it grounds
+are unexecutable until A publishes a revision B can pin — not because the rule is
+missing, but because it is not yet citable at an immutable revision.
 
 Both lanes use one-axis mutations of offered wire/version, seal,
 producer/source/dependency/baseline identity, feature, a binding actually
@@ -152,9 +173,13 @@ dimension, one unit short of it, and a fresh budget at the exact value.
    reordered, owned by a foreign owner, or out of the declared range.
    - IT-001-SC-08: each returns a typed refusal that names the offending
      temporal binding axis before a linked package is exposed; a correctly
-     ordered, singly owned, in-range binding set admits. Ordering and duplication
-     are judged against A's declared unique declaration-index key and its
-     declared total order.
+     ordered, singly owned, in-range binding set admits. Cardinality, duplication
+     and ordering are judged against A's `/2` wire rule quoted in Preconditions
+     — one binding per temporal declaration, sorted by `declaration`, no repeats
+     — and `out-of-range` against upstream `FR-255-bounded-temporal-interval`.
+     `foreign-owner` is grounded in neither: no owner component appears in A's
+     binding record or in any upstream key, so B checks it against the producer
+     identities it independently retains and says so.
 9. Submit one unchanged `/2` input under a budget set exactly to what that
    input consumes on each declared limit dimension, then under a budget one unit
    short of it, then resubmit the same input under a fresh budget at the exact
@@ -190,9 +215,9 @@ must be accepted. `quire-spec-language` PR72 at `5690c2b` supplies the signed-64
 acceptance, traceability, and the public typed boundary.
 
 A's `/2` is implemented and under final integration: the surface named in
-Preconditions exists, passes A's focused integration suite, and carries a
-declared unique declaration-index key and total order, typed per-axis mutation
-refusals, independent `Expected` construction, raw-byte digest-domain crossing
+Preconditions exists, passes A's focused integration suite, and carries the
+temporal binding cardinality, uniqueness and sort rule quoted in Preconditions,
+typed per-axis mutation refusals, independent `Expected` construction, raw-byte digest-domain crossing
 tests, and a non-vacuous pretty-JSON recanonicalization mutation over original
 model bytes. It is not yet published to `quire-spec-language` `origin/main` or
 any remote branch. B verified the surface directly in A's local worktree at
