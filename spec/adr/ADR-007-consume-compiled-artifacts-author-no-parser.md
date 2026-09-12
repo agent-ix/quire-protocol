@@ -94,7 +94,7 @@ accepted versioned compiled-protocol artifact contract; prose profile
 definitions and native source are not that interface." AD-001 records the same
 as a risk — the current composed proposal defines semantic profiles but no
 accepted versioned compiled-protocol artifact interface, and admission cannot
-parse prose or source. Under FR-009 A's `/1` and `/2` entries are both
+parse prose or source. Under FR-009 the version 1 and version 2 entries are both
 `unresolved`. The cost of this decision is therefore not theoretical: it is the
 reason IT-001-SC-06 through SC-09 assert nothing about A's behaviour today.
 Parsing source would have unblocked them, and would have made what they proved
@@ -159,8 +159,8 @@ selection independently.** Rejected, and refused explicitly across the specs
 rather than merely declined. AD-001: "A producer-emitted sidecar is never an
 intake source: an offer that supplies its own acceptance context authorizes
 itself." IT-001's Dependencies apply it to the concrete file: `expected.json`
-beside the `/1` artifact, or any `/2` equivalent, is never B's selection source,
-and SC-01 forbids it for `/1` and holds identically for `/2`.
+beside the version 1 artifact, or any version 2 equivalent, is never B's selection source,
+and SC-01 forbids it for version 1 and holds identically for version 2.
 
 **Wait for A and build nothing until the contract publishes.** Rejected as a
 programme decision, not a technical one. The specification, the mutation corpus

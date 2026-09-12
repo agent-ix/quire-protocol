@@ -71,7 +71,7 @@ of those is an identity, and naming a producer's version is indexing it, not
 redefining it. There is no second schema (no producer payload shape is declared
 anywhere in FR-009), no second vocabulary (no axis, finding, digest-domain or
 premise term is restated), and — critically — FR-009 avoids the exact defect
-SR-043 recorded against the `/2` intake, where B's enums restated A's contract
+SR-043 recorded against the version 2 intake, where B's enums restated A's contract
 vocabulary with nothing reconciling them. The single qualification is FND-002:
 "recompute the content digest" without a stated preimage is the one place where a
 canonicalizer could grow inside the manifest, because AD-001 mandates JCS for
@@ -158,8 +158,8 @@ flowchart LR
 
 | Dependency | Type | Assumed or Guaranteed | Contract |
 | --- | --- | --- | --- |
-| A compiled-protocol `/1` | Rust artifact interface | Guaranteed | IT-001 SC-01..SC-05, manifest entry pinned at PR72 revision |
-| A compiled-protocol `/2` | Rust artifact interface | Assumed (unpinnable) | IT-001 SC-06..SC-09, entry explicitly unresolved until published |
+| A compiled-protocol version 1 | Rust artifact interface | Guaranteed | IT-001 SC-01..SC-05, manifest entry pinned at PR72 revision |
+| A compiled-protocol version 2 | Rust artifact interface | Assumed (unpinnable) | IT-001 SC-06..SC-09, entry explicitly unresolved until published |
 | E temporal profile and facts | Rust typed facts | Assumed | IT-002 SC-01..SC-04, entry required by FR-009 |
 | F observation and output mapping | Rust typed facts | Assumed | IT-002 SC-01..SC-04, entry required by FR-009 |
 | PT02 global-conformance closure record | Typed record | Assumed | IT-002 SC-03/SC-04 — **no FR-009 entry class declared (FND-005)** |

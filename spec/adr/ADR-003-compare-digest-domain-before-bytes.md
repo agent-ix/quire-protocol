@@ -113,7 +113,7 @@ exercised over raw bytes.
 **The implementation does not conform, and this ADR does not fix it.**
 `src/digest/producer.rs` declares `DigestDomain` with five members —
 `ProducerArtifactBytes`, `ProducerSource`, `ProducerModel`, `ProducerConfig`,
-`ProtocolResultJcs` — none spelled as `FR-201` publishes them, and the `/2`
+`ProtocolResultJcs` — none spelled as `FR-201` publishes them, and the version 2
 lane's test enum names four more. FR-015 records this as an unreconciled
 divergence and declines to rename either side. The rule is specified and the
 code is non-conformant; that gap is real and open, and it is implementation work

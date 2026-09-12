@@ -141,6 +141,6 @@ would author a producer diagnostic vocabulary this repository does not own.
 
 ## Status
 
-Draft. No execution is claimed. A's `/2` compiled-protocol contract is unpinned
+Draft. No execution is claimed. the version 2 compiled-protocol contract is unpinned
 and the diagnostic-catalog entry is `unresolved`, so the scenarios behind the
 Test criteria above are unexecutable today.

@@ -42,5 +42,5 @@ and nothing pinned this repository's own consumed set.
   owner-supplied assertion for that; `AD-001` and `NFR-003` forbid this
   repository from reaching a network or a version-control system to check it.
 - It records no `quire.compiled-protocol/2` revision. A has published none, so
-  `admit_and_link_v2` is unwritten and every `/2` scenario is unexecutable
+  `admit_and_link_v2` is unwritten and every version 2 scenario is unexecutable
   rather than failing.

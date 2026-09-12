@@ -118,5 +118,5 @@ the scenario is unexecutable, not passing.
 ## Status
 
 Draft. No execution is claimed. The diagnostic-catalog version-lock entry is
-`unresolved` and A's `/2` contract is unpinned, so every scenario behind the Test
+`unresolved` and the version 2 contract is unpinned, so every scenario behind the Test
 criteria above is unexecutable today.

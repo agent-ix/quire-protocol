@@ -22,7 +22,7 @@ run without an external producer, and manifest resolution is itself unbudgeted.
 | ID | Severity | Summary | Refs | Escape Cause |
 | --- | --- | --- | --- | --- |
 | FND-001 | medium | FR-009 descends from no user story. It declares `implements US-002`, but US-002's need is that canonical results and their E02 projections retain exact source identities for an evidence consumer; it never asks that producer revisions be pinned, and US-001 is about assessing a finite protocol. The version-lock manifest answers a real need — an outcome attributable to the wrong revision — but no stakeholder statement in this repository expresses it, so the FR was derived from the ticket rather than from a story. | FR-009; US-001; US-002; StR-001 | missing-requirement |
-| FND-002 | medium | Neither new requirement has a B-runnable evidence path. All five FR-009 criteria and all five NFR-005 criteria verify through `Test (IT-002, IT-003)` with no TC companion, so both requirements are hard-gated on external producer acceptance. Manifest resolution itself — parsing entries, recomputing digests, refusing an absent or provisional entry, proving one entry's change does not move another — is B-owned logic that is testable today against B's own fixtures, exactly as the `/2` evidence loader already is. This repeats the gap SR-040 recorded against FR-001-AC-5. | FR-009-AC-1..AC-5; NFR-005-AC-1..AC-5; TM-001 | correct-requirement-no-evidence |
+| FND-002 | medium | Neither new requirement has a B-runnable evidence path. All five FR-009 criteria and all five NFR-005 criteria verify through `Test (IT-002, IT-003)` with no TC companion, so both requirements are hard-gated on external producer acceptance. Manifest resolution itself — parsing entries, recomputing digests, refusing an absent or provisional entry, proving one entry's change does not move another — is B-owned logic that is testable today against B's own fixtures, exactly as the version 2 evidence loader already is. This repeats the gap SR-040 recorded against FR-001-AC-5. | FR-009-AC-1..AC-5; NFR-005-AC-1..AC-5; TM-001 | correct-requirement-no-evidence |
 | FND-003 | medium | Manifest resolution is unbudgeted. FR-009 requires a digest recomputation per entry before any producer value is read, and NFR-002's bounds are authored for protocol evaluation, not for resolution. Nothing states a maximum entry count, a maximum resolved-artifact size, or a deadline for resolution, so a manifest is the one input to the system whose processing cost has no declared limit. IT-002-SC-06 and IT-003-SC-07 budget the integrations but start after resolution has already happened. | FR-009; NFR-002; IT-002-SC-06; IT-003-SC-07 | missing-requirement |
 | FND-004 | medium | IT-002-SC-05 is the only new scenario with an unmeasurable clause. "Changing an authored premise changes both in the same way" states no comparison: two assessments could each change and still differ, and the clause would read as satisfied. FR-004-AC-4 states the underlying obligation precisely — batch replay and settled incremental assessment are semantically identical for every permutation of the same admitted facts — and SC-05 should discharge that wording rather than a looser paraphrase of it. | IT-002-SC-05; FR-004-AC-4 | wrong-requirement |
 | FND-005 | low | NFR-005 carries both a Measurement table and an Acceptance Criteria table. The skeleton reserves the AC section for a policy NFR whose compliance does not reduce to a number; every metric here is a 100% target against a 100% threshold, which is a policy check written as a metric. One of the two should carry the obligation, not both, or the two can drift. | NFR-005 | wrong-requirement |
@@ -120,8 +120,8 @@ version-lock entry because no external owner can assert anything about it.
 
 Also applied:
 
-- **Every entry is `unresolved`, not just A `/2`.** SR-047 FND-002 verified that
-  A `/1`'s live pin is branch-only, Engineering Assurance's seam is in no
+- **Every entry is `unresolved`, not just A version 2.** SR-047 FND-002 verified that
+  A version 1's live pin is branch-only, Engineering Assurance's seam is in no
   release, E02 has no tags and self-declares provisional, Quoin exposes no Rust
   boundary at all, and no typed temporal producer exists in any state. FR-009
   now carries a per-entry status table naming each gate and why it cannot be
@@ -135,7 +135,7 @@ Also applied:
   admission, so the edge closed a loop against AD-001 and against FR-009's own
   prose.
 - **The two artifacts called "manifest" are now named apart** (SR-047 FND-011).
-  The `/2` loader's producer-side file is a *delivery index*
+  The version 2 loader's producer-side file is a *delivery index*
   (`b-v2-delivery-index.json`, `DeliveryIndex`, `Absence::MissingDeliveryIndex`),
   and FR-009 states that a delivery index can neither supply nor repair a
   version-lock entry. Without this, AC-4 forbade the shape the loader already

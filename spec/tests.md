@@ -119,14 +119,14 @@ requirement cites the gap rather than supplying the missing identity, key or
 order. Those citations are why several criteria below stand as obligations that
 cannot yet be discharged — see `quire-specification` issues 28 and 29.
 
-IT-001 is split into two rows because `/1` and `/2` are separate contracts that
-may not substitute for each other. The `/2` row is planned and unexecuted. A's
+IT-001 is split into two rows because version 1 and version 2 are separate contracts that
+may not substitute for each other. The version 2 row is planned and unexecuted. A's
 `protocol_artifact::v2` is implemented and under final integration; its public
 surface is recorded in IT-001 Preconditions and B builds against those exact
 names, but the surface is not yet on `quire-spec-language` `origin/main` or any
 remote branch, so B has not verified it directly and pins no intermediate commit.
 SC-06, SC-06a, SC-07, SC-08 and SC-09 execute when A publishes its one final
-immutable revision. The B-owned tests that exist for `/2`
+immutable revision. The B-owned tests that exist for version 2
 (`tests/it001_v2_intake.rs`) are tagged `Task-009` only and carry no `IT-001`
 trace tag: they assert B's own evidence loader and scenario corpus and make no
 claim about A's behaviour, so they must not be counted as backing symbols for any
@@ -135,7 +135,7 @@ IT-001 scenario.
 `FR-009`'s entry-status table records that every version-lock entry is
 `unresolved` today. IT-002 and IT-003 declare FR-009 preconditions, so every one
 of their scenarios is unexecutable. IT-001 declares no manifest precondition, so
-its `/1` lane SC-01..SC-05 is planned rather than unexecutable, while its `/2`
+its version 1 lane SC-01..SC-05 is planned rather than unexecutable, while its version 2
 lane is unexecutable for want of a publishable A revision.
 
 ## Functional Requirement Coverage
@@ -145,8 +145,8 @@ in Domain Object Coverage instead.
 
 | Functional Req | Acceptance Criteria | Test Cases | Coverage Status |
 | --- | --- | --- | --- |
-| FR-001 | FR-001-AC-1, FR-001-AC-2, FR-001-AC-3, FR-001-AC-4, FR-001-AC-5 | TC-001 (AC-1..AC-4); IT-001 (AC-4, AC-5) | 🚧 Planned — 5 of 5 criteria backed, 0 unbacked. FR-001-AC-5 is integration-backed only and unexecutable: its sole backing is IT-001 SC-06/SC-06a, gated on A's final `/2` revision |
-| FR-002 | FR-002-AC-1, FR-002-AC-2, FR-002-AC-3, FR-002-AC-4, FR-002-AC-5 | TC-002 (AC-1..AC-4); IT-001 (AC-5) | 🚧 Planned — 5 of 5 criteria backed, 0 unbacked. FR-002-AC-5 is integration-backed only and unexecutable: its sole backing is IT-001 SC-08, gated on A's final `/2` revision |
+| FR-001 | FR-001-AC-1, FR-001-AC-2, FR-001-AC-3, FR-001-AC-4, FR-001-AC-5 | TC-001 (AC-1..AC-4); IT-001 (AC-4, AC-5) | 🚧 Planned — 5 of 5 criteria backed, 0 unbacked. FR-001-AC-5 is integration-backed only and unexecutable: its sole backing is IT-001 SC-06/SC-06a, gated on A's final version 2 revision |
+| FR-002 | FR-002-AC-1, FR-002-AC-2, FR-002-AC-3, FR-002-AC-4, FR-002-AC-5 | TC-002 (AC-1..AC-4); IT-001 (AC-5) | 🚧 Planned — 5 of 5 criteria backed, 0 unbacked. FR-002-AC-5 is integration-backed only and unexecutable: its sole backing is IT-001 SC-08, gated on A's final version 2 revision |
 | FR-003 | FR-003-AC-1, FR-003-AC-2, FR-003-AC-3, FR-003-AC-4, FR-003-AC-5, FR-003-AC-6, FR-003-AC-7 | TC-003 (AC-1..AC-7); TC-009 (AC-7) | 🚧 Planned — 7 of 7 criteria test-backed, 0 unbacked, 0 unexecutable. Aggregate view of FR-019..FR-025 |
 | FR-004 | FR-004-AC-1, FR-004-AC-2, FR-004-AC-3, FR-004-AC-4 | TC-004 (AC-1..AC-4) | 🚧 Planned — 4 of 4 criteria test-backed, 0 unbacked, 0 unexecutable (FR-004-AC-3 landed by `tests/tc_004_closure_axes.rs`). Aggregate view of FR-026..FR-028 and FR-041 |
 | FR-005 | FR-005-AC-1, FR-005-AC-2, FR-005-AC-3, FR-005-AC-4, FR-005-AC-5 | TC-005 (AC-1..AC-5) | 🚧 Planned — 5 of 5 criteria test-backed, 0 unbacked, 0 unexecutable. Aggregate view of FR-029 and FR-030 |
@@ -181,7 +181,7 @@ in Domain Object Coverage instead.
 Behavioural totals across these 32 rows: 177 acceptance criteria, of which 162
 are backed by a test case, 2 are backed only by an integration scenario and both
 of those are unexecutable (FR-001-AC-5 and FR-002-AC-5, each resting on IT-001
-`/2` alone), and 13 are unbacked — 9 by Inspection and 4 by Analysis.
+version 2 alone), and 13 are unbacked — 9 by Inspection and 4 by Analysis.
 162 + 2 + 13 = 177.
 
 ## Domain Object Coverage
@@ -202,19 +202,19 @@ the reference resolves in both directions.
 | FR-010 | domain | FR-010-AC-1..AC-3 | none — all three criteria are Inspection | 🚧 Planned — 0 of 3 criteria test-backed; unbacked: FR-010-AC-1, FR-010-AC-2, FR-010-AC-3 |
 | FR-011 | value_object | FR-011-AC-1..AC-7 | TC-014 (AC-2..AC-6); none for FR-011-AC-1, FR-011-AC-7 | 🚧 Planned — 5 of 7 criteria test-backed; unbacked: FR-011-AC-1, FR-011-AC-7 (Inspection) |
 | FR-012 | entity | FR-012-AC-1..AC-8 | TC-013 (AC-1..AC-6, AC-8); none for FR-012-AC-7 | 🚧 Planned — 7 of 8 criteria test-backed; unbacked: FR-012-AC-7 (Analysis) |
-| FR-013 | value_object | FR-013-AC-1..AC-8 | TC-001 (AC-1, AC-2, AC-3, AC-5, AC-6); IT-001 (AC-1..AC-4, AC-6); none for FR-013-AC-7, FR-013-AC-8 | 🚧 Planned — 5 of 8 criteria test-backed; unbacked: FR-013-AC-7 (Inspection), FR-013-AC-8 (Analysis); unexecutable: FR-013-AC-4, whose sole backing is IT-001 SC-06 on A's `/2` |
+| FR-013 | value_object | FR-013-AC-1..AC-8 | TC-001 (AC-1, AC-2, AC-3, AC-5, AC-6); IT-001 (AC-1..AC-4, AC-6); none for FR-013-AC-7, FR-013-AC-8 | 🚧 Planned — 5 of 8 criteria test-backed; unbacked: FR-013-AC-7 (Inspection), FR-013-AC-8 (Analysis); unexecutable: FR-013-AC-4, whose sole backing is IT-001 SC-06 on the version 2 |
 | FR-014 | value_object | FR-014-AC-1..AC-8 | TC-011 (AC-1, AC-2, AC-4, AC-5, AC-7); IT-003 (AC-5, AC-6); none for FR-014-AC-3, FR-014-AC-8 | 🚧 Planned — 5 of 8 criteria test-backed; unbacked: FR-014-AC-3 (Analysis), FR-014-AC-8 (Inspection); unexecutable: FR-014-AC-6, whose sole backing is IT-003, blocked on Engineering Assurance #34 |
-| FR-015 | value_object | FR-015-AC-1..AC-5 | TC-014 (AC-2, AC-3, AC-4); TC-001 (AC-2); none for FR-015-AC-1, FR-015-AC-5 | 🚧 Planned — 3 of 5 criteria test-backed; unbacked: FR-015-AC-1, FR-015-AC-5 (Inspection). The production and `/2` digest enums are two different vocabularies sharing one member name; FR-015 records the divergence as unreconciled |
+| FR-015 | value_object | FR-015-AC-1..AC-5 | TC-014 (AC-2, AC-3, AC-4); TC-001 (AC-2); none for FR-015-AC-1, FR-015-AC-5 | 🚧 Planned — 3 of 5 criteria test-backed; unbacked: FR-015-AC-1, FR-015-AC-5 (Inspection). The production and version 2 digest enums are two different vocabularies sharing one member name; FR-015 records the divergence as unreconciled |
 | FR-016 | enumeration | FR-016-AC-1..AC-8 | TC-009 (AC-2..AC-7); TC-011 (AC-5); TC-008 (AC-6); TC-013 (AC-8); IT-001 (AC-2); none for FR-016-AC-1 | 🚧 Planned — 7 of 8 criteria test-backed; unbacked: FR-016-AC-1 (Inspection); 0 unexecutable |
 | FR-017 | entity | FR-017-AC-1..AC-8 | TC-013 (AC-2); TC-008, TC-009 (AC-5); TC-010 (AC-7); TC-014 (AC-8); IT-002, IT-003 (AC-2); none for FR-017-AC-1, FR-017-AC-3, FR-017-AC-4, FR-017-AC-6 | 🚧 Planned — 4 of 8 criteria test-backed; unbacked: FR-017-AC-1, FR-017-AC-3, FR-017-AC-4 (Inspection), FR-017-AC-6 (Analysis); 0 unexecutable |
-| FR-018 | entity | FR-018-AC-1..AC-9 | TC-013 (AC-1); IT-001 (AC-3, AC-5, AC-6, AC-8); none for FR-018-AC-2, FR-018-AC-4, FR-018-AC-7, FR-018-AC-9 | 🚧 Planned — 1 of 9 criteria test-backed; unbacked: FR-018-AC-2, FR-018-AC-4, FR-018-AC-9 (Inspection), FR-018-AC-7 (Analysis); unexecutable: FR-018-AC-3, FR-018-AC-5, FR-018-AC-6, FR-018-AC-8, which rest on IT-001 alone and index a pinned producer delivery that does not exist while every FR-009 entry is `unresolved` and A has published no `/2` revision |
+| FR-018 | entity | FR-018-AC-1..AC-9 | TC-013 (AC-1); IT-001 (AC-3, AC-5, AC-6, AC-8); none for FR-018-AC-2, FR-018-AC-4, FR-018-AC-7, FR-018-AC-9 | 🚧 Planned — 1 of 9 criteria test-backed; unbacked: FR-018-AC-2, FR-018-AC-4, FR-018-AC-9 (Inspection), FR-018-AC-7 (Analysis); unexecutable: FR-018-AC-3, FR-018-AC-5, FR-018-AC-6, FR-018-AC-8, which rest on IT-001 alone and index a pinned producer delivery that does not exist while every FR-009 entry is `unresolved` and A has published no version 2 revision |
 
 ## Non-Functional Requirement Coverage
 
 | Non-Functional Req | Verification Method | Evidence/Test Cases | Status |
 | --- | --- | --- | --- |
 | NFR-001 | Property and metamorphic testing | TC-008 (AC-1..AC-3) | 🚧 Planned — 3 of 3 criteria test-backed, 0 unbacked, 0 unexecutable |
-| NFR-002 | Property, mutation, and source-bound inventory inspection | TC-009 (AC-1..AC-4) | 🚧 Planned — 4 of 4 criteria test-backed, 0 unbacked, 0 unexecutable. IT-001 SC-07/SC-09 additionally verify this requirement and are unexecutable on A's final `/2` revision; no criterion rests on them alone |
+| NFR-002 | Property, mutation, and source-bound inventory inspection | TC-009 (AC-1..AC-4) | 🚧 Planned — 4 of 4 criteria test-backed, 0 unbacked, 0 unexecutable. IT-001 SC-07/SC-09 additionally verify this requirement and are unexecutable on A's final version 2 revision; no criterion rests on them alone |
 | NFR-003 | Shared Rust language-boundary check, static analysis, architecture inspection, Rust review, Quire coverage, gap analysis | TC-010 (AC-1..AC-6); IT-003 (AC-4, AC-6) | 🚧 Planned — 6 of 6 criteria test-backed, 0 unbacked, 0 unexecutable |
 | NFR-004 | Cargo metadata inspection, conditional-compilation inventory, enumerated gate execution over one unchanged head, per-criterion negative controls | TC-012 (AC-1..AC-10) | 🚧 Planned — 10 of 10 criteria backed by TC-012, 0 unbacked, 0 unexecutable. NFR-004-AC-2's cell reads `Inspection (TC-012)`, so it is inspection-method but test-case-backed. IT-003 previously appeared here but declares and exercises no NFR-004 scenario |
 | NFR-005 | Static inspection and Quire coverage over the integration lanes, denominated on owed rather than executed scenarios | IT-002, IT-003 | 🚧 Planned — this requirement states five metrics and no acceptance criteria, so it contributes 0 to the 288. Its denominator is the 22 scenarios IT-002 and IT-003 owe (12 + 10); all 22 are unexecutable, so every metric scores 0 of 22 rather than a vacuous 100% |
@@ -238,8 +238,8 @@ the 288 authored acceptance criteria.
 
 | Integration Test | Boundary | Requirements | Status |
 | --- | --- | --- | --- |
-| IT-001 `/1` | Native compiler `quire.compiled-protocol/1` artifact to protocol library | FR-001, FR-002, FR-013, FR-016, NFR-002 | 🚧 Planned — SC-01..SC-05, 5 owed scenarios; fixture lane `#[ignore]`. IT-001 declares no FR-009 manifest precondition, so this lane is planned rather than unexecutable |
-| IT-001 `/2` | Native compiler `/2` artifact to protocol library | FR-001-AC-5, FR-002-AC-5, FR-013-AC-4, FR-018-AC-3, FR-018-AC-5, FR-018-AC-6, FR-018-AC-8, NFR-002, NFR-007 | 🚧 Planned — SC-06, SC-06a, SC-07, SC-08, SC-09, 5 owed scenarios, all 5 unexecutable and scoring 0 of 5. A's `protocol_artifact::v2` is implemented and under final integration, not yet published to a remote, so no revision can be pinned. SC-06 and SC-06a verify NFR-007; SC-06a re-runs SC-01..SC-05 as its regression baseline |
+| IT-001 version 1 | Native compiler `quire.compiled-protocol/1` artifact to protocol library | FR-001, FR-002, FR-013, FR-016, NFR-002 | 🚧 Planned — SC-01..SC-05, 5 owed scenarios; fixture lane `#[ignore]`. IT-001 declares no FR-009 manifest precondition, so this lane is planned rather than unexecutable |
+| IT-001 version 2 | Native compiler version 2 artifact to protocol library | FR-001-AC-5, FR-002-AC-5, FR-013-AC-4, FR-018-AC-3, FR-018-AC-5, FR-018-AC-6, FR-018-AC-8, NFR-002, NFR-007 | 🚧 Planned — SC-06, SC-06a, SC-07, SC-08, SC-09, 5 owed scenarios, all 5 unexecutable and scoring 0 of 5. A's `protocol_artifact::v2` is implemented and under final integration, not yet published to a remote, so no revision can be pinned. SC-06 and SC-06a verify NFR-007; SC-06a re-runs SC-01..SC-05 as its regression baseline |
 | IT-002 | Observation and temporal facts to protocol evaluator/result | FR-003, FR-004, FR-006, FR-009, FR-017, NFR-002, NFR-005 | 🚧 Planned — SC-01, SC-02, SC-03, SC-04, SC-05a..SC-05d, SC-06, SC-07a, SC-07b, SC-08, 12 owed scenarios, all 12 unexecutable and scoring 0 of 12; blocked on accepted F/E producer contracts and on every FR-009 entry being `unresolved` |
 | IT-003 | Protocol result through Engineering Assurance, E02, and Quoin | FR-006, FR-007, FR-009, FR-014, FR-017, FR-039, FR-040, NFR-002, NFR-003, NFR-005 | 🚧 Planned — SC-01..SC-07, SC-08a, SC-08b, SC-09, 10 owed scenarios, all 10 unexecutable and scoring 0 of 10; blocked on Engineering Assurance #34 |
 
@@ -285,9 +285,9 @@ once, and `Blocked` means unexecutable — neither passing nor failing.
 | Test case rows | 14 | 0 | 0 | 0 | 14 |
 | Overall | 67 | 0 | 0 | 3 | 64 |
 
-The Integration count is four because IT-001 carries a separate `/1` and `/2`
+The Integration count is four because IT-001 carries a separate version 1 and version 2
 row; the two contracts may not substitute for each other, so one row cannot
-report both. Three of the four are unexecutable: IT-001 `/2`, IT-002 and IT-003.
+report both. Three of the four are unexecutable: IT-001 version 2, IT-002 and IT-003.
 
 ### Owed acceptance criteria
 

@@ -77,7 +77,7 @@ flowchart LR
 | --- | --- | --- | --- |
 | `quire-specification` FR-050..062, NFR-020/021 | Formal clause source | Assumed | AGENTS.md, spec.md section 16 |
 | `quire-specification` FR-200..283 object layer | Domain vocabulary | Assumed | 40 resolving `ix://` references |
-| A `quire-spec-language` compiled-protocol `/1`, `/2` | Artifact bytes | Guaranteed | FR-009 entry, IT-001, digest |
+| A `quire-spec-language` compiled-protocol version 1, version 2 | Artifact bytes | Guaranteed | FR-009 entry, IT-001, digest |
 | E temporal profile | Artifact bytes | Guaranteed | FR-009 entry, IT-002 |
 | F observation and output-mapping contracts | Artifact bytes | Guaranteed | FR-009 entry, IT-002 |
 | Engineering Assurance producer-execution seam | Interface | Guaranteed | FR-009 interface-only entry, IT-003 |

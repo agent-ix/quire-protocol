@@ -8,7 +8,7 @@ review_set: all
 ---
 ## Summary
 
-The base checklist was applied to the `/2` version-explicit consumer scenarios
+The base checklist was applied to the version 2 version-explicit consumer scenarios
 added to IT-001 (SC-06 through SC-09) and to the requirement and matrix
 artifacts they lean on. Scenario identifiers follow `{PARENT}-SC-N`, are
 sequential and unique, and each is referenced exactly once from its numbered
@@ -26,16 +26,16 @@ SC-05.
 | FND-001 | high | No acceptance criterion states the version-explicit intake obligation. FR-001-AC-1 through FR-001-AC-4 are written against "one accepted compiled-artifact contract" in the singular; none requires two published contract versions to be consumed through separate entry points, and none forbids auto-detection, upgrade or downgrade between them. SC-06 therefore verifies a requirement that was never written. | IT-001-SC-06; FR-001-AC-1..AC-4 | missing-requirement |
 | FND-002 | medium | No acceptance criterion owns the temporal selection axes. Neither FR-001 nor FR-002 mentions a temporal profile, clock alternative, clock parameter, or temporal binding set, and FR-002-AC-3's binding-mutation list does not include missing, surplus, duplicate, reordered, foreign-owner or out-of-range temporal bindings. FR-003, FR-004 and IT-002 own temporal *facts* after admission, not temporal *selection* during it, so SC-08 has no owning criterion. | IT-001-SC-08; FR-001; FR-002-AC-3; FR-003; FR-004; IT-002 | missing-requirement |
 | FND-003 | medium | IT-001's `relationships` block declares `verifies` edges to FR-001 and FR-002 only, and its Traceability section repeats exactly those two. SC-09 exercises declared resource limits at the exact bound, one short, and on fresh retry, which is NFR-002's subject matter, and SC-07's digest-domain separation is likewise not attributable to either declared target. The links are valid but incomplete. | IT-001 frontmatter; IT-001-SC-07; IT-001-SC-09; NFR-002 | correct-requirement-no-evidence |
-| FND-004 | medium | The six coverage rules fail at the matrix. TM-001 has no row, status or note for the `/2` lane: its Integration Coverage table lists IT-001 once against FR-001 and FR-002, and its Task-009 note describes the producer-fixture smoke lane only. A reader of TM-001 cannot tell that SC-06 through SC-09 exist or that they are unexecuted. | TM-001; IT-001-SC-06..SC-09 | correct-requirement-no-evidence |
-| FND-005 | medium | `Task-009-integrate-native-compiler.md` scopes the `/2` work out of the plan: its acceptance list names SC-01 through SC-05 and freezes "the accepted compiler artifact contract and fixture revisions", with no task covering a second contract version, the temporal selection axes, or the exact/one-short limit probes. AGENTS.md requires QUOIN `/spec-to-plan` before implementation, and the B-owned loader and corpus in `tests/support/v2/mod.rs` were written ahead of that step. | Task-009; AGENTS.md; tests/support/v2/mod.rs | missing-requirement |
+| FND-004 | medium | The six coverage rules fail at the matrix. TM-001 has no row, status or note for the version 2 lane: its Integration Coverage table lists IT-001 once against FR-001 and FR-002, and its Task-009 note describes the producer-fixture smoke lane only. A reader of TM-001 cannot tell that SC-06 through SC-09 exist or that they are unexecuted. | TM-001; IT-001-SC-06..SC-09 | correct-requirement-no-evidence |
+| FND-005 | medium | `Task-009-integrate-native-compiler.md` scopes the version 2 work out of the plan: its acceptance list names SC-01 through SC-05 and freezes "the accepted compiler artifact contract and fixture revisions", with no task covering a second contract version, the temporal selection axes, or the exact/one-short limit probes. AGENTS.md requires QUOIN `/spec-to-plan` before implementation, and the B-owned loader and corpus in `tests/support/v2/mod.rs` were written ahead of that step. | Task-009; AGENTS.md; tests/support/v2/mod.rs | missing-requirement |
 
 ## Remediation
 
 FND-001 and FND-002 require new acceptance criteria on FR-001 and FR-002, or an
 explicit owner elsewhere, before SC-06 and SC-08 can be claimed as verification
 of anything. FND-003 requires the `verifies` edge set on IT-001 to name NFR-002.
-FND-004 requires a TM-001 row that records the `/2` lane as planned and
-unexecuted. FND-005 requires a plan task for the `/2` consumer path; per the
+FND-004 requires a TM-001 row that records the version 2 lane as planned and
+unexecuted. FND-005 requires a plan task for the version 2 consumer path; per the
 repository's no-destructive-rewrite rule that is a new task file, not an edit to
 Task-009's acceptance list.
 

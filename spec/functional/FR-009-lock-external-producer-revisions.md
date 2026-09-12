@@ -178,8 +178,8 @@ Every entry is `unresolved`. None can be pinned, and each names why.
 
 | Entry | Gate | Why unresolved |
 | --- | --- | --- |
-| A `/1` compiled protocol | quire-spec-language#40 | The current pin `5690c2b` is not an ancestor of A's `origin/main`; it exists only on `agent-a/handoff-numeric-domains`. A has no tags and no releases. |
-| A `/2` compiled protocol | quire-spec-language#40 | Implemented and under final integration, present only in an unpushed local worktree. No published revision exists to assert. |
+| A version 1 compiled protocol | quire-spec-language#40 | The current pin `5690c2b` is not an ancestor of A's `origin/main`; it exists only on `agent-a/handoff-numeric-domains`. A has no tags and no releases. |
+| A version 2 compiled protocol | quire-spec-language#40 | Implemented and under final integration, present only in an unpushed local worktree. No published revision exists to assert. |
 | E temporal profile | Accepted temporal contract | No Rust interface exists at any state; E's contribution is merged prose in `quire-specification`. |
 | F observation / output mapping | F-owned FR-115/FR-116, TC-145/TC-146, IT-051 | `quire-observation` is a real Rust crate but is `publish = false`, and this crate declares no dependency on it. |
 | Engineering Assurance seam | engineering-assurance#34 | `producer_execution` is merged on `origin/main` but `publish = false`, no release contains it, and the cited acceptance revision is not reachable after its PR was squashed. |

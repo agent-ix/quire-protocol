@@ -86,7 +86,7 @@ index, because this index "can neither supply nor repair a version-lock entry".
 ## The binding rule this index enforces is A's
 
 The cardinality, uniqueness and order of the indexed binding records are the
-producer's `/2` wire contract, quoted verbatim in IT-001 Preconditions:
+producer's version 2 wire contract, quoted verbatim in IT-001 Preconditions:
 
 > "There is exactly one binding for every temporal declaration and none for other
 > declaration families. Bindings sort by `declaration` and cannot repeat."
@@ -173,7 +173,7 @@ or names the owner that has not:
 
 | Collection | Unique key | Total order | Owner |
 | --- | --- | --- | --- |
-| `temporal.bindings` | `declaration` | Ascending `declaration` | The producer's `/2` wire contract, quoted above. |
+| `temporal.bindings` | `declaration` | Ascending `declaration` | The producer's version 2 wire contract, quoted above. |
 | `inputs` | `role` | Not required; the roles are a fixed closed set and the collection admits no duplicate role. | This repository. |
 | `mutations` | `scenario` | Not required; at most one fixture per scenario, and a second is reported as ambiguous. | This repository. |
 | `limits` | **Not declared.** | **Not declared.** | The producer. No requirement and no loader check states whether two entries may name one limit, nor any order over them. This artifact records the unsettled question and supplies neither. |
@@ -217,6 +217,6 @@ or names the owner that has not:
 
 Draft. This artifact records existing meaning structurally and establishes no new
 obligation. No index exists over a published producer delivery today: `FR-009`
-reports the producer's `/2` entry as `unresolved`, and the producer deliverables
+reports the producer's version 2 entry as `unresolved`, and the producer deliverables
 the lane still owes are enumerated in `tests/support/v2`. That is the current
 state of this object's population, not a defect of this specification.

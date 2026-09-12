@@ -68,7 +68,7 @@ the weakest possible oracle: if "returned no success value" is what a negative r
 checks, one shared error code satisfies every negative row — the defect recorded
 on `ExpectedRefusal` in `tests/support/v2/mod.rs`: "A two-valued admits/refuses
 oracle is satisfied by one shared error code across every negative row, which is
-the defect SR-027 recorded on `/1`." FR-040-AC-4 therefore fails such an
+the defect SR-027 recorded on version 1." FR-040-AC-4 therefore fails such an
 integration rather than crediting it.
 
 ### Where the upstream vocabulary does not yet reach
@@ -104,6 +104,6 @@ restating an outcome kind nobody owns.
 
 ## Status
 
-Draft. No execution is claimed. A's `/2` compiled-protocol contract is unpinned,
+Draft. No execution is claimed. the version 2 compiled-protocol contract is unpinned,
 so the admission and representation paths behind these criteria are unexecutable
 today.

@@ -230,7 +230,7 @@ its entry-status table records why each is currently `unresolved`.
   against that layer are issues 28 and 29.
 - `agent-ix/quire-spec-language` — the A-owned native compiler and its
   compiled-protocol artifact contracts. `quire.compiled-protocol/1` is the
-  current pin; `/2` is issue 40. This is the only native compiler reader in the
+  current pin; version 2 is issue 40. This is the only native compiler reader in the
   admitted path, and this repository adds no second one.
 - `agent-ix/quire-observation` — the F-owned observation producer interface,
   carrying the scope facts and global closure record IT-002 consumes.

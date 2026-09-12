@@ -58,8 +58,8 @@ The consequences of `unresolved` are fixed, and each closes a specific escape:
   passing, and not failing. It contributes neither a green nor a red, and under
   ADR-005's owed-scenario denominator it contributes a zero.
 - **`unresolved` cannot be satisfied by substitution**, including by another
-  contract version of the same owner. This is the rule that keeps `/2`'s
-  unavailability from being papered over with `/1`, and it is the manifest-level
+  contract version of the same owner. This is the rule that keeps version 2's
+  unavailability from being papered over with version 1, and it is the manifest-level
   form of [ADR-002](./ADR-002-version-explicit-entry-points.md).
 - **Resolution is all-or-nothing per scenario.** The library resolves every entry
   a scenario requires before it reads any producer value for that scenario. An
@@ -88,8 +88,8 @@ hedge.** FR-009 carries a per-entry status table naming each of the eight
 entries, its gate, and why it cannot be pinned. That table exists because of
 SR-047 FND-002, which verified the claim entry by entry and found that an
 earlier revision exempted one entry and implied the other six were fine. The
-honest form is worse-looking and correct: A `/1` pinned to a commit that is not
-an ancestor of A's `origin/main`, A `/2` in an unpushed worktree, E with no Rust
+honest form is worse-looking and correct: A version 1 pinned to a commit that is not
+an ancestor of A's `origin/main`, A version 2 in an unpushed worktree, E with no Rust
 interface at any state, F's crate `publish = false` and undeclared as a
 dependency here, Engineering Assurance's seam in no release with its cited
 acceptance revision unreachable after a squash, E02 with zero tags and zero
@@ -135,7 +135,7 @@ a refusal, which is the distinction ADR-008 and FR-014 make load-bearing.
 
 **A delivery index is not a manifest, and the two had to be named apart.**
 SR-047 FND-011 found that two different artifacts were both called "manifest",
-and that as a result FR-009-AC-4 forbade the shape the `/2` loader already
+and that as a result FR-009-AC-4 forbade the shape the version 2 loader already
 implements. The producer-side file is a *delivery index*
 (`b-v2-delivery-index.json`, `DeliveryIndex`, `Absence::MissingDeliveryIndex`);
 FR-009 now states that a delivery index is evidence B reads about what was
@@ -158,8 +158,8 @@ reading any producer value for it.
 
 **Let a scenario substitute an adjacent contract version of the same owner when
 its own is unresolved.** Rejected explicitly. It is the most tempting
-substitution available today, since A's `/1` exists as a fixture while `/2` does
-not, and it would make a `/2` scenario report a `/1` result.
+substitution available today, since version 1 exists as a fixture while version 2 does
+not, and it would make a version 2 scenario report a version 1 result.
 
 **Let the manifest declare which scenarios require which entries.** Rejected. A
 document that declares its own requiredness can unblock a scenario by editing

@@ -81,7 +81,7 @@ A two-valued admits/refuses oracle is satisfied by one shared error code across
 every negative row. That is the defect this artifact exists to prevent, and
 `tests/support/v2/mod.rs` records it on `ExpectedRefusal`: "A two-valued
 admits/refuses oracle is satisfied by one shared error code across every negative
-row, which is the defect SR-027 recorded on `/1`."
+row, which is the defect SR-027 recorded on version 1."
 
 Sharing in the other direction is legitimate and is not a collision: many
 scenarios may exercise one axis, and they carry that axis's one identity.

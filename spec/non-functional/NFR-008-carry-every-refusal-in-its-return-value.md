@@ -76,7 +76,7 @@ Refusal-identity injectivity is load-bearing and it is checked by reading
 refusals. FR-014 records the defect it exists to prevent, quoting this
 repository's own corpus: "A two-valued admits/refuses oracle is satisfied by one
 shared error code across every negative row, which is the defect SR-027 recorded
-on `/1`." That check is only as good as what a test can see. Three ways to make
+on version 1." That check is only as good as what a test can see. Three ways to make
 it unfalsifiable while leaving FR-008 and FR-014 formally satisfied:
 
 1. **Put the discrimination in the rendering.** Two axes carry one typed code and
@@ -208,5 +208,5 @@ Draft, and unexecuted. Nothing here asserts that any refusal has been observed.
   planned. AC-7 depends on TC-008, whose reproduction-record slice has executed
   and whose full mutation matrix has not.
 - AC-8 is the honest denominator: the diagnostic catalog is an `unresolved`
-  FR-009 entry and the `/2` contract version is another, so every axis whose
+  FR-009 entry and the version 2 contract version is another, so every axis whose
   observation depends on either is currently counted as zero.

@@ -25,13 +25,13 @@ tables, AD-001's qualification-evidence intake section, and the TM-001 rows that
 carry them. The packet's structure is sound — one manifest owns pinning, one NFR
 owns per-scenario evidence content, retention itself stays external, the budget
 probes correctly hold the input constant and vary the budget in the same shape
-IT-001 `/2` established, and neither integration pins anything provisional. The
+IT-001 version 2 established, and neither integration pins anything provisional. The
 defects are at the joins: NFR-005's retention rule disqualifies exactly the
 FR-009 refusal scenarios that prove the lock works; PT02 is an owner in IT-002's
 table but appears in no producer enumeration FR-009 locks; the budget scenarios
 call their outcome a refusal where NFR-002 calls it resource-incomplete, in the
 same packet that newly makes that distinction load-bearing; and FR-009 supplies
-no status term for the deliberately unresolved A `/2` entry its own Dependencies
+no status term for the deliberately unresolved A version 2 entry its own Dependencies
 carve out.
 
 ## Findings
@@ -42,16 +42,16 @@ carve out.
 | FND-002 | high | PT02 supplies the complete-global-conformance closure record and its premises in IT-002's owner-boundaries table, but FR-009's Inputs enumerate the external producers to be locked (A, E, F, Engineering Assurance, E02, Quoin) and omit PT02, and AD-001 names no PT02 producer — so an externally owned value IT-002 consumes has no manifest entry while IT-002's Preconditions assert every external producer resolves through one. | IT-002 Owner boundaries, IT-002 Preconditions, FR-009 Inputs, FR-009 Behavior, AD-001 Views | missing-requirement |
 | FND-003 | high | The budget scenarios specify the one-short outcome as "that dimension's typed resource refusal", while NFR-002's Scope and AC-1 specify a typed **resource-incomplete** result and FR-008-AC-5 keeps resource-incomplete structurally distinct from other outcomes — in the same packet where IT-003-SC-06 newly requires an incomplete outcome and a refusal never to be reported as each other. The same probe is specified as both. | IT-002-SC-06, IT-003-SC-07, IT-003-SC-06, NFR-002 Scope, NFR-002-AC-1, FR-008-AC-5 | wrong-requirement |
 | FND-004 | high | NFR-005-AC-3's "typed outcome identity" is undefined and collides with FR-008: FR-008 binds refusal identity to a stable source-owned code plus affected identity, and FR-009-AC-2/AC-3 deliberately give several distinct probes one code differing only by the named entry. Read as code-only the criterion fails a correct library; read as code-plus-identity it is satisfied by construction. Two valid interpretations, opposite verdicts. | NFR-005-AC-3, FR-008-AC-1, FR-008-AC-5, FR-009-AC-2, FR-009-AC-3 | wrong-requirement |
-| FND-005 | high | FR-009 supplies no status vocabulary for the deliberately unresolved A `/2` entry: Behavior says the library SHALL resolve *every* external producer before reading any producer value, AC-2 makes "unpinned" and "provisional" refusal triggers, and Dependencies then exempt an entry that is "explicitly unresolved" — a term that appears in no clause and is nowhere distinguished from "provisional". Whether the manifest admits or refuses with that entry present is unresolvable from the requirement. | FR-009 Behavior, FR-009-AC-2, FR-009 Dependencies, IT-002 Preconditions, IT-003 Preconditions | missing-requirement |
+| FND-005 | high | FR-009 supplies no status vocabulary for the deliberately unresolved A version 2 entry: Behavior says the library SHALL resolve *every* external producer before reading any producer value, AC-2 makes "unpinned" and "provisional" refusal triggers, and Dependencies then exempt an entry that is "explicitly unresolved" — a term that appears in no clause and is nowhere distinguished from "provisional". Whether the manifest admits or refuses with that entry present is unresolvable from the requirement. | FR-009 Behavior, FR-009-AC-2, FR-009 Dependencies, IT-002 Preconditions, IT-003 Preconditions | missing-requirement |
 | FND-006 | medium | Both new artifacts claim scope over IT-001 that IT-001 neither declares nor can satisfy: FR-009's Description covers any value produced outside this repository (A's artifact included) and NFR-005's Scope names "every scenario of IT-001", yet IT-001 declares neither relationship, states no manifest precondition, has no retention scenario, and TM-001 lists both requirements' evidence as IT-002/IT-003 only. | FR-009 Description, NFR-005 Scope, IT-001 relationships, IT-001 Preconditions, TM-001 FR-009 row, TM-001 NFR-005 row | correct-requirement-no-evidence |
 | FND-007 | medium | IT-003-SC-09 drops the sidecar probe that IT-002-SC-08 carries ("removing a producer-emitted sidecar changes no resolution outcome"), yet FR-009-AC-4 cites Test (IT-002, IT-003) and AD-001 states the sidecar rule as a boundary invariant — so the self-authorizing-offer rule is unverified on the Engineering Assurance/E02/Quoin side. | FR-009-AC-4, IT-003-SC-09, IT-002-SC-08, AD-001 Qualification-evidence intake | correct-requirement-no-evidence |
-| FND-008 | medium | The two owner-boundaries tables disagree with each other and with AD-001: IT-002's omits Engineering Assurance and Quoin; IT-003's omits A even though its own Preconditions turn on `/1` versus `/2` provenance and its Expected Results demand attribution to one pinned producer revision; and IT-003 drops IT-002's closing owner-retention rule ("a value this repository derives is never attributed to a producer") that NFR-005-AC-2 verifies. | IT-002 Owner boundaries, IT-003 Owner boundaries, IT-003 Preconditions, IT-003 Expected Results, NFR-005-AC-2, AD-001 System Boundary | wrong-requirement |
+| FND-008 | medium | The two owner-boundaries tables disagree with each other and with AD-001: IT-002's omits Engineering Assurance and Quoin; IT-003's omits A even though its own Preconditions turn on version 1 versus version 2 provenance and its Expected Results demand attribution to one pinned producer revision; and IT-003 drops IT-002's closing owner-retention rule ("a value this repository derives is never attributed to a producer") that NFR-005-AC-2 verifies. | IT-002 Owner boundaries, IT-003 Owner boundaries, IT-003 Preconditions, IT-003 Expected Results, NFR-005-AC-2, AD-001 System Boundary | wrong-requirement |
 | FND-009 | medium | FR-009 mandates manifest resolution and digest recomputation over every resolved artifact *before* any producer value is read, but NFR-002's Scope enumerates the bounded phases (strict reading, linking, compensation assessment, finite replay, result construction, support-lineage validation, E02 projection) and lists none of them. No clause says which budget covers digest recomputation or what a budget exhausted mid-verification returns, so "a budget exactly sufficient for one unchanged history/request" is undefined as to whether resolution cost is inside it. | FR-009 Behavior, NFR-002 Scope, NFR-002-AC-1, IT-002-SC-06, IT-003-SC-07 | missing-requirement |
 | FND-010 | medium | IT-002-SC-05 is silently compound: one scenario id carries batch/incremental outcome agreement, settled-truth agreement, complete-global-conformance closure agreement, equal-time permutation invariance, authored-premise co-variance, and a disagreement-refuses rule — six independently falsifiable obligations against FR-004-AC-4, which owns only the correspondence. A single failing clause cannot be localized from the scenario id. | IT-002-SC-05, FR-004-AC-4, FR-004 Behavior, FR-006-AC-3 | wrong-requirement |
 | FND-011 | medium | IT-002-SC-07 and IT-003-SC-08 fold a cross-scenario invariant into one scenario's evidence inspection: "no two refusing scenarios retain the same typed outcome identity" ranges over the whole integration and cannot be observed from the evidence of the scenario asserting it, so the clause is untestable at the granularity it is written. | IT-002-SC-07, IT-003-SC-08, NFR-005-AC-3, NFR-005 Verification | wrong-requirement |
 | FND-012 | medium | TM-001 credits IT-003 with NFR-004 coverage in both the Integration Coverage row and NFR-004's evidence cell, but IT-003 declares no NFR-004 relationship, exercises the gate in no scenario, and omits NFR-004 from its Traceability section. The matrix claims integration evidence the integration does not offer. | TM-001 Integration Coverage IT-003, TM-001 NFR-004 row, IT-003 relationships, IT-003 Traceability, NFR-004-AC-1 | correct-requirement-no-evidence |
 | FND-013 | low | NFR-005-AC-5 is compound and half-unobservable: "reports incomplete rather than passing" is library behaviour, "its matrix row stays unexecuted" is a TM-001 authoring obligation, and it is the one criterion verified by "Inspection" where its four siblings say Test (IT-002, IT-003) — so the two halves cannot be discharged by the same evidence. | NFR-005-AC-5, NFR-005 Measurement and Evaluation, TM-001 NFR-005 row | wrong-requirement |
-| FND-014 | low | TM-001's Test Execution Summary still counts 3 integrations while Integration Coverage now lists four rows (IT-001 `/1`, IT-001 `/2`, IT-002, IT-003), so the planned totals cannot be reconciled with the table directly above them. | TM-001 Integration Coverage, TM-001 Test Execution Summary | wrong-requirement |
+| FND-014 | low | TM-001's Test Execution Summary still counts 3 integrations while Integration Coverage now lists four rows (IT-001 version 1, IT-001 version 2, IT-002, IT-003), so the planned totals cannot be reconciled with the table directly above them. | TM-001 Integration Coverage, TM-001 Test Execution Summary | wrong-requirement |
 
 ## Completeness Analysis
 
@@ -159,7 +159,7 @@ The two tables agree on the rows they share and on the shape of the "must not"
 column; they disagree on membership, and only IT-002 states the value-level
 owner-retention rule NFR-005-AC-2 verifies (FND-008).
 
-## Terminology consistency with IT-001 `/2`
+## Terminology consistency with IT-001 version 2
 
 The manifest language is consistent: "pinned", "immutable revision", "digest",
 "provisional", "explicitly unresolved" and "an offer that supplies its own
@@ -175,10 +175,10 @@ conclusion. The one drift is the outcome noun (FND-003), which IT-002 and IT-003
 inherited from IT-001-SC-09 and which only becomes a contradiction here, because
 IT-003-SC-06 newly makes incomplete-versus-refusal a specified distinction.
 
-The unresolved `/2` entry is handled consistently across all three integrations:
+The unresolved version 2 entry is handled consistently across all three integrations:
 each states the entry is implemented but unpublished, each forbids substituting
 one contract version for the other, and IT-003 additionally scopes SC-01..SC-09
-to `/1`-derived canonical results. No new scenario claims `/2` coverage.
+to version 1-derived canonical results. No new scenario claims version 2 coverage.
 
 ## Recommendations
 
@@ -195,7 +195,7 @@ to `/1`-derived canonical results. No new scenario claims `/2` coverage.
    FND-011).
 5. Give FR-009 an explicit entry-status enum that distinguishes *provisional*
    (refuses) from *declared-unresolved with no dependent scenario* (admits), and
-   bind the A `/2` entry to the latter (FND-005).
+   bind the A version 2 entry to the latter (FND-005).
 6. Split IT-002-SC-05 into correspondence, permutation-invariance,
    premise-co-variance and disagreement-refuses clauses (FND-010).
 7. Reconcile the two owner tables against AD-001 and repeat IT-002's

@@ -31,8 +31,8 @@ The library SHALL discriminate on a later version's path every selection axis an
 ## Scope
 
 Applies to the compiled-protocol contract versions this repository consumes
-through its public Rust boundary: the `/1` path `admit_and_link`, which exists,
-and the `/2` path named `admit_and_link_v2` in
+through its public Rust boundary: the version 1 path `admit_and_link`, which exists,
+and the version 2 path named `admit_and_link_v2` in
 [IT-001](../integration/IT-001-consume-native-protocol-artifact.md) SC-06, which
 does not. Applies to the public surface of each path — its signature, its
 admitted identity set, and the set of typed refusals it can return.
@@ -49,7 +49,7 @@ Does not apply to:
   the injectivity that keeps two axes from colliding. This requirement requires
   *a* typed refusal and defers its identity to those two.
 - Cargo configuration lanes. Adding a contract-version path is not a
-  configuration lane: IT-001 Notes records that the `/2` lane adds no
+  configuration lane: IT-001 Notes records that the version 2 lane adds no
   `[features]` entry and no `cfg` attribute, so the crate stays single-lane, and
   [NFR-004](./NFR-004-define-local-verification-gate.md)-AC-7 continues to own
   what would oblige a second lane. A contract version and a build configuration
@@ -67,32 +67,32 @@ Does not apply to:
 ## Rationale
 
 Two published contract versions of one producer are the most plausible way this
-consumer silently admits the wrong thing. The failure is not that `/2` is
-rejected — it is that `/1` bytes are quietly *accepted* by a `/2` reader that
+consumer silently admits the wrong thing. The failure is not that version 2 is
+rejected — it is that version 1 bytes are quietly *accepted* by a version 2 reader that
 happens to tolerate them, producing a result attributed to a contract the
 producer never emitted. IT-001 forecloses that by construction: "Neither version
 may select, repair, upgrade, or downgrade the other, neither may be detected from
 the offered bytes, and the two mutually refuse."
 
-The obligation nothing declares is the other direction. Adding a `/2` path is a
-change to a crate that already has a `/1` path, and the standard way a version
+The obligation nothing declares is the other direction. Adding a version 2 path is a
+change to a crate that already has a version 1 path, and the standard way a version
 two damages a version one is by refactoring it — widening a signature, merging
-two refusal variants, or reimplementing `/1` in terms of `/2` because the shapes
+two refusal variants, or reimplementing version 1 in terms of version 2 because the shapes
 are close. IT-001-SC-06a is the falsifiable claim that this did not happen:
-"`admit_and_link` is unchanged by the addition of `/2`", shown by re-running
-SC-01 through SC-05 on the same `/1` fixture at the revision that adds `/2` and
+"`admit_and_link` is unchanged by the addition of version 2", shown by re-running
+SC-01 through SC-05 on the same version 1 fixture at the revision that adds version 2 and
 obtaining the same admitted identities and the same typed refusal per axis as at
 the revision before it, with "`admit_and_link`'s signature and refusal set
 unchanged." That is a requirement on this repository, stated only inside an
 integration scenario, and this requirement is where it belongs.
 
 The composition relation makes the fourth statement necessary rather than
-decorative. IT-001 Dependencies records that `v2::Expected` composes the `/1`
+decorative. IT-001 Dependencies records that `v2::Expected` composes the version 1
 expectation rather than replacing it, so the changed-selection axes "divide into
-inherited axes, which `/1` already discriminates, and the temporal axes this
-contract adds." A `/2` path that inherits `/1`'s expectation but loses one of
-`/1`'s discriminations is a regression the `/1` lane cannot see, because the
-`/1` lane still refuses correctly.
+inherited axes, which version 1 already discriminates, and the temporal axes this
+contract adds." A version 2 path that inherits version 1's expectation but loses one of
+version 1's discriminations is a regression the version 1 lane cannot see, because the
+version 1 lane still refuses correctly.
 
 ## Measurement and Evaluation
 
@@ -105,9 +105,9 @@ than a vacuous hundred per cent.
 | Published contract versions reachable only through their own version-explicit entry point | Every published version | 100%, 0 shared entry points | Inspection |
 | Code paths selecting a contract version from the offered bytes | None | 0 paths | Inspection |
 | Cross-version submissions returning a typed refusal before a linked package is exposed | Both ordered pairs | 2 of 2 | Test (IT-001) |
-| `/1` scenarios whose admitted identities or per-axis typed refusal changed at the revision adding `/2` | None | 0 of the owed SC-01..SC-05 scenarios | Test (IT-001) |
-| Public items of the `/1` path added, removed or changed in signature at the revision adding `/2` | None | 0 items | Analysis |
-| Inherited selection axes that `/1` refuses and the later path admits | None | 0 axes | Test (IT-001) |
+| version 1 scenarios whose admitted identities or per-axis typed refusal changed at the revision adding version 2 | None | 0 of the owed SC-01..SC-05 scenarios | Test (IT-001) |
+| Public items of the version 1 path added, removed or changed in signature at the revision adding version 2 | None | 0 items | Analysis |
+| Inherited selection axes that version 1 refuses and the later path admits | None | 0 axes | Test (IT-001) |
 | Cross-version refusals sharing one typed outcome identity with each other or with any other axis of the integration | None | 0 collisions | Test (IT-001) |
 
 ## Verification
@@ -168,19 +168,19 @@ mutation cannot be run today is recorded as unexecutable, not as passing.
 
 ## Status
 
-Draft, and unexecutable in the part that matters. Nothing here asserts that `/2`
+Draft, and unexecutable in the part that matters. Nothing here asserts that version 2
 admission works.
 
 - AC-1 and AC-2 are static facts over B's own public surface and are checkable
   now, but they are nearly vacuous today: the crate exports one contract-version
   path, `admit_and_link`, and `admit_and_link_v2` does not exist in `src/`.
 - AC-3, AC-4 and AC-7 depend on IT-001 SC-06, which IT-001 Notes records as
-  unexecuted: A's `/2` is implemented and under final integration but published
-  to no remote, FR-009 reports the A `/2` entry `unresolved`, and B pins no
+  unexecuted: the version 2 reader is implemented and under final integration but published
+  to no remote, FR-009 reports the A version 2 entry `unresolved`, and B pins no
   intermediate commit.
 - AC-5 and AC-6 are doubly blocked. They compare the revision that adds the
   later path against the revision before it, and neither revision exists: B has
-  no `/2` path to add, and no `/2` revision of A to build one against. They are
+  no version 2 path to add, and no version 2 revision of A to build one against. They are
   stated now so that the comparison is an obligation before the change rather
   than a request after it.
 - AC-8 is the honest denominator: every scenario the paragraphs above name is

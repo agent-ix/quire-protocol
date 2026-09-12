@@ -68,11 +68,11 @@ cannot substitute for it, not that it arrived from elsewhere.
 ## Preconditions
 
 Every external producer consumed by this integration resolves through the
-FR-009 version-lock manifest before any fact is read. The A-owned `/2`
+FR-009 version-lock manifest before any fact is read. The A-owned version 2
 compiled-protocol entry is explicitly unresolved: that contract is implemented
 and under final integration but not yet published to a remote, so it cannot be
 pinned. No scenario below depends on that entry, and none may be reported as
-executed by substituting the `/1` entry for it.
+executed by substituting the version 1 entry for it.
 
 The observation-output consumer preserves decision-scope and surrounding
 execution progress/closure, settlement basis, decision support, completeness,

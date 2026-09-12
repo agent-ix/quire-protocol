@@ -28,8 +28,8 @@ version is consumed only through its own version-explicit entry point.
 ## Target Integration
 
 The producer is the A-owned native Quire compiler artifact interface. The
-consumer is this library's strict protocol admission and linking API. The `/1`
-and `/2` compiled-protocol contracts are two separate integrations that share
+consumer is this library's strict protocol admission and linking API. The version 1
+and version 2 compiled-protocol contracts are two separate integrations that share
 this test; neither may stand in for the other.
 
 ## Preconditions
@@ -37,11 +37,11 @@ this test; neither may stand in for the other.
 The consumer has independently selected and retained the compiler contract,
 baseline, producer, native-source, model-source, and dependency bytes before it
 inspects an offered package. The native compiler publishes versioned
-compiled-protocol contracts. The existing `/1` candidate retains its
+compiled-protocol contracts. The existing version 1 candidate retains its
 `quire.protocol.numeric/1` wire profile and was generated at immutable revision
 `5690c2b29c155ec72e21f5a7bb00fe1146b6f71a` (PR72).
 
-The `/2` intake is a separate contract with its own published surface:
+The version 2 intake is a separate contract with its own published surface:
 
 - `protocol_artifact::v2::{Expected, ExpectedDefinition, ExpectedTemporal,
   AdmittedPackage, read, encode_candidate}`
@@ -65,10 +65,10 @@ before it can establish a promoted baseline or complete FR-001/FR-002.
 
 ## Inputs
 
-For `/1`: the retained four-unit compiled package; independently selected
+For version 1: the retained four-unit compiled package; independently selected
 original native sources, model source, admitted model, and dependency closure.
 
-For `/2`: A's raw emitted package bytes and external artifact reference;
+For version 2: A's raw emitted package bytes and external artifact reference;
 B-retained original, unrecanonicalized source, model, definition, profile,
 configuration, dependency, producer, artifact, and result selections; the
 B-retained temporal profile, clock alternative, and clock parameter selections
@@ -77,7 +77,7 @@ bound by that package, carried as `v2::ExpectedTemporal` over
 `v2::AdmittedPackage` report and its `Report`/`Error`/`Invalid`/`Unsupported`
 refusal boundary.
 
-Temporal binding cardinality, uniqueness and order are A's `/2` wire contract,
+Temporal binding cardinality, uniqueness and order are the version 2 wire contract,
 quoted exactly: "There is exactly one binding for every temporal declaration and
 none for other declaration families. Bindings sort by `declaration` and cannot
 repeat."
@@ -105,7 +105,7 @@ missing, but because it is not yet citable at an immutable revision.
 Both lanes use one-axis mutations of offered wire/version, seal,
 producer/source/dependency/baseline identity, feature, a binding actually
 referenced by the package, numeric representation, numeric domain, and digest
-domain. The `/2` lane additionally uses one-axis mutations of the temporal
+domain. The version 2 lane additionally uses one-axis mutations of the temporal
 profile, clock alternative, and clock parameter selections; temporal binding
 sets that are missing, surplus, duplicated, reordered, owned by a foreign
 owner, or out of the declared range; recanonicalized source, model, dependency
@@ -119,7 +119,7 @@ once FR-015 withdrew its minted vocabulary; the substitution substance is
 unchanged and the labels are now the upstream spellings.
 Numeric inputs include fields whose declared domains admit `i64::MIN`,
 `i64::MAX`, and reduced exact rationals `(i64::MAX, i64::MAX - 1)` and
-`(i64::MIN, i64::MAX)`. Resource inputs hold one `/2` input constant and
+`(i64::MIN, i64::MAX)`. Resource inputs hold one version 2 input constant and
 vary the budget: exactly the amount that input consumes on each declared limit
 dimension, one unit short of it, and a fresh budget at the exact value.
 
@@ -149,15 +149,15 @@ dimension, one unit short of it, and a fresh budget at the exact value.
    - IT-001-SC-05: the evidence positively identifies the A-owned reader as the
      only native compiler reader and identifies no second parser, formal
      frontend, or foreign runtime in the admitted path.
-6. Submit the exact `/2` bytes and an independently retained `/2` selection,
+6. Submit the exact version 2 bytes and an independently retained version 2 selection,
    built as `v2::Expected` and `v2::ExpectedTemporal` without reading A's
    offered bytes, through `quire_protocol::admit_and_link_v2`; submit each
    version's bytes at the other version's entry point; and reseal one changed
-   `/2` selection axis at a time.
-   - IT-001-SC-06: `/2` retains the exact A-provided artifact bytes and external
+   version 2 selection axis at a time.
+   - IT-001-SC-06: version 2 retains the exact A-provided artifact bytes and external
      artifact reference through linking and returns A's `v2::AdmittedPackage`
-     only for the independently selected `/2` inputs. `/1` bytes at
-     `admit_and_link_v2` and `/2` bytes at `admit_and_link` each return a typed
+     only for the independently selected version 2 inputs. version 1 bytes at
+     `admit_and_link_v2` and version 2 bytes at `admit_and_link` each return a typed
      refusal with no auto-detection, upgrade, or downgrade. A changed artifact,
      contract, baseline, producer, source, model, dependency, definition,
      configuration, result, temporal-profile, clock-alternative, or
@@ -166,12 +166,12 @@ dimension, one unit short of it, and a fresh budget at the exact value.
      binding, numeric representation, or numeric domain. Each refusal is
      distinguishable from the others by its typed identity; one shared cause
      across two axes does not discharge this scenario.
-   - IT-001-SC-06a: `admit_and_link` is unchanged by the addition of `/2`,
-     shown by re-running SC-01 through SC-05 on the same `/1` fixture at the
-     revision that adds `/2` and obtaining the same admitted identities and the
+   - IT-001-SC-06a: `admit_and_link` is unchanged by the addition of version 2,
+     shown by re-running SC-01 through SC-05 on the same version 1 fixture at the
+     revision that adds version 2 and obtaining the same admitted identities and the
      same typed refusal per axis as at the revision before it, with
      `admit_and_link`'s signature and refusal set unchanged.
-7. Substitute each digest domain for another across the same `/2` selection, and
+7. Substitute each digest domain for another across the same version 2 selection, and
    submit recanonicalized source, model, dependency and configuration inputs.
    - IT-001-SC-07: a `raw-artifact-digest` presented in the
      `quire.verification.jcs` slot, and a `quire.verification.jcs` digest
@@ -189,18 +189,18 @@ dimension, one unit short of it, and a fresh budget at the exact value.
      as-delivered form — a pretty-printed JSON re-encoding of the original model
      bytes — so a producer input that is already canonical cannot make the
      scenario vacuous. Digest-domain crossing is exercised over raw bytes.
-8. Submit `/2` temporal binding sets that are missing, surplus, duplicated,
+8. Submit version 2 temporal binding sets that are missing, surplus, duplicated,
    reordered, owned by a foreign owner, or out of the declared range.
    - IT-001-SC-08: each returns a typed refusal that names the offending
      temporal binding axis before a linked package is exposed; a correctly
      ordered, singly owned, in-range binding set admits. Cardinality, duplication
-     and ordering are judged against A's `/2` wire rule quoted in Preconditions
+     and ordering are judged against the version 2 wire rule quoted in Preconditions
      — one binding per temporal declaration, sorted by `declaration`, no repeats
      — and `out-of-range` against upstream `FR-255-bounded-temporal-interval`.
      `foreign-owner` is grounded in neither: no owner component appears in A's
      binding record or in any upstream key, so B checks it against the producer
      identities it independently retains and says so.
-9. Submit one unchanged `/2` input under a budget set exactly to what that
+9. Submit one unchanged version 2 input under a budget set exactly to what that
    input consumes on each declared limit dimension, then under a budget one unit
    short of it, then resubmit the same input under a fresh budget at the exact
    value.
@@ -231,10 +231,10 @@ or campaign-completion result.
 
 The A-owned frozen profile and each versioned compiled-protocol artifact contract
 must be accepted. `quire-spec-language` PR72 at `5690c2b` supplies the signed-64
-`/1` endpoint candidate. `quire-spec-language#40` owns `/2` contract
+version 1 endpoint candidate. `quire-spec-language#40` owns version 2 contract
 acceptance, traceability, and the public typed boundary.
 
-A's `/2` is implemented and under final integration: the surface named in
+the version 2 reader is implemented and under final integration: the surface named in
 Preconditions exists, passes A's focused integration suite, and carries the
 temporal binding cardinality, uniqueness and sort rule quoted in Preconditions,
 typed per-axis mutation refusals, independent `Expected` construction, raw-byte digest-domain crossing
@@ -246,56 +246,56 @@ and `src/protocol_artifact/native/temporal_v2.rs` exist and carry the names
 above, with `MEDIA = "application/vnd.quire.compiled-protocol+json;version=2"`
 and `SCHEMA = "quire.compiled-protocol.schema/2"`.
 
-`v2::Expected` **composes** the `/1` expectation rather than replacing it:
+`v2::Expected` **composes** the version 1 expectation rather than replacing it:
 `{ inherited: protocol_artifact::Expected, temporal: &[ExpectedTemporal] }`, and
 each `ExpectedTemporal` carries `{ source, declaration, definition, clock }`
 where `clock` is a `v2::wire::ClockConfiguration`. The clock alternative is that
 enum's variant and the clock parameters are its fields. Changed-selection axes
-therefore divide into inherited axes, which `/1` already discriminates, and the
+therefore divide into inherited axes, which version 1 already discriminates, and the
 temporal axes this contract adds.
 
-B may build its `/2` intake, spec and tests against those exact names now, but
+B may build its version 2 intake, spec and tests against those exact names now, but
 must keep execution dependency-gated. B does not pin any intermediate commit. A
-will supply one final immutable revision together with the raw `/2` bytes and
+will supply one final immutable revision together with the raw version 2 bytes and
 reference, the sidecar recipe, the original input corpus, and the
 mutation-fixture paths; B pins only that revision.
 
 The recipe is a derivation B implements, not a file B reads. A producer-emitted
-sidecar carrying the expected selection — `expected.json` beside the `/1`
-artifact, or any `/2` equivalent — is never B's selection source, because an
+sidecar carrying the expected selection — `expected.json` beside the version 1
+artifact, or any version 2 equivalent — is never B's selection source, because an
 offer that ships its own acceptance context authorizes itself. SC-01 forbids
-this for `/1` and it holds identically for `/2`.
+this for version 1 and it holds identically for version 2.
 
-The `/1` numeric and handoff commits that were previously reachable only from
+The version 1 numeric and handoff commits that were previously reachable only from
 `agent-a/handoff-numeric-domains` are already included in A's coherent
 integration branch. B does not wait on a separate PR for
 `5690c2b29c155ec72e21f5a7bb00fe1146b6f71a`; it repins to A's final revision.
 
 A prose definition, native source file, emitted sidecar, hand-authored bytes, or
-a `/1` value cannot substitute for either compiled interface because this
+a version 1 value cannot substitute for either compiled interface because this
 repository owns no parser.
 
 ## Notes
 
-The generated `/1` fixture is at
+The generated version 1 fixture is at
 `/tmp/quire-native-handoff-signed64-endpoints/`. Its embedded producer ELF
 digest changes on rebuild and is intentionally not pinned; B derives all stable
 selections from the retained generated inputs. The complete positive parser-set
 proof for SC-05 is still an open integration obligation, not an absence-of-known
 bad-dependencies claim.
 
-The `/2` lane's fixture loader, mutation corpus, and scenario enumeration are
+The version 2 lane's fixture loader, mutation corpus, and scenario enumeration are
 authored against A's published surface but ahead of A's final revision. They add no `[features]` entry and no `cfg`
 attribute, so the crate stays single-lane under NFR-004-AC-7: the corpus builder
 compiles and is checked on every gate run, and the parts that need A's boundary
 live in one `#[ignore]` lane that fails explicitly rather than passing vacuously.
 Until A's final revision is pinned, SC-06 through SC-09 assert nothing about A's
-behaviour and remain unexecuted; the `/1` SC-01 through SC-05 lane is unchanged.
+behaviour and remain unexecuted; the version 1 SC-01 through SC-05 lane is unchanged.
 
 ## Traceability
 
 Verifies FR-001 and FR-002. SC-07 and SC-09 additionally verify NFR-002: the
-digest domains that must stay separate, and the declared `/2` resource limits at
+digest domains that must stay separate, and the declared version 2 resource limits at
 their exact bound, one unit short, and on fresh retry.
 
 SC-06 and SC-06a verify NFR-007, and SC-01 through SC-05 are the regression

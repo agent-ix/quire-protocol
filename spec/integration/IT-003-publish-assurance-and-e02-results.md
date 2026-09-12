@@ -52,11 +52,11 @@ handoff (NFR-005), never where it is kept afterwards or whether it suffices.
 ## Preconditions
 
 Every external producer consumed by this integration resolves through the FR-009
-version-lock manifest before any request is submitted. The A-owned `/2`
+version-lock manifest before any request is submitted. The A-owned version 2
 compiled-protocol entry is explicitly unresolved: implemented and under final
 integration, not yet published to a remote, so it cannot be pinned. A canonical
-result derived from a `/2` admission is therefore out of scope here; SC-01
-through SC-09 run on `/1`-derived canonical results only, and no scenario may be
+result derived from a version 2 admission is therefore out of scope here; SC-01
+through SC-09 run on version 1-derived canonical results only, and no scenario may be
 reported as executed by substituting one contract version for the other.
 
 This integration requires four external acceptances. **None holds today**, so
@@ -163,9 +163,9 @@ The absent Engineering Assurance producer blocks execution but does not authoriz
 a repository-local substitute.
 
 This integration is the last in the chain and depends on IT-001 and IT-002
-completing. It therefore inherits their unresolved entries: until A's `/2`
+completing. It therefore inherits their unresolved entries: until the version 2
 contract is published and pinned, no scenario here may claim coverage of a
-`/2`-derived canonical result. Closing IT-003 establishes no PT02 result, no F
+version 2-derived canonical result. Closing IT-003 establishes no PT02 result, no F
 observation adequacy, no replay agreement and no campaign completion.
 
 ## Traceability

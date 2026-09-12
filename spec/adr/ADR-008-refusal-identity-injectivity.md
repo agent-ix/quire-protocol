@@ -25,7 +25,7 @@ itself is marked Draft and records an unresolved conflict in its source material
 Almost every scenario in this repository is a negative scenario. IT-001's
 mutation sweep alone covers offered wire/version, seal,
 producer/source/dependency/baseline identity, feature, referenced binding,
-numeric representation, numeric domain and digest domain, plus on the `/2` lane
+numeric representation, numeric domain and digest domain, plus on the version 2 lane
 temporal profile, clock alternative, clock parameter, six temporal-binding
 malformations, recanonicalised inputs and budget exhaustion.
 
@@ -53,7 +53,7 @@ layer that remediates them."
 
 ### The defect, reintroduced structurally before it could recur
 
-SR-038 FND-003, high, on the `/2` corpus
+SR-038 FND-003, high, on the version 2 corpus
 ([spec/reviews/v2-intake/failure-domain.md](../reviews/v2-intake/failure-domain.md)):
 "The lane's outcome oracle is two-valued, so any non-admission passes.
 `Disposition` distinguishes only `Admits` from `RefusesBeforeLinking`;
@@ -61,9 +61,9 @@ SC-06..SC-09 likewise say \"returns a typed refusal\" without binding it to
 FR-008's envelope. A panic, an untyped error, a refusal from the wrong stage, a
 refusal carrying a shared code across three different axes, or a refusal raised
 *after* a package was constructed all satisfy every negative row as written.
-This is the exact defect SR-027 recorded on the `/1` lane — one shared
+This is the exact defect SR-027 recorded on the version 1 lane — one shared
 `Invalid::Selection` code standing for three axes — reintroduced structurally in
-the `/2` corpus before A has delivered."
+the version 2 corpus before A has delivered."
 
 SR-044 FND-009 found the third instance, in a requirement statement rather than
 in a corpus: FR-002's amended statement and SC-08 both require a refusal naming
@@ -146,7 +146,7 @@ is `unresolved`.
 
 **A new axis is a breaking change to the identity space.** Adding a refusal axis
 requires a distinct interior for it against every existing axis in the same
-integration, pairwise. The obligation grows quadratically in axes, and the `/2`
+integration, pairwise. The obligation grows quadratically in axes, and the version 2
 lane already enumerates seven in `ExpectedRefusal` — wrong contract version,
 changed selection, changed offer, cross-domain digest, recanonicalized input,
 temporal binding, exhausted budget. FR-014 is explicit that the enumeration is

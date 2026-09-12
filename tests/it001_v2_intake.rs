@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! IT-001 SC-06..SC-09/Task-009: the version-explicit `/2` consumer lane.
+//! IT-001 SC-06..SC-09/Task-009: the version 2 consumer lane.
 //!
-//! The `/1` lane in `it001_native_handoff.rs` is unchanged and remains the
-//! compatibility precedent. This file owns only `/2`.
+//! The version 1 lane in `it001_native_handoff.rs` is unchanged and remains the
+//! compatibility precedent. This file owns only version 2.
 //!
 //! A's `protocol_artifact::v2` boundary is not published yet, so no test here
 //! calls it. What is exercised today is B-owned: the evidence loader, its
@@ -138,7 +138,7 @@ fn static_corpus_covers_every_temporal_binding_mutation() {
 }
 
 /// IT-001 Inputs declares six offered-artifact mutations for *both* lanes. They
-/// change what A offered, not what B selected, and need their own `/2` rows.
+/// change what A offered, not what B selected, and need their own version 2 rows.
 #[test]
 #[trace("Task-009")]
 fn static_corpus_covers_every_offered_artifact_axis() {
@@ -324,7 +324,7 @@ fn an_indexed_member_that_is_absent_is_reported() {
 /// The loader must carry the offered bytes through unchanged and copy A's
 /// artifact reference verbatim.
 ///
-/// The bytes written here are opaque loader input, not a `/2` artifact, and no
+/// The bytes written here are opaque loader input, not a version 2 artifact, and no
 /// test submits them to an admission API. Hand-authored emitted bytes are never
 /// admissible evidence for SC-06.
 #[test]
@@ -423,7 +423,7 @@ fn a_delivery_owes_a_scenario_row_for_every_declared_limit() {
 // The lane itself
 // ---------------------------------------------------------------------------
 
-/// SC-06 through SC-09 cannot run until A publishes its final `/2` revision.
+/// SC-06 through SC-09 cannot run until A publishes its final version 2 revision.
 ///
 /// A's `protocol_artifact::v2` is implemented and under final integration, and
 /// B's spec and corpus are built against its exact published names. Execution

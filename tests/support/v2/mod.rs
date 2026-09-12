@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! IT-001 SC-06..SC-09: the B-owned `/2` fixture loader and mutation corpus.
+//! IT-001 SC-06..SC-09: the B-owned version 2 fixture loader and mutation corpus.
 //!
 //! This module is authored ahead of A's `protocol_artifact::v2` delivery. It
 //! deliberately names no A type: it indexes B's own retained evidence and
-//! enumerates the scenarios the `/2` lane must run. It parses no compiled
+//! enumerates the scenarios the version 2 lane must run. It parses no compiled
 //! artifact — `b-v2-delivery-index.json` is B's evidence index, written by B at pin
 //! time, and the offered bytes are carried through untouched.
 
@@ -14,7 +14,7 @@ use std::{
 
 use serde::Deserialize;
 
-/// Directory holding A's `/2` delivery together with B's evidence index.
+/// Directory holding the version 2 delivery together with B's evidence index.
 pub const FIXTURE_ENV: &str = "QUIRE_PROTOCOL_A_V2_FIXTURE";
 
 /// B's evidence index inside that directory. Not emitted by A.
@@ -22,12 +22,12 @@ pub const DELIVERY_INDEX_FILE: &str = "b-v2-delivery-index.json";
 
 /// What `quire-spec-language#40` still owes before this lane can execute.
 ///
-/// A's `/2` is implemented and under final integration; its public surface is
+/// The version 2 reader is implemented and under final integration; its public surface is
 /// settled and recorded in IT-001 Preconditions, so it is not listed here. What
 /// remains is the final revision and its fixtures. The lane refuses to report a
-/// `/2` outcome until every one of these is in hand, and none may be
+/// version 2 outcome until every one of these is in hand, and none may be
 /// substituted by prose, a native source file, an emitted sidecar, a
-/// hand-authored byte string, or a `/1` value.
+/// hand-authored byte string, or a version 1 value.
 ///
 /// B pins no intermediate commit: only A's one final immutable revision.
 pub const REQUIRED_A_DELIVERABLES: [&str; 5] = [
@@ -44,7 +44,7 @@ pub const REQUIRED_A_DELIVERABLES: [&str; 5] = [
 // Absence
 // ---------------------------------------------------------------------------
 
-/// Why the `/2` lane could not be assembled. Every variant is reported; none is
+/// Why the version 2 lane could not be assembled. Every variant is reported; none is
 /// treated as a pass.
 #[derive(Debug)]
 pub enum Absence {
@@ -130,7 +130,7 @@ pub struct IndexedInput {
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct IndexedOffer {
-    /// Path to A's exact emitted `/2` bytes. B never rewrites this file.
+    /// Path to A's exact emitted version 2 bytes. B never rewrites this file.
     pub path: String,
     /// A's external artifact reference for those bytes, copied verbatim.
     pub reference: String,
@@ -147,7 +147,7 @@ pub struct IndexedTemporal {
 
 /// One temporal binding, addressed by A's `declaration` field.
 ///
-/// A's `/2` wire contract states the whole rule in one sentence: "There is
+/// the version 2 wire contract states the whole rule in one sentence: "There is
 /// exactly one binding for every temporal declaration and none for other
 /// declaration families. Bindings sort by `declaration` and cannot repeat."
 /// That is cardinality, uniqueness and order, all keyed on `declaration`.
@@ -169,7 +169,7 @@ pub struct IndexedBinding {
     pub path: String,
 }
 
-/// One A-declared `/2` resource limit and its exact bound.
+/// One A-declared version 2 resource limit and its exact bound.
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct IndexedLimit {
@@ -220,7 +220,7 @@ impl OfferedArtifact {
     }
 }
 
-/// B's assembled view of one `/2` delivery.
+/// B's assembled view of one version 2 delivery.
 #[derive(Debug)]
 pub struct Fixture {
     root: PathBuf,
@@ -310,7 +310,7 @@ impl Fixture {
         &self.delivery_index
     }
 
-    /// The exact `/2` bytes, for submission and for the byte-preservation check.
+    /// The exact version 2 bytes, for submission and for the byte-preservation check.
     pub fn offer(&self) -> &OfferedArtifact {
         &self.offer
     }
@@ -501,7 +501,7 @@ impl OfferedAxis {
     }
 }
 
-/// The four digest domains that must stay separate across the `/2` selection.
+/// The four digest domains that must stay separate across the version 2 selection.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum DigestDomain {
     ProducerCanonical,
@@ -555,7 +555,7 @@ impl ProducerInput {
     }
 }
 
-/// How a `/2` temporal binding set is made wrong, one way at a time.
+/// How a version 2 temporal binding set is made wrong, one way at a time.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum TemporalBindingMutation {
     Missing,
@@ -668,7 +668,7 @@ pub enum Disposition {
 /// The refusal identity a scenario expects, as a B-owned label.
 ///
 /// A two-valued admits/refuses oracle is satisfied by one shared error code
-/// across every negative row, which is the defect SR-027 recorded on `/1`. Each
+/// across every negative row, which is the defect SR-027 recorded on version 1. Each
 /// refusing scenario therefore carries a distinct expected identity here. These
 /// labels are B's own; mapping them onto A's typed refusal enum is part of the
 /// pin step, and that mapping must stay injective.
@@ -828,7 +828,7 @@ pub fn resource_scenarios(limits: &[IndexedLimit]) -> Vec<Scenario> {
     scenarios
 }
 
-/// Every scenario the `/2` lane owes for one delivery.
+/// Every scenario the version 2 lane owes for one delivery.
 pub fn scenarios_for(delivery_index: &DeliveryIndex) -> Vec<Scenario> {
     let mut scenarios = static_scenarios();
     scenarios.extend(resource_scenarios(&delivery_index.limits));

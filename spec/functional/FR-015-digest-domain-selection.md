@@ -113,7 +113,7 @@ comparison refuses rather than guessing.
 
 `digest::producer::DigestDomain` names five members — `ProducerArtifactBytes`,
 `ProducerSource`, `ProducerModel`, `ProducerConfig`, `ProtocolResultJcs` — none
-spelled as `FR-201` publishes them, and the `/2` lane's test enum names four
+spelled as `FR-201` publishes them, and the version 2 lane's test enum names four
 more. Neither conforms to the selection above.
 
 Reconciling them is implementation work this requirement does not perform and
