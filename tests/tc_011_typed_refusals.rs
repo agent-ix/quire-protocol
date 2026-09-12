@@ -31,9 +31,9 @@ use quire_protocol::refusal::catalog::{
     RetainedBytes, UnregisteredLiteral, ENVELOPE_CODES, REGISTRY, UNREGISTERED_CODE,
 };
 use quire_protocol::refusal::{
-    AffectedIdentity, Cause, CauseChain, CauseDetail, Location, OriginatingStage, PartialOutput,
-    Prerequisite, PrerequisiteState, ProtocolRefusal, RefusalDomain, Rendering, RetryDecision,
-    SourceLocation, Unavailability,
+    AffectedIdentity, Cause, CauseChain, CauseDetail, InvertedSpan, Location, OriginatingStage,
+    PartialOutput, Prerequisite, PrerequisiteState, ProtocolRefusal, RefusalDomain, Rendering,
+    RetryDecision, SourceLocation, Unavailability,
 };
 
 // ---------------------------------------------------------------------------
@@ -57,7 +57,7 @@ fn fully_populated() -> ProtocolRefusal {
         PrerequisiteState::Established,
     ))
     .identity(AffectedIdentity::retained(b"producer/definition@7"))
-    .located_at(SourceLocation::reported(b"unit-a", 12, 19))
+    .located_at(SourceLocation::reported(b"unit-a", 12, 19).expect("12..19 is a well-formed span"))
     .cause(Cause::new(unregistered_code()))
     .rendering(Rendering {
         message: "the offered code is not in the consumer catalog".to_owned(),
@@ -143,7 +143,9 @@ fn tc_011_every_envelope_field_is_readable_without_parsing() {
     );
     assert_eq!(
         refusal.location(),
-        &Location::Available(SourceLocation::reported(b"unit-a", 12, 19))
+        &Location::Available(
+            SourceLocation::reported(b"unit-a", 12, 19).expect("12..19 is a well-formed span")
+        )
     );
     assert_eq!(refusal.causes().len(), 1);
     assert_eq!(refusal.partial_output(), PartialOutput::NoneEmitted);
@@ -224,7 +226,7 @@ fn tc_011_identity_still_changes_when_a_typed_field_changes() {
         PrerequisiteState::Established,
     ))
     .identity(AffectedIdentity::retained(b"producer/definition@7"))
-    .located_at(SourceLocation::reported(b"unit-a", 12, 19))
+    .located_at(SourceLocation::reported(b"unit-a", 12, 19).expect("12..19 is a well-formed span"))
     .cause(Cause::new(unregistered_code()))
     .emitting_nothing();
     assert_ne!(other_stage, refusal, "the stage is part of identity");
@@ -239,7 +241,7 @@ fn tc_011_identity_still_changes_when_a_typed_field_changes() {
         PrerequisiteState::Established,
     ))
     .identity(AffectedIdentity::retained(b"producer/definition@8"))
-    .located_at(SourceLocation::reported(b"unit-a", 12, 19))
+    .located_at(SourceLocation::reported(b"unit-a", 12, 19).expect("12..19 is a well-formed span"))
     .cause(Cause::new(unregistered_code()))
     .emitting_nothing();
     assert_ne!(other_identity, refusal, "the identity is part of identity");
@@ -258,7 +260,7 @@ fn tc_011_identity_still_changes_when_a_typed_field_changes() {
         PrerequisiteState::Established,
     ))
     .identity(AffectedIdentity::retained(b"producer/definition@7"))
-    .located_at(SourceLocation::reported(b"unit-a", 12, 19))
+    .located_at(SourceLocation::reported(b"unit-a", 12, 19).expect("12..19 is a well-formed span"))
     .cause(Cause::new(unregistered_code()))
     .emitting_nothing();
     assert_ne!(
@@ -762,4 +764,43 @@ fn tc_011_every_registered_module_is_reachable_by_lookup() {
         }
     }
     assert_eq!(ENVELOPE_CODES.owner, "C-01");
+}
+
+/// A reported span whose end precedes its start is refused at construction.
+///
+/// The offsets a mapping chunk passes here come from another repository's
+/// records, and transposing them is the mistake that type has no way to prevent.
+/// Admitting the transposed pair would build a well-formed envelope whose span
+/// underflows on `end - start` and panics on `&text[start..end]` in whatever
+/// renders it, so the refusal belongs at the call site that holds the offsets.
+#[trace("TC-011", "FR-008-AC-2")]
+#[test]
+fn tc_011_an_inverted_span_is_refused_at_construction() {
+    assert_eq!(
+        SourceLocation::reported(b"unit-a", 19, 12),
+        Err(InvertedSpan { start: 19, end: 12 }),
+        "a span ending before it starts is not a location"
+    );
+
+    // Off by exactly one, which is the transposition a fencepost error makes.
+    assert_eq!(
+        SourceLocation::reported(b"unit-a", 12, 11),
+        Err(InvertedSpan { start: 12, end: 11 })
+    );
+
+    // The empty span at an offset is well formed: `end` is one past the span,
+    // so `start == end` names zero bytes at `start` rather than an inversion.
+    let empty = SourceLocation::reported(b"unit-a", 12, 12).expect("an empty span is a position");
+    assert_eq!(empty.start(), 12);
+    assert_eq!(empty.end(), 12);
+
+    // A well-formed span is unchanged by the check.
+    let span = SourceLocation::reported(b"unit-a", 12, 19).expect("12..19 is well formed");
+    assert_eq!((span.start(), span.end()), (12, 19));
+    assert_eq!(span.unit(), &RetainedBytes::new(b"unit-a"));
+
+    // The refusal carries both offsets as reported, so the caller can see the
+    // transposition rather than only that one happened.
+    let inverted = SourceLocation::reported(b"unit-a", 40, 12).expect_err("inverted");
+    assert_eq!((inverted.start, inverted.end), (40, 12));
 }

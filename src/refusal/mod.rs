@@ -329,16 +329,51 @@ pub struct SourceLocation {
     end: u64,
 }
 
+/// A reported span whose end precedes its start.
+///
+/// Not a [`ProtocolRefusal`]: this is refused at construction, before any
+/// envelope exists to carry it, and the caller that holds the transposed offsets
+/// is the one that has to decide what to do about them.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub struct InvertedSpan {
+    /// The reported first byte offset.
+    pub start: u64,
+    /// The reported offset one past the span, which precedes `start`.
+    pub end: u64,
+}
+
+impl fmt::Display for InvertedSpan {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "reported span ends at {} before it starts at {}",
+            self.end, self.start
+        )
+    }
+}
+
 impl SourceLocation {
     /// A position the source itself reported, in the source's own unit
     /// identity and byte offsets.
-    #[must_use]
-    pub fn reported(unit: &[u8], start: u64, end: u64) -> Self {
-        Self {
+    ///
+    /// `end` is the offset one past the span, so `start == end` is the empty
+    /// span at `start` and is admitted. `end < start` is refused.
+    ///
+    /// The check is here rather than left to the consumer because every
+    /// consumer of a location does arithmetic on it. A transposed pair — a
+    /// mapping chunk writing `reported(unit, span.end, span.start)` — would
+    /// otherwise build a well-formed envelope carrying a span that underflows
+    /// on `end - start` and panics on `&text[start..end]`, with the defect
+    /// surfacing in the renderer rather than at the call site that made it.
+    pub fn reported(unit: &[u8], start: u64, end: u64) -> Result<Self, InvertedSpan> {
+        if end < start {
+            return Err(InvertedSpan { start, end });
+        }
+        Ok(Self {
             unit: RetainedBytes::new(unit),
             start,
             end,
-        }
+        })
     }
 
     /// The source unit identity, exactly as reported.
