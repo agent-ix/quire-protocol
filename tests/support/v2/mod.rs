@@ -4,7 +4,7 @@
 //! This module is authored ahead of A's `protocol_artifact::v2` delivery. It
 //! deliberately names no A type: it indexes B's own retained evidence and
 //! enumerates the scenarios the `/2` lane must run. It parses no compiled
-//! artifact — `b-v2-manifest.json` is B's evidence index, written by B at pin
+//! artifact — `b-v2-delivery-index.json` is B's evidence index, written by B at pin
 //! time, and the offered bytes are carried through untouched.
 
 use std::{
@@ -18,7 +18,7 @@ use serde::Deserialize;
 pub const FIXTURE_ENV: &str = "QUIRE_PROTOCOL_A_V2_FIXTURE";
 
 /// B's evidence index inside that directory. Not emitted by A.
-pub const MANIFEST_FILE: &str = "b-v2-manifest.json";
+pub const DELIVERY_INDEX_FILE: &str = "b-v2-delivery-index.json";
 
 /// What `quire-spec-language#40` still owes before this lane can execute.
 ///
@@ -53,11 +53,11 @@ pub enum Absence {
     /// The named directory does not exist.
     MissingRoot(PathBuf),
     /// B has not written its evidence index for this delivery yet.
-    MissingManifest(PathBuf),
+    MissingDeliveryIndex(PathBuf),
     /// The index names a member that is not present.
     MissingMember { role: String, path: PathBuf },
     /// The index does not deserialise into B's own record shape.
-    UnreadableManifest { path: PathBuf, cause: String },
+    UnreadableDeliveryIndex { path: PathBuf, cause: String },
     /// One scenario has more than one registered mutation fixture.
     AmbiguousMutation { scenario: String },
     /// Two bindings share one declaration-index key, so the key is not unique.
@@ -71,13 +71,13 @@ impl fmt::Display for Absence {
         match self {
             Self::EnvUnset => write!(f, "{FIXTURE_ENV} is unset"),
             Self::MissingRoot(path) => write!(f, "fixture root {} does not exist", path.display()),
-            Self::MissingManifest(path) => {
+            Self::MissingDeliveryIndex(path) => {
                 write!(f, "B evidence index {} is absent", path.display())
             }
             Self::MissingMember { role, path } => {
                 write!(f, "indexed {role} member {} is absent", path.display())
             }
-            Self::UnreadableManifest { path, cause } => {
+            Self::UnreadableDeliveryIndex { path, cause } => {
                 write!(
                     f,
                     "B evidence index {} is unreadable: {cause}",
@@ -174,7 +174,7 @@ pub struct IndexedMutation {
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct Manifest {
+pub struct DeliveryIndex {
     /// The immutable A revision these bytes were emitted at.
     pub producer_revision: String,
     pub offer: IndexedOffer,
@@ -210,7 +210,7 @@ impl OfferedArtifact {
 #[derive(Debug)]
 pub struct Fixture {
     root: PathBuf,
-    manifest: Manifest,
+    delivery_index: DeliveryIndex,
     offer: OfferedArtifact,
 }
 
@@ -229,26 +229,27 @@ impl Fixture {
         if !root.is_dir() {
             return Err(Absence::MissingRoot(root.to_path_buf()));
         }
-        let manifest_path = root.join(MANIFEST_FILE);
-        let manifest_bytes = match fs::read(&manifest_path) {
+        let index_path = root.join(DELIVERY_INDEX_FILE);
+        let manifest_bytes = match fs::read(&index_path) {
             Ok(bytes) => bytes,
-            Err(_) => return Err(Absence::MissingManifest(manifest_path)),
+            Err(_) => return Err(Absence::MissingDeliveryIndex(index_path)),
         };
-        let manifest: Manifest = serde_json::from_slice(&manifest_bytes).map_err(|error| {
-            Absence::UnreadableManifest {
-                path: manifest_path.clone(),
-                cause: error.to_string(),
-            }
-        })?;
+        let delivery_index: DeliveryIndex =
+            serde_json::from_slice(&manifest_bytes).map_err(|error| {
+                Absence::UnreadableDeliveryIndex {
+                    path: index_path.clone(),
+                    cause: error.to_string(),
+                }
+            })?;
 
-        for input in &manifest.inputs {
+        for input in &delivery_index.inputs {
             require(root, &format!("{:?}", input.role), &input.path)?;
         }
-        require(root, "temporal-profile", &manifest.temporal.profile)?;
+        require(root, "temporal-profile", &delivery_index.temporal.profile)?;
         // A's declaration-index key must be unique and totally ordered before
         // any "duplicate" or "reordered" mutation means anything.
         let mut previous: Option<u32> = None;
-        for binding in &manifest.temporal.bindings {
+        for binding in &delivery_index.temporal.bindings {
             require(root, "temporal-binding", &binding.path)?;
             if let Some(after) = previous {
                 if binding.declaration_index == after {
@@ -265,23 +266,23 @@ impl Fixture {
             }
             previous = Some(binding.declaration_index);
         }
-        for mutation in &manifest.mutations {
+        for mutation in &delivery_index.mutations {
             require(root, &mutation.scenario, &mutation.path)?;
         }
 
-        let offer_path = root.join(&manifest.offer.path);
+        let offer_path = root.join(&delivery_index.offer.path);
         let bytes = fs::read(&offer_path).map_err(|_| Absence::MissingMember {
             role: "offered-artifact".to_owned(),
             path: offer_path,
         })?;
         let offer = OfferedArtifact {
             bytes,
-            reference: manifest.offer.reference.clone(),
+            reference: delivery_index.offer.reference.clone(),
         };
 
         Ok(Self {
             root: root.to_path_buf(),
-            manifest,
+            delivery_index,
             offer,
         })
     }
@@ -290,8 +291,8 @@ impl Fixture {
         &self.root
     }
 
-    pub fn manifest(&self) -> &Manifest {
-        &self.manifest
+    pub fn delivery_index(&self) -> &DeliveryIndex {
+        &self.delivery_index
     }
 
     /// The exact `/2` bytes, for submission and for the byte-preservation check.
@@ -304,7 +305,12 @@ impl Fixture {
     /// An unindexed role and an unreadable file are distinct outcomes: the
     /// second is reported, never collapsed into the first.
     pub fn input_bytes(&self, role: SelectionRole) -> Result<Option<Vec<u8>>, Absence> {
-        let Some(input) = self.manifest.inputs.iter().find(|input| input.role == role) else {
+        let Some(input) = self
+            .delivery_index
+            .inputs
+            .iter()
+            .find(|input| input.role == role)
+        else {
             return Ok(None);
         };
         let path = self.root.join(&input.path);
@@ -322,7 +328,7 @@ impl Fixture {
     /// not a first-match lookup.
     pub fn mutation_bytes(&self, scenario: &str) -> Result<Option<Vec<u8>>, Absence> {
         let mut matches = self
-            .manifest
+            .delivery_index
             .mutations
             .iter()
             .filter(|mutation| mutation.scenario == scenario);
@@ -349,12 +355,12 @@ impl Fixture {
     /// directions: an under-delivery must not read as an assembled lane.
     pub fn undelivered_scenarios(&self) -> Vec<String> {
         let delivered: Vec<&str> = self
-            .manifest
+            .delivery_index
             .mutations
             .iter()
             .map(|mutation| mutation.scenario.as_str())
             .collect();
-        scenarios_for(&self.manifest)
+        scenarios_for(&self.delivery_index)
             .into_iter()
             .filter(|row| row.disposition == Disposition::RefusesBeforeLinking)
             .map(|row| row.id)
@@ -800,8 +806,8 @@ pub fn resource_scenarios(limits: &[IndexedLimit]) -> Vec<Scenario> {
 }
 
 /// Every scenario the `/2` lane owes for one delivery.
-pub fn scenarios_for(manifest: &Manifest) -> Vec<Scenario> {
+pub fn scenarios_for(delivery_index: &DeliveryIndex) -> Vec<Scenario> {
     let mut scenarios = static_scenarios();
-    scenarios.extend(resource_scenarios(&manifest.limits));
+    scenarios.extend(resource_scenarios(&delivery_index.limits));
     scenarios
 }

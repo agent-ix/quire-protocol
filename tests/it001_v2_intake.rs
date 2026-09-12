@@ -296,13 +296,13 @@ fn a_missing_fixture_root_is_reported_not_skipped() {
 #[test]
 #[trace("Task-009")]
 fn a_delivery_without_b_s_evidence_index_is_reported() {
-    let root = scratch("no-manifest");
+    let root = scratch("no-delivery_index");
     fs::create_dir_all(&root).expect("scratch root");
     match Fixture::load_from(&root) {
-        Err(Absence::MissingManifest(path)) => {
-            assert_eq!(path, root.join(v2::MANIFEST_FILE));
+        Err(Absence::MissingDeliveryIndex(path)) => {
+            assert_eq!(path, root.join(v2::DELIVERY_INDEX_FILE));
         }
-        other => panic!("expected a MissingManifest report, got {other:?}"),
+        other => panic!("expected a MissingDeliveryIndex report, got {other:?}"),
     }
 }
 
@@ -336,7 +336,7 @@ fn the_loader_preserves_the_offered_bytes_and_reference() {
     let on_disk = fs::read(root.join("compiled-protocol.v2.bin")).expect("offer bytes");
     assert_eq!(fixture.offer().bytes(), on_disk.as_slice());
     assert_eq!(fixture.offer().reference(), "ix://example/offer@v2");
-    assert_eq!(fixture.manifest().producer_revision, "0".repeat(40));
+    assert_eq!(fixture.delivery_index().producer_revision, "0".repeat(40));
     assert_eq!(
         fixture
             .input_bytes(v2::SelectionRole::Source)
@@ -355,11 +355,11 @@ fn the_loader_indexes_the_temporal_and_mutation_evidence() {
     let root = scratch("indexes-evidence");
     write_delivery(&root);
     let fixture = Fixture::load_from(&root).expect("assembled delivery");
-    let manifest = fixture.manifest();
+    let delivery_index = fixture.delivery_index();
 
-    assert_eq!(manifest.temporal.clock_alternative, "wall");
-    assert_eq!(manifest.temporal.clock_parameters, ["resolution"]);
-    let binding = manifest
+    assert_eq!(delivery_index.temporal.clock_alternative, "wall");
+    assert_eq!(delivery_index.temporal.clock_parameters, ["resolution"]);
+    let binding = delivery_index
         .temporal
         .bindings
         .first()
@@ -367,13 +367,13 @@ fn the_loader_indexes_the_temporal_and_mutation_evidence() {
     assert_eq!(binding.owner, "Workflow");
     assert_eq!(binding.declaration_index, 0);
 
-    let limit = manifest
+    let limit = delivery_index
         .limits
         .first()
         .expect("at least one declared limit");
     assert_eq!(limit.exact, 10_000);
 
-    let mut mutation_ids: Vec<&str> = manifest
+    let mut mutation_ids: Vec<&str> = delivery_index
         .mutations
         .iter()
         .map(|mutation| mutation.id.as_str())
@@ -383,11 +383,11 @@ fn the_loader_indexes_the_temporal_and_mutation_evidence() {
     mutation_ids.dedup();
     assert_eq!(before, mutation_ids.len(), "mutation ids collide");
 
-    let owed: Vec<String> = v2::scenarios_for(manifest)
+    let owed: Vec<String> = v2::scenarios_for(delivery_index)
         .into_iter()
         .map(|row| row.id)
         .collect();
-    for mutation in &manifest.mutations {
+    for mutation in &delivery_index.mutations {
         assert!(
             owed.contains(&mutation.scenario),
             "mutation {} names scenario {}, which this lane does not owe",
@@ -411,10 +411,11 @@ fn a_delivery_owes_a_scenario_row_for_every_declared_limit() {
     let root = scratch("scenarios-for");
     write_delivery(&root);
     let fixture = Fixture::load_from(&root).expect("assembled delivery");
-    let scenarios = v2::scenarios_for(fixture.manifest());
+    let scenarios = v2::scenarios_for(fixture.delivery_index());
     assert_eq!(
         scenarios.len(),
-        v2::static_scenarios().len() + fixture.manifest().limits.len() * LimitBound::ALL.len()
+        v2::static_scenarios().len()
+            + fixture.delivery_index().limits.len() * LimitBound::ALL.len()
     );
 }
 
@@ -462,8 +463,8 @@ fn the_v2_lane_reports_its_blocked_state_to_the_gate() {
                  scenarios this delivery owes. Refusal scenarios with no \
                  delivered mutation fixture: {}.",
                 fixture.root().display(),
-                fixture.manifest().producer_revision,
-                v2::scenarios_for(fixture.manifest()).len(),
+                fixture.delivery_index().producer_revision,
+                v2::scenarios_for(fixture.delivery_index()).len(),
                 if undelivered.is_empty() {
                     "none".to_owned()
                 } else {
@@ -482,7 +483,7 @@ fn a_delivery_missing_mutation_fixtures_names_every_scenario_it_owes() {
     write_delivery(&root);
     let fixture = Fixture::load_from(&root).expect("assembled delivery");
     let undelivered = fixture.undelivered_scenarios();
-    let owed_refusals = v2::scenarios_for(fixture.manifest())
+    let owed_refusals = v2::scenarios_for(fixture.delivery_index())
         .into_iter()
         .filter(|row| row.disposition == Disposition::RefusesBeforeLinking)
         .count();
@@ -499,22 +500,22 @@ fn a_delivery_missing_mutation_fixtures_names_every_scenario_it_owes() {
 fn two_mutation_fixtures_for_one_scenario_are_refused() {
     let root = scratch("ambiguous-mutation");
     write_delivery(&root);
-    let manifest_path = root.join(v2::MANIFEST_FILE);
-    let manifest = fs::read_to_string(&manifest_path).expect("manifest");
+    let index_path = root.join(v2::DELIVERY_INDEX_FILE);
+    let delivery_index = fs::read_to_string(&index_path).expect("delivery_index");
     fs::write(
         root.join("mutations/changed-source-2.bin"),
         b"changed-again",
     )
     .expect("second");
     fs::write(
-        &manifest_path,
-        manifest.replace(
+        &index_path,
+        delivery_index.replace(
             r#"{ "id": "m-1", "scenario": "v2-changed-source", "path": "mutations/changed-source.bin" }"#,
             r#"{ "id": "m-1", "scenario": "v2-changed-source", "path": "mutations/changed-source.bin" },
     { "id": "m-2", "scenario": "v2-changed-source", "path": "mutations/changed-source-2.bin" }"#,
         ),
     )
-    .expect("rewrite manifest");
+    .expect("rewrite delivery_index");
     let fixture = Fixture::load_from(&root).expect("assembled delivery");
     match fixture.mutation_bytes("v2-changed-source") {
         Err(Absence::AmbiguousMutation { scenario }) => {
@@ -572,7 +573,7 @@ fn a_sparse_ascending_declaration_index_set_is_accepted() {
     write_delivery(&root);
     let fixture = Fixture::load_from(&root).expect("assembled delivery");
     let keys: Vec<u32> = fixture
-        .manifest()
+        .delivery_index()
         .temporal
         .bindings
         .iter()
@@ -585,15 +586,15 @@ fn a_sparse_ascending_declaration_index_set_is_accepted() {
 #[test]
 #[trace("Task-009")]
 fn an_unreadable_evidence_index_is_reported_with_its_cause() {
-    let root = scratch("unreadable-manifest");
+    let root = scratch("unreadable-delivery_index");
     write_delivery(&root);
-    fs::write(root.join(v2::MANIFEST_FILE), b"{ not json").expect("corrupt manifest");
+    fs::write(root.join(v2::DELIVERY_INDEX_FILE), b"{ not json").expect("corrupt delivery_index");
     match Fixture::load_from(&root) {
-        Err(Absence::UnreadableManifest { path, cause }) => {
-            assert_eq!(path, root.join(v2::MANIFEST_FILE));
+        Err(Absence::UnreadableDeliveryIndex { path, cause }) => {
+            assert_eq!(path, root.join(v2::DELIVERY_INDEX_FILE));
             assert!(!cause.is_empty(), "the serde cause must be reported");
         }
-        other => panic!("expected an UnreadableManifest report, got {other:?}"),
+        other => panic!("expected an UnreadableDeliveryIndex report, got {other:?}"),
     }
 }
 
@@ -618,20 +619,22 @@ fn find<'a>(scenarios: &'a [Scenario], limit: &str, bound: LimitBound) -> &'a Sc
         .unwrap_or_else(|| panic!("no {} probe for {limit}", bound.slug()))
 }
 
-/// Replace the manifest's binding array with `bindings`, leaving the rest of
+/// Replace the delivery_index's binding array with `bindings`, leaving the rest of
 /// B's evidence index untouched.
 fn rewrite_bindings(root: &Path, bindings: &str) {
-    let manifest_path = root.join(v2::MANIFEST_FILE);
-    let manifest = fs::read_to_string(&manifest_path).expect("manifest");
-    let start = manifest.find("\"bindings\": [").expect("bindings key");
-    let open = manifest[start..].find('[').expect("bindings open") + start;
-    let close = manifest[open..].find(']').expect("bindings close") + open;
+    let index_path = root.join(v2::DELIVERY_INDEX_FILE);
+    let delivery_index = fs::read_to_string(&index_path).expect("delivery_index");
+    let start = delivery_index
+        .find("\"bindings\": [")
+        .expect("bindings key");
+    let open = delivery_index[start..].find('[').expect("bindings open") + start;
+    let close = delivery_index[open..].find(']').expect("bindings close") + open;
     let rewritten = format!(
         "{}[\n      {bindings}\n    {}",
-        &manifest[..open],
-        &manifest[close..]
+        &delivery_index[..open],
+        &delivery_index[close..]
     );
-    fs::write(&manifest_path, rewritten).expect("rewrite bindings");
+    fs::write(&index_path, rewritten).expect("rewrite bindings");
 }
 
 fn scratch(name: &str) -> PathBuf {
@@ -659,7 +662,7 @@ fn write_delivery(root: &Path) {
     fs::write(root.join("inputs/binding-3.json"), b"binding-three").expect("binding");
     fs::write(root.join("mutations/changed-source.bin"), b"changed").expect("mutation");
     fs::write(
-        root.join(v2::MANIFEST_FILE),
+        root.join(v2::DELIVERY_INDEX_FILE),
         br#"{
   "producer_revision": "0000000000000000000000000000000000000000",
   "offer": {
@@ -686,5 +689,5 @@ fn write_delivery(root: &Path) {
 }
 "#,
     )
-    .expect("manifest");
+    .expect("delivery_index");
 }

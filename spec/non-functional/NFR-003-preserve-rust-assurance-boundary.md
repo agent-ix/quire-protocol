@@ -20,6 +20,10 @@ relationships:
     type: constrains
   - target: ix://agent-ix/quire-protocol/FR-008
     type: constrains
+  - target: ix://agent-ix/quire-protocol/FR-009
+    type: constrains
+  - target: ix://agent-ix/quire-protocol/NFR-005
+    type: constrains
 ---
 # NFR-003: Preserve the Rust assurance boundary
 

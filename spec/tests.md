@@ -14,7 +14,9 @@ relationships:
   - { target: ix://agent-ix/quire-protocol/NFR-001, type: references }
   - { target: ix://agent-ix/quire-protocol/NFR-002, type: references }
   - { target: ix://agent-ix/quire-protocol/NFR-003, type: references }
+  - { target: ix://agent-ix/quire-protocol/FR-009, type: references }
   - { target: ix://agent-ix/quire-protocol/NFR-004, type: references }
+  - { target: ix://agent-ix/quire-protocol/NFR-005, type: references }
 ---
 ## Overview
 
@@ -52,6 +54,7 @@ not be counted as backing symbols for any IT-001 scenario.
 | FR-006 | FR-006-AC-1, FR-006-AC-2, FR-006-AC-3, FR-006-AC-4, FR-006-AC-5, FR-006-AC-6, FR-006-AC-7 | TC-006, IT-002, IT-003 | 🚧 Planned |
 | FR-007 | FR-007-AC-1, FR-007-AC-2, FR-007-AC-3, FR-007-AC-4, FR-007-AC-5 | TC-007, IT-003 | 🚧 Planned |
 | FR-008 | FR-008-AC-1, FR-008-AC-2, FR-008-AC-3, FR-008-AC-4, FR-008-AC-5, FR-008-AC-6, FR-008-AC-7, FR-008-AC-8 | TC-011 | 🚧 Planned |
+| FR-009 | FR-009-AC-1, FR-009-AC-2, FR-009-AC-3, FR-009-AC-4, FR-009-AC-5, FR-009-AC-6, FR-009-AC-7 | TC-013, IT-002, IT-003 | 🚧 Planned — TC-013 exercises resolution on B-owned fixtures with no external dependency; the IT rows stay gated on producer acceptance |
 
 ## Non-Functional Requirement Coverage
 
@@ -60,7 +63,8 @@ not be counted as backing symbols for any IT-001 scenario.
 | NFR-001 | Property and metamorphic testing | TC-008 | 🚧 Planned |
 | NFR-002 | Property, mutation, and source-bound inventory inspection | TC-009, IT-001 | 🚧 Planned (IT-001 SC-07/SC-09 gated on A's final `/2` revision) |
 | NFR-003 | Shared Rust language-boundary check, static analysis, architecture inspection, Rust review, Quire coverage, gap analysis | TC-010, IT-003 | 🚧 Planned |
-| NFR-004 | Cargo metadata inspection, conditional-compilation inventory, enumerated gate execution over one unchanged head, per-criterion negative controls | TC-012, IT-003 | 🚧 Planned |
+| NFR-004 | Cargo metadata inspection, conditional-compilation inventory, enumerated gate execution over one unchanged head, per-criterion negative controls | TC-012 | 🚧 Planned — IT-003 previously appeared here but declares and exercises no NFR-004 scenario |
+| NFR-005 | Static inspection and Quire coverage over the integration lanes, denominated on owed rather than executed scenarios | IT-002, IT-003 | 🚧 Planned — scores zero while both integrations are blocked, by design |
 
 ## Integration Coverage
 
@@ -68,8 +72,8 @@ not be counted as backing symbols for any IT-001 scenario.
 | --- | --- | --- | --- |
 | IT-001 `/1` | Native compiler `quire.compiled-protocol/1` artifact to protocol library | FR-001, FR-002 | 🚧 Planned (SC-01..SC-05; fixture lane `#[ignore]`) |
 | IT-001 `/2` | Native compiler `/2` artifact to protocol library | FR-001-AC-5, FR-002-AC-5, NFR-002 | 🚧 Planned — SC-06..SC-09 unexecuted; A's `protocol_artifact::v2` is implemented and under final integration, not yet published to a remote |
-| IT-002 | Observation and temporal facts to protocol evaluator/result | FR-003, FR-004, FR-006 | 🚧 Planned |
-| IT-003 | Protocol result through Engineering Assurance, E02, and Quoin | FR-006, FR-007, NFR-003, NFR-004 | 🚧 Planned |
+| IT-002 | Observation and temporal facts to protocol evaluator/result | FR-003, FR-004, FR-006, FR-009, NFR-002, NFR-005 | 🚧 Planned — SC-01..SC-08; blocked on accepted F/E producer contracts |
+| IT-003 | Protocol result through Engineering Assurance, E02, and Quoin | FR-006, FR-007, FR-009, NFR-002, NFR-003, NFR-005 | 🚧 Planned — SC-01..SC-09; blocked on Engineering Assurance #34 |
 
 ## Test Case Summary
 
@@ -87,12 +91,17 @@ not be counted as backing symbols for any IT-001 scenario.
 | TC-010 | Preserve Rust and shared assurance containment | Static | P0 | NFR-003-AC-1..NFR-003-AC-6 | 🚧 Planned |
 | TC-011 | Return typed refusals without text parsing | Property | P0 | FR-008-AC-1..FR-008-AC-8 | 🚧 Planned |
 | TC-012 | Run the local verification gate and refuse an undefined lane | Static | P0 | NFR-004-AC-1..NFR-004-AC-10 | 🚧 Planned |
+| TC-013 | Resolve the version-lock manifest | Property | P0 | FR-009-AC-1..FR-009-AC-7 | 🚧 Planned — B-owned fixtures only; runnable without any external producer delivery |
 
 ## Test Execution Summary
 
 | Category | Total | Passed | Failed | Blocked | Planned |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Property | 10 | 0 | 0 | 0 | 10 |
+| Property | 11 | 0 | 0 | 0 | 11 |
 | Static/Inspection | 2 | 0 | 0 | 0 | 2 |
-| Integration | 3 | 0 | 0 | 0 | 3 |
-| Overall | 15 | 0 | 0 | 0 | 15 |
+| Integration | 4 | 0 | 0 | 0 | 4 |
+| Overall | 17 | 0 | 0 | 0 | 17 |
+
+The Integration count is four because IT-001 carries a separate `/1` and `/2`
+row; the two contracts may not substitute for each other, so one row cannot
+report both.
