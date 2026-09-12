@@ -33,8 +33,9 @@ pub const MANIFEST_FILE: &str = "b-v2-manifest.json";
 pub const REQUIRED_A_DELIVERABLES: [&str; 5] = [
     "A's one final immutable quire-spec-language revision to pin",
     "the raw /2 artifact bytes and their external artifact reference",
-    "the sidecar recipe for independently constructing v2::Expected, \
-     v2::ExpectedDefinition and v2::ExpectedTemporal",
+    "the derivation recipe B implements to construct v2::Expected, \
+     v2::ExpectedDefinition and v2::ExpectedTemporal from the original inputs \
+     -- a recipe B executes, never a sidecar B reads",
     "the original, unrecanonicalized producer input corpus",
     "the per-axis mutation-fixture paths and their documented refusal identities",
 ];

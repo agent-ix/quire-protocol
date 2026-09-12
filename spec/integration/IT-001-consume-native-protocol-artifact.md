@@ -195,13 +195,31 @@ declared unique declaration-index key and total order, typed per-axis mutation
 refusals, independent `Expected` construction, raw-byte digest-domain crossing
 tests, and a non-vacuous pretty-JSON recanonicalization mutation over original
 model bytes. It is not yet published to `quire-spec-language` `origin/main` or
-any remote branch.
+any remote branch. B verified the surface directly in A's local worktree at
+`agent-a/66-v2-impl` `d03e4ca`: `src/protocol_artifact/v2/{mod,intake,wire}.rs`
+and `src/protocol_artifact/native/temporal_v2.rs` exist and carry the names
+above, with `MEDIA = "application/vnd.quire.compiled-protocol+json;version=2"`
+and `SCHEMA = "quire.compiled-protocol.schema/2"`.
+
+`v2::Expected` **composes** the `/1` expectation rather than replacing it:
+`{ inherited: protocol_artifact::Expected, temporal: &[ExpectedTemporal] }`, and
+each `ExpectedTemporal` carries `{ source, declaration, definition, clock }`
+where `clock` is a `v2::wire::ClockConfiguration`. The clock alternative is that
+enum's variant and the clock parameters are its fields. Changed-selection axes
+therefore divide into inherited axes, which `/1` already discriminates, and the
+temporal axes this contract adds.
 
 B may build its `/2` intake, spec and tests against those exact names now, but
 must keep execution dependency-gated. B does not pin any intermediate commit. A
 will supply one final immutable revision together with the raw `/2` bytes and
 reference, the sidecar recipe, the original input corpus, and the
 mutation-fixture paths; B pins only that revision.
+
+The recipe is a derivation B implements, not a file B reads. A producer-emitted
+sidecar carrying the expected selection — `expected.json` beside the `/1`
+artifact, or any `/2` equivalent — is never B's selection source, because an
+offer that ships its own acceptance context authorizes itself. SC-01 forbids
+this for `/1` and it holds identically for `/2`.
 
 The `/1` numeric and handoff commits that were previously reachable only from
 `agent-a/handoff-numeric-domains` are already included in A's coherent
