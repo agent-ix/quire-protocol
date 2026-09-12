@@ -83,3 +83,12 @@ refusal is ambiguous about which entry caused it.
 Verifies FR-009-AC-1 through FR-009-AC-7 and contributes to NFR-003.
 
 This test case additionally backs criteria on the object requirements FR-012, FR-016, FR-017, FR-018, which cite it as their verification. Those criteria are exercised by the same procedure above; a change here that stops exercising them is a change to their coverage, not only to this test case's.
+
+This test case additionally backs `NFR-006-AC-6`, `NFR-006-AC-7` and
+`NFR-006-AC-8`, the delivery-surface criteria of
+[NFR-006](../non-functional/NFR-006-fix-the-consumed-dependency-set.md), which
+name it as their verification. Their negative controls — an unenumerated file in
+an otherwise complete delivery root, a member's bytes swapped at the same path,
+and an edited or deleted delivery index — run on the B-owned fixtures above and
+require no producer delivery. NFR-006's five closure criteria, `NFR-006-AC-1`
+through `NFR-006-AC-5`, verify by inspection and are not backed here.

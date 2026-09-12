@@ -78,20 +78,26 @@ one canonical rich result, and may derive one narrower portable E02 result.
 
 Stakeholder intent is refined through user stories into atomic local
 implementation requirements. Each functional and non-functional requirement is
-bound to an authored test case in [TM-001](tests.md). Integration tests keep the
-compiler, temporal/observation, Engineering Assurance, Quoin, and E02 ownership
-seams independently observable.
+bound in [TM-001](tests.md) to the verification that discharges it: an authored
+test case where one exists, an integration scenario where the obligation is a
+seam, and a declared inspection or analysis where neither applies. TM-001 names
+the requirements that reach no test case rather than implying one. Integration
+tests keep the compiler, temporal/observation, Engineering Assurance, Quoin, and
+E02 ownership seams independently observable.
 
 ## 5. Requirement Classes
 
-The repository uses ISO-style StR, US, FR, NFR, IT, TC, TestMatrix,
+The repository uses ISO-style StR, US, FR, NFR, IT, TC, TestMatrix, ADR,
 AssuranceProfile, and ArchitectureDescription artifacts. External `ix://`
 relationships identify normative owners without copying their clauses.
 
 ## 6. Requirement Identification
 
 Local immutable identifiers begin at `StR-001`, `US-001`, `FR-001`, `NFR-001`,
-`IT-001`, `TC-001`, `TM-001`, `AP-001`, and `AD-001`.
+`IT-001`, `TC-001`, `ADR-001`, `TM-001`, `AP-001`, and `AD-001`.
+Each namespace is allocated sequentially with no gaps and no reuse; the highest
+allocated identifier is currently `StR-005`, `US-007`, `FR-041`, `NFR-008`,
+`IT-003`, `TC-014`, `ADR-009`, `TM-001`, `AP-001`, and `AD-001`.
 
 ## 7. Requirement Quality Policy
 
@@ -146,8 +152,30 @@ successful truth, adequacy, conformance, or sufficiency.
 
 ## 11. Traceability
 
-[TM-001](tests.md) records requirement-to-test status. Rust tests will carry bare
-compiler-checked `ix-trace-rs` bindings to the exact local and upstream obligations.
+[TM-001](tests.md) records requirement-to-test status over the repository as it
+stands: 41 functional requirements, 8 non-functional requirements, 5 stakeholder
+requirements, 7 user stories, 9 architecture decisions, 3 integration tests, 14
+test cases, and 288 acceptance criteria across the functional and non-functional
+sets.
+
+The functional set is three layers rather than one list: 9 aggregate or
+behavioural parents (`FR-001`..`FR-009`), 9 object requirements
+(`FR-010`..`FR-018`), and 23 atomic behavioural parts (`FR-019`..`FR-041`). A
+parent states each of its obligations once, through exactly one part, and
+reaches its parts by `contains`; a parent row and its part rows are therefore two
+views of one obligation and are not separate work.
+
+TM-001 separates four states and merges none of them: test-backed, backed only
+by an integration scenario, unbacked — verified by declared inspection or
+analysis with no test case at all — and unexecutable, meaning a backing exists
+and cannot be run today, which is neither passing nor failing. `FR-009-AC-3`,
+`NFR-007-AC-8` and `NFR-008-AC-8` each require an unexecutable obligation to be
+counted as a zero inside its denominator rather than omitted from it, and
+`NFR-005` denominates its metrics on owed scenarios for the same reason. `TC-014`
+is the highest authored test case and no matrix row cites a higher identifier.
+
+Rust tests will carry bare compiler-checked `ix-trace-rs` bindings to the exact
+local and upstream obligations.
 
 ## 12. Verification Strategy
 
@@ -164,9 +192,21 @@ review and semantic QUOIN `/gap-analysis` over one unchanged head.
 
 ## 14. Lifecycle Status
 
-The repository is specification-only. Every test is planned and every
-implementation requirement remains unimplemented until the accepted source
-baseline, license, specification review, and implementation plan gates close.
+The repository is partially implemented. Six test binaries exist
+(`it001_native_handoff`, `it001_v2_intake`, `tc_002_identities`,
+`tc_004_closure_axes`, `tc_006_digest_domains`, `tc_008_reproduction_record`)
+and the local gate under `NFR-004` reports 106 passing, 0 failing and 23 ignored
+on this head. An earlier revision of this section said "The repository is
+specification-only. Every test is planned", which was true when written and has
+not been true since the first test binary landed. `TM-001` recorded the executed
+slices while this section denied them; the matrix was right.
+
+What remains unimplemented is the larger part: `admit_and_link_v2` is unwritten
+because agent A has published no `quire.compiled-protocol/2` revision, the
+canonical result and refusal surfaces are module stubs, and 47 acceptance
+criteria reach no test case at all. `TM-001` is the authority on which criteria
+are backed, unbacked, blocked or planned; this section states only that the
+repository is no longer specification-only.
 
 ## 15. Governance Notes
 
@@ -181,8 +221,10 @@ defines its contract. An entry here is a reference, not a pin: FR-009's
 version-lock manifest carries the pinned revision and the resolution status, and
 its entry-status table records why each is currently `unresolved`.
 
-- `agent-ix/quire-specification` — the formal-clause source. FR-050 through
-  FR-062 and NFR-020/NFR-021 define the semantics this repository consumes;
+- `agent-ix/quire-specification` — the formal-clause source. FR-047, FR-050
+  through FR-062, and NFR-020/NFR-021 define the semantics this repository
+  consumes — FR-047 owns the typed located cause vocabulary FR-008 and FR-036
+  adopt, and it sits outside the FR-050..FR-062 block;
   FR-200 through FR-283 are the domain object layer it references for every
   protocol, temporal and observation noun. Open questions this repository raised
   against that layer are issues 28 and 29.

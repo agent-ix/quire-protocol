@@ -13,6 +13,8 @@ relationships:
     type: verifies
   - target: ix://agent-ix/quire-protocol/NFR-002
     type: verifies
+  - target: ix://agent-ix/quire-protocol/NFR-007
+    type: verifies
 ---
 # IT-001: Consume the native compiler protocol artifact
 
@@ -295,3 +297,6 @@ behaviour and remain unexecuted; the `/1` SC-01 through SC-05 lane is unchanged.
 Verifies FR-001 and FR-002. SC-07 and SC-09 additionally verify NFR-002: the
 digest domains that must stay separate, and the declared `/2` resource limits at
 their exact bound, one unit short, and on fresh retry.
+
+SC-06 and SC-06a verify NFR-007, and SC-01 through SC-05 are the regression
+baseline SC-06a re-runs.

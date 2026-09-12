@@ -41,3 +41,14 @@ survive another claim's failure.
 
 ## Traceability
 This test case additionally backs criteria on the object requirements FR-014, FR-016, which cite it as their verification. Those criteria are exercised by the same procedure above; a change here that stops exercising them is a change to their coverage, not only to this test case's.
+
+This test case additionally backs `NFR-008-AC-1`, `NFR-008-AC-2` and
+`NFR-008-AC-6` of
+[NFR-008](../non-functional/NFR-008-carry-every-refusal-in-its-return-value.md),
+which name it as their verification: the total determination of every owed
+refusal axis from public typed accessors on the returned value alone, the
+rendering-replacement mutation under which every axis determination must still
+succeed and return the same axis, and the absent-versus-empty comparison for a
+location, stage, prerequisite or cause chain. `NFR-008-AC-7` is backed by TC-008
+and the remaining NFR-008 criteria verify by inspection; none of them is backed
+here.
