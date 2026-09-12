@@ -3,6 +3,16 @@
 version = 4
 
 [[package]]
+name = "agent-ix-baseline-producer"
+version = "0.0.0"
+source = "git+https://github.com/agent-ix/filament-core-data?rev=8bcfde458511d9684860048a7114cab0815a364a#8bcfde458511d9684860048a7114cab0815a364a"
+dependencies = [
+ "serde",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
 name = "ahash"
 version = "0.8.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -688,7 +698,9 @@ dependencies = [
 [[package]]
 name = "quire-spec-language"
 version = "0.1.0"
+source = "git+https://github.com/agent-ix/quire-spec-language?rev=bb17f74933a2bb07f5554e03be1474b9c79a6f77#bb17f74933a2bb07f5554e03be1474b9c79a6f77"
 dependencies = [
+ "agent-ix-baseline-producer",
  "logos",
  "quire-contract-ir",
  "serde",
