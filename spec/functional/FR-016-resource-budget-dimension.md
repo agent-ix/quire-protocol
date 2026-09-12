@@ -104,8 +104,9 @@ excluded one.
 
 - **Identity kind** — *value*, per [FR-011](./FR-011-consumer-identity-discipline.md).
   A dimension label has no identity of its own and is compared componentwise as
-  an exact string. Authority is not applicable to the label. The *budget* on a
-  dimension is consumer-authored: it is the caller's grant, never a producer's
+  an exact string. Authority *consumer*: the label vocabulary is drawn from
+  `NFR-002` and `FR-009`, both owned here, and no producer accepts a dimension
+  label as a selector. The *budget* on a dimension is likewise consumer-authored: it is the caller's grant, never a producer's
   assertion, and no producer-emitted value selects or raises it.
 - **Key** — the label itself. Matching is exact. A granted figure, a consumed
   figure, an observed overshoot, a display name, a message text or a rendering

@@ -25,9 +25,14 @@ Each such object SHALL declare separately which side authored that identity.
 - **kind** (identity component) — one of *authored*, *derived* or *value*,
   exactly as `FR-200` establishes. This repository adds no fourth kind.
 - **authority** (identity component) — *producer* or *consumer*. Which side
-  brought the identity into existence. Orthogonal to kind: an identity may be
-  authored by a producer or authored by this repository, and the kind is the
-  same in both cases.
+  brought the identity into existence. Orthogonal to kind, and declared for all
+  three kinds including *value*: an identity may be authored by a producer or
+  authored by this repository, and the kind is the same in both cases. For a
+  *value* identity nothing assigns the identity — the value *is* the identity —
+  so there authority names the side whose vocabulary the value is drawn from,
+  which is what decides whether the value may be recomputed locally and whether
+  it may cross the boundary as authority. A single object may declare authority
+  per key component where its components originate on different sides.
 - **key** (ordered tuple) — the components that constitute identity under the
   declared kind.
 - **domain** (reference to `FR-201-canonical-identity-domain`) — where a key
@@ -44,12 +49,23 @@ reference reads against upstream's vocabulary:
 | --- | --- | --- |
 | `producer-assigned` | *authored* | producer |
 | `structural` | *derived* | either |
-| `value` | *value* | not applicable |
+| `value` | *value* | either |
 | `consumer-assigned` | *authored* | consumer |
 
 `consumer-assigned` was not a fourth kind. It was *authored* with a different
 author, and collapsing it revealed the rule that actually matters: authority is
 independent of kind, and the constraint belongs on authority, not on kind.
+
+An earlier revision of this table marked authority *not applicable* for kind
+*value*, which contradicted both `FR-011-AC-1` below and the four *value*-kind
+objects in this repository that declare one. The contradiction is resolved in
+favour of declaring authority for every kind, because the authority rule stated
+next — byte-exact copy on one side, never crossing the boundary on the other —
+is what the declaration is *for*, and that rule does not become vacuous merely
+because the identity happens to be the value itself. A digest-domain label drawn
+from an upstream vocabulary and a refusal identity minted here are both *value*
+identities, and only authority distinguishes the one this repository may not
+re-spell from the one it may not export.
 
 ### The authority rule
 
@@ -65,8 +81,11 @@ and therefore inert outside this boundary.
 
 ## Identity and comparison
 
-- **Identity kind** — *value*. This artifact types the kind/authority pair
-  itself, which is compared componentwise.
+- **Identity kind** — *value*, authority *consumer*. This artifact types the
+  kind/authority pair itself, which is compared componentwise. The pair
+  vocabulary is this repository's own reconciliation of the upstream trichotomy,
+  so it crosses no boundary as authority: no producer accepts a kind/authority
+  pair as a selector.
 - **Key** — (`kind`, `authority`). Equality is componentwise over exactly those
   two. A display name, source path, span, message text, locale or rendering never
   participates, and none may reconstruct an absent component
