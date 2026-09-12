@@ -686,7 +686,7 @@ fn it_001_refuses_one_axis_cross_domain_baseline_digest() {
         error,
         AdmissionRefusal::CrossDomainDigest(CrossDomainDigest {
             slot: DigestSlot::Baseline,
-            selected: DigestDomain::ProducerArtifactBytes,
+            selected: DigestDomain::RawArtifact,
             offered: OfferedDomain::ForeignLabel("sha512".to_owned()),
             value: "sha512:6f9cb8bf8521ca51a5e6340511b545db43001879446a59c5c87efe4985acdb06"
                 .to_owned(),
@@ -732,8 +732,8 @@ fn it_001_refuses_well_formed_cross_domain_baseline_digest() {
         error,
         AdmissionRefusal::CrossDomainDigest(CrossDomainDigest {
             slot: DigestSlot::Baseline,
-            selected: DigestDomain::ProducerArtifactBytes,
-            offered: OfferedDomain::Identified(DigestDomain::ProtocolResultJcs),
+            selected: DigestDomain::RawArtifact,
+            offered: OfferedDomain::Identified(DigestDomain::VerificationJcs),
             value: result_domain,
         }),
         "got {error:?}"

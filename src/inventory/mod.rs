@@ -153,7 +153,7 @@ impl SelectedInventory {
             return DigestClassification::CrossDomain(CrossDomainDigest {
                 slot,
                 selected: slot.selected_domain(),
-                offered: OfferedDomain::Identified(DigestDomain::ProtocolResultJcs),
+                offered: OfferedDomain::Identified(DigestDomain::VerificationJcs),
                 value: offered.to_owned(),
             });
         }

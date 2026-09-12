@@ -118,10 +118,10 @@ fn tc_006_producer_reference_in_the_result_slot_refuses() {
     match refusal {
         ResultDigestRefusal::CrossDomain(violation) => {
             assert_eq!(violation.slot, DigestSlot::ProtocolResult);
-            assert_eq!(violation.selected, DigestDomain::ProtocolResultJcs);
+            assert_eq!(violation.selected, DigestDomain::VerificationJcs);
             assert_eq!(
                 violation.offered,
-                OfferedDomain::Identified(DigestDomain::ProducerArtifactBytes)
+                OfferedDomain::Identified(DigestDomain::RawArtifact)
             );
             assert_eq!(violation.value, offered);
         }
@@ -140,17 +140,25 @@ fn tc_006_result_digest_in_a_producer_slot_refuses() {
     let offered = inventory
         .result_domain_text(DigestSlot::Baseline)
         .expect("baseline is a selected slot");
-    // Well formed in every syntactic sense: the same algorithm label, the same
-    // length, the same alphabet as the value it replaces.
-    assert!(offered.starts_with("sha256:"));
-    assert_eq!(offered.len(), selections.baseline.digest.to_string().len());
+    // The published vocabulary requires this domain to be spelled `sha256-jcs:`
+    // and states that a raw `sha256` digest cannot substitute for it, so the
+    // label itself separates the two domains. The hex payload is still the same
+    // length and alphabet as the value it replaces, so nothing about the digest
+    // *value* distinguishes them.
+    assert!(offered.starts_with("sha256-jcs:"));
+    assert!(!offered.starts_with("sha256:"));
+    let producer_text = selections.baseline.digest.to_string();
+    assert_eq!(
+        offered.rsplit_once(':').expect("labelled").1.len(),
+        producer_text.rsplit_once(':').expect("labelled").1.len()
+    );
     match inventory.classify_offered(DigestSlot::Baseline, &offered) {
         DigestClassification::CrossDomain(violation) => {
             assert_eq!(violation.slot, DigestSlot::Baseline);
-            assert_eq!(violation.selected, DigestDomain::ProducerArtifactBytes);
+            assert_eq!(violation.selected, DigestDomain::RawArtifact);
             assert_eq!(
                 violation.offered,
-                OfferedDomain::Identified(DigestDomain::ProtocolResultJcs)
+                OfferedDomain::Identified(DigestDomain::VerificationJcs)
             );
         }
         other => panic!("expected a cross-domain classification, got {other:?}"),
@@ -266,12 +274,12 @@ fn tc_006_unlabelled_value_is_cross_domain() {
 #[trace("TC-006", "FR-006-AC-4")]
 fn tc_006_producer_reference_is_opaque_and_copied_exactly() {
     let text = "sha256:0000000000000000000000000000000000000000000000000000000000000001";
-    let reference = ProducerDigestRef::copy_exact(DigestDomain::ProducerSource, text)
+    let reference = ProducerDigestRef::copy_exact(DigestDomain::RawArtifact, text)
         .expect("producer-source is a producer-owned domain");
     assert_eq!(reference.as_producer_text(), text);
-    assert_eq!(reference.domain(), DigestDomain::ProducerSource);
+    assert_eq!(reference.domain(), DigestDomain::RawArtifact);
     assert!(
-        ProducerDigestRef::copy_exact(DigestDomain::ProtocolResultJcs, text).is_none(),
+        ProducerDigestRef::copy_exact(DigestDomain::VerificationJcs, text).is_none(),
         "a protocol-result digest must not be constructible as a producer reference"
     );
 }
