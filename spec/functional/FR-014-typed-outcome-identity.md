@@ -42,13 +42,32 @@ The library SHALL derive a typed outcome identity from no display text, locale o
   [NFR-005](../non-functional/NFR-005-retain-composed-acceptance-evidence.md)
   scopes it: "two axes sharing one may not" collide *within* one integration.
 - **refusal_axis** (identity component) — the named way the outcome differs from
-  success. This repository's corpus enumerates them as `ExpectedRefusal` in
-  `tests/support/v2/mod.rs`: wrong contract version, changed selection, changed
-  offer, cross-domain digest, recanonicalized input, temporal binding, and
-  exhausted budget. The enumeration is the corpus; the injectivity obligation is
-  this requirement's.
-- **outcome_kind** (identity component) — which of the three non-equivalent
-  outcome senses this is, as the three-way distinction below establishes.
+  success. This repository's test corpus enumerates the axes it exercises as
+  `ExpectedRefusal` in `tests/support/v2/mod.rs`. That enumeration is a scenario
+  index and not a refusal vocabulary: the refusal a caller receives is the
+  producer's own value, from `protocol_artifact::Error` and its
+  `protocol_artifact::{Invalid, Unsupported}` payloads, carried unmodified.
+
+  Five of the corpus axes name conditions the producer already has codes for —
+  a wrong contract version is `Unsupported::Wire`, a cross-domain digest is
+  `Invalid::Seal`, a recanonicalized input is `Invalid::Canonical`, a temporal
+  binding fault is `Invalid::Binding` or `Invalid::Order`, and an exhausted
+  budget is `Error::Incomplete`. This requirement selects none of them, spells
+  none of them, and does not re-partition them: the producer decides how coarse
+  its codes are, and several corpus axes may share one code.
+
+  The injectivity obligation is this requirement's and is stated over the
+  producer-supplied interior, not over this key: `refusal_axis` is a key
+  component, so a criterion asserting that distinct axes carry distinct
+  identities could never fail. `FR-014-AC-1` states it over the producer's code
+  and cause instead.
+- **outcome_kind** (identity component) — which non-equivalent outcome sense
+  this is. The distinction below records which of them this repository returns;
+  it establishes no vocabulary. Where an outcome reports whether a requested
+  evaluator ran, the vocabulary is
+  `ix://agent-ix/quire-specification/FR-241`'s five members — `completed`,
+  `refused`, `unsupported`, `resource-incomplete`, `failed` — and that is the
+  spelling used.
 - **envelope interior** (referenced, not owned) — the selected diagnostic-catalog
   identity/revision/digest, the diagnostic code, the typed causes, the
   originating stage and the location kind. These are upstream's `FR-270` through
@@ -88,16 +107,25 @@ scenarios may exercise one axis, and they carry that axis's one identity.
 
 ### The three-way outcome distinction
 
-Three outcomes are non-equivalent, and none is reportable as another
+These outcomes are non-equivalent, and none is reportable as another
 ([IT-003](../integration/IT-003-publish-assurance-and-e02-results.md)-SC-06):
 
-| Outcome kind | Returned when | Owner |
-| --- | --- | --- |
-| Resource-incomplete | A declared budget dimension is exhausted | [NFR-002](../non-functional/NFR-002-enforce-resource-bounds.md) |
-| Typed refusal | An input is invalid | [FR-008](./FR-008-return-typed-refusals.md) |
-| Completed, empty | An assessment completed and its finding set is legitimately empty | [FR-006](./FR-006-produce-canonical-protocol-results.md) |
+| Outcome kind | `FR-241` member | Returned when | Owner |
+| --- | --- | --- | --- |
+| Resource-incomplete | `resource-incomplete` | A declared budget dimension is exhausted | [NFR-002](../non-functional/NFR-002-enforce-resource-bounds.md) |
+| Typed refusal | `refused` | An input is invalid | [FR-008](./FR-008-return-typed-refusals.md) |
+| Unsupported | `unsupported` | The requested capability is unsupported | `FR-241`; one unsupported request does not remove an independent supported result (FR-061-AC-5) |
+| Failed | `failed` | The selected analysis backend failed for this exact claim | `FR-241` |
+| Completed, empty | `completed` | An assessment completed and its finding set is legitimately empty | [FR-006](./FR-006-produce-canonical-protocol-results.md) |
 
-Neither non-success outcome yields an E02 success, and each carries the reason it
+An earlier revision of this table carried three rows and called them "the three
+non-equivalent outcome senses". That collapsed `FR-241`'s five published members
+into three, folding `unsupported` and `failed` into "typed refusal" — a
+distinction `FR-062` projects separately to E02 as `unsupported` and `failed`,
+so the collapse was not merely coarse, it was lossy at a boundary this
+repository crosses.
+
+No non-success outcome yields an E02 success, and each carries the reason it
 did not complete rather than an empty finding set that reads as clean.
 
 ## Identity and comparison
@@ -148,7 +176,7 @@ did not complete rather than an empty finding set that reads as clean.
 | FR-014-AC-3 | The mapping from this repository's outcome identities onto a producer's typed refusal enum is injective, and a mapping collapsing two axes onto one producer code fails the integration. | Analysis |
 | FR-014-AC-4 | An integration in which every negative row carries one shared identity fails the distinctness check rather than reporting full coverage. | Test (TC-011) |
 | FR-014-AC-5 | A resource-incomplete outcome, a typed refusal and a completed assessment with an empty finding set compare pairwise unequal, and none is reported as another. | Test (TC-011, IT-003) |
-| FR-014-AC-6 | Neither non-success outcome yields an E02 success, and each carries the reason it did not complete. | Test (IT-003) |
+| FR-014-AC-6 | No non-success outcome yields an E02 success, and each carries the reason it did not complete. | Test (IT-003) |
 | FR-014-AC-7 | Changing display text, locale or cause rendering changes no typed outcome identity, no equality comparison and no retry decision. | Test (TC-011) |
 | FR-014-AC-8 | No local member list, key or order is supplied for the interior axes upstream records as open, and each such dependency cites the upstream gap. | Inspection |
 

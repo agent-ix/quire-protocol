@@ -30,7 +30,7 @@ Object instances differing only in display name, source path, span, message
 text, locale or rendering; producer-authored identities with absent and with
 malformed components; consumer-authored identities offered as producer
 references and as producer selectors; identical byte sequences carried in each
-of the four digest domains; and keys with an absent component alongside keys
+digest domain `FR-015` selects; and keys with an absent component alongside keys
 with a defaulted, empty and present component in the same position.
 
 ## Test Procedure
@@ -49,9 +49,10 @@ with a defaulted, empty and present component in the same position.
    result, then as a selector to a producer.
    - TC-014-SC-03: both are refused, and no canonical result carries a
      consumer-authored identity in a producer reference position.
-4. Present one byte sequence in each digest domain and compare across every
-   ordered pair.
-   - TC-014-SC-04: for all twelve ordered pairs, a component from one domain is
+4. Present one byte sequence in each selected digest domain and compare across
+   every ordered pair.
+   - TC-014-SC-04: for both ordered pairs of the two members `FR-015` selects
+     from `FR-201`'s published vocabulary, a component from one domain is
      unequal to a component from another over identical bytes, in both
      directions.
 5. Compare an absent key component against a defaulted, an empty and a present

@@ -197,9 +197,15 @@ dimension, one unit short of it, and a fresh budget at the exact value.
      and ordering are judged against the version 2 wire rule quoted in Preconditions
      — one binding per temporal declaration, sorted by `declaration`, no repeats
      — and `out-of-range` against upstream `FR-255-bounded-temporal-interval`.
-     `foreign-owner` is grounded in neither: no owner component appears in A's
-     binding record or in any upstream key, so B checks it against the producer
-     identities it independently retains and says so.
+     `foreign-owner` is grounded in the same version 2 wire rule: the producer's
+     contract states "Missing, surplus, duplicate, out-of-order, foreign-owner or
+     out-of-range bindings refuse", so the axis is the producer's and the reader
+     refuses it. An earlier revision of this scenario claimed `foreign-owner`
+     "is grounded in neither: no owner component appears in A's binding record or
+     in any upstream key" — false against the same contract file this scenario
+     quotes for cardinality and ordering. What remains true is narrower: no
+     *owner component* appears in `FR-252`'s clock-binding key, so the axis is
+     grounded in the producer's wire contract and not in an upstream key.
 9. Submit one unchanged version 2 input under a budget set exactly to what that
    input consumes on each declared limit dimension, then under a budget one unit
    short of it, then resubmit the same input under a fresh budget at the exact

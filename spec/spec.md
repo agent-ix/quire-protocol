@@ -141,9 +141,27 @@ premises. Missing or conflicting premises remain explicit.
 
 ### 10.1 Error Classification
 
-Failures distinguish invalid or unaccepted input, identity mismatch, unsupported
-capability/version, resource exhaustion, incomplete evidence, producer failure,
-semantic violation, and projection finding loss.
+Failure classification is not this repository's vocabulary and is not restated
+here. Three owners publish it, and each is used at its own boundary:
+
+- Whether a requested evaluator ran:
+  `ix://agent-ix/quire-specification/FR-241`, five members.
+- Why a projection to E02 was refused:
+  `ix://agent-ix/quire-specification/FR-283`, whose spellings are kebab-case
+  and "distinct from the snake_case native producer codes of FR-271".
+- Why an offered artifact was not admitted: the producer's own
+  `protocol_artifact::Error`, with its `Invalid` and `Unsupported` payloads,
+  carried unmodified.
+
+[FR-014](functional/FR-014-typed-outcome-identity.md) states the identity of an
+outcome this library returns; [FR-008](functional/FR-008-return-typed-refusals.md)
+owns the envelope that carries one.
+
+An earlier revision of this section listed eight failure classes in prose —
+"invalid or unaccepted input, identity mismatch, unsupported capability/version,
+resource exhaustion, incomplete evidence, producer failure, semantic violation,
+and projection finding loss". That was a third rendering of FR-241's and
+FR-283's members in spellings neither publishes.
 
 ### 10.2 Failure Handling Guarantees
 

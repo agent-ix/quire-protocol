@@ -34,7 +34,7 @@ the stated ground that `FR-201` "types the domain label kind" while selecting no
 member. That characterisation was wrong, and the requirement built on it was a
 boundary breach.
 
-`FR-201` is `object: value_object`. It publishes nine members —
+`FR-201` is `object: enumeration`. It publishes nine members —
 `ir-canonical`, `ir-bound`, `ir-semantic`, `filament-fingerprint`,
 `package-fingerprint`, `lock-file-digest`, `raw-artifact-digest`,
 `typed-expression-identity`, `quire.verification.jcs` — and states of itself:
