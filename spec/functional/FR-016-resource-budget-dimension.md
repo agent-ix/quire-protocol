@@ -24,9 +24,16 @@ When consumption on one dimension would exceed the budget granted on that dimens
 
 ## Values
 
-Each member is one accounted dimension. `NFR-002` enumerates the request
-dimensions; `FR-009` "Bounds" adds the three dimensions resolution consumes
-before any producer value is read.
+Each member is one dimension **a caller grants to this library**. `NFR-002`
+states them as "every positive caller-supplied input-byte, definition, node,
+edge, role, message, branch, iteration, active-instance, observation, lineage,
+result-item, derived-artifact, output-byte, operation, accounted-allocation, and
+elapsed-time limit selected for the exact request"; `FR-009` "Bounds" adds the
+three dimensions resolution consumes before any producer value is read.
+
+These are this repository's own, at its own API boundary. They are not the
+dimensions a producer accounts while reading an offered artifact — those are the
+producer's, and are selected below rather than named here.
 
 | Value | Description |
 | --- | --- |
@@ -51,9 +58,31 @@ before any producer value is read.
 | `resolution-bytes-digested` | Bytes digested during FR-009 resolution. |
 | `resolution-deadline` | The deadline FR-009 resolution runs under. It is resolution's own deadline dimension and is not the request's `elapsed-time` budget; exceeding it returns resolution's resource-incomplete outcome and reads no producer value. |
 
-Membership is closed to the dimensions the requirements above declare. A
-dimension not declared by a requirement has no budget here, and this repository
-invents no universal threshold for it (NFR-002 Rationale).
+Membership of **this** table is closed to the dimensions the requirements above
+declare. A dimension not declared by a requirement has no budget here, and this
+repository invents no universal threshold for it (NFR-002 Rationale).
+
+The closure covers the caller-facing table only. It says nothing about the
+producer's dimensions, which this requirement does not own and does not bound.
+
+## The producer's dimensions are selected, never re-spelled
+
+While reading an offered artifact the producer accounts its own resources and
+reports its own exhausted dimension. That vocabulary is
+`protocol_artifact::work::Dimension`, which the producer documents as "The
+exact exhausted resource, never inferred from a diagnostic string", with the
+matching `Limits` fields a caller grants. Thirteen members.
+
+This requirement selects that vocabulary whole and re-tabulates no member of
+it. Where a producer read exhausts a resource, the reported dimension is the
+producer's own value, spelled as the producer spells it. This library does not
+translate it into a member of the table above, and a caller comparing the two
+compares two vocabularies, not one.
+
+The two sets overlap in subject without being the same dimension: a caller's
+`input-byte` grant bounds what this library accepts at its own boundary, while
+the producer's `PayloadBytes` bounds what the producer decodes. Neither is
+derived from the other, and neither may be reported in the other's place.
 
 ## A budget is per dimension, not scalar
 

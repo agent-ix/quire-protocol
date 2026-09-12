@@ -69,9 +69,15 @@ emitted by the producer.
   binding records this repository retains, each carrying an owner, a
   `declaration` and a path. The temporal semantics themselves are
   `ix://agent-ix/quire-specification`'s and are referenced, never restated here.
-- **limits** (state) — one entry per producer-declared resource limit, naming the
-  limit and its exact bound. Each supplies the exact value the exactly-sufficient
-  probe of [FR-016](./FR-016-resource-budget-dimension.md) is run at.
+- **limits** (state) — one entry per resource limit the exactly-sufficient probe
+  of [FR-016](./FR-016-resource-budget-dimension.md) is to be run at, naming the
+  limit and its exact bound. The limit name is carried as an opaque string and is
+  not resolved against any vocabulary here: an entry may name a dimension this
+  repository grants (`FR-016`) or one the producer reports
+  (`protocol_artifact::work::Dimension`), and the index does not decide which.
+  An earlier revision called these "producer-declared" limits, which was wrong in
+  both directions — `FR-016`'s dimensions are caller-supplied, and the producer's
+  are not declared in this index.
 - **mutations** (state) — one entry per producer-supplied mutation fixture,
   naming the fixture, the scenario it belongs to, and its path. A scenario with
   more than one registered mutation fixture is ambiguous and is reported, not
