@@ -28,12 +28,21 @@ consumer increment. Its tests remain `#[ignore]` because they require A's
 stripped release producer output and retain A's draft wire labels; they do not
 change the planned status of FR-001, FR-002, or IT-001's full scenario matrix.
 
+IT-001 is split into two rows because `/1` and `/2` are separate contracts that
+may not substitute for each other. The `/2` row is blocked, not planned: A has
+published no `protocol_artifact::v2` boundary on `quire-spec-language`
+`origin/main`, so SC-06 through SC-09 are unexecuted and cannot be executed. The
+B-owned tests that exist for `/2` (`tests/it001_v2_intake.rs`) are tagged
+`Task-009` only and carry no `IT-001` trace tag: they assert B's own evidence
+loader and scenario corpus and make no claim about A's behaviour, so they must
+not be counted as backing symbols for any IT-001 scenario.
+
 ## Functional Requirement Coverage
 
 | Functional Req | Acceptance Criteria | Test Cases | Coverage Status |
 | --- | --- | --- | --- |
-| FR-001 | FR-001-AC-1, FR-001-AC-2, FR-001-AC-3, FR-001-AC-4 | TC-001, IT-001 | 🚧 Planned |
-| FR-002 | FR-002-AC-1, FR-002-AC-2, FR-002-AC-3, FR-002-AC-4 | TC-002, IT-001 | 🚧 Planned |
+| FR-001 | FR-001-AC-1, FR-001-AC-2, FR-001-AC-3, FR-001-AC-4, FR-001-AC-5 | TC-001, IT-001 | 🚧 Planned (FR-001-AC-5 blocked on A's `/2` boundary) |
+| FR-002 | FR-002-AC-1, FR-002-AC-2, FR-002-AC-3, FR-002-AC-4, FR-002-AC-5 | TC-002, IT-001 | 🚧 Planned (FR-002-AC-5 blocked on A's `/2` boundary) |
 | FR-003 | FR-003-AC-1, FR-003-AC-2, FR-003-AC-3, FR-003-AC-4, FR-003-AC-5, FR-003-AC-6, FR-003-AC-7 | TC-003, IT-002 | 🚧 Planned |
 | FR-004 | FR-004-AC-1, FR-004-AC-2, FR-004-AC-3, FR-004-AC-4 | TC-004, IT-002 | 🚧 Planned (FR-004-AC-3 landed by `tests/tc_004_closure_axes.rs`) |
 | FR-005 | FR-005-AC-1, FR-005-AC-2, FR-005-AC-3, FR-005-AC-4, FR-005-AC-5 | TC-005 | 🚧 Planned |
@@ -46,7 +55,7 @@ change the planned status of FR-001, FR-002, or IT-001's full scenario matrix.
 | Non-Functional Req | Verification Method | Evidence/Test Cases | Status |
 | --- | --- | --- | --- |
 | NFR-001 | Property and metamorphic testing | TC-008 | 🚧 Planned |
-| NFR-002 | Property, mutation, and source-bound inventory inspection | TC-009 | 🚧 Planned |
+| NFR-002 | Property, mutation, and source-bound inventory inspection | TC-009, IT-001 | 🚧 Planned (IT-001 SC-07/SC-09 blocked on A's `/2` boundary) |
 | NFR-003 | Shared Rust language-boundary check, static analysis, architecture inspection, Rust review, Quire coverage, gap analysis | TC-010, IT-003 | 🚧 Planned |
 | NFR-004 | Cargo metadata inspection, conditional-compilation inventory, enumerated gate execution over one unchanged head, per-criterion negative controls | TC-012, IT-003 | 🚧 Planned |
 
@@ -54,7 +63,8 @@ change the planned status of FR-001, FR-002, or IT-001's full scenario matrix.
 
 | Integration Test | Boundary | Requirements | Status |
 | --- | --- | --- | --- |
-| IT-001 | Native compiler artifact to protocol library | FR-001, FR-002 | 🚧 Planned |
+| IT-001 `/1` | Native compiler `quire.compiled-protocol/1` artifact to protocol library | FR-001, FR-002 | 🚧 Planned (SC-01..SC-05; fixture lane `#[ignore]`) |
+| IT-001 `/2` | Native compiler `/2` artifact to protocol library | FR-001-AC-5, FR-002-AC-5, NFR-002 | ⛔ Blocked — SC-06..SC-09 unexecuted; A has published no `protocol_artifact::v2` |
 | IT-002 | Observation and temporal facts to protocol evaluator/result | FR-003, FR-004, FR-006 | 🚧 Planned |
 | IT-003 | Protocol result through Engineering Assurance, E02, and Quoin | FR-006, FR-007, NFR-003, NFR-004 | 🚧 Planned |
 

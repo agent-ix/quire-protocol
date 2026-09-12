@@ -20,3 +20,4 @@ okf_version: "0.1"
 * [Task-009: Integrate the native compiler artifact](./tasks/Task-009-integrate-native-compiler.md) - Exercise the accepted compiler-to-library contract.
 * [Task-010: Integrate observation and temporal facts](./tasks/Task-010-integrate-observation-temporal.md) - Exercise accepted producer facts through canonical results.
 * [Task-011: Complete shared assurance and qualification](./tasks/Task-011-assurance-qualification-gate.md) - Exercise Engineering Assurance, E02, and Quoin, then run the unchanged-head gate.
+* [Task-012: Consume the version-explicit compiled-protocol /2 artifact](./tasks/Task-012-consume-versioned-protocol-v2.md) - Add a distinct `/2` entry point for IT-001 SC-06 through SC-09; blocked on A publishing the boundary.
