@@ -31,7 +31,7 @@ The comparator SHALL compare a value whose provenance is absent against no expec
   *Selected* is what this repository independently retained before it inspected
   any offer; *offered* is what the external producer presented. The distinction
   is the one `tests/support/v2/mod.rs` states on `OfferedAxis`: "Distinct from
-  `SelectionAxis`: those change what B independently selected, these change what
+  `MutatedSelection`: those change what B independently selected, these change what
   A offered. Both must refuse, for different reasons."
 - **subject** (identity component) — the thing the value is a value *of*: the
   identity within its provenance side that the comparison is about.
@@ -61,7 +61,7 @@ A contract version is likewise never inferred from the offered bytes
 
 This artifact types the **discrimination** — the provenance-bearing key and the
 rule that byte equality never collapses the two sides. It does not type the axis
-lists. `SelectionAxis`'s thirteen members and `OfferedAxis`'s six members are
+lists. `MutatedSelection`'s thirteen members and `OfferedAxis`'s six members are
 this repository's test corpus for the discrimination, enumerated per contract in
 the integration lane, and adding or removing a member changes no obligation
 stated here.

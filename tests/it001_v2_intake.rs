@@ -21,7 +21,7 @@ mod v2;
 
 use v2::{
     Absence, CrossVersion, DigestDomain, Disposition, ExpectedRefusal, Fixture, IndexedLimit,
-    LimitBound, OfferedAxis, ProducerInput, Scenario, ScenarioKind, SelectionAxis,
+    LimitBound, MutatedSelection, OfferedAxis, ProducerInput, Scenario, ScenarioKind,
     TemporalBindingMutation, REQUIRED_A_DELIVERABLES,
 };
 
@@ -44,7 +44,7 @@ fn static_corpus_ids_are_unique() {
 #[trace("Task-009")]
 fn static_corpus_covers_every_changed_selection_axis() {
     let scenarios = v2::static_scenarios();
-    for axis in SelectionAxis::ALL {
+    for axis in MutatedSelection::ALL {
         assert!(
             scenarios
                 .iter()
@@ -58,7 +58,7 @@ fn static_corpus_covers_every_changed_selection_axis() {
             kind,
             ScenarioKind::ChangedSelection(_)
         )),
-        SelectionAxis::ALL.len()
+        MutatedSelection::ALL.len()
     );
 }
 

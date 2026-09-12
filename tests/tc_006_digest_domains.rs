@@ -12,7 +12,7 @@ use quire_protocol::{
         producer::{DigestDomain, DigestSlot, OfferedDomain, ProducerDigestRef},
     },
     inventory::{
-        axis::SelectionAxis, DigestClassification, ResultDigestRefusal, SelectedInventory,
+        axis::DivergedSelection, DigestClassification, ResultDigestRefusal, SelectedInventory,
     },
     wire, ByteDigest, Expected,
 };
@@ -313,7 +313,7 @@ fn tc_006_jcs_is_member_order_invariant_and_refuses_numbers() {
 #[test]
 #[trace("TC-006", "FR-001-AC-2")]
 fn tc_006_no_two_selection_axes_share_a_code() {
-    let axes = SelectionAxis::ALL;
+    let axes = DivergedSelection::ALL;
     for (index, left) in axes.iter().enumerate() {
         for right in &axes[index + 1..] {
             assert_ne!(left, right);

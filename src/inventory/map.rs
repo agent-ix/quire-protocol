@@ -20,7 +20,7 @@ use serde_json::Value;
 use quire_spec_language::protocol_artifact::{Exhaustion, NumberError};
 
 use crate::digest::producer::{CrossDomainDigest, DigestSlot};
-use crate::inventory::axis::SelectionAxis;
+use crate::inventory::axis::DivergedSelection;
 use crate::inventory::{DigestClassification, InventoryError, SelectedInventory};
 use crate::{admit_and_link, wire, AdmittedPackage, Error, Expected, Invalid, Limits, Unsupported};
 
@@ -32,7 +32,7 @@ pub enum AdmissionRefusal {
     /// evaluation and never degrades into a parse failure.
     CrossDomainDigest(CrossDomainDigest),
     /// A's collapsed selection refusal, resolved to the one axis that diverged.
-    Selection(SelectionAxis),
+    Selection(DivergedSelection),
     /// The offered bytes do not match the independently selected external seal.
     Seal,
     /// Any other A `Invalid` classification, retained uninterpreted.
@@ -93,7 +93,7 @@ pub fn admit_discriminating(
         Err(error) => Err(match classify_source(&error) {
             // A's one collapsed code is the only classification that needs B's
             // inventory to become a single axis.
-            AdmissionRefusal::Selection(SelectionAxis::Undetermined) => {
+            AdmissionRefusal::Selection(DivergedSelection::Undetermined) => {
                 AdmissionRefusal::Selection(selection_axis(&inventory, offer.as_ref(), expected))
             }
             refused => refused,
@@ -172,7 +172,7 @@ fn classify_invalid(code: Invalid) -> AdmissionRefusal {
     match code {
         // Left unresolved here: naming the axis needs B's own inventory and the
         // offer, which `admit_discriminating` supplies.
-        Invalid::Selection => AdmissionRefusal::Selection(SelectionAxis::Undetermined),
+        Invalid::Selection => AdmissionRefusal::Selection(DivergedSelection::Undetermined),
         Invalid::Seal => AdmissionRefusal::Seal,
         Invalid::Name
         | Invalid::StructuralInteger
@@ -213,9 +213,9 @@ fn selection_axis(
     inventory: &SelectedInventory,
     offer: Option<&Value>,
     expected: &Expected<'_>,
-) -> SelectionAxis {
+) -> DivergedSelection {
     let Some(offer) = offer else {
-        return SelectionAxis::Undetermined;
+        return DivergedSelection::Undetermined;
     };
     if let Some(axis) = reference_axis(
         inventory,
@@ -224,10 +224,10 @@ fn selection_axis(
         expected.contract,
         DigestSlot::Contract,
         &ReferenceAxes {
-            identity: SelectionAxis::ContractIdentity,
-            revision: SelectionAxis::ContractRevision,
-            digest: SelectionAxis::ContractDigest,
-            reference: SelectionAxis::ContractReference,
+            identity: DivergedSelection::ContractIdentity,
+            revision: DivergedSelection::ContractRevision,
+            digest: DivergedSelection::ContractDigest,
+            reference: DivergedSelection::ContractReference,
         },
     ) {
         return axis;
@@ -242,23 +242,23 @@ fn selection_axis(
         expected.baseline,
         DigestSlot::Baseline,
         &ReferenceAxes {
-            identity: SelectionAxis::BaselineIdentity,
-            revision: SelectionAxis::BaselineSelectionState,
-            digest: SelectionAxis::BaselineDigest,
-            reference: SelectionAxis::BaselineReference,
+            identity: DivergedSelection::BaselineIdentity,
+            revision: DivergedSelection::BaselineSelectionState,
+            digest: DivergedSelection::BaselineDigest,
+            reference: DivergedSelection::BaselineReference,
         },
     ) {
         return axis;
     }
-    SelectionAxis::Undetermined
+    DivergedSelection::Undetermined
 }
 
 /// The four axes one artifact reference can diverge on.
 struct ReferenceAxes {
-    identity: SelectionAxis,
-    revision: SelectionAxis,
-    digest: SelectionAxis,
-    reference: SelectionAxis,
+    identity: DivergedSelection,
+    revision: DivergedSelection,
+    digest: DivergedSelection,
+    reference: DivergedSelection,
 }
 
 fn reference_axis(
@@ -268,7 +268,7 @@ fn reference_axis(
     selected: &wire::ArtifactRef,
     slot: DigestSlot,
     axes: &ReferenceAxes,
-) -> Option<SelectionAxis> {
+) -> Option<DivergedSelection> {
     let offered = member(offer, path)?;
     let selected_value = serde_json::to_value(selected).ok()?;
     if offered == &selected_value {
@@ -291,19 +291,19 @@ fn reference_axis(
     }
 }
 
-fn producer_axis(offer: &Value, expected: &Expected<'_>) -> Option<SelectionAxis> {
+fn producer_axis(offer: &Value, expected: &Expected<'_>) -> Option<DivergedSelection> {
     let offered = member(offer, &["producer"])?;
     let selected = serde_json::to_value(expected.producer).ok()?;
     if offered == &selected {
         return None;
     }
     if member(offered, &["implementation"]) != member(&selected, &["implementation"]) {
-        return Some(SelectionAxis::ProducerIdentity);
+        return Some(DivergedSelection::ProducerIdentity);
     }
     if member(offered, &["revision"]) != member(&selected, &["revision"]) {
-        return Some(SelectionAxis::ProducerRevision);
+        return Some(DivergedSelection::ProducerRevision);
     }
-    Some(SelectionAxis::ProducerBinary)
+    Some(DivergedSelection::ProducerBinary)
 }
 
 fn member<'a>(value: &'a Value, path: &[&str]) -> Option<&'a Value> {

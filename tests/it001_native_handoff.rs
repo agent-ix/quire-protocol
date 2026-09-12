@@ -9,7 +9,7 @@ use quire_protocol::{
     admit_and_link,
     digest::producer::{CrossDomainDigest, DigestDomain, DigestSlot, OfferedDomain},
     inventory::{
-        axis::SelectionAxis,
+        axis::DivergedSelection,
         map::{admit_discriminating, AdmissionRefusal},
         SelectedInventory,
     },
@@ -498,7 +498,7 @@ fn it_001_refuses_one_axis_producer_identity_change() {
     let error = fixture.discriminate(&selection, &changed).unwrap_err();
     assert_eq!(
         error,
-        AdmissionRefusal::Selection(SelectionAxis::ProducerIdentity),
+        AdmissionRefusal::Selection(DivergedSelection::ProducerIdentity),
         "got {error:?}"
     );
 }
@@ -631,7 +631,7 @@ fn it_001_refuses_one_axis_stale_baseline_selection() {
     let error = fixture.discriminate(&selection, &changed).unwrap_err();
     assert_eq!(
         error,
-        AdmissionRefusal::Selection(SelectionAxis::BaselineSelectionState),
+        AdmissionRefusal::Selection(DivergedSelection::BaselineSelectionState),
         "got {error:?}"
     );
 }
@@ -657,7 +657,7 @@ fn it_001_refuses_one_axis_changed_baseline_digest() {
     let error = fixture.discriminate(&selection, &changed).unwrap_err();
     assert_eq!(
         error,
-        AdmissionRefusal::Selection(SelectionAxis::BaselineDigest),
+        AdmissionRefusal::Selection(DivergedSelection::BaselineDigest),
         "got {error:?}"
     );
 }

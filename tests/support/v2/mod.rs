@@ -414,7 +414,7 @@ fn require(root: &Path, role: &str, path: &str) -> Result<(), Absence> {
 
 /// A selection axis B retains independently and mutates one at a time.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum SelectionAxis {
+pub enum MutatedSelection {
     Artifact,
     Contract,
     Baseline,
@@ -430,7 +430,7 @@ pub enum SelectionAxis {
     ClockParameter,
 }
 
-impl SelectionAxis {
+impl MutatedSelection {
     pub const ALL: [Self; 13] = [
         Self::Artifact,
         Self::Contract,
@@ -468,7 +468,7 @@ impl SelectionAxis {
 
 /// An axis of the *offered artifact* that IT-001 mutates for both lanes.
 ///
-/// Distinct from `SelectionAxis`: those change what B independently selected,
+/// Distinct from `MutatedSelection`: those change what B independently selected,
 /// these change what A offered. Both must refuse, for different reasons.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum OfferedAxis {
@@ -613,7 +613,7 @@ pub enum ScenarioKind {
     /// The exact offered bytes against the independently built selection.
     Valid,
     CrossVersion(CrossVersion),
-    ChangedSelection(SelectionAxis),
+    ChangedSelection(MutatedSelection),
     /// A resealed mutation of the offered artifact itself.
     ChangedOffer(OfferedAxis),
     /// A digest of `offered` presented in `slot`'s position.
@@ -651,7 +651,7 @@ pub enum ExpectedRefusal {
     /// Bytes of one contract version offered at another version's entry point.
     WrongContractVersion(CrossVersion),
     /// A B-retained selection identity that does not match the offer.
-    ChangedSelection(SelectionAxis),
+    ChangedSelection(MutatedSelection),
     /// An offered-artifact axis A mutated after sealing.
     ChangedOffer(OfferedAxis),
     /// A digest of one domain presented in another domain's slot.
@@ -706,7 +706,7 @@ pub fn static_scenarios() -> Vec<Scenario> {
         ));
     }
 
-    for axis in SelectionAxis::ALL {
+    for axis in MutatedSelection::ALL {
         scenarios.push(refusing(
             format!("v2-changed-{}", axis.slug()),
             "IT-001-SC-06",
