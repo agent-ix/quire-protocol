@@ -94,16 +94,19 @@ adopted, not restated.
 
 ### Where the upstream vocabulary does not yet reach
 
-- **Compensation attempt** — `FR-235-compensation-attempt` records that its
-  identity kind is "not established by the prose", that its key is "not
-  established — the prose states only what the key is *not*", and that no order
-  over attempts exists.
-- **Commit boundary** — `FR-237-commit-boundary` records that "no requirement
-  names the components that identify a commit boundary or a commit observation",
-  and warns that "the commit ordering checked by FR-057 is a causal order, not a
-  key order, and must not be read as one".
-- **Recovery relation** — `FR-238-recovery-relation` records that "no requirement
-  names the components that identify one recovery relation".
+- **Compensation attempt** — `FR-235-compensation-attempt` records under Open
+  gap that the prose establishes an attempt has an identity, is distinct from an
+  effect identity, and several things that cannot serve as it, and then that "It
+  does not establish:" its identity kind, its key components, or an order.
+- **Commit boundary** — `FR-237-commit-boundary`'s Open gap lists, verbatim:
+  "**Identity** — whether a commit boundary is a distinct identified subject or
+  only a position in the authored order"; "**Key** — which components identify
+  one commit boundary or one commit observation"; "**Order** — no key order
+  follows, since the components are unfixed."
+- **Recovery relation** — `FR-238-recovery-relation` records that the prose
+  establishes a recovery relation is authored, typed, per compensation and
+  evaluated under selected profiles, and then that "It does not establish:" the
+  components that identify one.
 - **Business effect duplication** — `FR-226-business-effect` states that its key
   cannot detect a duplicate effect, which this requirement's partial-recovery
   obligations depend on detecting.

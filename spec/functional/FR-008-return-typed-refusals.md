@@ -102,7 +102,15 @@ identity. Its **interior** is upstream's:
 
 ### Where the upstream vocabulary does not yet reach
 
-Four of the five interiors carry open gaps that bear directly on this
+**The catalog itself is not adopted.** `FR-270-versioned-diagnostic-catalog`
+records that "The only catalog so far offered is the **proposed** native
+diagnostic interpretation … which states of itself: '**Proposed, not adopted or
+implemented.**' It is source material here, not an adopted selection." Every
+criterion below that selects a catalog identity, revision or digest therefore
+selects something no adopted artifact supplies. This is a version-lock entry in
+FR-009's terms, and it is `unresolved`.
+
+Four of the five interiors carry further open gaps that bear directly on this
 requirement's criteria:
 
 - **FR-271** records that "no requirement states which convention belongs to

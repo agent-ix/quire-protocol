@@ -122,10 +122,14 @@ reference rather than reconciled.
   surrounding-execution progress and closure to remain distinct and to be
   independently mutated. That obligation stands; the member lists it would be
   mutated across do not exist upstream.
-- **Settlement basis membership is stated three ways upstream.**
-  `FR-243-settlement-basis` records that three requirements "do not state the
-  same membership. Two list five members, one lists four and never names the
-  fifth." This requirement cites the axis, not a membership.
+- **Settlement basis membership is not stated uniformly upstream.**
+  `FR-243-settlement-basis` carries a section headed "Recorded divergence:
+  membership is not stated uniformly", opening: "Four requirements state this
+  vocabulary and one of them lists only four members." Its Open gap is explicit
+  about which: "FR-091 lists four members where FR-061, FR-094-AC-7 and FR-115
+  list five. No requirement states whether FR-091's evaluator may emit
+  `unavailable`. Both lists are quoted above; this artifact does not merge them."
+  This requirement cites the axis, not a membership.
 - **Participation is unenumerated at the source** (FR-240).
 
 ## Dependencies

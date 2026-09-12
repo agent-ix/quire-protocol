@@ -105,7 +105,15 @@ did not complete rather than an empty finding set that reads as clean.
   result as a producer reference. The producer's own code, catalog and stage
   inside the envelope stay producer-authored and are copied byte-exactly.
 - **Key** — (`integration`, `refusal_axis`, `outcome_kind`). Equality is
-  componentwise over exactly those three. Display text, locale, cause rendering,
+  componentwise over exactly those three.
+
+  **This key cannot be the injectivity oracle, and no criterion here treats it
+  as one.** `refusal_axis` is itself a key component, so "two distinct axes carry
+  distinct identities" is true by construction: the check could never fail, and
+  the defect it exists to catch — one shared producer code across two unrelated
+  axes — would stay invisible behind it. The injectivity obligation below is
+  therefore stated over the *observed interior* the envelope carries, which the
+  key does not determine. Display text, locale, cause rendering,
   message wording, path and span never participate, and none reconstructs an
   absent component (FR-008-AC-2, `FR-204`). Scenario identity is deliberately
   absent from the key: including it would make every scenario's outcome trivially
@@ -131,7 +139,7 @@ did not complete rather than an empty finding set that reads as clean.
 
 | ID | Criteria | Verification |
 | --- | --- | --- |
-| FR-014-AC-1 | Within one integration, every pair of distinct refusal axes carries distinct typed outcome identities, for every ordered pair of axes. | Test (TC-011) |
+| FR-014-AC-1 | Within one integration, for every ordered pair of distinct refusal axes, the producer-supplied interior the envelope carries — its `FR-271` code together with its `FR-272` typed cause — differs between the two. Two axes returning one shared code and cause fail this criterion, and the failure is reported against the pair rather than absorbed as a passing row. | Test (TC-011) |
 | FR-014-AC-2 | Two scenarios exercising one refusal axis carry one typed outcome identity, and that sharing fails no distinctness check. | Test (TC-011) |
 | FR-014-AC-3 | The mapping from this repository's outcome identities onto a producer's typed refusal enum is injective, and a mapping collapsing two axes onto one producer code fails the integration. | Analysis |
 | FR-014-AC-4 | An integration in which every negative row carries one shared identity fails the distinctness check rather than reporting full coverage. | Test (TC-011) |

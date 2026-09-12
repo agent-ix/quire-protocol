@@ -61,7 +61,11 @@ Candidate subsystems derived from what FR-001..FR-009 actually cover:
 
 - **FRs claimed by more than one candidate subsystem: 2 of 9.** FR-002 and
   FR-004.
-- **Candidate subsystems spanning more than one owner: 0 of 9.** Every
+- **Candidate subsystems spanning more than one owner: 0 of 11.** The table
+  above has eleven rows, so eleven is the denominator; an earlier statement of
+  this measurement used nine, the requirement count, which is the denominator for
+  the double-claim figure and not for this one. The substantive result is
+  unchanged. Every
   requirement under `spec/` is B-authored and B-owned. A, E, F, Engineering
   Assurance, E02 and Quoin appear only as external producers behind FR-009's
   version-lock manifest and in IT-001..IT-003; none owns an artifact here.

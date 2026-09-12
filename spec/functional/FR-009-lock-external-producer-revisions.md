@@ -38,7 +38,8 @@ cannot be assessed without confusing one producer's authority for another's.
 - The external producers: the A-owned compiled-protocol artifact contract at each
   published version, the E-owned temporal profile, the F-owned observation and
   output-mapping contracts, the Engineering Assurance typed producer-execution
-  seam, the E02 strict reader, and the Quoin evidence interface. The
+  seam, the E02 strict reader, the selected diagnostic catalog whose identity,
+  revision and digest FR-008 binds, and the Quoin evidence interface. The
   complete-global-conformance closure record is not among them: it is B-authored
   in `quire-specification` and takes no entry, because no external owner can
   assert anything about it.
@@ -166,6 +167,7 @@ Every entry is `unresolved`. None can be pinned, and each names why.
 | F observation / output mapping | F-owned FR-115/FR-116, TC-145/TC-146, IT-051 | `quire-observation` is a real Rust crate but is `publish = false`, and this crate declares no dependency on it. |
 | Engineering Assurance seam | engineering-assurance#34 | `producer_execution` is merged on `origin/main` but `publish = false`, no release contains it, and the cited acceptance revision is not reachable after its PR was squashed. |
 | E02 strict reader | quire-verification FR-007 | Zero tags, zero releases; the interfaces are declared provisional across repositories and the code sits on a branch. |
+| Diagnostic catalog | quire-specification FR-270 | The only catalog offered is the proposed native diagnostic interpretation, which states of itself "Proposed, not adopted or implemented"; FR-270 calls it source material, not an adopted selection. |
 | Quoin evidence interface | quire-research#62 | Quoin exposes no Rust-callable boundary and contains no `Cargo.toml`; the containment contract is open with every acceptance box unchecked. |
 
 Stage 1 is unblocked and owes no external party. Stages 2 through 5 are blocked

@@ -195,6 +195,10 @@ its entry-status table records why each is currently `unresolved`.
 - `agent-ix/quire-verification` FR-007 and `quire-verification/e02-draft-2` —
   the E02 strict reader and its finding vocabulary.
 - `agent-ix/engineering-assurance` issue 34 — the producer-execution boundary.
+- The selected diagnostic catalog, whose identity, revision and byte digest
+  FR-008 binds. `quire-specification` FR-270 records that the only catalog
+  offered is a proposed native diagnostic interpretation that describes itself as
+  not adopted or implemented, so this reference names no adopted artifact yet.
 - `agent-ix/quoin` and `agent-ix/quire-research` issue 62 — the evidence
   retention interface and its containment contract.
 - `agent-ix/quire-research` PT01, PT02, E03, and setup issue 33.

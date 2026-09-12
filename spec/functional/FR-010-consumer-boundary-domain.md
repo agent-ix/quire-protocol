@@ -71,12 +71,26 @@ specified individually. Summarised:
 | `FR-017` | A scenario evidence record |
 | `FR-018` | A delivery index — evidence about what a producer delivered |
 
+## Adoption status
+
+An adoption pass replaces a requirement's local definitions with upstream
+references and adds a section recording where the upstream vocabulary does not
+reach. Six requirements have not had one, and claiming otherwise would be the
+same over-claim this context exists to prevent.
+
+| Requirement | Adoption pass |
+| --- | --- |
+| FR-002, FR-003, FR-006, FR-008 | Done |
+| FR-004, FR-005, FR-007 | Not started — each uses protocol, temporal or observation nouns with no upstream reference |
+| NFR-001, IT-002, IT-003 | Not started |
+| FR-001, FR-009 | Not required — neither defines a protocol noun |
+
 ## Acceptance Criteria
 
 | ID | Criteria | Verification |
 | --- | --- | --- |
 | FR-010-AC-1 | Every object specified in this context describes a consumer-to-producer relationship, and none restates a protocol, temporal or observation subject that `quire-specification` types. | Inspection |
-| FR-010-AC-2 | Every protocol, temporal or observation noun this repository's requirements use resolves to an `ix://agent-ix/quire-specification/FR-2NN` reference rather than a local definition. | Inspection |
+| FR-010-AC-2 | In each requirement that has had an adoption pass, every protocol, temporal or observation noun resolves to an `ix://agent-ix/quire-specification` reference rather than a local definition. FR-002, FR-003, FR-006 and FR-008 have had one. FR-004, FR-005, FR-007, NFR-001, IT-002 and IT-003 have not, and carry no such reference; this criterion does not yet assert anything about them. | Inspection |
 | FR-010-AC-3 | Where an upstream artifact records an open gap, a requirement depending on it cites the gap rather than supplying the missing identity, key or order locally. | Inspection |
 
 ## Dependencies

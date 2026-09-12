@@ -80,3 +80,72 @@ rather than closed cheaply, because writing a negative control per criterion is
 authoring work, not an edit — and FR-010-AC-1 through AC-3 in particular need a
 procedure for demonstrating that the artifact set *lacks* the property, which
 does not exist yet.
+
+## Second remediation pass, after SR-050 and SR-051
+
+Both reviews landed after the first pass. Between them and an independent audit
+they exposed a defect in how this adoption was performed, not only in what it
+produced, and that is recorded here rather than absorbed.
+
+### The method defect
+
+The "Adopted vocabulary" and "Where the upstream vocabulary does not yet reach"
+sections were written from a subagent's *characterisations* of upstream
+artifacts rather than from the artifacts. Two consequences followed:
+
+1. **A fabricated quotation.** FR-006 attributed to `FR-243-settlement-basis` a
+   sentence that artifact does not contain, and said "three requirements" where
+   it says four. SR-050 FND-001 caught it; SR-051 FND-004 added that the sentence
+   resembles one in FR-258. FR-243 also *does* name the disputed member,
+   `unavailable`, where this repository said it "never names the fifth".
+2. **A wrong characterisation that became a boundary breach.** FR-015 declared a
+   closed four-member digest-domain vocabulary on the stated ground that
+   `FR-201-canonical-identity-domain` "types the domain label kind" while
+   selecting no member. FR-201 is `object: enumeration`, publishes nine members,
+   and states "This artifact *is* the vocabulary of digest domains." Two of the
+   four minted members re-spelled members it already publishes. SR-051 FND-001
+   is correct that this is the second-locally-authored-profile failure one level
+   below protocol semantics.
+
+An audit of every quotation in this repository against upstream `origin/main`
+found three further attributions to FR-235, FR-237 and FR-238 that paraphrased
+inside quotation marks. Everything else — FR-224, FR-225, FR-226, FR-240,
+FR-211..FR-215, FR-271..FR-274, FR-259, FR-261, FR-263 — checks out verbatim.
+
+### Applied
+
+- **FR-015 withdrawn and retyped.** It is now `object: value_object` titled
+  "Digest domain selection": this repository selects `raw-artifact-digest` and
+  `quire.verification.jcs` from FR-201's published vocabulary and mints nothing.
+  FR-015-AC-5 makes the prohibition explicit. The correction is recorded in the
+  artifact rather than silently rewritten.
+- **The fabricated and paraphrased quotations are replaced with the artifacts'
+  own words** in FR-003 and FR-006, and the upstream issue that carried the
+  fabrication is corrected in a comment rather than by editing its body, so the
+  error stays visible (quire-specification#29).
+- **FR-014's injectivity criterion was a tautology.** `refusal_axis` is a key
+  component, so "distinct axes carry distinct identities" could never fail and
+  the shared-code defect stayed invisible behind it (SR-050 FND-002). AC-1 now
+  states the obligation over the observed producer interior — the FR-271 code
+  and FR-272 cause the envelope carries — which can fail.
+- **FR-010-AC-2 over-claimed.** It asserted repository-wide noun adoption while
+  FR-004, FR-005, FR-007, NFR-001, IT-002 and IT-003 had no upstream reference
+  at all (SR-050 FND-003, SR-051 FND-005). FR-010 now carries an adoption-status
+  table and the criterion asserts nothing about requirements not yet passed.
+- **The reverse failure is closed.** FR-008 bound its refusal interior to a
+  catalog FR-270 describes as "Proposed, not adopted or implemented … source
+  material here, not an adopted selection", with no manifest entry and no
+  reference index row (SR-051 FND-002). The catalog is now an FR-009 entry with
+  status `unresolved`, cited in FR-008 and in spec.md §16.
+- **ADR-001's denominator corrected** to 0 of 11: eleven candidate rows, not the
+  nine-requirement denominator (SR-051 FND-006). The result is unchanged.
+
+### Carried
+
+FND-003 of this review (twenty-one inspection and analysis criteria with no
+stated negative control), SR-050 FND-005 through FND-014 and SR-051 FND-003,
+FND-007 through FND-010. The substantive one among them is SR-050 FND-005: FR-011
+marks authority inapplicable for kind *value* while FR-013 and FR-014 both
+declare *value* with an authority. That is a real inconsistency in the discipline
+this repository just adopted, and it should be settled before the FR-003..FR-008
+decomposition states thirty more requirements against it.
