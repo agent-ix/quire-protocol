@@ -4,6 +4,12 @@ title: "Digest domain selection"
 type: FR
 object: value_object
 relationships:
+  - target: ix://agent-ix/quire-protocol/ADR-003
+    type: references
+  - target: ix://agent-ix/quire-protocol/ADR-006
+    type: references
+  - target: ix://agent-ix/quire-protocol/US-005
+    type: implements
   - target: ix://agent-ix/quire-protocol/FR-010
     type: part_of
   - target: ix://agent-ix/quire-protocol/FR-011
@@ -59,10 +65,26 @@ This repository selects, and does not extend:
 | Selected member | Used for |
 | --- | --- |
 | `raw-artifact-digest` | The exact supplied bytes of an offered artifact, including layout, as delivered and never recanonicalised. |
-| `quire.verification.jcs` | This repository's protocol-result digest, over RFC 8785 canonical UTF-8 bytes. |
+| `quire.verification.jcs` | This repository's protocol-result digest, over RFC 8785 canonical UTF-8 bytes. Also the E02 projection identity `FR-007` derives -- see the note below. |
 
 Where a producer reference arrives already carrying an upstream domain label,
 that label is retained exactly and is never re-labelled into another member.
+
+### The E02 projection identity needs no additional member
+
+`FR-007` derives a projection identity distinct from the canonical result's own
+identity, and it would be easy to read that as needing a tenth domain member.
+It does not. `FR-201` separates the two concepts under the heading "Preimage
+selection is per-use, not per-domain", and records that `FR-062` takes the
+derived result identity "over a distinct projection-identity preimage under
+`quire.protocol.e02-projection-identity/v1-draft.1`". That identifier names a
+*preimage*, not a domain: the domain stays `quire.verification.jcs` and the
+preimage differs. So `FR-007`'s two digests are distinguished by preimage while
+sharing one selected member, and this table stays at two entries.
+
+This is recorded because the opposite reading was reached independently during
+this campaign, and acting on it would have minted the tenth member -- repeating
+exactly the breach the correction above withdraws.
 
 ## What remains genuinely open, and is upstream's to decide
 

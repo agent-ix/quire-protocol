@@ -3,6 +3,14 @@ id: FR-001
 title: "Admit one selected protocol profile"
 type: FR
 relationships:
+  - target: ix://agent-ix/quire-protocol/ADR-002
+    type: references
+  - target: ix://agent-ix/quire-protocol/ADR-003
+    type: references
+  - target: ix://agent-ix/quire-protocol/ADR-006
+    type: references
+  - target: ix://agent-ix/quire-protocol/ADR-007
+    type: references
   - target: ix://agent-ix/quire-protocol/US-001
     type: implements
   - target: ix://agent-ix/quire-specification/FR-050

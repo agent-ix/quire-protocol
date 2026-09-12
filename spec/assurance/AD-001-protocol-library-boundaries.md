@@ -6,6 +6,12 @@ status: proposed
 owner: agent-ix-protocol-owner
 system: quire-protocol Rust library
 relationships:
+  - target: ix://agent-ix/quire-protocol/ADR-004
+    type: references
+  - target: ix://agent-ix/quire-protocol/ADR-005
+    type: references
+  - target: ix://agent-ix/quire-protocol/ADR-007
+    type: references
   - target: ix://agent-ix/quire-protocol/FR-001
     type: realizes
   - target: ix://agent-ix/quire-protocol/FR-002
@@ -69,8 +75,16 @@ kept. A boundary that stored such a record, indexed it, or answered questions
 from it would be retaining evidence and is forbidden.
 
 The version-lock manifest resolves every external producer before any producer
-value is read, and no producer value enters a boundary whose entry is absent,
-unpinned, provisional, or digest-mismatched. The native compiler supplies
+value is read, and no producer value enters a boundary whose entry is not
+`pinned`. `FR-009-lock-external-producer-revisions` admits exactly two statuses,
+`pinned` and `unresolved`; an absent entry, a digest mismatch, or a failure to
+resolve within the resolution budget all yield `unresolved`, and there is no
+partial pin. An earlier revision of this paragraph listed "absent, unpinned,
+provisional, or digest-mismatched" as four separate conditions, which named two
+statuses the two-status model abolished. `SR-047` FND-008 was closed on the
+ground that the `provisional` vocabulary had been replaced -- it had been, in
+FR-009, but the word survived here until this correction.
+`ADR-009-two-status-manifest-resolution` records the decision. The native compiler supplies
 representation artifacts. Observation and temporal
 producers supply bound facts. Engineering Assurance invokes configured producers
 and transports typed execution results. Quoin retains evidence.
@@ -85,10 +99,22 @@ digests join these components without merging their authority.
   projection, realizability, refinement, or composition algorithm.
 - Keep canonical protocol results richer than E02 and implement only the reviewed
   total source-bound projection.
-- Use RFC 8785 JCS for every digest or semantic identity preimage, admit bare
-  JSON numbers only within the exact interoperable integer interval, and require
-  contract-defined canonical non-number encodings for wider integers and exact
-  rationals. Producer-owned digest domains remain distinct typed inputs.
+- Use RFC 8785 JCS for the preimage of every digest and semantic identity this
+  repository *produces*, and for no other preimage. A digest over bytes a
+  producer delivered is taken over those exact bytes with no canonicalization,
+  re-encoding, or normalization of any kind, because canonicalizing a producer's
+  bytes before digesting them would make this repository the authority on their
+  spelling. An earlier revision of this bullet read "for every digest or
+  semantic identity preimage", which contradicted
+  `FR-009-lock-external-producer-revisions` after that requirement was corrected
+  under `SR-048` FND-002; the bullet was not corrected at the same time.
+  `ADR-006-confine-jcs-to-the-protocol-result-domain` records the decision and
+  the scope.
+- Admit bare JSON numbers only within the exact interoperable integer interval,
+  and require contract-defined canonical non-number encodings for wider integers
+  and exact rationals. Producer-owned digest domains remain distinct typed
+  inputs, selected from the upstream vocabulary under
+  `FR-015-digest-domain-selection` and never re-spelled locally.
 - Reuse Engineering Assurance and Quoin rather than adding execution or evidence infrastructure.
 - Select no external choreography library until E03 admits an exact candidate.
 

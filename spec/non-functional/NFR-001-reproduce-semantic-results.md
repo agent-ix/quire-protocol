@@ -4,6 +4,8 @@ title: "Reproduce semantic results"
 type: NFR
 quality_attribute: reliability
 relationships:
+  - target: ix://agent-ix/quire-protocol/US-003
+    type: derives_from
   - target: ix://agent-ix/quire-specification/NFR-021
     type: depends_on
   - target: ix://agent-ix/quire-protocol/FR-001

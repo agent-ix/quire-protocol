@@ -4,6 +4,10 @@ title: "Retain composed acceptance evidence per integration scenario"
 type: NFR
 quality_attribute: maintainability
 relationships:
+  - target: ix://agent-ix/quire-protocol/ADR-005
+    type: references
+  - target: ix://agent-ix/quire-protocol/US-004
+    type: derives_from
   - target: ix://agent-ix/quire-protocol/FR-009
     type: constrains
   - target: ix://agent-ix/quire-protocol/FR-006

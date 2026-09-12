@@ -4,6 +4,8 @@ title: "Scenario evidence record"
 type: FR
 object: entity
 relationships:
+  - target: ix://agent-ix/quire-protocol/US-004
+    type: implements
   - target: ix://agent-ix/quire-protocol/FR-010
     type: part_of
   - target: ix://agent-ix/quire-protocol/FR-011

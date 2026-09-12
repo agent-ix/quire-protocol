@@ -4,6 +4,10 @@ title: "Version-lock entry"
 type: FR
 object: entity
 relationships:
+  - target: ix://agent-ix/quire-protocol/ADR-009
+    type: references
+  - target: ix://agent-ix/quire-protocol/US-003
+    type: implements
   - target: ix://agent-ix/quire-protocol/FR-010
     type: part_of
   - target: ix://agent-ix/quire-protocol/FR-011

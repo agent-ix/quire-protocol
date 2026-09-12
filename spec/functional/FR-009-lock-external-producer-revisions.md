@@ -3,6 +3,14 @@ id: FR-009
 title: "Lock every external producer revision in one manifest"
 type: FR
 relationships:
+  - target: ix://agent-ix/quire-protocol/ADR-004
+    type: references
+  - target: ix://agent-ix/quire-protocol/ADR-006
+    type: references
+  - target: ix://agent-ix/quire-protocol/ADR-009
+    type: references
+  - target: ix://agent-ix/quire-protocol/US-003
+    type: implements
   - target: ix://agent-ix/quire-protocol/US-002
     type: implements
   - target: ix://agent-ix/quire-protocol/FR-008
@@ -20,10 +28,19 @@ If a manifest entry required by that integration is absent, unpinned,
 declared unresolved, or resolves to different bytes, then the library SHALL
 refuse that integration.
 
-This requirement is a cross-cutting constraint derived from EPIC #14 rather than
-from a single user story. It serves US-002's need indirectly: a result whose
+This requirement descends from `StR-002-attribute-results-to-pinned-producer-revisions`
+through `US-003-attribute-an-outcome-to-pinned-revisions`: a result whose
 producer revision is unknown cannot be attributed, and an unattributable result
 cannot be assessed without confusing one producer's authority for another's.
+
+An earlier revision of this paragraph said the requirement was "a cross-cutting
+constraint derived from EPIC #14 rather than from a single user story", serving
+`US-002` only indirectly. That was the honest answer to `SR-049` FND-001 at the
+time -- the finding recorded that this requirement descended from no story, and
+the available remedies were to author the missing story or to record the
+indirect descent. The story now exists, so the first remedy is taken and the
+paragraph is corrected. The `US-002` edge is retained alongside `US-003`
+because the indirect service it names is still real.
 
 ## Inputs
 

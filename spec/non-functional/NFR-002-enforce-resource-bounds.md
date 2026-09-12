@@ -4,6 +4,8 @@ title: "Enforce protocol and caller resource bounds"
 type: NFR
 quality_attribute: performance_efficiency
 relationships:
+  - target: ix://agent-ix/quire-protocol/US-006
+    type: derives_from
   - target: ix://agent-ix/quire-specification/NFR-020
     type: depends_on
   - target: ix://agent-ix/quire-protocol/FR-001
@@ -46,6 +48,13 @@ declared indivisible unit. The library starts no later unit after the deadline;
 it returns resource-incomplete with the observed elapsed time and any indivisible-
 unit overshoot. Engineering Assurance owns whole-process containment and external
 resource enforcement.
+
+This constraint propagates through containment. Where a requirement this
+non-functional requirement constrains is an aggregating parent, the constraint
+binds every requirement that parent `contains`, to the same extent and without
+a separate edge per child. The `constrains` edges in the frontmatter name the
+parents; enumerating each child instead would drift the moment a parent gains
+one, which is the failure this repository has already paid for elsewhere.
 
 ## Rationale
 

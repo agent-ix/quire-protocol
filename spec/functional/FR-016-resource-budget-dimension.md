@@ -4,6 +4,8 @@ title: "Resource budget dimension"
 type: FR
 object: enumeration
 relationships:
+  - target: ix://agent-ix/quire-protocol/US-006
+    type: implements
   - target: ix://agent-ix/quire-protocol/FR-010
     type: part_of
   - target: ix://agent-ix/quire-protocol/FR-011

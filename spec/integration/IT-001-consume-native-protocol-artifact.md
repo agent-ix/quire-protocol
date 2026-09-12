@@ -3,6 +3,10 @@ id: IT-001
 title: "Consume the native compiler protocol artifact"
 type: IT
 relationships:
+  - target: ix://agent-ix/quire-protocol/ADR-002
+    type: references
+  - target: ix://agent-ix/quire-protocol/ADR-003
+    type: references
   - target: ix://agent-ix/quire-protocol/FR-001
     type: verifies
   - target: ix://agent-ix/quire-protocol/FR-002
@@ -103,8 +107,14 @@ domain. The `/2` lane additionally uses one-axis mutations of the temporal
 profile, clock alternative, and clock parameter selections; temporal binding
 sets that are missing, surplus, duplicated, reordered, owned by a foreign
 owner, or out of the declared range; recanonicalized source, model, dependency
-and configuration inputs; and digest-domain substitution across the
-producer-canonical, native-raw, compiled-artifact, and protocol-result domains.
+and configuration inputs; and digest-domain substitution across the domains
+`FR-015-digest-domain-selection` selects from `FR-201`'s published vocabulary --
+`raw-artifact-digest` for offered producer bytes and `quire.verification.jcs`
+for results this repository produces. An earlier revision of this paragraph
+named four local labels (`producer-canonical`, `native-raw`,
+`compiled-artifact`, `protocol-result`) that corresponded to nothing specified
+once FR-015 withdrew its minted vocabulary; the substitution substance is
+unchanged and the labels are now the upstream spellings.
 Numeric inputs include fields whose declared domains admit `i64::MIN`,
 `i64::MAX`, and reduced exact rationals `(i64::MAX, i64::MAX - 1)` and
 `(i64::MIN, i64::MAX)`. Resource inputs hold one `/2` input constant and
@@ -161,9 +171,17 @@ dimension, one unit short of it, and a fresh budget at the exact value.
      `admit_and_link`'s signature and refusal set unchanged.
 7. Substitute each digest domain for another across the same `/2` selection, and
    submit recanonicalized source, model, dependency and configuration inputs.
-   - IT-001-SC-07: a producer-canonical, native-raw, compiled-artifact, or
-     protocol-result digest presented in another domain's slot returns a typed
-     refusal, and a producer input that B recanonicalized instead of copying
+   - IT-001-SC-07: a `raw-artifact-digest` presented in the
+     `quire.verification.jcs` slot, and a `quire.verification.jcs` digest
+     presented in the `raw-artifact-digest` slot, each return a typed refusal --
+     both ordered directions, so that one domain silently absorbing the other
+     cannot pass. Substitution among the producer source, model and
+     configuration digests is **not** exercised: FR-015 selects no upstream
+     member for any of them, and `FR-259`, `FR-261` and `FR-263` each record
+     that no upstream requirement selects one either. Naming those three slots
+     here would require minting the vocabulary FR-015 just withdrew, so this
+     scenario states the gap and its owner (`agent-ix/quire-specification`)
+     instead of covering it. A producer input that B recanonicalized instead of copying
      byte for byte refuses rather than admitting an equivalent form. The
      recanonicalization probe uses a form that is byte-distinguishable from the
      as-delivered form — a pretty-printed JSON re-encoding of the original model
