@@ -91,6 +91,32 @@ The four words below are not interchangeable, and no total mixes them.
   this matrix writes `none` in its Test Cases cell rather than a test-case id
   that would imply otherwise. TC-014 is the highest authored test case; no row
   cites a higher id.
+- **Engine-bound** — a compiler-checked trace symbol actually resolves to the
+  criterion. This is the only one of the five words that is *measured* rather
+  than read off a `Verification` cell, and it is much smaller than the others:
+
+  ```
+  $ quire coverage --scope /home/peter/dev/quire-protocol
+  Coverage: 13/322 rows backed (4%)
+  ```
+
+  Thirteen rows, in six requirements: FR-001 3 of 5, FR-002 1 of 5, FR-004 1 of
+  4, FR-006 1 of 8, FR-008 1 of 9, NFR-001 2 of 3.
+
+  The gap between 229 test-backed and 13 engine-bound is not a contradiction —
+  the two words mean different things, and the definitions above say so — but it
+  is the number that says how much of this specification a test currently
+  reaches. **Read it as the coverage figure.** "Test-backed" says a criterion has
+  somewhere to be tested; "engine-bound" says something tests it.
+
+  The commonest cause of the gap is a test file tagged at its parent's
+  criterion. `tests/tc_004_closure_axes.rs` is the clearest case: all fourteen of
+  its tests carry `#[trace("TC-004", "FR-004-AC-3")]`, so they bind one criterion
+  of FR-004 and none of FR-026, FR-027, FR-028 or FR-041, even though the matrix
+  rows for those four cite `TC-004` and are test-backed by the definition above.
+  Closing that needs per-criterion trace tags, and is tracked as implementation
+  work rather than corrected by editing this table.
+
 - **Unexecutable** — a backing exists but cannot be run, so the criterion is
   neither passing nor failing. 12 of 288 criteria, all of them
   integration-backed. Under `FR-009-AC-3` such a scenario is reported
@@ -276,6 +302,10 @@ a coverage claim in this matrix.
 Row counts, recomputed from the tree. Every matrix row above is counted exactly
 once, and `Blocked` means unexecutable — neither passing nor failing.
 
+Engine-measured binding, which is the figure to read for coverage, is 13 of 322
+rows (4%) — see **Engine-bound** above. The table below counts matrix rows and
+their planned state; it does not measure binding.
+
 | Category | Total | Passed | Failed | Blocked | Planned |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Functional requirement rows | 32 | 0 | 0 | 0 | 32 |
@@ -295,6 +325,10 @@ report both. Three of the four are unexecutable: IT-001 version 2, IT-002 and IT
 fully blocked integration cannot score 100%. These totals follow that rule: the
 denominator is every authored acceptance criterion, and an unexecutable
 criterion is a zero inside it rather than a row removed from it.
+
+Engine-measured binding, which is the figure to read for coverage, is 13 of 322
+rows (4%) — see **Engine-bound** above. The table below counts matrix rows and
+their planned state; it does not measure binding.
 
 | Category | Total | Passed | Failed | Blocked | Planned |
 | --- | ---: | ---: | ---: | ---: | ---: |

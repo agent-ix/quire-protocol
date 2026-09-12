@@ -61,11 +61,11 @@ hundred per cent.
 
 | Metric | Target | Threshold | Method |
 |--------|--------|-----------|--------|
-| Owed scenarios retaining their resolution state | 100% | 100% | Static inspection |
-| Owed scenarios retaining the owner of every consumed producer value | 100% | 100% | Static inspection |
-| Refusal axes within one integration whose retained typed outcome is distinct from every other axis in that integration | 100% | 100% | Static inspection |
-| Owed scenarios retaining granted and consumed budget on every declared dimension | 100% | 100% | Static inspection |
-| Owed scenarios bound to an acceptance criterion by a compiler-checked trace attribute | 100% | 100% | Quire coverage |
+| Owed scenarios retaining their resolution state | 100% | 100% | Inspection |
+| Owed scenarios retaining the owner of every consumed producer value | 100% | 100% | Inspection |
+| Refusal axes within one integration whose retained typed outcome is distinct from every other axis in that integration | 100% | 100% | Analysis |
+| Owed scenarios retaining granted and consumed budget on every declared dimension | 100% | 100% | Inspection |
+| Owed scenarios bound to an acceptance criterion by a compiler-checked trace attribute | 100% | 100% | Analysis |
 
 ## Verification
 
