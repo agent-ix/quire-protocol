@@ -44,6 +44,7 @@ pub mod repro;
 /// Canonical protocol result record. Owner chunk: C-26 (submodules: C-27, C-28).
 pub mod result;
 
+pub use quire_spec_language::protocol_artifact::v2;
 pub use quire_spec_language::protocol_artifact::wire;
 pub use quire_spec_language::protocol_artifact::{
     AdmittedModel, AdmittedPackage, Candidate, Error, Expected, ExpectedDeclaration,
@@ -70,4 +71,17 @@ pub fn admit_and_link(
     limits: Limits,
 ) -> Report<AdmittedPackage> {
     quire_spec_language::protocol_artifact::read(bytes, expected, limits)
+}
+
+/// Reads `bytes` as a `quire.compiled-protocol/2` package, checking it against
+/// the selections in `expected` under `limits`.
+///
+/// Returns the admitted package, or a refusal naming the first check that
+/// failed.
+pub fn admit_and_link_v2(
+    bytes: &[u8],
+    expected: &v2::Expected<'_>,
+    limits: Limits,
+) -> Report<v2::AdmittedPackage> {
+    v2::read(bytes, expected, limits)
 }

@@ -7,7 +7,7 @@ license = "AGPL-3.0-or-later"
 description = "Strict consumer boundary for accepted native Quire protocol packages"
 
 [dependencies]
-quire-spec-language = { git = "https://github.com/agent-ix/quire-spec-language", rev = "5690c2b29c155ec72e21f5a7bb00fe1146b6f71a" }
+quire-spec-language = { path = "/home/peter/dev/worktrees/quire-language-stage-v2" }
 # Reading the offer's already-published members and serialising B's own
 # selections through A's `Serialize` impls. B adds no schema, grammar or wire
 # decoder of its own: every record shape used here is A's.
