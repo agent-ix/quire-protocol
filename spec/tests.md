@@ -33,7 +33,7 @@ change the planned status of FR-001, FR-002, or IT-001's full scenario matrix.
 | Functional Req | Acceptance Criteria | Test Cases | Coverage Status |
 | --- | --- | --- | --- |
 | FR-001 | FR-001-AC-1, FR-001-AC-2, FR-001-AC-3, FR-001-AC-4 | TC-001, IT-001 | 🚧 Planned |
-| FR-002 | FR-002-AC-1, FR-002-AC-2, FR-002-AC-3, FR-002-AC-4 | TC-002, IT-001 | 🚧 Planned (identity mapping landed by chunk C-12: AC-1 and AC-4 executing, AC-3 executing for the refusals the mapping raises, AC-2 unwritten. FR-002's structural refusal list is A's and is refused inside `read` before this crate runs — see `src/link/mod.rs`) |
+| FR-002 | FR-002-AC-1, FR-002-AC-2, FR-002-AC-3, FR-002-AC-4 | TC-002, IT-001 | 🚧 Planned (identity mapping landed by chunk C-12: AC-4 executing, AC-3 executing for the refusals the mapping raises, AC-2 unwritten. **AC-1 is unresolved by owner ruling on issue #4**: it requires distinct runtime instance identities, and A carries binding requirements rather than instances, so no test here can establish it — no symbol carries its tag. FR-002's structural refusal list is A's and is refused inside `read` before this crate runs — see `src/link/mod.rs`) |
 | FR-003 | FR-003-AC-1, FR-003-AC-2, FR-003-AC-3, FR-003-AC-4, FR-003-AC-5, FR-003-AC-6, FR-003-AC-7 | TC-003, IT-002 | 🚧 Planned |
 | FR-004 | FR-004-AC-1, FR-004-AC-2, FR-004-AC-3, FR-004-AC-4 | TC-004, IT-002 | 🚧 Planned (FR-004-AC-3 landed by `tests/tc_004_closure_axes.rs`) |
 | FR-005 | FR-005-AC-1, FR-005-AC-2, FR-005-AC-3, FR-005-AC-4, FR-005-AC-5 | TC-005 | 🚧 Planned (FR-005-AC-1 disposition shape landed by `tests/tc_005_claim_dispositions.rs`; its end-to-end scenario and AC-2..AC-5 pending) |
@@ -63,7 +63,7 @@ change the planned status of FR-001, FR-002, or IT-001's full scenario matrix.
 | Test ID | Title | Type | Priority | Traces To | Status |
 | --- | --- | --- | --- | --- | --- |
 | TC-001 | Admit only the selected protocol profile | Property | P0 | FR-001 | 🚧 Planned |
-| TC-002 | Link and discriminate finite protocol structure | Property | P0 | FR-002 | 🚧 Planned (identity set and linked mapping executing, 11 tests in `src/link/mod.rs` plus 6 in `tests/tc_002_identities.rs`; AC-2's interleaving proof and the FR-050..FR-054 mutation sweep unwritten) |
+| TC-002 | Link and discriminate finite protocol structure | Property | P0 | FR-002 | 🚧 Planned (linked mapping executing, 11 tests in `src/link/mod.rs` plus 6 in `tests/tc_002_identities.rs`, all tagged `Task-002` and none claiming FR-002-AC-1; AC-2's interleaving proof and the FR-050..FR-054 mutation sweep unwritten) |
 | TC-003 | Assess compensation, retry, commit, and recovery | Property | P0 | FR-003 | 🚧 Planned |
 | TC-004 | Assess finite global conformance | Property | P0 | FR-004 | 🚧 Planned (FR-004-AC-3 landed; AC-1/AC-2/AC-4 pending the batch and incremental evaluators) |
 | TC-005 | Separate protocol claim dispositions | Property | P0 | FR-005 | 🚧 Planned (six-disposition record and its no-aggregate-verdict proof landed; premise retention, dispatch and the conformance controls pending) |

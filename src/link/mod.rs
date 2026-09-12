@@ -751,6 +751,21 @@ const fn body_tag(body: &Body) -> &'static str {
 // TC-002 (partial, chunk C-12): the identity mapping
 // ---------------------------------------------------------------------------
 
+/// # None of these carries an `FR-002-AC-1` tag
+///
+/// AC-1 requires concurrent workflow instances, role instances, participants,
+/// duplicate deliveries and attempts to retain **distinct exact identities**.
+/// Those are runtime instance identities, and they do not exist at link time —
+/// A carries binding requirements, and the owner has ruled AC-1 unresolved until
+/// instance identities exist.
+///
+/// What the tests below establish is that the sixteen kinds are separate types
+/// and that the requirement encoding is unambiguous. Both are real, and neither
+/// is AC-1. Tagging them `FR-002-AC-1` would count that criterion as backed by
+/// tests that cannot fail when it is violated, which is the same defect
+/// `spec/tests.md` already records for the version 2 lane. They carry
+/// `Task-002`, matching `tests/tc_002_identities.rs`.
+///
 /// These are unit tests rather than a `tests/` lane because the mapping's input
 /// is a declaration slice and its public entry takes an `AdmittedPackage`, a
 /// type only A's reader can construct. An integration lane cannot reach the
@@ -933,7 +948,7 @@ mod tests {
         )]
     }
 
-    #[trace("TC-002", "FR-002-AC-1")]
+    #[trace("TC-002", "Task-002")]
     #[test]
     fn tc_002_each_identity_kind_is_linked_onto_its_own_type() {
         let linked = link_declarations(&fixture(), 0).expect("the fixture links");
@@ -1128,7 +1143,7 @@ mod tests {
 
     /// Two channels naming one message requirement produce one channel
     /// identity, which would silently merge them.
-    #[trace("TC-002", "FR-002-AC-1")]
+    #[trace("TC-002", "Task-002")]
     #[test]
     fn tc_002_two_records_producing_one_identity_are_refused() {
         let mut colliding = fixture();
@@ -1153,7 +1168,7 @@ mod tests {
     /// Without them, two requirements whose members concatenate to the same
     /// bytes — `"ab" + "c"` against `"a" + "bc"` — would produce one identity
     /// and silently merge two distinct requirements.
-    #[trace("TC-002", "FR-002-AC-1")]
+    #[trace("TC-002", "Task-002")]
     #[test]
     fn tc_002_requirement_identity_is_unambiguous_across_member_boundaries() {
         let mut left = requirement("x", BindingKind::Message);
