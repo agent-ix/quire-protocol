@@ -20,19 +20,23 @@ pub const FIXTURE_ENV: &str = "QUIRE_PROTOCOL_A_V2_FIXTURE";
 /// B's evidence index inside that directory. Not emitted by A.
 pub const MANIFEST_FILE: &str = "b-v2-manifest.json";
 
-/// Exactly what `quire-spec-language#40` still owes before this lane can run.
+/// What `quire-spec-language#40` still owes before this lane can execute.
 ///
-/// The lane refuses to report a `/2` outcome until every one of these is in
-/// hand; none of them may be substituted by prose, a native source file, an
-/// emitted sidecar, a hand-authored byte string, or a `/1` value.
-pub const REQUIRED_A_DELIVERABLES: [&str; 6] = [
-    "an immutable quire-spec-language revision to pin",
+/// A's `/2` is implemented and under final integration; its public surface is
+/// settled and recorded in IT-001 Preconditions, so it is not listed here. What
+/// remains is the final revision and its fixtures. The lane refuses to report a
+/// `/2` outcome until every one of these is in hand, and none may be
+/// substituted by prose, a native source file, an emitted sidecar, a
+/// hand-authored byte string, or a `/1` value.
+///
+/// B pins no intermediate commit: only A's one final immutable revision.
+pub const REQUIRED_A_DELIVERABLES: [&str; 5] = [
+    "A's one final immutable quire-spec-language revision to pin",
     "the raw /2 artifact bytes and their external artifact reference",
-    "the independent selection recipe for v2::Expected and v2::ExpectedTemporal",
+    "the sidecar recipe for independently constructing v2::Expected, \
+     v2::ExpectedDefinition and v2::ExpectedTemporal",
     "the original, unrecanonicalized producer input corpus",
-    "the per-axis mutation fixtures and their documented refusal expectations",
-    "the public names of protocol_artifact::v2::{Expected, ExpectedTemporal, \
-     AdmittedPackage, read}, its Limits, and its report/refusal types",
+    "the per-axis mutation-fixture paths and their documented refusal identities",
 ];
 
 // ---------------------------------------------------------------------------
@@ -55,6 +59,10 @@ pub enum Absence {
     UnreadableManifest { path: PathBuf, cause: String },
     /// One scenario has more than one registered mutation fixture.
     AmbiguousMutation { scenario: String },
+    /// Two bindings share one declaration-index key, so the key is not unique.
+    DuplicateBindingKey { declaration_index: u32 },
+    /// The indexed bindings are not in A's declared total order.
+    UnorderedBindings { at: u32, after: u32 },
 }
 
 impl fmt::Display for Absence {
@@ -77,6 +85,12 @@ impl fmt::Display for Absence {
             }
             Self::AmbiguousMutation { scenario } => {
                 write!(f, "scenario {scenario} has more than one mutation fixture")
+            }
+            Self::DuplicateBindingKey { declaration_index } => {
+                write!(f, "declaration index {declaration_index} is bound twice")
+            }
+            Self::UnorderedBindings { at, after } => {
+                write!(f, "declaration index {at} is indexed after {after}")
             }
         }
     }
@@ -128,11 +142,15 @@ pub struct IndexedTemporal {
     pub bindings: Vec<IndexedBinding>,
 }
 
+/// One temporal binding, addressed by A's declared unique declaration-index key.
+///
+/// "Duplicate" and "reordered" in SC-08 are defined against this key and A's
+/// declared total order over it, not against position in the index file.
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct IndexedBinding {
     pub owner: String,
-    pub ordinal: u32,
+    pub declaration_index: u32,
     pub path: String,
 }
 
@@ -226,8 +244,25 @@ impl Fixture {
             require(root, &format!("{:?}", input.role), &input.path)?;
         }
         require(root, "temporal-profile", &manifest.temporal.profile)?;
+        // A's declaration-index key must be unique and totally ordered before
+        // any "duplicate" or "reordered" mutation means anything.
+        let mut previous: Option<u32> = None;
         for binding in &manifest.temporal.bindings {
             require(root, "temporal-binding", &binding.path)?;
+            if let Some(after) = previous {
+                if binding.declaration_index == after {
+                    return Err(Absence::DuplicateBindingKey {
+                        declaration_index: binding.declaration_index,
+                    });
+                }
+                if binding.declaration_index < after {
+                    return Err(Absence::UnorderedBindings {
+                        at: binding.declaration_index,
+                        after,
+                    });
+                }
+            }
+            previous = Some(binding.declaration_index);
         }
         for mutation in &manifest.mutations {
             require(root, &mutation.scenario, &mutation.path)?;

@@ -33,13 +33,25 @@ baseline, producer, native-source, model-source, and dependency bytes before it
 inspects an offered package. The native compiler publishes versioned
 compiled-protocol contracts. The existing `/1` candidate retains its
 `quire.protocol.numeric/1` wire profile and was generated at immutable revision
-`5690c2b29c155ec72e21f5a7bb00fe1146b6f71a` (PR72). The `/2` intake is a
-separate contract: B must receive A's exact
-`protocol_artifact::v2::AdmittedPackage` and independently constructed
-`protocol_artifact::v2::Expected` and `protocol_artifact::v2::ExpectedTemporal`
-inputs through `protocol_artifact::v2::read`, plus the original offered artifact
-bytes. Neither version may select, repair, upgrade, or downgrade the other, and
-neither may be detected from the offered bytes.
+`5690c2b29c155ec72e21f5a7bb00fe1146b6f71a` (PR72).
+
+The `/2` intake is a separate contract with its own published surface:
+
+- `protocol_artifact::v2::{Expected, ExpectedDefinition, ExpectedTemporal,
+  AdmittedPackage, read, encode_candidate}`
+- `protocol_artifact::v2::wire::{Package, TemporalBinding, ClockConfiguration}`
+- `protocol_artifact::native::{TemporalSelection, AdmissionV2, admit_v2}`
+- `temporal::{evaluate_v2, evaluate_with_progress_v2, mapping_support_v2}`
+- the existing shared `protocol_artifact::{Limits, Report, Error, Invalid,
+  Unsupported}`
+
+B constructs `Expected`, `ExpectedDefinition` and `ExpectedTemporal`
+independently from its own retained inputs and submits the exact offered bytes
+through `v2::read`. Temporal selection is therefore an admission-time input on
+this contract; `temporal::evaluate_v2` and its companions remain a separate
+post-admission concern that IT-001 does not exercise. Neither version may
+select, repair, upgrade, or downgrade the other, neither may be detected from
+the offered bytes, and the two mutually refuse.
 
 This candidate fixture is integration evidence only. Its producer PR and the
 remaining acceptance/traceability item in `quire-spec-language#40` must close
@@ -54,8 +66,14 @@ For `/2`: A's raw emitted package bytes and external artifact reference;
 B-retained original, unrecanonicalized source, model, definition, profile,
 configuration, dependency, producer, artifact, and result selections; the
 B-retained temporal profile, clock alternative, and clock parameter selections
-bound by that package; and A's typed `v2::AdmittedPackage` report and refusal
-boundary.
+bound by that package, carried as `v2::ExpectedTemporal` over
+`v2::wire::{TemporalBinding, ClockConfiguration}`; and A's typed
+`v2::AdmittedPackage` report and its `Report`/`Error`/`Invalid`/`Unsupported`
+refusal boundary.
+
+Temporal bindings are addressed by A's declared unique declaration-index key
+under its declared total order. "Duplicate" and "reordered" are defined against
+that key and order, not against file position.
 
 Both lanes use one-axis mutations of offered wire/version, seal,
 producer/source/dependency/baseline identity, feature, a binding actually
@@ -125,12 +143,18 @@ dimension, one unit short of it, and a fresh budget at the exact value.
    - IT-001-SC-07: a producer-canonical, native-raw, compiled-artifact, or
      protocol-result digest presented in another domain's slot returns a typed
      refusal, and a producer input that B recanonicalized instead of copying
-     byte for byte refuses rather than admitting an equivalent form.
+     byte for byte refuses rather than admitting an equivalent form. The
+     recanonicalization probe uses a form that is byte-distinguishable from the
+     as-delivered form — a pretty-printed JSON re-encoding of the original model
+     bytes — so a producer input that is already canonical cannot make the
+     scenario vacuous. Digest-domain crossing is exercised over raw bytes.
 8. Submit `/2` temporal binding sets that are missing, surplus, duplicated,
    reordered, owned by a foreign owner, or out of the declared range.
    - IT-001-SC-08: each returns a typed refusal that names the offending
      temporal binding axis before a linked package is exposed; a correctly
-     ordered, singly owned, in-range binding set admits.
+     ordered, singly owned, in-range binding set admits. Ordering and duplication
+     are judged against A's declared unique declaration-index key and its
+     declared total order.
 9. Submit one unchanged `/2` input under a budget set exactly to what that
    input consumes on each declared limit dimension, then under a budget one unit
    short of it, then resubmit the same input under a fresh budget at the exact
@@ -165,15 +189,28 @@ must be accepted. `quire-spec-language` PR72 at `5690c2b` supplies the signed-64
 `/1` endpoint candidate. `quire-spec-language#40` owns `/2` contract
 acceptance, traceability, and the public typed boundary.
 
-Before the `/2` lane can run, A must provide: an immutable revision to pin; the
-raw `/2` fixture bytes and their external artifact reference; the independent
-selection recipe B needs to rederive `v2::Expected` and `v2::ExpectedTemporal`
-without reading the offered bytes; the original, unrecanonicalized producer
-input corpus; the per-axis mutation fixtures and their documented refusal
-expectations; and the exact public names, constructors, limits, report and
-refusal types of `protocol_artifact::v2`. A prose definition, native source
-file, emitted sidecar, hand-authored bytes, or a `/1` value cannot substitute
-for either compiled interface because this repository owns no parser.
+A's `/2` is implemented and under final integration: the surface named in
+Preconditions exists, passes A's focused integration suite, and carries a
+declared unique declaration-index key and total order, typed per-axis mutation
+refusals, independent `Expected` construction, raw-byte digest-domain crossing
+tests, and a non-vacuous pretty-JSON recanonicalization mutation over original
+model bytes. It is not yet published to `quire-spec-language` `origin/main` or
+any remote branch.
+
+B may build its `/2` intake, spec and tests against those exact names now, but
+must keep execution dependency-gated. B does not pin any intermediate commit. A
+will supply one final immutable revision together with the raw `/2` bytes and
+reference, the sidecar recipe, the original input corpus, and the
+mutation-fixture paths; B pins only that revision.
+
+The `/1` numeric and handoff commits that were previously reachable only from
+`agent-a/handoff-numeric-domains` are already included in A's coherent
+integration branch. B does not wait on a separate PR for
+`5690c2b29c155ec72e21f5a7bb00fe1146b6f71a`; it repins to A's final revision.
+
+A prose definition, native source file, emitted sidecar, hand-authored bytes, or
+a `/1` value cannot substitute for either compiled interface because this
+repository owns no parser.
 
 ## Notes
 
@@ -185,11 +222,11 @@ proof for SC-05 is still an open integration obligation, not an absence-of-known
 bad-dependencies claim.
 
 The `/2` lane's fixture loader, mutation corpus, and scenario enumeration are
-authored ahead of A's delivery. They add no `[features]` entry and no `cfg`
+authored against A's published surface but ahead of A's final revision. They add no `[features]` entry and no `cfg`
 attribute, so the crate stays single-lane under NFR-004-AC-7: the corpus builder
 compiles and is checked on every gate run, and the parts that need A's boundary
 live in one `#[ignore]` lane that fails explicitly rather than passing vacuously.
-Until A's revision is pinned, SC-06 through SC-09 assert nothing about A's
+Until A's final revision is pinned, SC-06 through SC-09 assert nothing about A's
 behaviour and remain unexecuted; the `/1` SC-01 through SC-05 lane is unchanged.
 
 ## Traceability

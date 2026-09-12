@@ -2,7 +2,7 @@
 id: Task-012
 title: "Consume the version-explicit compiled-protocol /2 artifact"
 type: Task
-status: blocked
+status: in_progress
 track: B
 priority: P0
 relationships:
@@ -23,21 +23,40 @@ separate contracts: no auto-detection, upgrade, downgrade, repair, or
 substitution between them, and adding `/2` must leave `admit_and_link`
 byte-for-byte unchanged in behaviour.
 
-## Blocking state
+## Dependency state
 
-A has published no `protocol_artifact::v2` boundary. Verified on
-`quire-spec-language` `origin/main` at `72507f8`: the module exposes unversioned
-`protocol_artifact::{Expected, AdmittedPackage, read, Limits}` with
-`WIRE = "quire.compiled-protocol/1"` as a constant, not a version segment;
-`ExpectedTemporal` exists nowhere; and temporal support is a separate top-level
-`temporal` module applied to an `&AdmittedPackage` *after* admission. The names
-and factoring IT-001 assumes must therefore be confirmed against A's actual
-delivery, not presumed.
+A's `/2` is **implemented and under final integration**, not absent. The
+published surface B builds against is:
 
-Separately, the `/1` pin `5690c2b29c155ec72e21f5a7bb00fe1146b6f71a` is **not**
-an ancestor of A's `origin/main`; it exists only on
-`origin/agent-a/handoff-numeric-domains`. The crate's sole non-dev dependency is
-already a provisional branch commit, which this task must not compound.
+- `protocol_artifact::v2::{Expected, ExpectedDefinition, ExpectedTemporal,
+  AdmittedPackage, read, encode_candidate}`
+- `protocol_artifact::v2::wire::{Package, TemporalBinding, ClockConfiguration}`
+- `protocol_artifact::native::{TemporalSelection, AdmissionV2, admit_v2}`
+- `temporal::{evaluate_v2, evaluate_with_progress_v2, mapping_support_v2}`
+- the existing shared `protocol_artifact::{Limits, Report, Error, Invalid,
+  Unsupported}`
+
+`/1` stays strict and byte-compatible; `/1` and `/2` mutually refuse. A's
+implementation already carries a declared unique declaration-index key and total
+order, typed per-axis mutation refusals, independent `Expected` construction,
+raw-byte digest-domain crossing tests, and a non-vacuous pretty-JSON
+recanonicalization mutation over original model bytes.
+
+The surface is not yet on `quire-spec-language` `origin/main` or any remote
+branch, so B has not verified it directly. B builds against these exact names
+now and keeps execution dependency-gated.
+
+**B pins no intermediate commit.** A is integrating the evaluator, occurrence
+schema, real `/2` handoff directory, and final review, and will supply one final
+immutable revision together with the raw `/2` bytes and reference, the sidecar
+recipe, the original input corpus, and the mutation-fixture paths. B pins only
+that revision.
+
+The previously provisional `/1` numeric and handoff commits — reachable only
+from `agent-a/handoff-numeric-domains`, including the current pin
+`5690c2b29c155ec72e21f5a7bb00fe1146b6f71a` — are already included in A's
+coherent integration branch. B does **not** wait on a separate PR for that
+commit; it repins to A's final revision.
 
 ## Subtasks
 
@@ -64,6 +83,13 @@ already a provisional branch commit, which this task must not compound.
 - [x] Make SC-06's "`admit_and_link` unchanged" clause falsifiable. It is now
   IT-001-SC-06a: re-run SC-01..SC-05 on the same `/1` fixture across the
   revision that adds `/2` and compare outcomes.
+- [x] Address temporal bindings by A's declared unique declaration-index key
+  under its declared total order, so SC-08's "duplicate" and "reordered" are
+  defined against the key rather than file position. The loader refuses a
+  repeated key and an out-of-order index; a sparse ascending set is legitimate.
+- [x] Record that SC-07's recanonicalization probe is non-vacuous: A supplies a
+  pretty-printed JSON re-encoding of the original model bytes, byte-distinct
+  from the as-delivered form, and crosses digest domains over raw bytes.
 
 ### Blocked on A's delivery
 

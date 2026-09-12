@@ -365,7 +365,7 @@ fn the_loader_indexes_the_temporal_and_mutation_evidence() {
         .first()
         .expect("at least one temporal binding");
     assert_eq!(binding.owner, "Workflow");
-    assert_eq!(binding.ordinal, 0);
+    assert_eq!(binding.declaration_index, 0);
 
     let limit = manifest
         .limits
@@ -422,7 +422,12 @@ fn a_delivery_owes_a_scenario_row_for_every_declared_limit() {
 // The lane itself
 // ---------------------------------------------------------------------------
 
-/// SC-06 through SC-09 cannot run until A publishes `protocol_artifact::v2`.
+/// SC-06 through SC-09 cannot run until A publishes its final `/2` revision.
+///
+/// A's `protocol_artifact::v2` is implemented and under final integration, and
+/// B's spec and corpus are built against its exact published names. Execution
+/// stays dependency-gated: B pins no intermediate commit, so until the final
+/// revision lands there is nothing to submit.
 ///
 /// This test is deliberately NOT `#[ignore]`d. The declared gate in AGENTS.md
 /// runs `cargo test --locked`, which never executes ignored tests, so an
@@ -451,8 +456,9 @@ fn the_v2_lane_reports_its_blocked_state_to_the_gate() {
             let undelivered = fixture.undelivered_scenarios();
             panic!(
                 "a /2 delivery is present at {} (producer revision {}), but \
-                 quire_protocol::admit_and_link_v2 is not implemented. Pin that \
-                 revision in Cargo.toml, rederive B's selection, and run the {} \
+                 quire_protocol::admit_and_link_v2 is not implemented. If that \
+                 is A's final revision, pin it in Cargo.toml over the \
+                 provisional /1 pin, rederive B's selection, and run the {} \
                  scenarios this delivery owes. Refusal scenarios with no \
                  delivered mutation fixture: {}.",
                 fixture.root().display(),
@@ -518,6 +524,63 @@ fn two_mutation_fixtures_for_one_scenario_are_refused() {
     }
 }
 
+/// A's declaration-index key must be unique. Without that, SC-08's "duplicate"
+/// mutation is indistinguishable from a legitimate binding set.
+#[test]
+#[trace("Task-009")]
+fn a_repeated_declaration_index_key_is_refused() {
+    let root = scratch("duplicate-binding-key");
+    write_delivery(&root);
+    rewrite_bindings(
+        &root,
+        r#"{ "owner": "Workflow", "declaration_index": 0, "path": "inputs/binding-0.json" },
+      { "owner": "Workflow", "declaration_index": 0, "path": "inputs/binding-3.json" }"#,
+    );
+    match Fixture::load_from(&root) {
+        Err(Absence::DuplicateBindingKey { declaration_index }) => {
+            assert_eq!(declaration_index, 0);
+        }
+        other => panic!("expected a DuplicateBindingKey report, got {other:?}"),
+    }
+}
+
+/// A's declared total order must hold in the index. Without it, SC-08's
+/// "reordered" mutation is judged against file position rather than the key.
+#[test]
+#[trace("Task-009")]
+fn bindings_out_of_the_declared_total_order_are_refused() {
+    let root = scratch("unordered-bindings");
+    write_delivery(&root);
+    rewrite_bindings(
+        &root,
+        r#"{ "owner": "Workflow", "declaration_index": 3, "path": "inputs/binding-3.json" },
+      { "owner": "Workflow", "declaration_index": 0, "path": "inputs/binding-0.json" }"#,
+    );
+    match Fixture::load_from(&root) {
+        Err(Absence::UnorderedBindings { at, after }) => {
+            assert_eq!((at, after), (0, 3));
+        }
+        other => panic!("expected an UnorderedBindings report, got {other:?}"),
+    }
+}
+
+/// A sparse but ascending key set is legitimate: the order is total, not dense.
+#[test]
+#[trace("Task-009")]
+fn a_sparse_ascending_declaration_index_set_is_accepted() {
+    let root = scratch("sparse-bindings");
+    write_delivery(&root);
+    let fixture = Fixture::load_from(&root).expect("assembled delivery");
+    let keys: Vec<u32> = fixture
+        .manifest()
+        .temporal
+        .bindings
+        .iter()
+        .map(|binding| binding.declaration_index)
+        .collect();
+    assert_eq!(keys, [0, 3]);
+}
+
 /// An index B cannot deserialise is reported with its cause, never skipped.
 #[test]
 #[trace("Task-009")]
@@ -555,6 +618,22 @@ fn find<'a>(scenarios: &'a [Scenario], limit: &str, bound: LimitBound) -> &'a Sc
         .unwrap_or_else(|| panic!("no {} probe for {limit}", bound.slug()))
 }
 
+/// Replace the manifest's binding array with `bindings`, leaving the rest of
+/// B's evidence index untouched.
+fn rewrite_bindings(root: &Path, bindings: &str) {
+    let manifest_path = root.join(v2::MANIFEST_FILE);
+    let manifest = fs::read_to_string(&manifest_path).expect("manifest");
+    let start = manifest.find("\"bindings\": [").expect("bindings key");
+    let open = manifest[start..].find('[').expect("bindings open") + start;
+    let close = manifest[open..].find(']').expect("bindings close") + open;
+    let rewritten = format!(
+        "{}[\n      {bindings}\n    {}",
+        &manifest[..open],
+        &manifest[close..]
+    );
+    fs::write(&manifest_path, rewritten).expect("rewrite bindings");
+}
+
 fn scratch(name: &str) -> PathBuf {
     // Unique per process and per call: a fixed shared path under `temp_dir()`
     // lets a concurrent run on this workstation delete another run's fixtures.
@@ -577,6 +656,7 @@ fn write_delivery(root: &Path) {
     fs::write(root.join("inputs/model.json"), b"original-model-bytes").expect("model");
     fs::write(root.join("inputs/profile.json"), b"original-profile-bytes").expect("profile");
     fs::write(root.join("inputs/binding-0.json"), b"binding-zero").expect("binding");
+    fs::write(root.join("inputs/binding-3.json"), b"binding-three").expect("binding");
     fs::write(root.join("mutations/changed-source.bin"), b"changed").expect("mutation");
     fs::write(
         root.join(v2::MANIFEST_FILE),
@@ -595,7 +675,8 @@ fn write_delivery(root: &Path) {
     "clock_alternative": "wall",
     "clock_parameters": ["resolution"],
     "bindings": [
-      { "owner": "Workflow", "ordinal": 0, "path": "inputs/binding-0.json" }
+      { "owner": "Workflow", "declaration_index": 0, "path": "inputs/binding-0.json" },
+      { "owner": "Workflow", "declaration_index": 3, "path": "inputs/binding-3.json" }
     ]
   },
   "limits": [{ "name": "declaration-count", "exact": 10000 }],
