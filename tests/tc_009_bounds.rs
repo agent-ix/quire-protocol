@@ -33,6 +33,10 @@ const WALK: SiteId = SiteId::new("c29.fixture.reference-walk");
 /// Declared but never registered, to exercise the inventory hook.
 const UNLISTED: SiteId = SiteId::new("c29.fixture.unlisted");
 
+/// An allocation site on a byte-counted dimension, so the granted unit is the
+/// byte rather than the record.
+const PAYLOAD: SiteId = SiteId::new("c29.fixture.payload-buffer");
+
 const UNIT: UnitLabel = UnitLabel::new("c29.fixture.indivisible-unit");
 
 /// Ceilings low enough to reach in a test. `Limits::bounded()` only clamps
@@ -61,6 +65,13 @@ fn registry() -> SiteRegistry {
             SiteKind::Traversal,
         ))
         .expect("fresh registry accepts the traversal site");
+    registry
+        .register(BoundedSite::new(
+            PAYLOAD,
+            Dimension::PayloadBytes,
+            SiteKind::Allocation,
+        ))
+        .expect("fresh registry accepts the byte-counted allocation site");
     registry
 }
 
@@ -264,12 +275,52 @@ fn tc_009_refusal_precedes_allocation() {
         "a refused request charges nothing at all"
     );
 
-    // The only route to reserved memory is a granted Reservation, so no memory
-    // exists to have been reserved before the refusal.
-    let granted: Reservation = guard.precheck(TABLE, 2).expect("within the ceiling");
-    let reserved: Vec<u8> = granted.with_capacity();
-    assert!(reserved.capacity() >= granted.granted());
+    // A precheck answers "would this fit?" and grants nothing: it charges
+    // nothing, so it must not hand back permission to allocate.
+    let admitted = guard.precheck(TABLE, 2).expect("within the ceiling");
+    assert_eq!(admitted.admissible(), 2);
+    assert_eq!(
+        *guard.usage(),
+        before,
+        "a precheck charges nothing, so it cannot fund an allocation"
+    );
+
+    // The only route to reserved memory is a charge, which debits the budget.
+    let granted: Reservation = guard.charge(TABLE, 2).expect("within the ceiling");
+    let capacity = granted.granted();
+    let reserved: Vec<u8> = granted.with_capacity().expect("one byte per unit");
+    assert!(reserved.capacity() >= capacity);
     assert!(reserved.is_empty());
+}
+
+/// One grant is one allocation, and a byte budget is not an element budget.
+///
+/// The grant used to be `Copy` with `with_capacity(&self)`, so a single charge
+/// of four units backed a thousand allocations of four — the ceiling enforced
+/// once and then ignored. `precheck` was worse: it charged nothing and returned
+/// a fully powered token, so a loop over it reserved without ever debiting.
+#[trace("TC-009", "NFR-002-AC-1")]
+#[test]
+fn tc_009_one_grant_is_one_allocation() {
+    let mut counts = guard();
+    let granted = counts.charge(TABLE, 2).expect("within the ceiling");
+    let _first: Vec<u8> = granted.with_capacity().expect("one byte per unit");
+    // `granted` is moved: a second allocation from the same grant does not
+    // compile. The compile_fail doctest on `Reservation::with_capacity` is the
+    // standing proof; here the budget is checked instead.
+    assert_eq!(usage_for(counts.usage(), Dimension::Definitions), 2);
+
+    // A byte-counted dimension grants bytes. Reserving a wider element would
+    // multiply past the ceiling just enforced, so it is refused.
+    let mut bytes = guard();
+    let granted = bytes.charge(PAYLOAD, 8).expect("within the byte ceiling");
+    let refusal = granted
+        .with_capacity::<u64>()
+        .expect_err("eight bytes is not eight u64s");
+    assert_eq!(refusal.code(), PrecheckCode::AllocationUnitMismatch);
+
+    let granted = bytes.charge(PAYLOAD, 8).expect("within the byte ceiling");
+    assert!(granted.with_capacity::<u8>().is_ok(), "bytes fit bytes");
 }
 
 #[trace("TC-009", "NFR-002-AC-1")]
@@ -325,7 +376,7 @@ fn tc_009_duplicate_site_registration_is_not_a_refusal_code() {
         ))
         .expect_err("a name may be registered once");
     assert_eq!(duplicate, RegistryError::DuplicateSite { site: WALK });
-    assert_eq!(registry.sites().len(), 2, "the duplicate was not recorded");
+    assert_eq!(registry.sites().len(), 3, "the duplicate was not recorded");
 
     // A B-internal declaration fault is a different type from a caller's
     // over-large request; there is no code they can share.
@@ -334,7 +385,7 @@ fn tc_009_duplicate_site_registration_is_not_a_refusal_code() {
         .iter()
         .map(|site| site.id().as_str())
         .collect();
-    assert_eq!(declared.len(), 2);
+    assert_eq!(declared.len(), 3);
 }
 
 // ---------------------------------------------------------------------------
@@ -608,6 +659,8 @@ fn tc_009_precheck_and_deadline_codes_are_disjoint() {
             PrecheckCode::CountExceeded
             | PrecheckCode::AllocationExceeded
             | PrecheckCode::CounterOverflow
+            | PrecheckCode::AllocationUnitMismatch
+            | PrecheckCode::AllocationUnavailable
             | PrecheckCode::UnregisteredSite => code.as_str(),
         })
         .collect();
@@ -670,10 +723,34 @@ fn tc_009_no_count_path_can_produce_a_deadline_code() {
         assert!(code.starts_with(PrecheckCode::NAMESPACE));
         observed.insert(code);
     }
+    // The two allocation codes are reached through a granted reservation rather
+    // than through `charge`, so they are exercised here too — all but one.
+    let mut byte_guard = CountGuard::new(test_limits(), registry());
+    let granted = byte_guard
+        .charge(PAYLOAD, 8)
+        .expect("within the byte ceiling");
+    let mismatch = granted
+        .with_capacity::<u64>()
+        .expect_err("a byte budget is not a u64 budget");
+    assert!(mismatch
+        .code()
+        .as_str()
+        .starts_with(PrecheckCode::NAMESPACE));
+    observed.insert(mismatch.code().as_str());
+
+    // `AllocationUnavailable` reports an allocator that refused a reservation
+    // the ceiling admitted. There is no portable way to force that, so it is
+    // named as the one unreached code rather than left to make the count look
+    // complete. A code added without a path fails here.
+    let unreached: Vec<&str> = PrecheckCode::ALL
+        .iter()
+        .map(|code| code.as_str())
+        .filter(|code| !observed.contains(code))
+        .collect();
     assert_eq!(
-        observed.len(),
-        PrecheckCode::ALL.len(),
-        "every precheck code was reached by a real count path"
+        unreached,
+        [PrecheckCode::AllocationUnavailable.as_str()],
+        "every precheck code but the allocator-failure one is reached by a real path"
     );
 }
 
@@ -863,4 +940,135 @@ fn tc_009_every_a_dimension_has_a_reconciled_accumulation() {
         );
     }
     assert_eq!(ALL_SITE_KINDS.len(), 5, "NFR-002 names five site kinds");
+}
+
+/// Every dimension reads its own `Limits` and `Usage` field.
+///
+/// `limit_for` and `usage_for` hand-mirror thirteen dimension-to-field bindings
+/// of A's private `Work::fields`. A mis-binding compiles and is invisible: five
+/// dimensions default to 10 000 and three to 8 MiB, so swapping any pair with
+/// equal defaults changed nothing any test could see. Confirmed before this
+/// test existed — pointing `Models` at `declarations` left all eighteen green.
+///
+/// This needs nothing from A. Giving every field a distinct value makes each
+/// binding observable, which is a different gap from the peak/cumulative
+/// discipline the module documents as unverifiable.
+#[trace("TC-009", "NFR-002-AC-1")]
+#[test]
+fn tc_009_every_dimension_reads_its_own_field() {
+    // Thirteen distinct values, all below `Limits::default()` so `bounded()`
+    // preserves them.
+    let limits = Limits {
+        payload_bytes: 101,
+        output_bytes: 102,
+        source_bytes: 103,
+        content_bytes: 104,
+        sources: 105,
+        dependencies: 106,
+        definitions: 107,
+        models: 108,
+        declarations: 109,
+        entries: 110,
+        references: 111,
+        byte_work: 112,
+        depth: 13,
+    };
+    let expected = [
+        (Dimension::PayloadBytes, 101),
+        (Dimension::OutputBytes, 102),
+        (Dimension::SourceBytes, 103),
+        (Dimension::ContentBytes, 104),
+        (Dimension::Sources, 105),
+        (Dimension::Dependencies, 106),
+        (Dimension::Definitions, 107),
+        (Dimension::Models, 108),
+        (Dimension::Declarations, 109),
+        (Dimension::Entries, 110),
+        (Dimension::References, 111),
+        (Dimension::ByteWork, 112),
+        (Dimension::Depth, 13),
+    ];
+    assert_eq!(expected.len(), ALL_DIMENSIONS.len());
+    for (dimension, value) in expected {
+        assert_eq!(
+            limit_for(&limits, dimension),
+            value,
+            "{dimension:?} reads the wrong Limits field"
+        );
+    }
+
+    // The same for `usage_for`, driven through real charges so each dimension's
+    // usage slot is written by the guard rather than constructed here.
+    let mut registry = SiteRegistry::new();
+    for (index, dimension) in ALL_DIMENSIONS.iter().enumerate() {
+        let id = SITE_IDS[index];
+        registry
+            .register(BoundedSite::new(id, *dimension, SiteKind::Traversal))
+            .expect("one site per dimension");
+    }
+    let mut guard = CountGuard::new(limits, registry);
+    for (index, dimension) in ALL_DIMENSIONS.iter().enumerate() {
+        let charged = index + 1;
+        let _ = guard
+            .charge(SITE_IDS[index], charged)
+            .expect("well inside every ceiling");
+        assert_eq!(
+            usage_for(guard.usage(), *dimension),
+            charged,
+            "{dimension:?} reads the wrong Usage field"
+        );
+    }
+}
+
+/// One site per dimension, in `ALL_DIMENSIONS` order.
+const SITE_IDS: [SiteId; 13] = [
+    SiteId::new("c29.fixture.d00"),
+    SiteId::new("c29.fixture.d01"),
+    SiteId::new("c29.fixture.d02"),
+    SiteId::new("c29.fixture.d03"),
+    SiteId::new("c29.fixture.d04"),
+    SiteId::new("c29.fixture.d05"),
+    SiteId::new("c29.fixture.d06"),
+    SiteId::new("c29.fixture.d07"),
+    SiteId::new("c29.fixture.d08"),
+    SiteId::new("c29.fixture.d09"),
+    SiteId::new("c29.fixture.d10"),
+    SiteId::new("c29.fixture.d11"),
+    SiteId::new("c29.fixture.d12"),
+];
+
+/// A clock that runs backwards *within* a unit is a fault, not an expiry.
+///
+/// The intra-unit regression branch was dead to this suite: every regression
+/// test drove the clock back past `start`, so only the `checked_duration_since`
+/// path ran, and deleting the branch left all tests green. A reading that moves
+/// backwards but stays after `start` reaches it — and with the branch gone it
+/// returned `Ok`, silently walking the guard's own monotonicity floor backwards
+/// and masking a later expiry.
+#[trace("TC-009", "NFR-002-AC-2")]
+#[test]
+fn tc_009_a_reading_that_regresses_within_the_budget_is_a_fault() {
+    let origin = Instant::now();
+    let clock = ScriptedClock::new(
+        origin,
+        &[
+            Duration::ZERO,
+            Duration::from_millis(90),
+            Duration::from_millis(50),
+        ],
+        wall_forward(SystemTime::now(), 3),
+    );
+    let mut deadline = DeadlineGuard::start(&clock, Duration::from_millis(100));
+    let token = deadline
+        .begin_unit(&clock, UNIT)
+        .expect("90ms is inside a 100ms budget");
+    let refusal = deadline
+        .end_unit(&clock, token)
+        .expect_err("50ms after 90ms is a clock that ran backwards");
+    assert_eq!(
+        refusal.code(),
+        DeadlineCode::ClockRegressed,
+        "a backwards reading is a fault, never an expiry"
+    );
+    assert_ne!(refusal.code(), DeadlineCode::Expired);
 }

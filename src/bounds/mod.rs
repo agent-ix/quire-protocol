@@ -38,6 +38,22 @@
 //! [`DeadlineRefusal::ClockRegressed`], which is *not* the expiry code: a broken
 //! clock and an exhausted budget are different facts.
 //!
+//! # One grant is one allocation
+//!
+//! [`CountGuard::precheck`] answers "would this fit?" and returns an
+//! [`Admission`], which carries no permission to allocate. Only
+//! [`CountGuard::charge`] debits the budget, and only a charge yields a
+//! [`Reservation`]. A reservation is neither `Copy` nor `Clone` and
+//! [`Reservation::with_capacity`] consumes it.
+//!
+//! All three properties are load-bearing and none held before review. The token
+//! was `Copy` with `with_capacity(&self)`, so one charge of four units backed a
+//! thousand allocations of four; and `precheck` charged nothing yet returned the
+//! same fully powered token, so a loop over it reserved memory the budget never
+//! saw. `granted` also counts the dimension's own unit, so a byte-counted site
+//! refuses an element wider than a byte rather than letting
+//! `Vec::<T>::with_capacity` multiply past the ceiling just enforced.
+//!
 //! # Integer conversions
 //!
 //! Count accounting stays in A's own `usize` domain end to end, so there is no
@@ -411,6 +427,10 @@ pub enum PrecheckCode {
     AllocationExceeded,
     /// Charging the request would overflow the accumulator itself.
     CounterOverflow,
+    /// A granted unit is narrower than the element the caller would reserve.
+    AllocationUnitMismatch,
+    /// The allocator refused a reservation the ceiling admitted.
+    AllocationUnavailable,
     /// Work was attempted at a site that is not in the inventory.
     UnregisteredSite,
 }
@@ -420,10 +440,12 @@ impl PrecheckCode {
     pub const NAMESPACE: &'static str = "bounds.precheck.";
 
     /// Every precheck code.
-    pub const ALL: [Self; 4] = [
+    pub const ALL: [Self; 6] = [
         Self::CountExceeded,
         Self::AllocationExceeded,
         Self::CounterOverflow,
+        Self::AllocationUnitMismatch,
+        Self::AllocationUnavailable,
         Self::UnregisteredSite,
     ];
 
@@ -433,6 +455,8 @@ impl PrecheckCode {
         match self {
             Self::CountExceeded => "bounds.precheck.count-exceeded",
             Self::AllocationExceeded => "bounds.precheck.allocation-exceeded",
+            Self::AllocationUnitMismatch => "bounds.precheck.allocation-unit-mismatch",
+            Self::AllocationUnavailable => "bounds.precheck.allocation-unavailable",
             Self::CounterOverflow => "bounds.precheck.counter-overflow",
             Self::UnregisteredSite => "bounds.precheck.unregistered-site",
         }
@@ -488,6 +512,27 @@ pub enum PrecheckRefusal {
         /// The refused increment.
         requested: usize,
     },
+    /// A byte-counted dimension granted units that an element wider than one
+    /// byte would multiply past the ceiling just enforced.
+    AllocationUnitMismatch {
+        /// The site that was refused.
+        site: SiteId,
+        /// The dimension that bounds it.
+        dimension: Dimension,
+        /// The units granted, in that dimension's own unit.
+        granted: usize,
+        /// The width of the element the caller asked to reserve.
+        element_bytes: usize,
+    },
+    /// The allocator could not satisfy a reservation the ceiling admitted.
+    AllocationUnavailable {
+        /// The site that was refused.
+        site: SiteId,
+        /// The dimension that bounds it.
+        dimension: Dimension,
+        /// The units granted.
+        granted: usize,
+    },
     /// The site is not in the inventory, so nothing bounds it.
     UnregisteredSite {
         /// The undeclared name.
@@ -506,6 +551,8 @@ impl PrecheckRefusal {
             Self::CountExceeded { .. } => PrecheckCode::CountExceeded,
             Self::AllocationExceeded { .. } => PrecheckCode::AllocationExceeded,
             Self::CounterOverflow { .. } => PrecheckCode::CounterOverflow,
+            Self::AllocationUnitMismatch { .. } => PrecheckCode::AllocationUnitMismatch,
+            Self::AllocationUnavailable { .. } => PrecheckCode::AllocationUnavailable,
             Self::UnregisteredSite { .. } => PrecheckCode::UnregisteredSite,
         }
     }
@@ -517,6 +564,8 @@ impl PrecheckRefusal {
             Self::CountExceeded { site, .. }
             | Self::AllocationExceeded { site, .. }
             | Self::CounterOverflow { site, .. }
+            | Self::AllocationUnitMismatch { site, .. }
+            | Self::AllocationUnavailable { site, .. }
             | Self::UnregisteredSite { site } => *site,
         }
     }
@@ -553,6 +602,26 @@ impl fmt::Display for PrecheckRefusal {
                 "{}: site {site} dimension {dimension:?}: {used} + {requested} overflows",
                 self.code()
             ),
+            Self::AllocationUnitMismatch {
+                site,
+                dimension,
+                granted,
+                element_bytes,
+            } => write!(
+                f,
+                "{}: site {site} dimension {dimension:?} granted {granted} one-byte units, \
+                 but the caller would reserve elements of {element_bytes} bytes",
+                self.code()
+            ),
+            Self::AllocationUnavailable {
+                site,
+                dimension,
+                granted,
+            } => write!(
+                f,
+                "{}: site {site} dimension {dimension:?}: the allocator refused {granted} units",
+                self.code()
+            ),
             Self::UnregisteredSite { site } => {
                 write!(f, "{}: site {site} is not in the inventory", self.code())
             }
@@ -562,13 +631,53 @@ impl fmt::Display for PrecheckRefusal {
 
 impl std::error::Error for PrecheckRefusal {}
 
-/// Permission to reserve `granted` units at a site, issued only by a successful
-/// precheck.
+/// The decision a precheck reaches. Carries no permission to allocate.
+///
+/// A precheck asks "would this fit?". It charges nothing, so it must not hand
+/// back an allocation token: it used to, and `precheck` then `with_capacity`
+/// reserved memory against a budget that was never debited, any number of
+/// times.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[must_use = "a precheck whose answer is discarded checked nothing"]
+pub struct Admission {
+    site: SiteId,
+    dimension: Dimension,
+    requested: usize,
+    next: usize,
+}
+
+impl Admission {
+    /// The site this decision is about.
+    #[must_use]
+    pub const fn site(&self) -> SiteId {
+        self.site
+    }
+
+    /// The dimension that bounds it.
+    #[must_use]
+    pub const fn dimension(&self) -> Dimension {
+        self.dimension
+    }
+
+    /// The units that would fit.
+    #[must_use]
+    pub const fn admissible(&self) -> usize {
+        self.requested
+    }
+}
+
+/// Permission to reserve `granted` units at a site, issued only by a charge.
 ///
 /// Memory is reserved through [`Reservation::with_capacity`], which exists only
-/// on this token, so "precheck then allocate" is the only representable order:
+/// on this token, so "charge then allocate" is the only representable order:
 /// there is no way to allocate first and check afterwards.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+///
+/// Deliberately **not** `Copy` and **not** `Clone`, and `with_capacity` takes
+/// `self`. One grant is one allocation. While the token was `Copy` and
+/// `with_capacity` took `&self`, a single charge of four units backed a thousand
+/// allocations of four — the ceiling was enforced once and then ignored, in the
+/// chunk whose whole purpose is that ceiling.
+#[derive(Debug, Eq, PartialEq)]
 #[must_use = "a reservation that is never used charged the budget for nothing"]
 pub struct Reservation {
     site: SiteId,
@@ -596,11 +705,52 @@ impl Reservation {
         self.granted
     }
 
-    /// Reserve exactly the granted capacity.
-    #[must_use]
-    pub fn with_capacity<T>(&self) -> Vec<T> {
-        Vec::with_capacity(self.granted)
+    /// Reserve exactly the granted capacity, consuming the grant.
+    ///
+    /// `granted` counts units in the dimension's own unit, and for a
+    /// byte-counted dimension that unit is the byte. `Vec::<T>::with_capacity`
+    /// multiplies by `size_of::<T>()`, so a site bounded by `byte_work` — 64 MiB
+    /// at A's effective ceiling — reserving `Vec<u64>` would reserve 512 MiB
+    /// against the budget just enforced. An element wider than its dimension's
+    /// unit is refused rather than silently multiplied.
+    ///
+    /// The reservation itself goes through `try_reserve_exact`, so an allocator
+    /// that cannot satisfy it returns a refusal instead of aborting the process.
+    pub fn with_capacity<T>(self) -> Result<Vec<T>, PrecheckRefusal> {
+        let width = core::mem::size_of::<T>();
+        if counts_bytes(self.dimension) && width > 1 {
+            return Err(PrecheckRefusal::AllocationUnitMismatch {
+                site: self.site,
+                dimension: self.dimension,
+                granted: self.granted,
+                element_bytes: width,
+            });
+        }
+        let mut reserved = Vec::new();
+        reserved.try_reserve_exact(self.granted).map_err(|_| {
+            PrecheckRefusal::AllocationUnavailable {
+                site: self.site,
+                dimension: self.dimension,
+                granted: self.granted,
+            }
+        })?;
+        Ok(reserved)
     }
+}
+
+/// Whether a dimension counts bytes rather than records.
+///
+/// Mirrors nothing of A's: these are the dimensions whose own names say bytes.
+#[must_use]
+pub const fn counts_bytes(dimension: Dimension) -> bool {
+    matches!(
+        dimension,
+        Dimension::PayloadBytes
+            | Dimension::OutputBytes
+            | Dimension::SourceBytes
+            | Dimension::ContentBytes
+            | Dimension::ByteWork
+    )
 }
 
 /// Prechecked count and allocation accounting over A's `Limits` and `Usage`.
@@ -659,7 +809,7 @@ impl CountGuard {
     /// accumulator, and [`PrecheckRefusal::AllocationExceeded`] or
     /// [`PrecheckRefusal::CountExceeded`] when the ceiling would be passed —
     /// the former for [`SiteKind::Allocation`], the latter for every other kind.
-    pub fn precheck(&self, site: SiteId, requested: usize) -> Result<Reservation, PrecheckRefusal> {
+    pub fn precheck(&self, site: SiteId, requested: usize) -> Result<Admission, PrecheckRefusal> {
         let Some(declared) = self.registry.get(site) else {
             return Err(PrecheckRefusal::UnregisteredSite { site });
         };
@@ -702,10 +852,10 @@ impl CountGuard {
             });
         }
 
-        Ok(Reservation {
+        Ok(Admission {
             site,
             dimension,
-            granted: requested,
+            requested,
             next,
         })
     }
@@ -722,9 +872,14 @@ impl CountGuard {
         site: SiteId,
         requested: usize,
     ) -> Result<Reservation, PrecheckRefusal> {
-        let reservation = self.precheck(site, requested)?;
-        *usage_slot(&mut self.usage, reservation.dimension) = reservation.next;
-        Ok(reservation)
+        let admission = self.precheck(site, requested)?;
+        *usage_slot(&mut self.usage, admission.dimension) = admission.next;
+        Ok(Reservation {
+            site: admission.site,
+            dimension: admission.dimension,
+            granted: admission.requested,
+            next: admission.next,
+        })
     }
 }
 
@@ -1165,15 +1320,31 @@ impl BoundedRun {
         site: SiteId,
         requested: usize,
     ) -> Result<(Reservation, UnitToken), RunStop> {
+        // The deadline is observed first on purpose: when both are exhausted,
+        // the stop reports the fact that is actually true of the run.
         let token = self
             .deadline
             .begin_unit(clock, unit)
             .map_err(RunStop::Deadline)?;
-        let reservation = self
-            .counts
-            .charge(site, requested)
-            .map_err(RunStop::Count)?;
-        Ok((reservation, token))
+
+        // If the count then refuses, the opened unit is closed before returning.
+        //
+        // Dropping the token instead left `end_unit` unrun, so the unit's
+        // overshoot was never observed — the invariant `UnitToken` exists to
+        // enforce, broken at the one point that composes the two mechanisms.
+        // `#[must_use]` does not catch a token dropped inside this module.
+        //
+        // The close's own outcome is deliberately not reported: the caller asked
+        // whether the work was admissible, and the answer is the count refusal.
+        // Closing keeps the guard's observation consistent; it does not turn one
+        // refusal into two.
+        match self.counts.charge(site, requested) {
+            Ok(reservation) => Ok((reservation, token)),
+            Err(refusal) => {
+                let _ = self.deadline.end_unit(clock, token);
+                Err(RunStop::Count(refusal))
+            }
+        }
     }
 
     /// Close the unit opened by [`BoundedRun::admit_unit`].
