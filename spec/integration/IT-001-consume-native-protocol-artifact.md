@@ -107,11 +107,19 @@ dimension, one unit short of it, and a fresh budget at the exact value.
      artifact reference through linking and returns A's `v2::AdmittedPackage`
      only for the independently selected `/2` inputs. `/1` bytes at
      `admit_and_link_v2` and `/2` bytes at `admit_and_link` each return a typed
-     refusal with no auto-detection, upgrade, or downgrade, and `admit_and_link`
-     keeps its `/1` behaviour unchanged. A changed artifact, contract, baseline,
-     producer, source, model, dependency, definition, temporal-profile, clock-
-     alternative, or clock-parameter selection refuses before a package is
-     exposed.
+     refusal with no auto-detection, upgrade, or downgrade. A changed artifact,
+     contract, baseline, producer, source, model, dependency, definition,
+     configuration, result, temporal-profile, clock-alternative, or
+     clock-parameter selection refuses before a package is exposed, as does a
+     resealed change to the offered wire/version, seal, feature, referenced
+     binding, numeric representation, or numeric domain. Each refusal is
+     distinguishable from the others by its typed identity; one shared cause
+     across two axes does not discharge this scenario.
+   - IT-001-SC-06a: `admit_and_link` is unchanged by the addition of `/2`,
+     shown by re-running SC-01 through SC-05 on the same `/1` fixture at the
+     revision that adds `/2` and obtaining the same admitted identities and the
+     same typed refusal per axis as at the revision before it, with
+     `admit_and_link`'s signature and refusal set unchanged.
 7. Substitute each digest domain for another across the same `/2` selection, and
    submit recanonicalized source, model, dependency and configuration inputs.
    - IT-001-SC-07: a producer-canonical, native-raw, compiled-artifact, or

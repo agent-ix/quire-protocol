@@ -53,13 +53,17 @@ already a provisional branch commit, which this task must not compound.
   probes.
 - [x] Make the blocked state visible to the declared gate rather than hiding it
   behind `#[ignore]`, and keep every B-side self-test off IT-001's trace tags.
-- [ ] Reconcile the corpus enumerations with IT-001's prose: `SelectionRole`,
-  `SelectionAxis` and IT-001 Inputs must name one selection set, and the
-  wire/version, seal, feature, referenced-binding, numeric-representation and
-  numeric-domain axes IT-001 declares for both lanes need `/2` rows.
-- [ ] Give each refusal scenario an expected typed refusal identity rather than
-  a two-valued admits/refuses oracle, so one shared error code cannot satisfy
-  every negative row.
+- [x] Reconcile the corpus enumerations with IT-001's prose: `SelectionAxis`
+  now carries the configuration and result axes, and the wire/version, seal,
+  feature, referenced-binding, numeric-representation and numeric-domain axes
+  IT-001 declares for both lanes have `/2` rows as `OfferedAxis`.
+- [x] Give each refusal scenario an expected refusal identity rather than a
+  two-valued admits/refuses oracle. `ExpectedRefusal` carries a distinct B-owned
+  identity per refusing row; mapping it onto A's typed refusal enum is part of
+  the pin step and must stay injective.
+- [x] Make SC-06's "`admit_and_link` unchanged" clause falsifiable. It is now
+  IT-001-SC-06a: re-run SC-01..SC-05 on the same `/1` fixture across the
+  revision that adds `/2` and compare outcomes.
 
 ### Blocked on A's delivery
 

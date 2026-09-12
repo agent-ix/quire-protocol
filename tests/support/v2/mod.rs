@@ -408,6 +408,42 @@ impl SelectionAxis {
     }
 }
 
+/// An axis of the *offered artifact* that IT-001 mutates for both lanes.
+///
+/// Distinct from `SelectionAxis`: those change what B independently selected,
+/// these change what A offered. Both must refuse, for different reasons.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum OfferedAxis {
+    WireVersion,
+    Seal,
+    Feature,
+    ReferencedBinding,
+    NumericRepresentation,
+    NumericDomain,
+}
+
+impl OfferedAxis {
+    pub const ALL: [Self; 6] = [
+        Self::WireVersion,
+        Self::Seal,
+        Self::Feature,
+        Self::ReferencedBinding,
+        Self::NumericRepresentation,
+        Self::NumericDomain,
+    ];
+
+    pub fn slug(self) -> &'static str {
+        match self {
+            Self::WireVersion => "wire-version",
+            Self::Seal => "seal",
+            Self::Feature => "feature",
+            Self::ReferencedBinding => "referenced-binding",
+            Self::NumericRepresentation => "numeric-representation",
+            Self::NumericDomain => "numeric-domain",
+        }
+    }
+}
+
 /// The four digest domains that must stay separate across the `/2` selection.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum DigestDomain {
@@ -543,6 +579,8 @@ pub enum ScenarioKind {
     Valid,
     CrossVersion(CrossVersion),
     ChangedSelection(SelectionAxis),
+    /// A resealed mutation of the offered artifact itself.
+    ChangedOffer(OfferedAxis),
     /// A digest of `offered` presented in `slot`'s position.
     DigestDomainSubstitution {
         offered: DigestDomain,
@@ -557,12 +595,41 @@ pub enum ScenarioKind {
     },
 }
 
-/// What the scenario's outcome must be. Only `Valid`, the exact bound, and the
-/// fresh retry may admit; everything else must refuse before a package exists.
+/// What the scenario's outcome must be. Only `Valid`, the exactly sufficient
+/// budget, and the fresh-budget resubmission may admit; everything else must
+/// refuse before a package exists.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Disposition {
     Admits,
     RefusesBeforeLinking,
+}
+
+/// The refusal identity a scenario expects, as a B-owned label.
+///
+/// A two-valued admits/refuses oracle is satisfied by one shared error code
+/// across every negative row, which is the defect SR-027 recorded on `/1`. Each
+/// refusing scenario therefore carries a distinct expected identity here. These
+/// labels are B's own; mapping them onto A's typed refusal enum is part of the
+/// pin step, and that mapping must stay injective.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ExpectedRefusal {
+    /// Bytes of one contract version offered at another version's entry point.
+    WrongContractVersion(CrossVersion),
+    /// A B-retained selection identity that does not match the offer.
+    ChangedSelection(SelectionAxis),
+    /// An offered-artifact axis A mutated after sealing.
+    ChangedOffer(OfferedAxis),
+    /// A digest of one domain presented in another domain's slot.
+    CrossDomainDigest {
+        offered: DigestDomain,
+        slot: DigestDomain,
+    },
+    /// A producer input B recanonicalised instead of copying byte for byte.
+    RecanonicalizedInput(ProducerInput),
+    /// A temporal binding set that is wrong in one named way.
+    TemporalBinding(TemporalBindingMutation),
+    /// A budget one unit short of what the unchanged input consumes.
+    ExhaustedBudget { limit: String },
 }
 
 #[derive(Clone, Debug)]
@@ -572,37 +639,50 @@ pub struct Scenario {
     pub criterion: &'static str,
     pub kind: ScenarioKind,
     pub disposition: Disposition,
+    /// `None` exactly when `disposition` is `Admits`.
+    pub expected_refusal: Option<ExpectedRefusal>,
 }
 
 /// The scenarios that do not depend on A's declared limit set.
 ///
 /// One valid admission, both cross-version submissions, every changed-selection
-/// axis, every ordered digest-domain substitution, every recanonicalised
-/// producer input, and every temporal-binding mutation.
+/// axis, every offered-artifact axis, every ordered digest-domain substitution,
+/// every recanonicalised producer input, and every temporal-binding mutation.
+/// Every refusing row carries a distinct expected refusal identity.
 pub fn static_scenarios() -> Vec<Scenario> {
     let mut scenarios = vec![Scenario {
         id: "v2-valid".to_owned(),
         criterion: "IT-001-SC-06",
         kind: ScenarioKind::Valid,
         disposition: Disposition::Admits,
+        expected_refusal: None,
     }];
 
     for cross in CrossVersion::ALL {
-        scenarios.push(Scenario {
-            id: format!("v2-cross-{}", cross.slug()),
-            criterion: "IT-001-SC-06",
-            kind: ScenarioKind::CrossVersion(cross),
-            disposition: Disposition::RefusesBeforeLinking,
-        });
+        scenarios.push(refusing(
+            format!("v2-cross-{}", cross.slug()),
+            "IT-001-SC-06",
+            ScenarioKind::CrossVersion(cross),
+            ExpectedRefusal::WrongContractVersion(cross),
+        ));
     }
 
     for axis in SelectionAxis::ALL {
-        scenarios.push(Scenario {
-            id: format!("v2-changed-{}", axis.slug()),
-            criterion: "IT-001-SC-06",
-            kind: ScenarioKind::ChangedSelection(axis),
-            disposition: Disposition::RefusesBeforeLinking,
-        });
+        scenarios.push(refusing(
+            format!("v2-changed-{}", axis.slug()),
+            "IT-001-SC-06",
+            ScenarioKind::ChangedSelection(axis),
+            ExpectedRefusal::ChangedSelection(axis),
+        ));
+    }
+
+    for axis in OfferedAxis::ALL {
+        scenarios.push(refusing(
+            format!("v2-offered-{}", axis.slug()),
+            "IT-001-SC-06",
+            ScenarioKind::ChangedOffer(axis),
+            ExpectedRefusal::ChangedOffer(axis),
+        ));
     }
 
     for offered in DigestDomain::ALL {
@@ -610,41 +690,58 @@ pub fn static_scenarios() -> Vec<Scenario> {
             if offered == slot {
                 continue;
             }
-            scenarios.push(Scenario {
-                id: format!("v2-digest-{}-as-{}", offered.slug(), slot.slug()),
-                criterion: "IT-001-SC-07",
-                kind: ScenarioKind::DigestDomainSubstitution { offered, slot },
-                disposition: Disposition::RefusesBeforeLinking,
-            });
+            scenarios.push(refusing(
+                format!("v2-digest-{}-as-{}", offered.slug(), slot.slug()),
+                "IT-001-SC-07",
+                ScenarioKind::DigestDomainSubstitution { offered, slot },
+                ExpectedRefusal::CrossDomainDigest { offered, slot },
+            ));
         }
     }
 
     for input in ProducerInput::ALL {
-        scenarios.push(Scenario {
-            id: format!("v2-recanonicalized-{}", input.slug()),
-            criterion: "IT-001-SC-07",
-            kind: ScenarioKind::Recanonicalized(input),
-            disposition: Disposition::RefusesBeforeLinking,
-        });
+        scenarios.push(refusing(
+            format!("v2-recanonicalized-{}", input.slug()),
+            "IT-001-SC-07",
+            ScenarioKind::Recanonicalized(input),
+            ExpectedRefusal::RecanonicalizedInput(input),
+        ));
     }
 
     for mutation in TemporalBindingMutation::ALL {
-        scenarios.push(Scenario {
-            id: format!("v2-temporal-{}", mutation.slug()),
-            criterion: "IT-001-SC-08",
-            kind: ScenarioKind::TemporalBinding(mutation),
-            disposition: Disposition::RefusesBeforeLinking,
-        });
+        scenarios.push(refusing(
+            format!("v2-temporal-{}", mutation.slug()),
+            "IT-001-SC-08",
+            ScenarioKind::TemporalBinding(mutation),
+            ExpectedRefusal::TemporalBinding(mutation),
+        ));
     }
 
     scenarios
 }
 
-/// The exact, one-short and fresh-retry probe for each limit A declares.
+fn refusing(
+    id: String,
+    criterion: &'static str,
+    kind: ScenarioKind,
+    expected_refusal: ExpectedRefusal,
+) -> Scenario {
+    Scenario {
+        id,
+        criterion,
+        kind,
+        disposition: Disposition::RefusesBeforeLinking,
+        expected_refusal: Some(expected_refusal),
+    }
+}
+
+/// The exactly-sufficient, one-short and fresh-budget probe for each limit A
+/// declares. The input is held constant; only the budget varies.
 pub fn resource_scenarios(limits: &[IndexedLimit]) -> Vec<Scenario> {
     let mut scenarios = Vec::with_capacity(limits.len() * LimitBound::ALL.len());
     for limit in limits {
         for bound in LimitBound::ALL {
+            let refuses = bound == LimitBound::OneShort;
             scenarios.push(Scenario {
                 id: format!("v2-limit-{}-{}", limit.name, bound.slug()),
                 criterion: "IT-001-SC-09",
@@ -652,10 +749,14 @@ pub fn resource_scenarios(limits: &[IndexedLimit]) -> Vec<Scenario> {
                     limit: limit.name.clone(),
                     bound,
                 },
-                disposition: match bound {
-                    LimitBound::OneShort => Disposition::RefusesBeforeLinking,
-                    LimitBound::Exact | LimitBound::FreshRetry => Disposition::Admits,
+                disposition: if refuses {
+                    Disposition::RefusesBeforeLinking
+                } else {
+                    Disposition::Admits
                 },
+                expected_refusal: refuses.then(|| ExpectedRefusal::ExhaustedBudget {
+                    limit: limit.name.clone(),
+                }),
             });
         }
     }

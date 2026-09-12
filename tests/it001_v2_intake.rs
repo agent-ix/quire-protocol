@@ -20,9 +20,9 @@ use ix_trace_rs::trace;
 mod v2;
 
 use v2::{
-    Absence, CrossVersion, DigestDomain, Disposition, Fixture, IndexedLimit, LimitBound,
-    ProducerInput, Scenario, ScenarioKind, SelectionAxis, TemporalBindingMutation,
-    REQUIRED_A_DELIVERABLES,
+    Absence, CrossVersion, DigestDomain, Disposition, ExpectedRefusal, Fixture, IndexedLimit,
+    LimitBound, OfferedAxis, ProducerInput, Scenario, ScenarioKind, SelectionAxis,
+    TemporalBindingMutation, REQUIRED_A_DELIVERABLES,
 };
 
 // ---------------------------------------------------------------------------
@@ -134,6 +134,108 @@ fn static_corpus_covers_every_temporal_binding_mutation() {
             "no temporal-binding scenario for {}",
             mutation.slug()
         );
+    }
+}
+
+/// IT-001 Inputs declares six offered-artifact mutations for *both* lanes. They
+/// change what A offered, not what B selected, and need their own `/2` rows.
+#[test]
+#[trace("Task-009")]
+fn static_corpus_covers_every_offered_artifact_axis() {
+    let scenarios = v2::static_scenarios();
+    for axis in OfferedAxis::ALL {
+        assert!(
+            scenarios
+                .iter()
+                .any(|row| row.kind == ScenarioKind::ChangedOffer(axis)),
+            "no offered-artifact scenario for {}",
+            axis.slug()
+        );
+    }
+    assert_eq!(
+        count(&scenarios, |kind| matches!(
+            kind,
+            ScenarioKind::ChangedOffer(_)
+        )),
+        OfferedAxis::ALL.len()
+    );
+}
+
+/// A two-valued admits/refuses oracle is satisfied by one shared error code
+/// across every negative row. Each refusing scenario must expect a distinct
+/// refusal identity, and each admitting scenario must expect none.
+#[test]
+#[trace("Task-009")]
+fn every_refusing_scenario_expects_a_distinct_refusal_identity() {
+    let limits = vec![
+        IndexedLimit {
+            name: "declaration-count".to_owned(),
+            exact: 10_000,
+        },
+        IndexedLimit {
+            name: "artifact-bytes".to_owned(),
+            exact: 1_048_576,
+        },
+    ];
+    let mut scenarios = v2::static_scenarios();
+    scenarios.extend(v2::resource_scenarios(&limits));
+
+    let mut identities: Vec<String> = Vec::new();
+    for row in &scenarios {
+        match (row.disposition, &row.expected_refusal) {
+            (Disposition::Admits, None) => {}
+            (Disposition::RefusesBeforeLinking, Some(expected)) => {
+                identities.push(format!("{expected:?}"));
+            }
+            (disposition, expected) => panic!("{} pairs {disposition:?} with {expected:?}", row.id),
+        }
+    }
+
+    let before = identities.len();
+    identities.sort();
+    identities.dedup();
+    assert_eq!(
+        before,
+        identities.len(),
+        "two refusing scenarios share one expected refusal identity"
+    );
+    assert_eq!(
+        before,
+        scenarios
+            .iter()
+            .filter(|row| row.disposition == Disposition::RefusesBeforeLinking)
+            .count()
+    );
+}
+
+/// The budget probe, stated the way SC-09 states it: the input is held
+/// constant and only the budget moves.
+#[test]
+#[trace("Task-009")]
+fn the_one_short_budget_is_the_only_refusing_limit_probe() {
+    let limits = vec![IndexedLimit {
+        name: "declaration-count".to_owned(),
+        exact: 10_000,
+    }];
+    for row in v2::resource_scenarios(&limits) {
+        let ScenarioKind::ResourceLimit { bound, .. } = row.kind else {
+            panic!("{} is not a resource probe", row.id);
+        };
+        match bound {
+            LimitBound::OneShort => {
+                assert_eq!(row.disposition, Disposition::RefusesBeforeLinking);
+                assert_eq!(
+                    row.expected_refusal,
+                    Some(ExpectedRefusal::ExhaustedBudget {
+                        limit: "declaration-count".to_owned()
+                    })
+                );
+            }
+            LimitBound::Exact | LimitBound::FreshRetry => {
+                assert_eq!(row.disposition, Disposition::Admits);
+                assert_eq!(row.expected_refusal, None);
+            }
+        }
     }
 }
 
