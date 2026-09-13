@@ -21,6 +21,7 @@ use quire_spec_language::{
     formal_source::FormalSource,
     model_source::{self, ModelSourceLimits},
     native_model::ModelLimits,
+    protocol_artifact::NumberWire,
     Source, SourceIdentity,
 };
 use serde::Deserialize;
@@ -88,10 +89,21 @@ impl Fixture {
         let selection: Selection =
             serde_json::from_slice(include_bytes!("fixtures/a-four-unit-selections.json"))
                 .expect("B selection fixture shape");
-        assert!(selection
-            .sources
-            .iter()
-            .all(|source| !source.file.is_empty()));
+        // Each selected source names a file in the handoff whose bytes hash to
+        // the digest the selection carries. A non-empty-string check passed on
+        // any fixture ever committed; this one fails whenever the selection and
+        // the handoff are derived from different producer runs, which is how a
+        // hybrid fixture went unnoticed across two A revisions.
+        for source in &selection.sources {
+            let bytes = fs::read(root.join(&source.file))
+                .unwrap_or_else(|error| panic!("selected source {}: {error}", source.file));
+            assert_eq!(
+                ByteDigest::of(&bytes),
+                source.source.artifact.digest,
+                "selected source {} does not hash to its selected digest",
+                source.file
+            );
+        }
         let model_source = &selection.model.source;
         let model_bytes = fs::read(root.join(&selection.model.source_file)).expect("model bytes");
         assert_eq!(ByteDigest::of(&model_bytes), model_source.artifact.digest);
@@ -289,16 +301,26 @@ fn replace_once(bytes: &[u8], before: &[u8], after: &[u8]) -> Vec<u8> {
 }
 
 /// The complete top-level `baseline` field as A's producer emits it. Scoping a
-/// mutation to this literal keeps the axis under test on the baseline selection:
-/// the same artifact also appears in the dependency inventory, and a mutation
-/// that moved both could be refused by either check.
-const BASELINE_FIELD: &str = concat!(
-    r#""baseline":{"refVersion":"ix.artifact-ref/3-draft","kind":"source","#,
-    r#""authority":"ix://agent-ix/quire-specification","identity":"ix:native","#,
-    r#""revision":{"namespace":"quire/native-definition-revision","value":"1-draft.2"},"#,
-    r#""digest":"sha256:6f9cb8bf8521ca51a5e6340511b545db43001879446a59c5c87efe4985acdb06","#,
-    r#""wire":{"identity":"text/markdown","version":"1"}}"#,
-);
+/// mutation to this one field keeps the axis under test on the baseline
+/// selection: the same artifact also appears in the dependency inventory, and a
+/// mutation that moved both could be refused by either check.
+///
+/// It is rendered through A's own `Serialize` impl for `wire::ArtifactRef`
+/// rather than mirrored as a literal here. `CLAUDE.md` forbids restating an
+/// owned wire shape, "not even in tests", and the literal this replaced spelled
+/// out `refVersion`, `kind`, `authority`, `identity`, `revision`, `digest` and
+/// `wire` in A's declared member order — seven names and an ordering B would
+/// have had to re-learn from A every time A changed one.
+///
+/// `replace_unique` is what proves the rendering is byte-exact: it requires the
+/// result to occur exactly once in the payload A emitted.
+fn baseline_field(selection: &Selection) -> String {
+    format!(
+        r#""baseline":{}"#,
+        serde_json::to_string(&selection.baseline)
+            .expect("A serialises its own artifact reference")
+    )
+}
 
 /// Replace a target that must occur exactly once, so a future A fixture cannot
 /// silently widen a one-axis mutation across additional fields.
@@ -317,26 +339,98 @@ fn replace_unique(bytes: &[u8], before: &[u8], after: &[u8]) -> Vec<u8> {
 }
 
 /// One baseline field with exactly one substring respelled in place.
-fn mutated_baseline_field(before: &str, after: &str) -> String {
-    assert_eq!(before.len(), after.len());
-    assert_eq!(BASELINE_FIELD.matches(before).count(), 1);
-    BASELINE_FIELD.replace(before, after)
+///
+/// The uniqueness check is a precondition on this test's own construction, not
+/// a gate on the library: it fails if the mutation target stops naming one
+/// field of the rendered reference. Equal length is not checked here —
+/// `replace_unique` enforces it against the whole payload, which is the level
+/// at which it matters.
+fn mutated_baseline_field(baseline: &str, before: &str, after: &str) -> String {
+    assert_eq!(
+        baseline.matches(before).count(),
+        1,
+        "`{before}` must name exactly one field of the baseline reference"
+    );
+    baseline.replace(before, after)
+}
+
+/// The same string with its final character replaced, so a one-axis mutation
+/// stays one axis wide and the payload keeps its length.
+///
+/// Deriving the target from the selection rather than spelling A's emitted
+/// value into this file means a regenerated fixture moves the mutation with it
+/// instead of leaving a literal that no longer occurs.
+fn last_character_changed(value: &str) -> String {
+    let (head, last) = value
+        .split_at_checked(value.len() - 1)
+        .expect("a non-empty selected value on a character boundary");
+    let replacement = if last == "7" { "6" } else { "7" };
+    format!("{head}{replacement}")
+}
+
+/// An exact integer as A spells it on the wire.
+fn integer(decimal: &str) -> wire::Integer {
+    wire::Integer(NumberWire::Integer {
+        decimal: decimal.to_owned(),
+    })
+}
+
+/// The `operation` field of one offered value, rendered through A's own
+/// `ValueOperation` and `Number` impls.
+///
+/// The anchors below were literals spelling `operation`, `kind`, `number`,
+/// `value`, `integer`, `decimal`, `rational`, `numerator` and `denominator` —
+/// nine A-owned names and their nesting, restated in a repository `CLAUDE.md`
+/// forbids from mirroring an owned wire shape "not even in tests". Rendering
+/// them keeps exactly one owner. `respell_unique` proves the rendering is
+/// byte-exact: it requires the anchor to occur exactly once in A's payload.
+fn value_operation(operation: &wire::ValueOperation) -> String {
+    format!(
+        r#""operation":{}"#,
+        serde_json::to_string(operation).expect("A serialises its own value operation")
+    )
 }
 
 /// An offered integer value in the declaration graph, typed by the model scalar
 /// `Tally` (domain 0..=5). Anchoring on the enclosing value operation keeps the
 /// numeric mutations on a *value*; the same spelling also appears as a type
 /// bound, where a different check would refuse it.
-const INTEGER_VALUE: &str =
-    r#""operation":{"kind":"number","value":{"kind":"integer","decimal":"5"}}"#;
+fn integer_value() -> String {
+    value_operation(&wire::ValueOperation::Number {
+        value: wire::Number(NumberWire::Integer {
+            decimal: "5".to_owned(),
+        }),
+    })
+}
 
 /// The offered rational value, typed by the model scalar `Ratio`.
-const RATIONAL_VALUE: &str = r#""operation":{"kind":"number","value":{"kind":"rational","numerator":"1","denominator":"1"}}"#;
+fn rational_value() -> String {
+    value_operation(&wire::ValueOperation::Number {
+        value: wire::Number(NumberWire::Rational {
+            numerator: "1".to_owned(),
+            denominator: "1".to_owned(),
+        }),
+    })
+}
 
 /// `Tally`'s declared representation bound, which must equal the selected
 /// model's own bound rather than merely admit the values that occur.
-const INTEGER_BOUND: &str =
-    r#""minimum":{"kind":"integer","decimal":"0"},"maximum":{"kind":"integer","decimal":"5"}"#;
+///
+/// A's `Representation::Integer` carries the two bounds inside a tagged object;
+/// the anchor is its member list without that wrapper, so that a mutation lands
+/// on a bound rather than on the alternative tag.
+fn integer_bound() -> String {
+    let representation = serde_json::to_string(&wire::Representation::Integer {
+        minimum: integer("0"),
+        maximum: integer("5"),
+    })
+    .expect("A serialises its own representation");
+    let members = representation
+        .strip_prefix(r#"{"kind":"integer","#)
+        .and_then(|rest| rest.strip_suffix('}'))
+        .unwrap_or_else(|| panic!("A's integer representation is tagged: {representation}"));
+    members.to_owned()
+}
 
 /// Replace a target that must occur exactly once, without the compact-length
 /// constraint: a numeric spelling's exact decimal width is the property under
@@ -359,8 +453,16 @@ fn respell_unique(bytes: &[u8], before: &[u8], after: &[u8]) -> Vec<u8> {
 }
 
 /// Respell one numeric field inside an anchored, unique enclosing context.
+///
+/// As in `mutated_baseline_field`, the uniqueness check is a precondition on
+/// the anchor this test supplies. The gate is `respell_unique`, which requires
+/// the anchor to occur exactly once in the offered payload.
 fn respell_within(bytes: &[u8], anchor: &str, before: &str, after: &str) -> Vec<u8> {
-    assert_eq!(anchor.matches(before).count(), 1);
+    assert_eq!(
+        anchor.matches(before).count(),
+        1,
+        "`{before}` must occur once inside the supplied anchor"
+    );
     respell_unique(
         bytes,
         anchor.as_bytes(),
@@ -371,12 +473,19 @@ fn respell_within(bytes: &[u8], anchor: &str, before: &str, after: &str) -> Vec<
 /// Re-encode an admitted package through A's accepted canonical encoder and
 /// require the exact offered bytes back.
 ///
-/// A's reader already compares its own canonical re-encoding before admitting,
-/// so this cannot fail for a package that admits. What it adds is that the
-/// round-trip is reproducible through B's public boundary under a fresh
-/// `Limits::default()` budget, and that no number is echoed on the way: every
-/// admitted number is re-spelled from its validated signed-64 components, so
-/// byte identity here also pins the canonical numeric spelling.
+/// A's reader compares its own canonical re-encoding before admitting, so the
+/// first two assertions below restate a check A has already made — they fail
+/// only if A's intake path and A's `encode_candidate` disagree, which is a
+/// defect in A that this lane would surface rather than one in B. They are
+/// recorded as corroboration, not as B's gate, and the doc says so because a
+/// test that reads as a gate and is not one is worse than no test.
+///
+/// The last assertion is B's. It hashes the re-encoded bytes in B's own raw
+/// artifact domain and requires A's reported digest back, so a digest A
+/// computed over anything but exactly these bytes fails here. That is also
+/// what pins the canonical numeric spelling: every admitted number is
+/// re-spelled from its validated signed-64 components rather than echoed, so
+/// byte identity over the re-encoding is a statement about the numbers.
 fn assert_round_trips(admitted: &quire_protocol::AdmittedPackage, offered: &[u8]) {
     let candidate = quire_spec_language::protocol_artifact::encode_candidate(
         admitted.package(),
@@ -386,6 +495,11 @@ fn assert_round_trips(admitted: &quire_protocol::AdmittedPackage, offered: &[u8]
     .expect("canonical re-encoding");
     assert_eq!(candidate.bytes(), offered, "re-encoded bytes must be exact");
     assert_eq!(candidate.digest(), admitted.digest());
+    assert_eq!(
+        ByteDigest::of(candidate.bytes()),
+        candidate.digest(),
+        "A's reported digest must be B's own hash of the re-encoded bytes"
+    );
 }
 
 fn numeric_error(report: quire_protocol::Report<quire_protocol::AdmittedPackage>) -> NumberError {
@@ -409,6 +523,50 @@ fn locked_package(name: &str) -> &str {
         .expect("locked package")
 }
 
+/// Every `.rs` file under `src/`, as (repository-relative path, contents),
+/// sorted by path so a failure names the same file on every run.
+///
+/// `include_str!` can only name files a human already listed, which is exactly
+/// the property under test: a containment claim that inspects one hand-named
+/// file is satisfied by putting the second reader in any other file. This walks
+/// the tree instead, so a new module is covered the moment it is added.
+fn b_sources() -> Vec<(String, String)> {
+    fn walk(dir: &Path, prefix: &str, into: &mut Vec<(String, String)>) {
+        let mut entries = fs::read_dir(dir)
+            .unwrap_or_else(|error| panic!("read {}: {error}", dir.display()))
+            .map(|entry| entry.expect("directory entry").path())
+            .collect::<Vec<_>>();
+        entries.sort();
+        for path in entries {
+            let name = path
+                .file_name()
+                .expect("named entry")
+                .to_str()
+                .expect("UTF-8 file name")
+                .to_owned();
+            let relative = format!("{prefix}{name}");
+            if path.is_dir() {
+                walk(&path, &format!("{relative}/"), into);
+            } else if name.ends_with(".rs") {
+                let contents = fs::read_to_string(&path).expect("UTF-8 source file");
+                into.push((relative, contents));
+            }
+        }
+    }
+
+    let mut sources = Vec::new();
+    walk(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("src").as_path(),
+        "src/",
+        &mut sources,
+    );
+    sources
+}
+
+/// A's reading entry points, each of which B may delegate to from exactly one
+/// place. `admit_and_link` and `admit_and_link_v2` are those places.
+const A_READER_CALLS: [&str; 2] = ["quire_spec_language::protocol_artifact::read(", "v2::read("];
+
 /// Tracing: IT-001, Task-009.
 #[test]
 #[trace("IT-001", "Task-009")]
@@ -416,7 +574,38 @@ fn it_001_inventory_identifies_one_b_owned_reader_path() {
     // This is intentionally source/dependency inspection: the absence of a
     // second B-owned parser is a containment property with no runtime input
     // that can exercise it. It does not make a claim about A's compiler
-    // internals, which remain A-owned behind this one public reader call.
+    // internals, which remain A-owned behind these public reader calls.
+    let sources = b_sources();
+    assert!(
+        sources.len() > 20,
+        "the source walk found {} files, so it is not inspecting the tree",
+        sources.len()
+    );
+
+    for call in A_READER_CALLS {
+        let sites = sources
+            .iter()
+            .filter(|(_, contents)| contents.contains(call))
+            .map(|(path, contents)| (path.as_str(), contents.matches(call).count()))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            sites,
+            [("src/lib.rs", 1)],
+            "`{call}` must be reached from exactly one place in `src/lib.rs`"
+        );
+    }
+
+    // A B-owned parser would arrive as a module, not as a call: name the shapes
+    // `AD-001` forbids rather than only the two that were once written down.
+    for (path, contents) in &sources {
+        for forbidden in ["mod parser", "mod frontend", "mod lexer", "mod grammar"] {
+            assert!(
+                !contents.contains(forbidden),
+                "{path} declares `{forbidden}`, which this repository does not own"
+            );
+        }
+    }
+
     let manifest = include_str!("../Cargo.toml");
     let production = manifest
         .split("[dependencies]\n")
@@ -435,12 +624,6 @@ fn it_001_inventory_identifies_one_b_owned_reader_path() {
     assert!(consumer.contains(r#""quire-spec-language""#));
     assert!(consumer.contains(r#""serde_json""#));
     assert!(!consumer.contains(r#""logos""#));
-
-    let facade = include_str!("../src/lib.rs");
-    let reader_call = "quire_spec_language::protocol_artifact::read(bytes, expected, limits)";
-    assert_eq!(facade.matches(reader_call).count(), 1);
-    assert!(!facade.contains("pub mod parser;"));
-    assert!(!facade.contains("pub mod frontend;"));
 }
 
 /// Tracing: IT-001, FR-001-AC-1, Task-009.
@@ -576,7 +759,7 @@ fn it_001_refuses_one_axis_non_numeric_integer_component() {
     // outer artifact digest, refuses the value before a linked package exists.
     let changed = respell_within(
         &bytes,
-        INTEGER_VALUE,
+        &integer_value(),
         r#""decimal":"5""#,
         r#""decimal":"x""#,
     );
@@ -628,10 +811,17 @@ fn it_001_refuses_one_axis_stale_baseline_selection() {
     let bytes = fs::read(root.join("compiled-protocol.json")).expect("A compiled bytes");
     // Only the top-level baseline revision moves. B's frozen selection, not the
     // offer, decides which semantic baseline is accepted.
+    let baseline = baseline_field(&fixture.selection);
+    let selected = &fixture.selection.baseline.revision.value;
     let changed = replace_unique(
         &bytes,
-        BASELINE_FIELD.as_bytes(),
-        mutated_baseline_field("\"value\":\"1-draft.2\"", "\"value\":\"1-draft.7\"").as_bytes(),
+        baseline.as_bytes(),
+        mutated_baseline_field(
+            &baseline,
+            &format!(r#""value":"{selected}""#),
+            &format!(r#""value":"{}""#, last_character_changed(selected)),
+        )
+        .as_bytes(),
     );
     let selection = resealed(&fixture.selection, &changed);
     // A superseded revision of the selected baseline identity: the baseline
@@ -654,10 +844,12 @@ fn it_001_refuses_one_axis_changed_baseline_digest() {
     let bytes = fs::read(root.join("compiled-protocol.json")).expect("A compiled bytes");
     // The same artifact stays correct in the dependency inventory, so only the
     // baseline digest check can refuse this offer.
+    let baseline = baseline_field(&fixture.selection);
+    let selected = fixture.selection.baseline.digest.to_string();
     let changed = replace_unique(
         &bytes,
-        BASELINE_FIELD.as_bytes(),
-        mutated_baseline_field("4985acdb06", "4985acdb07").as_bytes(),
+        baseline.as_bytes(),
+        mutated_baseline_field(&baseline, &selected, &last_character_changed(&selected)).as_bytes(),
     );
     let selection = resealed(&fixture.selection, &changed);
     // The value diverges inside the baseline's own producer digest domain, so
@@ -679,11 +871,17 @@ fn it_001_refuses_one_axis_cross_domain_baseline_digest() {
     let fixture = Fixture::load(&root);
     let bytes = fs::read(root.join("compiled-protocol.json")).expect("A compiled bytes");
     // Only the baseline digest's domain label moves; its hexadecimal body and
-    // every other digest in the offer are unchanged.
+    // every other digest in the offer are unchanged. `sha512:` is not A's
+    // vocabulary and is not claimed to be: it is a well-formed label B chose
+    // precisely because A does not know it.
+    let baseline = baseline_field(&fixture.selection);
+    let selected = fixture.selection.baseline.digest.to_string();
+    let foreign = selected.replacen("sha256:", "sha512:", 1);
+    assert_ne!(foreign, selected, "the selected digest must carry a label");
     let changed = replace_unique(
         &bytes,
-        BASELINE_FIELD.as_bytes(),
-        mutated_baseline_field("\"sha256:6f9cb8", "\"sha512:6f9cb8").as_bytes(),
+        baseline.as_bytes(),
+        mutated_baseline_field(&baseline, &selected, &foreign).as_bytes(),
     );
     let selection = resealed(&fixture.selection, &changed);
     // A parse failure would prove nothing here: it would only say the label is
@@ -749,7 +947,8 @@ fn it_001_refuses_well_formed_cross_domain_baseline_digest() {
     // `sha256-jcs:` — so this substitution resizes the payload and cannot go
     // through `replace_unique`. The width difference is part of what is under
     // test, not an accident to be normalised away.
-    let changed = respell_within(&bytes, BASELINE_FIELD, &selected_digest, &result_domain);
+    let baseline = baseline_field(&fixture.selection);
+    let changed = respell_within(&bytes, &baseline, &selected_digest, &result_domain);
     let selection = resealed(&fixture.selection, &changed);
     let error = fixture.discriminate(&selection, &changed).unwrap_err();
     assert_eq!(
@@ -850,7 +1049,7 @@ fn it_001_refuses_one_axis_non_canonical_decimal() {
     for spelling in ["05", "+5", "5.0", " 5", "-0"] {
         let changed = respell_within(
             &bytes,
-            INTEGER_VALUE,
+            &integer_value(),
             r#""decimal":"5""#,
             &format!(r#""decimal":"{spelling}""#),
         );
@@ -879,7 +1078,12 @@ fn it_001_refuses_one_axis_unsafe_json_number() {
     // a bare integer fails the required string shape, and every other bare form
     // fails the structural-integer rule that keeps JSON numbers out of the
     // exact numeric domain entirely.
-    let changed = respell_within(&bytes, INTEGER_VALUE, r#""decimal":"5""#, r#""decimal":5"#);
+    let changed = respell_within(
+        &bytes,
+        &integer_value(),
+        r#""decimal":"5""#,
+        r#""decimal":5"#,
+    );
     let selection = resealed(&fixture.selection, &changed);
     let error = fixture
         .admit_selected(&selection, &changed)
@@ -893,7 +1097,7 @@ fn it_001_refuses_one_axis_unsafe_json_number() {
     for bare in ["5.0", "1e3", "-0", "9223372036854775808"] {
         let changed = respell_within(
             &bytes,
-            INTEGER_VALUE,
+            &integer_value(),
             r#""decimal":"5""#,
             &format!(r#""decimal":{bare}"#),
         );
@@ -924,7 +1128,7 @@ fn it_001_refuses_one_axis_out_of_range_component() {
     for spelling in ["9223372036854775808", "-9223372036854775809"] {
         let changed = respell_within(
             &bytes,
-            INTEGER_VALUE,
+            &integer_value(),
             r#""decimal":"5""#,
             &format!(r#""decimal":"{spelling}""#),
         );
@@ -951,7 +1155,7 @@ fn it_001_labels_the_refused_rational_component() {
     // without reading diagnostic text. A numerator failure is not a decimal one.
     let changed = respell_within(
         &bytes,
-        RATIONAL_VALUE,
+        &rational_value(),
         r#""numerator":"1""#,
         r#""numerator":"01""#,
     );
@@ -965,7 +1169,7 @@ fn it_001_labels_the_refused_rational_component() {
 
     let changed = respell_within(
         &bytes,
-        RATIONAL_VALUE,
+        &rational_value(),
         r#""denominator":"1""#,
         r#""denominator":"9223372036854775808""#,
     );
@@ -989,7 +1193,7 @@ fn it_001_refuses_one_axis_non_positive_denominator() {
     for denominator in ["0", "-1"] {
         let changed = respell_within(
             &bytes,
-            RATIONAL_VALUE,
+            &rational_value(),
             r#""denominator":"1""#,
             &format!(r#""denominator":"{denominator}""#),
         );
@@ -1016,7 +1220,7 @@ fn it_001_refuses_one_axis_unreduced_rational() {
     for (numerator, denominator) in [("2", "4"), ("0", "2")] {
         let changed = respell_within(
             &bytes,
-            RATIONAL_VALUE,
+            &rational_value(),
             r#""numerator":"1","denominator":"1""#,
             &format!(r#""numerator":"{numerator}","denominator":"{denominator}""#),
         );
@@ -1042,7 +1246,7 @@ fn it_001_refuses_a_value_outside_its_declared_field_domain() {
     // therefore never admits a value.
     let integer = respell_within(
         &bytes,
-        INTEGER_VALUE,
+        &integer_value(),
         r#""decimal":"5""#,
         r#""decimal":"9223372036854775807""#,
     );
@@ -1061,7 +1265,7 @@ fn it_001_refuses_a_value_outside_its_declared_field_domain() {
 
     let rational = respell_within(
         &bytes,
-        RATIONAL_VALUE,
+        &rational_value(),
         r#""numerator":"1","denominator":"1""#,
         r#""numerator":"-9223372036854775808","denominator":"9223372036854775807""#,
     );
@@ -1092,7 +1296,7 @@ fn it_001_refuses_a_substituted_numeric_kind() {
     // domain; in an integer-only bound position it is refused as a wrong kind.
     let value = respell_within(
         &bytes,
-        INTEGER_VALUE,
+        &integer_value(),
         r#"{"kind":"integer","decimal":"5"}"#,
         r#"{"kind":"rational","numerator":"5","denominator":"1"}"#,
     );
@@ -1111,7 +1315,7 @@ fn it_001_refuses_a_substituted_numeric_kind() {
 
     let bound = respell_within(
         &bytes,
-        INTEGER_BOUND,
+        &integer_bound(),
         r#""maximum":{"kind":"integer","decimal":"5"}"#,
         r#""maximum":{"kind":"rational","numerator":"5","denominator":"1"}"#,
     );
@@ -1142,7 +1346,7 @@ fn it_001_refuses_a_type_bound_that_disagrees_with_the_selected_model() {
     // can refuse this. The offer cannot relax its own type domains.
     let changed = respell_within(
         &bytes,
-        INTEGER_BOUND,
+        &integer_bound(),
         r#""maximum":{"kind":"integer","decimal":"5"}"#,
         r#""maximum":{"kind":"integer","decimal":"9223372036854775807"}"#,
     );
