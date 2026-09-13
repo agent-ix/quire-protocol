@@ -804,7 +804,9 @@ fn tc_011_literal_scan_detects_an_unregistered_code() {
     // A registered code is not a finding. A code-shaped literal that is not a
     // code IS a finding, because shape cannot tell `cargo.toml` from the real
     // two-segment code `outcome.open` — the sanctioned silencer is
-    // `EXEMPT_LITERALS`, never a weaker shape test.
+    // `EXEMPT_LITERALS`, never a weaker shape test. `outcome.open` is named
+    // here as a shape, not as a registration: the `outcome` root left the
+    // catalog with the local assessment-outcome vocabulary it belonged to.
     assert_eq!(
         unregistered_literals(REGISTRY, r#"let path = "cargo.toml";"#),
         vec![UnregisteredLiteral {
@@ -815,7 +817,7 @@ fn tc_011_literal_scan_detects_an_unregistered_code() {
 
     let clean = r#"
         let code = "refusal.code.unregistered";
-        let other = "outcome.open";
+        let other = "execution.failed";
         let path = "spec/tests.md";
     "#;
     assert_eq!(unregistered_literals(REGISTRY, clean), Vec::new());
@@ -1095,4 +1097,72 @@ fn tc_011_the_exemption_list_is_not_stale() {
             "exemption {exempt} matches no literal in src/; remove it"
         );
     }
+}
+
+/// Every minted code in the registry is spelled inside the module that owns it.
+///
+/// The repo-wide scan above checks one direction: a code emitted but not
+/// registered. Nothing checked the other, and that let five `outcome.*` codes
+/// stay registered for the length of a merge after `crate::closure` stopped
+/// emitting them — a catalog naming refusals this crate cannot produce, which
+/// is the same defect as an unregistered emission with the arrow reversed.
+///
+/// The check is per module rather than repo-wide on purpose. A `CodeModule`
+/// names the `module_path` that mints its codes, so a registration that has
+/// drifted away from its own module is exactly what went wrong, and a code
+/// spelled only in some unrelated file would satisfy a repo-wide `contains`.
+///
+/// Spec-named codes are exempt: `FR-008` names them, so the catalog holds them
+/// whether or not a call site spells one yet.
+#[test]
+#[trace("TC-011", "FR-008-AC-1")]
+fn tc_011_every_registered_code_is_spelled_by_its_module() {
+    let mut adrift = Vec::new();
+    for module in REGISTRY {
+        let owning = module_sources(module.module_path);
+        for entry in module.entries {
+            if entry.provenance != Provenance::Minted {
+                continue;
+            }
+            if !owning.contains(entry.code) {
+                adrift.push(entry.code);
+            }
+        }
+    }
+    assert_eq!(
+        adrift,
+        Vec::<&str>::new(),
+        "every minted code must be spelled inside the module that registers it"
+    );
+}
+
+/// The concatenated source of the module a `CodeModule::module_path` names.
+///
+/// A path resolves to `src/<path>.rs`, to the subtree `src/<path>/`, or to
+/// both; at least one must exist, or the registration names a module that is
+/// not there.
+fn module_sources(module_path: &str) -> String {
+    let relative = module_path
+        .strip_prefix("quire_protocol::")
+        .unwrap_or_else(|| panic!("`{module_path}` is not a path inside this crate"))
+        .replace("::", "/");
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut sources = String::new();
+    let file = root.join(format!("{relative}.rs"));
+    if file.is_file() {
+        sources.push_str(&fs::read_to_string(&file).expect("a readable src file"));
+    }
+    let directory = root.join(&relative);
+    if directory.is_dir() {
+        let mut files = Vec::new();
+        collect_rust_files(&directory, &mut files);
+        for path in files {
+            sources.push_str(&fs::read_to_string(&path).expect("a readable src file"));
+        }
+    }
+    assert!(
+        !sources.is_empty(),
+        "`{module_path}` names no source under src/"
+    );
+    sources
 }

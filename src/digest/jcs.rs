@@ -124,7 +124,7 @@ pub struct ResultDigest(ByteDigest);
 
 impl ResultDigest {
     /// The one domain a `ResultDigest` ever belongs to.
-    pub const DOMAIN: DigestDomain = DigestDomain::ProtocolResultJcs;
+    pub const DOMAIN: DigestDomain = DigestDomain::VerificationJcs;
 
     /// Digest a protocol result over its RFC 8785 canonical form.
     pub fn of_result(value: &Value) -> Result<Self, JcsError> {
@@ -132,13 +132,21 @@ impl ResultDigest {
     }
 
     /// The canonical text of this result-domain value.
+    ///
+    /// Prefixed `sha256-jcs:`, which the published vocabulary requires for this
+    /// domain and which a raw `sha256` value may not substitute for. The
+    /// producer's own `Display` renders `sha256:`, so this does not delegate to
+    /// it: rendering both domains identically is what let a cross-domain value
+    /// pass the algorithm-label test as a merely divergent one.
     pub fn text(&self) -> String {
-        self.0.to_string()
+        self.to_string()
     }
 }
 
 impl fmt::Display for ResultDigest {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Display::fmt(&self.0, formatter)
+        formatter.write_str(DigestDomain::VerificationJcs.algorithm_label())?;
+        formatter.write_str(":")?;
+        fmt::LowerHex::fmt(&self.0, formatter)
     }
 }

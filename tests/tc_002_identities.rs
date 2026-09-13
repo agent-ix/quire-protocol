@@ -66,8 +66,15 @@ fn tc_002_newtypes_are_not_interchangeable() {
         "duplicate identity kind"
     );
 
-    let tags: HashSet<&str> = IdentityKind::ALL.iter().map(|kind| kind.tag()).collect();
-    assert_eq!(tags.len(), IdentityKind::ALL.len(), "two kinds share a tag");
+    // No tag assertion. An earlier revision compared a local `tag()` label per
+    // kind for uniqueness, which compared this crate's own labels to each other
+    // and so could not fail. Eight of those labels also collided exactly with
+    // `FR-210-protocol-subject-vocabulary`'s published members, and `FR-210`
+    // rules the other eight are not protocol subjects at all: "A consumer that
+    // needs to hold a channel, registration, commit boundary or recovery
+    // relation apart from a protocol subject does so by referencing the object
+    // artifact, not by minting a subject-kind label." The labels are gone; the
+    // kinds remain as a discriminator over this crate's own newtypes.
 }
 
 #[trace("TC-002", "Task-002")]
@@ -106,7 +113,7 @@ fn tc_002_each_newtype_reports_its_own_kind() {
     assert_eq!(RecoveryId::new(b"a", "a").kind(), IdentityKind::Recovery);
 }
 
-#[trace("TC-002", "Task-002")]
+#[trace("TC-002", "Task-002", "FR-011-AC-2")]
 #[test]
 fn tc_002_display_text_is_not_identity() {
     // Equal producer bytes, different display text: the same identity.
@@ -149,7 +156,7 @@ fn tc_002_display_text_is_not_identity() {
     assert_eq!(renamed.identity_bytes(), relabelled.identity_bytes());
 }
 
-#[trace("TC-002", "Task-002")]
+#[trace("TC-002", "Task-002", "FR-011-AC-3")]
 #[test]
 fn tc_002_identity_bytes_are_retained_unchanged() {
     // No trim, no case fold, no Unicode normalisation, no UTF-8 requirement.
@@ -184,7 +191,7 @@ fn tc_002_identity_bytes_are_retained_unchanged() {
     );
 }
 
-#[trace("TC-002", "Task-002")]
+#[trace("TC-002", "Task-002", "FR-011-AC-3")]
 #[test]
 fn tc_002_wire_package_identities_round_trip_unchanged() {
     // A `wire::Package` definition entry, taken as the producer offers it.

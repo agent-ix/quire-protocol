@@ -32,7 +32,7 @@ make later qualification irreproducible.
 | ID | Criteria | Validation |
 | --- | --- | --- |
 | StR-001-VC-1 | The implementation accepts only the immutable profile frozen by an accepted source baseline and preserves every identity and premise required by that profile. | Demonstration (IT-001) |
-| StR-001-VC-2 | Conforming, violating, pending, incomplete, unsupported, failed, and resource-exhausted assessments remain independently visible. | Demonstration (IT-003) |
+| StR-001-VC-2 | Satisfied, violated, pending and unavailable truth, and refused, unsupported, resource-incomplete and failed execution, remain independently visible. | Demonstration (IT-003) |
 | StR-001-VC-3 | The canonical result and any E02 projection can be recomputed from their exact retained inputs without semantic loss. | Test (TC-006) |
 
 ## Stakeholders

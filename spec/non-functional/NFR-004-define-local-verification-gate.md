@@ -4,6 +4,8 @@ title: "Define the local verification gate and its configuration lanes"
 type: NFR
 quality_attribute: maintainability
 relationships:
+  - target: ix://agent-ix/quire-protocol/US-007
+    type: derives_from
   - target: ix://agent-ix/quire-protocol/NFR-003
     type: constrains
   - target: ix://agent-ix/quire-protocol/FR-001

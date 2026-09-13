@@ -12,7 +12,7 @@ use quire_protocol::{
         producer::{DigestDomain, DigestSlot, OfferedDomain, ProducerDigestRef},
     },
     inventory::{
-        axis::SelectionAxis, DigestClassification, ResultDigestRefusal, SelectedInventory,
+        axis::DivergedSelection, DigestClassification, ResultDigestRefusal, SelectedInventory,
     },
     wire, ByteDigest, Expected,
 };
@@ -106,7 +106,7 @@ impl Selections {
 ///
 /// Tracing: TC-006, FR-001-AC-4.
 #[test]
-#[trace("TC-006", "FR-001-AC-4")]
+#[trace("TC-006", "FR-001-AC-4", "FR-015-AC-3")]
 fn tc_006_producer_reference_in_the_result_slot_refuses() {
     let selections = Selections::new();
     let inventory = selections.inventory();
@@ -118,10 +118,10 @@ fn tc_006_producer_reference_in_the_result_slot_refuses() {
     match refusal {
         ResultDigestRefusal::CrossDomain(violation) => {
             assert_eq!(violation.slot, DigestSlot::ProtocolResult);
-            assert_eq!(violation.selected, DigestDomain::ProtocolResultJcs);
+            assert_eq!(violation.selected, DigestDomain::VerificationJcs);
             assert_eq!(
                 violation.offered,
-                OfferedDomain::Identified(DigestDomain::ProducerArtifactBytes)
+                OfferedDomain::Identified(DigestDomain::RawArtifact)
             );
             assert_eq!(violation.value, offered);
         }
@@ -133,24 +133,32 @@ fn tc_006_producer_reference_in_the_result_slot_refuses() {
 ///
 /// Tracing: TC-006, FR-001-AC-4.
 #[test]
-#[trace("TC-006", "FR-001-AC-4")]
+#[trace("TC-006", "FR-001-AC-4", "FR-015-AC-3")]
 fn tc_006_result_digest_in_a_producer_slot_refuses() {
     let selections = Selections::new();
     let inventory = selections.inventory();
     let offered = inventory
         .result_domain_text(DigestSlot::Baseline)
         .expect("baseline is a selected slot");
-    // Well formed in every syntactic sense: the same algorithm label, the same
-    // length, the same alphabet as the value it replaces.
-    assert!(offered.starts_with("sha256:"));
-    assert_eq!(offered.len(), selections.baseline.digest.to_string().len());
+    // The published vocabulary requires this domain to be spelled `sha256-jcs:`
+    // and states that a raw `sha256` digest cannot substitute for it, so the
+    // label itself separates the two domains. The hex payload is still the same
+    // length and alphabet as the value it replaces, so nothing about the digest
+    // *value* distinguishes them.
+    assert!(offered.starts_with("sha256-jcs:"));
+    assert!(!offered.starts_with("sha256:"));
+    let producer_text = selections.baseline.digest.to_string();
+    assert_eq!(
+        offered.rsplit_once(':').expect("labelled").1.len(),
+        producer_text.rsplit_once(':').expect("labelled").1.len()
+    );
     match inventory.classify_offered(DigestSlot::Baseline, &offered) {
         DigestClassification::CrossDomain(violation) => {
             assert_eq!(violation.slot, DigestSlot::Baseline);
-            assert_eq!(violation.selected, DigestDomain::ProducerArtifactBytes);
+            assert_eq!(violation.selected, DigestDomain::RawArtifact);
             assert_eq!(
                 violation.offered,
-                OfferedDomain::Identified(DigestDomain::ProtocolResultJcs)
+                OfferedDomain::Identified(DigestDomain::VerificationJcs)
             );
         }
         other => panic!("expected a cross-domain classification, got {other:?}"),
@@ -225,7 +233,7 @@ fn tc_006_foreign_algorithm_label_is_cross_domain() {
 ///
 /// Tracing: TC-006, FR-001-AC-4.
 #[test]
-#[trace("TC-006", "FR-001-AC-4")]
+#[trace("TC-006", "FR-001-AC-4", "FR-015-AC-4")]
 fn tc_006_unselected_slot_is_explicit() {
     let selections = Selections::new();
     let inventory = selections.inventory();
@@ -246,7 +254,7 @@ fn tc_006_unselected_slot_is_explicit() {
 ///
 /// Tracing: TC-006, FR-001-AC-4.
 #[test]
-#[trace("TC-006", "FR-001-AC-4")]
+#[trace("TC-006", "FR-001-AC-4", "FR-015-AC-4")]
 fn tc_006_unlabelled_value_is_cross_domain() {
     let selections = Selections::new();
     let inventory = selections.inventory();
@@ -263,15 +271,15 @@ fn tc_006_unlabelled_value_is_cross_domain() {
 ///
 /// Tracing: TC-006, FR-006-AC-4.
 #[test]
-#[trace("TC-006", "FR-006-AC-4")]
+#[trace("TC-006", "FR-006-AC-4", "FR-015-AC-2")]
 fn tc_006_producer_reference_is_opaque_and_copied_exactly() {
     let text = "sha256:0000000000000000000000000000000000000000000000000000000000000001";
-    let reference = ProducerDigestRef::copy_exact(DigestDomain::ProducerSource, text)
+    let reference = ProducerDigestRef::copy_exact(DigestDomain::RawArtifact, text)
         .expect("producer-source is a producer-owned domain");
     assert_eq!(reference.as_producer_text(), text);
-    assert_eq!(reference.domain(), DigestDomain::ProducerSource);
+    assert_eq!(reference.domain(), DigestDomain::RawArtifact);
     assert!(
-        ProducerDigestRef::copy_exact(DigestDomain::ProtocolResultJcs, text).is_none(),
+        ProducerDigestRef::copy_exact(DigestDomain::VerificationJcs, text).is_none(),
         "a protocol-result digest must not be constructible as a producer reference"
     );
 }
@@ -305,7 +313,7 @@ fn tc_006_jcs_is_member_order_invariant_and_refuses_numbers() {
 #[test]
 #[trace("TC-006", "FR-001-AC-2")]
 fn tc_006_no_two_selection_axes_share_a_code() {
-    let axes = SelectionAxis::ALL;
+    let axes = DivergedSelection::ALL;
     for (index, left) in axes.iter().enumerate() {
         for right in &axes[index + 1..] {
             assert_ne!(left, right);

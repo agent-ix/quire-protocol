@@ -36,3 +36,6 @@ returns resource-incomplete before starting the excess unit. The implementation
 reports elapsed overshoot only for a declared indivisible unit. Each inventory
 or guard mutant is killed by its assigned test for the intended reason, and the
 action-capable double records zero calls.
+
+## Traceability
+This test case additionally backs criteria on the object requirements FR-016, FR-017, which cite it as their verification. Those criteria are exercised by the same procedure above; a change here that stops exercising them is a change to their coverage, not only to this test case's.

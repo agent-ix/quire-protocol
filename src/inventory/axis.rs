@@ -9,12 +9,22 @@
 
 use std::fmt;
 
-/// The single selection axis that diverged, named by B's own inventory.
+/// The single selected component that diverged, named by this crate's own
+/// inventory after a refusal.
 ///
-/// Every variant is produced by exactly one comparison, so no two axes in this
-/// enum can share a value.
+/// Every variant is produced by exactly one comparison, so no two of them can
+/// share a value.
+///
+/// Distinct from `MutatedSelection` in `tests/support/v2/mod.rs`, which names
+/// which selection a scenario mutates *before* submission. That one is
+/// per-object and pre-refusal; this one is per-component and post-refusal.
+/// Neither is a vocabulary the producer or core publishes: the producer
+/// collapses all of this into one `Invalid::Selection`, and this enum is a
+/// local refinement of that single code, authorised by `FR-013` — "It does not
+/// type the axis" — with `FR-013-AC-8` stating that adding or removing a member
+/// changes no obligation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-pub enum SelectionAxis {
+pub enum DivergedSelection {
     /// The offered compiled-protocol contract identity is not the selected one.
     ContractIdentity,
     /// The offered contract revision is not the selected revision.
@@ -47,7 +57,7 @@ pub enum SelectionAxis {
     Undetermined,
 }
 
-impl SelectionAxis {
+impl DivergedSelection {
     /// Stable axis name, for diagnostics only; it is never parsed back.
     pub const fn as_str(self) -> &'static str {
         match self {
@@ -83,7 +93,7 @@ impl SelectionAxis {
     ];
 }
 
-impl fmt::Display for SelectionAxis {
+impl fmt::Display for DivergedSelection {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(self.as_str())
     }

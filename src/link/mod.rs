@@ -329,7 +329,13 @@ impl fmt::Display for LinkRefusal {
                 "role {role} names model export {model:?}, which another role already names"
             ),
             Self::CollidingIdentity { kind, .. } => {
-                write!(f, "two records produced one {} identity", kind.tag())
+                // Debug, not a minted label: `IdentityKind::tag()` published
+                // sixteen lowercase strings, eight of which re-spelled
+                // FR-210's protocol-subject vocabulary, and was removed for
+                // that reason. The variant name is Rust's own rendering of
+                // this crate's discriminator, which is what the neighbouring
+                // arms already print for `Referrer` and the requirement kinds.
+                write!(f, "two records produced one {kind:?} identity")
             }
         }
     }

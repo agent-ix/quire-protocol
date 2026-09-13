@@ -30,3 +30,14 @@ ordered semantic outcomes, and complete identical provenance. Every semantic
 mutation changes the affected identity or returns a typed refusal. Unordered
 semantic sets use their declared canonical order; authored sequences and causal
 order are never presentation-sorted.
+
+## Traceability
+This test case additionally backs criteria on the object requirements FR-016, FR-017, which cite it as their verification. Those criteria are exercised by the same procedure above; a change here that stops exercising them is a change to their coverage, not only to this test case's.
+
+This test case additionally backs `NFR-008-AC-7` of
+[NFR-008](../non-functional/NFR-008-carry-every-refusal-in-its-return-value.md),
+which names it as its verification: two runs on identical inputs return
+non-success values comparing equal component by component, with the observed
+elapsed time of a resource-incomplete outcome excluded. The reproduction method
+is NFR-001's and is exercised by the procedure above; NFR-008 restates none of
+it.

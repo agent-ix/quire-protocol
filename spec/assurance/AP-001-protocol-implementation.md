@@ -9,7 +9,7 @@ profile_kind: general
 scope: one exact quire-protocol Rust candidate implementing the selected finite native Quire protocol profile
 impact_assessments:
   - id: impact-false-conformance
-    scenario: an invalid, open, incomplete, failed, or exhausted protocol assessment is reported as complete conformance
+    scenario: a refused, unsupported, resource-incomplete or failed protocol assessment is reported as complete conformance
     severity: critical
     verifiability:
       class: cheap-conclusive

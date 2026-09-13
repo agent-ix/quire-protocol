@@ -35,3 +35,6 @@ surface or in-process Quoin implementation exists, and every hosted workflow is
 manual-dispatch only. Each language-boundary fixture mutation is rejected by the
 accepted shared checker or the unsafe-code compiler gate for its intended reason;
 no local scanner supplies the verdict.
+
+## Traceability
+This test case additionally backs criteria on the object requirements FR-017, which cite it as their verification. Those criteria are exercised by the same procedure above; a change here that stops exercising them is a change to their coverage, not only to this test case's.

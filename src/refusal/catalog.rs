@@ -157,7 +157,7 @@ pub const SPEC_NAMED_CODES: CodeModule = CodeModule {
     entries: &[UNSUPPORTED_SOURCE_CONTRACT],
 };
 
-/// The five closure-axis codes `crate::closure` emits, under the reserved root
+/// The six closure-axis codes `crate::closure` emits, under the reserved root
 /// `closure`. Owner chunk: **C-15**.
 ///
 /// C-15 landed before this catalog existed, so it spells these codes as string
@@ -166,9 +166,10 @@ pub const SPEC_NAMED_CODES: CodeModule = CodeModule {
 /// the scan working, and is precisely what the previous root-denylist could not
 /// see, because nothing had reserved `closure` or `outcome`.
 ///
-/// Registering them here binds the two together: the scan now fails if
-/// `src/closure.rs` changes a spelling without changing this entry, and fails
-/// if an entry here names a code nothing emits.
+/// Registering them here binds the two together: the scan fails if
+/// `src/closure.rs` changes a spelling without changing an entry here, and
+/// `tc_011_every_registered_code_is_emitted` fails if an entry here names a
+/// code nothing emits.
 pub const CLOSURE_CODES: CodeModule = CodeModule {
     root: "closure",
     owner: "C-15",
@@ -176,10 +177,17 @@ pub const CLOSURE_CODES: CodeModule = CodeModule {
     entries: &[
         CodeEntry {
             provenance: Provenance::Minted,
-            code: "closure.decision-scope-progress.not-established",
+            code: "closure.axis.omitted",
             domain: RefusalDomain::Assessment,
             retry: RetryDecision::Never,
-            summary: "the decision-scope progress axis was not established",
+            summary: "a required closure axis was omitted, and absence is not a value",
+        },
+        CodeEntry {
+            provenance: Provenance::Minted,
+            code: "closure.decision-scope-progress.not-closed",
+            domain: RefusalDomain::Assessment,
+            retry: RetryDecision::Never,
+            summary: "the decision-scope progress axis is not closed",
         },
         CodeEntry {
             provenance: Provenance::Minted,
@@ -190,10 +198,10 @@ pub const CLOSURE_CODES: CodeModule = CodeModule {
         },
         CodeEntry {
             provenance: Provenance::Minted,
-            code: "closure.surrounding-execution-progress.not-established",
+            code: "closure.surrounding-execution-progress.not-closed",
             domain: RefusalDomain::Assessment,
             retry: RetryDecision::Never,
-            summary: "the surrounding-execution progress axis was not established",
+            summary: "the surrounding-execution progress axis is not closed",
         },
         CodeEntry {
             provenance: Provenance::Minted,
@@ -212,50 +220,56 @@ pub const CLOSURE_CODES: CodeModule = CodeModule {
     ],
 };
 
-/// The five outcome codes `crate::closure` emits, under the reserved root
-/// `outcome`. Owner chunk: **C-15**.
+/// The four execution codes `crate::closure` emits, under the reserved root
+/// `execution`. Owner chunk: **C-15**.
 ///
 /// A separate module from [`CLOSURE_CODES`] because a module reserves one root
 /// and these are a second root, not because they have a second owner.
-pub const OUTCOME_CODES: CodeModule = CodeModule {
-    root: "outcome",
+///
+/// This module replaced an `OUTCOME_CODES` reserving `outcome`, which
+/// registered five `outcome.*` codes. `crate::closure` stopped emitting those
+/// when it adopted the published execution vocabulary in place of the local
+/// `AssessmentOutcome`: the five members fused four separate axes, and one
+/// published member (`refused`) had no local spelling at all. The stale
+/// registrations survived a merge, because the catalog checked only the
+/// direction that catches a *new* code.
+/// `tc_011_every_registered_code_is_emitted` now checks the other one.
+///
+/// These four are the published members `crate::closure` selects. They record
+/// whether the evaluator ran, never whether conformance succeeded — that is
+/// what the closure axes above are for.
+pub const EXECUTION_CODES: CodeModule = CodeModule {
+    root: "execution",
     owner: "C-15",
     module_path: "quire_protocol::closure",
     entries: &[
         CodeEntry {
             provenance: Provenance::Minted,
-            code: "outcome.open",
+            code: "execution.refused",
             domain: RefusalDomain::Assessment,
             retry: RetryDecision::Never,
-            summary: "the assessment outcome is open",
+            summary: "the evaluator refused the request",
         },
         CodeEntry {
             provenance: Provenance::Minted,
-            code: "outcome.incomplete",
+            code: "execution.unsupported",
             domain: RefusalDomain::Assessment,
             retry: RetryDecision::Never,
-            summary: "the assessment outcome is incomplete",
+            summary: "the requested capability is unsupported",
         },
         CodeEntry {
             provenance: Provenance::Minted,
-            code: "outcome.unsupported",
+            code: "execution.resource-incomplete",
             domain: RefusalDomain::Assessment,
             retry: RetryDecision::Never,
-            summary: "the assessment outcome is unsupported",
+            summary: "a resource ceiling stopped the assessment before it completed",
         },
         CodeEntry {
             provenance: Provenance::Minted,
-            code: "outcome.failed",
+            code: "execution.failed",
             domain: RefusalDomain::Assessment,
             retry: RetryDecision::Never,
-            summary: "the assessment outcome failed",
-        },
-        CodeEntry {
-            provenance: Provenance::Minted,
-            code: "outcome.exhausted",
-            domain: RefusalDomain::Assessment,
-            retry: RetryDecision::Never,
-            summary: "the assessment outcome exhausted its budget",
+            summary: "the selected analysis backend failed for this exact claim",
         },
     ],
 };
@@ -341,7 +355,7 @@ pub const REGISTRY: &[CodeModule] = &[
     ENVELOPE_CODES,
     SPEC_NAMED_CODES,
     CLOSURE_CODES,
-    OUTCOME_CODES,
+    EXECUTION_CODES,
     BOUNDS_CODES,
 ];
 
@@ -785,14 +799,23 @@ pub struct UnregisteredLiteral {
 /// The scan is an allowlist over shape, and shape cannot distinguish a code
 /// from anything else spelled as lowercase dotted segments — `cargo.toml` is a
 /// two-segment lowercase dotted string, and so is the real code
-/// `outcome.open`. So a genuine non-code literal is reported, and the sanctioned
-/// way to silence one is to name it here where a reviewer sees it, never to
-/// weaken the shape test.
+/// `execution.failed`. So a genuine non-code literal is reported, and the
+/// sanctioned way to silence one is to name it here where a reviewer sees it,
+/// never to weaken the shape test.
 ///
-/// Empty today. `tc_011_the_exemption_list_is_not_stale` fails if an entry here
-/// stops appearing in `src/`, so a stale exemption cannot sit here hiding a
-/// code that later takes the same spelling.
-pub const EXEMPT_LITERALS: &[&str] = &[];
+/// `tc_011_the_exemption_list_is_not_stale` fails if an entry here stops
+/// appearing in `src/`, so a stale exemption cannot sit here hiding a code that
+/// later takes the same spelling.
+pub const EXEMPT_LITERALS: &[&str] = &[
+    // A published digest-domain member, not a refusal code. `src/digest/
+    // producer.rs` selects two members of the producer-owned vocabulary and
+    // spells them exactly as their owner publishes them; this crate does not
+    // get to rename one to escape a shape test. It is code-shaped by accident
+    // of that spelling, resolves in the digest vocabulary and never in
+    // [`REGISTRY`], and registering it here would be this crate claiming a code
+    // it does not own.
+    "quire.verification.jcs",
+];
 
 #[must_use]
 pub fn unregistered_literals(

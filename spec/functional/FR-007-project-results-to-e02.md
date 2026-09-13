@@ -3,12 +3,42 @@ id: FR-007
 title: "Project canonical results to E02"
 type: FR
 relationships:
+  - target: ix://agent-ix/quire-protocol/ADR-006
+    type: references
   - target: ix://agent-ix/quire-protocol/US-002
     type: implements
   - target: ix://agent-ix/quire-protocol/FR-006
     type: depends_on
+  - target: ix://agent-ix/quire-protocol/FR-034
+    type: contains
+  - target: ix://agent-ix/quire-protocol/FR-035
+    type: contains
   - target: ix://agent-ix/quire-specification/FR-062
     type: depends_on
+  - target: ix://agent-ix/quire-specification/FR-201
+    type: references
+  - target: ix://agent-ix/quire-specification/FR-240
+    type: references
+  - target: ix://agent-ix/quire-specification/FR-241
+    type: references
+  - target: ix://agent-ix/quire-specification/FR-242
+    type: references
+  - target: ix://agent-ix/quire-specification/FR-244
+    type: references
+  - target: ix://agent-ix/quire-specification/FR-245
+    type: references
+  - target: ix://agent-ix/quire-specification/FR-246
+    type: references
+  - target: ix://agent-ix/quire-specification/FR-248
+    type: references
+  - target: ix://agent-ix/quire-specification/FR-249
+    type: references
+  - target: ix://agent-ix/quire-specification/FR-280
+    type: references
+  - target: ix://agent-ix/quire-specification/FR-282
+    type: references
+  - target: ix://agent-ix/quire-specification/FR-283
+    type: references
   - target: ix://agent-ix/quire-verification/FR-007
     type: depends_on
 ---
@@ -16,10 +46,8 @@ relationships:
 
 ## Description
 
-When a canonical protocol result and exact portable evidence context are
-submitted, the adapter SHALL emit one source-bound
-`quire-verification/e02-draft-2` `TechniqueResult` according to the total FR-062
-mapping or one stable typed refusal with no output result.
+When a canonical protocol result and exact portable evidence context are submitted, the adapter SHALL emit one source-bound `quire-verification/e02-draft-2` `TechniqueResult` through the atomic requirements FR-034 and FR-035 that together discharge source requirement FR-062.
+When either atomic requirement FR-034 or FR-035 is unsatisfied, the adapter SHALL emit one stable typed refusal and no output result.
 
 ## Inputs
 
@@ -33,26 +61,111 @@ One derived E02 `TechniqueResult`, or one refusal from the FR-062 closed refusal
 
 ## Behavior
 
-The adapter SHALL preserve every mapped execution, logical, activation,
-participation, assumption, observation-adequacy, oracle-dependence, and provenance
-finding. It SHALL retain exactly one canonical-result artifact reference, compute
-a distinct RFC 8785 projection identity over the complete FR-062 preimage, and
-keep protocol adequacy, closure, settlement, claim, and completeness in the
-canonical source. It SHALL NOT infer evidence sufficiency or oracle independence.
+This requirement is the aggregate. It establishes no obligation of its own
+beyond composition: each obligation it previously stated in prose is now stated,
+once and independently verifiably, by exactly one of its parts.
+
+| Part | Obligation it owns |
+| --- | --- |
+| [FR-034](./FR-034-derive-e02-projection-identity.md) | The derived projection identity and its preimage, the single unchanged canonical-result reference, provenance of producer and adapter, target-binding equality with the selected context, and the semantic `bindingRefs` order. |
+| [FR-035](./FR-035-map-source-states-to-e02.md) | The FR-062 source-to-E02 mapping, simultaneous finding preservation, adequacy-domain separation, the canonical retention boundary, oracle dependence preservation, and the closed refusal set. |
+
+The two parts are separate requirements because their failures are separate
+failures: a projection may carry a correct derived identity and still lose a
+finding, and it may map every source row correctly and still bind the wrong
+target context. Neither part's success substitutes for the other's.
 
 ## Acceptance Criteria
 
 | ID | Criteria | Verification |
 | --- | --- | --- |
-| FR-007-AC-1 | Every FR-062 source-state row maps to the exact E02 state and retains all simultaneous independent findings. | Test (TC-007) |
-| FR-007-AC-2 | The derived identity changes for each source, target-binding, contract, or adapter mutation and remains distinct from the canonical result identity. | Test (TC-007) |
-| FR-007-AC-3 | E02 adequacy derives only from observation adequacy; protocol adequacy and sufficiency cannot cross into it. | Test (TC-007) |
-| FR-007-AC-4 | Invalid source, unknown versions/features, identity mismatch, unrepresented source state, missing context, or finding loss returns the stable FR-062 refusal and emits no result. | Test (TC-007) |
-| FR-007-AC-5 | `nativeArtifacts` retains exactly one unchanged canonical-result URI, digest, and media type, and provenance names both producer and adapter versions. | Test (TC-007) |
+| FR-007-AC-1 | Every FR-062 source-state row maps to the exact E02 state and retains all simultaneous independent findings, which is exactly [FR-035](./FR-035-map-source-states-to-e02.md)-AC-1 and -AC-2. | Test (TC-007) |
+| FR-007-AC-2 | The derived identity changes for each source, target-binding, contract, or adapter mutation and remains distinct from the canonical result identity, which is exactly [FR-034](./FR-034-derive-e02-projection-identity.md)-AC-1, with its preimage fixed by -AC-3 and its binding equality by -AC-4 and -AC-5. | Test (TC-007) |
+| FR-007-AC-3 | E02 adequacy derives only from observation adequacy; protocol adequacy and sufficiency cannot cross into it, which is exactly [FR-035](./FR-035-map-source-states-to-e02.md)-AC-3, with the wider retention boundary held by -AC-4. | Test (TC-007) |
+| FR-007-AC-4 | Invalid source, unknown versions/features, identity mismatch, unrepresented source state, missing context, or finding loss returns the stable FR-062 refusal and emits no result, which is exactly [FR-035](./FR-035-map-source-states-to-e02.md)-AC-6 and -AC-7 together with [FR-034](./FR-034-derive-e02-projection-identity.md)-AC-7. | Test (TC-007) |
+| FR-007-AC-5 | `nativeArtifacts` retains exactly one unchanged canonical-result URI, digest, and media type, and provenance names both producer and adapter versions, which is exactly [FR-034](./FR-034-derive-e02-projection-identity.md)-AC-2. | Test (TC-007) |
+| FR-007-AC-6 | Every `satisfied` or `violated` projection preserves the source decision-support identities and dependence relation and invents no independent oracle relation, which is exactly [FR-035](./FR-035-map-source-states-to-e02.md)-AC-5. | Test (TC-007) |
+
+## Adopted vocabulary
+
+This requirement had no adoption pass before this revision; FR-010's adoption
+status table recorded it as not started. The nouns it uses are typed upstream
+and are adopted by reference below. Each part carries the slice of this table it
+uses; the table is retained here as the shared mapping the decomposition was
+derived from, not as a second definition.
+
+| Noun | Upstream object | Identity kind |
+| --- | --- | --- |
+| Canonical protocol result (source) | `FR-240-canonical-protocol-result` | not declared upstream; see the gaps below |
+| Derived portable projection result | `FR-249-derived-projection-result` | derived, keyed (canonical result identity and digest, target obligation and execution-binding identities, target contract version, adapter identity and version) |
+| Projection refusal code | `FR-283-projection-refusal-code` | value |
+| Dependence relation | `FR-282-dependence-relation` | value |
+| Execution disposition | `FR-241-assessment-execution-disposition` | value |
+| Truth | `FR-242-truth-disposition` | value |
+| Activation | `FR-244-activation-state` | value |
+| Observation adequacy | `FR-245-observation-adequacy-state` | value |
+| Protocol adequacy | `FR-246-protocol-adequacy-state` | value |
+| Assumptions | `FR-280-assumption-state` | value |
+| Decision support | `FR-248-decision-support-record` | value |
+| Digest domain label | `FR-201-canonical-identity-domain` | value |
+
+`FR-249` is the derived result this requirement emits, and its key is exactly
+the derivation tuple `FR-034` adopts: the identity is "distinct from the
+canonical protocol-result identity and stable for the exact tuple of canonical
+result identity and digest, target obligation and execution-binding identities,
+target contract version, and adapter identity and version". The tuple is
+adopted, not restated.
+
+The E02 target vocabularies belong to `quire-verification` and reach this
+repository only through FR-062's mapping table. No E02 member is spelled here.
+
+The projection identity and the source-result digest both carry the
+`quire.verification.jcs` member that
+[FR-015](./FR-015-digest-domain-selection.md) selects from `FR-201`; the two
+preimages differ and the domain does not. This repository mints no digest domain
+label.
+
+### Where the upstream vocabulary does not yet reach
+
+Each gap is recorded in full by the part that depends on it. Summarised:
+
+- **Which refusal code a recomputed-digest mismatch receives is unresolved, and
+  two upstream artifacts assign it differently.** `FR-249` assigns it to
+  `identity-mismatch` and `FR-283` to `invalid-source-result`; `FR-249`'s Open
+  gap states that "No requirement resolves which code a recomputed-digest
+  mismatch receives." Both readings are quoted verbatim in
+  [FR-035](./FR-035-map-source-states-to-e02.md); neither is adopted here.
+  Owner: `quire-specification`.
+- **FR-062's mapping table is declared total over a source axis nobody
+  enumerates.** Participation is unenumerated upstream (`FR-240`), and `FR-249`
+  records that "Totality over an unenumerated source domain is not established
+  here". The four progress/closure axes are no longer part of this gap: `FR-284`
+  declares them. This requirement applies every row the table states and asserts
+  no totality. Recorded by
+  [FR-035](./FR-035-map-source-states-to-e02.md). Owner:
+  `quire-specification`.
+- **Canonical source-result identity kind.** `FR-240` states that "The prose does not state whether that identity is
+  authored by the producer or derived from the result's own components, so
+  this artifact declares neither." The projection consumes that identity as an exact
+  opaque value and declares no kind for it. Recorded by
+  [FR-034](./FR-034-derive-e02-projection-identity.md). Owner:
+  `quire-specification`.
+- **The portable finding contract was not opened in this pass.**
+  `ix://agent-ix/quire-verification/FR-007` owns the finding set FR-062 forbids
+  losing. That repository is not available to this pass, so no member of its
+  vocabulary is quoted or restated, and the finding set is adopted only as
+  FR-062 names it. Owner: `quire-verification`.
+- **FR-015's selection table does not name the projection preimage.** Extending
+  it is local work, recorded by
+  [FR-034](./FR-034-derive-e02-projection-identity.md), and must not be done by
+  minting a label. Owner: [FR-015](./FR-015-digest-domain-selection.md).
 
 ## Dependencies
 
+- [FR-034](./FR-034-derive-e02-projection-identity.md) and
+  [FR-035](./FR-035-map-source-states-to-e02.md) are this requirement's parts.
 - [FR-006](./FR-006-produce-canonical-protocol-results.md).
+- [FR-015](./FR-015-digest-domain-selection.md) supplies the digest domain
+  selection.
 - `ix://agent-ix/quire-specification/FR-062`.
 - `ix://agent-ix/quire-verification/FR-007` and `quire-verification/e02-draft-2`.
-

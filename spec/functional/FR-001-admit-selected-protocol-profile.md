@@ -3,6 +3,14 @@ id: FR-001
 title: "Admit one selected protocol profile"
 type: FR
 relationships:
+  - target: ix://agent-ix/quire-protocol/ADR-002
+    type: references
+  - target: ix://agent-ix/quire-protocol/ADR-003
+    type: references
+  - target: ix://agent-ix/quire-protocol/ADR-006
+    type: references
+  - target: ix://agent-ix/quire-protocol/ADR-007
+    type: references
   - target: ix://agent-ix/quire-protocol/US-001
     type: implements
   - target: ix://agent-ix/quire-specification/FR-050
@@ -52,6 +60,17 @@ numeric representation whose value changes after RFC 8785 serialization and
 decoding. It SHALL NOT reinterpret a producer-owned model/configuration digest
 through this artifact's numeric or JCS domain.
 
+Where the native compiler publishes more than one compiled-artifact contract
+version, the library SHALL admit each published version only through that
+version's own explicit entry point.
+The library SHALL NOT infer a contract version from the offered bytes.
+The library SHALL NOT upgrade, downgrade, repair, or substitute one version's
+artifact for another's.
+When bytes are offered at an entry point other than their own contract
+version's, the library SHALL return a typed refusal.
+When a later contract version is published, the library SHALL leave every
+already-published version's admission behaviour unchanged.
+
 ## Acceptance Criteria
 
 | ID | Criteria | Verification |
@@ -60,6 +79,7 @@ through this artifact's numeric or JCS domain.
 | FR-001-AC-2 | Mutating each artifact-contract, producer, accepted source-baseline, version, revision, digest, dependency, profile, or required feature independently returns a typed refusal before semantic evaluation. | Test (TC-001) |
 | FR-001-AC-3 | A pre-acceptance working draft, superseded or unknown baseline, or internally resealed artifact cannot be selected through display-name equality or a locally authored substitute. | Test (TC-001) |
 | FR-001-AC-4 | Every declared numeric minimum and maximum, the signed-64 extrema in fields whose source domains admit them, and every normalized exact-rational boundary round-trip without loss under the selected numeric wire profile; an unsafe bare JSON number, non-canonical integer/rational form, field-domain or signed-64 overflow, or cross-domain producer-digest substitution refuses before semantic evaluation. | Test (TC-001, IT-001) |
+| FR-001-AC-5 | Each published compiled-artifact contract version is admitted only through its own explicit entry point: bytes of one version offered at another version's entry point return a typed refusal with no version detection, upgrade, downgrade, or repair, and the admission behaviour of an already-published version is unchanged by the addition of a later one. | Test (IT-001) |
 
 ## Dependencies
 

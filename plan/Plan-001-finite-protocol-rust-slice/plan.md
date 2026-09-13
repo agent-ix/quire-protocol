@@ -96,7 +96,7 @@ by downstream integrations; no adapter may introduce another semantic model.
 
 ### Integration Tests
 
-- [ ] **IT-001 SC-01..SC-05** (FR-001, FR-002): consume the accepted native compiler artifact without a local parser, numeric loss, digest-domain substitution, or identity reinterpretation.
+- [ ] **IT-001 SC-01..SC-09** (FR-001, FR-002, NFR-002, NFR-007): consume the accepted native compiler artifact without a local parser, numeric loss, digest-domain substitution, or identity reinterpretation. Task-009 owns the `/1` contract and SC-01..SC-05; Task-012 owns the `/2` contract and SC-06..SC-09.
 - [ ] **IT-002 SC-01..SC-04** (FR-003, FR-004, FR-006): consume accepted observation and temporal facts without duplicating their producer semantics.
 - [ ] **IT-003 SC-01..SC-05** (FR-006, FR-007, NFR-003): publish typed results through Engineering Assurance, E02, and Quoin without a local runner, transcript parser, or evidence store.
 
@@ -146,7 +146,7 @@ All Cargo work remains serialized on the shared workstation even when source own
 | Task-006 | A | FR-006, FR-008 | TC-006, TC-011 | blocked |
 | Task-007 | A | FR-007 | TC-007 | blocked |
 | Task-008 | A | NFR-001, NFR-002 | TC-008, TC-009 | blocked |
-| Task-009 | B | FR-001, FR-002 | IT-001 | blocked |
+| Task-009 | B | FR-001, FR-002 | IT-001 | in progress; candidate evidence only, external promotion gate blocked |
 | Task-010 | B | FR-003, FR-004, FR-006 | IT-002 | blocked |
 | Task-011 | Gate | StR-001, FR-006, FR-007, NFR-003 | IT-003, TC-010 | blocked |
 

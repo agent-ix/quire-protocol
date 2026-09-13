@@ -230,8 +230,8 @@ impl fmt::Debug for Escaped<'_> {
 }
 
 macro_rules! identities {
-    ($( ($name:ident, $kind:ident, $tag:literal, $keys:literal) ),* $(,)?) => {
-        /// The closed set of protocol identity kinds B owns.
+    ($( ($name:ident, $kind:ident, $keys:literal) ),* $(,)?) => {
+        /// The closed set of linked identities this crate holds.
         ///
         /// Deliberately **not** `#[non_exhaustive]`: see the module-level
         /// decision. A consumer's `match` over this enum is exhaustive with no
@@ -250,17 +250,6 @@ macro_rules! identities {
             /// Every kind in the closed set, in specification order.
             pub const ALL: &[IdentityKind] = &[ $( IdentityKind::$kind ),* ];
 
-            /// The stable lowercase tag of this kind.
-            ///
-            /// This is a diagnostic label. It is not an identity and nothing
-            /// parses it back into a kind.
-            pub fn tag(self) -> &'static str {
-                // Exhaustive by construction: no catch-all arm exists, so a new
-                // kind must be handled here explicitly.
-                match self {
-                    $( IdentityKind::$kind => $tag, )*
-                }
-            }
         }
 
         $(
@@ -358,97 +347,81 @@ identities![
     (
         DefinitionId,
         Definition,
-        "definition",
         "Keys one authored protocol definition — the static declaration, including a static role authority, as distinct from any instance of it."
     ),
     (
         RoleInstanceId,
         RoleInstance,
-        "role-instance",
         "Keys one runtime instance of a static role, distinct from the role definition and from the participant that fills it."
     ),
     (
         WorkflowInstanceId,
         WorkflowInstance,
-        "workflow-instance",
         "Keys one concurrent workflow instance; two instances of the same definition never merge."
     ),
     (
         ParticipantId,
         Participant,
-        "participant",
         "Keys the participant bound to a role instance, distinct from the role instance itself."
     ),
     (
         ComponentId,
         Component,
-        "component",
         "Keys one component export that owns endpoints."
     ),
     (
         EndpointId,
         Endpoint,
-        "endpoint",
         "Keys one communication endpoint on a component, distinct from the channel it terminates."
     ),
     (
         ChannelId,
         Channel,
-        "channel",
         "Keys one authored channel and its ordering and delivery premises."
     ),
     (
         MessageId,
         Message,
-        "message",
         "Keys one message occurrence carried by a channel, distinct from its send and its receive."
     ),
     (
         SendId,
         Send,
-        "send",
         "Keys one send event; a send is never its paired receive."
     ),
     (
         ReceiveId,
         Receive,
-        "receive",
         "Keys one receive event; a receive is never its paired send."
     ),
     (
         DeliveryId,
         Delivery,
-        "delivery",
         "Keys one delivery of a message. Duplicate deliveries of the same message retain distinct delivery identities."
     ),
     (
         AttemptId,
         Attempt,
-        "attempt",
         "Keys one operation attempt. Failed, timed-out, duplicate and successful attempts remain distinct."
     ),
     (
         EffectId,
         Effect,
-        "effect",
         "Keys one business effect, distinct from the attempt that produced it."
     ),
     (
         RegistrationId,
         Registration,
-        "registration",
         "Keys one compensation registration (FR-003-AC-3), distinct from the effect it compensates and from the commit that bounds it."
     ),
     (
         CommitId,
         Commit,
-        "commit",
         "Keys one commit (FR-003-AC-3) whose ordering constrains registration and compensation."
     ),
     (
         RecoveryId,
         Recovery,
-        "recovery",
         "Keys one recovery obligation (FR-003-AC-3), distinct from the registration and from the attempts that pursue it."
     ),
 ];

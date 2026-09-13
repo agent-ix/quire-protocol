@@ -28,7 +28,11 @@ substitution, or identity reinterpretation.
   the accepted versioned numeric wire profile without loss or alternate form.
 - [ ] Mutate version, digest, feature, binding, baseline-selection state, numeric
   representation, and digest domain independently and prove refusal precedes evaluation.
-- [ ] Inventory the dependency graph to prove no second frontend participates.
+- [ ] Bind each IT-001 public-API case to the FR-001/FR-002 acceptance criterion it
+  evidences, and prove the matrix credit with `quire coverage` rather than tags alone.
+- [ ] Inventory the dependency graph and first-party source path positively to prove
+  that the A-owned public reader is the only native frontend; a denylist of
+  foreign-runtime crates is not sufficient.
 
 ## Deliverables
 
@@ -36,13 +40,17 @@ substitution, or identity reinterpretation.
 
 ## Notes
 
-- A's accepted `quire.compiled-protocol/1` contract, public Rust reader and
-  four-unit producer recipe are available at `quire-spec-language` commit
-  `84975dd687d38d9b24eae84b7356e3f24cdc7b42` (merged PRs 52, 55 and 58).
+- The accepted `quire.compiled-protocol/1` contract and public Rust reader are
+  compiler-owned. PR72 candidate revision
+  `5690c2b29c155ec72e21f5a7bb00fe1146b6f71a` regenerates the four-unit fixture
+  with reachable signed-64/exact-rational endpoints at
+  `/tmp/quire-native-handoff-signed64-endpoints/`; B must derive its retained
+  selection from those producer inputs without pinning the rebuild-volatile ELF
+  seal or reading `expected.json` as authorization.
 - This increment consumes that boundary directly. It does not take ownership of
   later protocol conformance, execution, compensation assessment or E02 work.
-- It supplies a fixture-driven smoke lane for positive admission plus selected
-  one-axis seal, producer identity, feature and numeric refusals. The lane is
-  deliberately tagged to IT-001/Task-009 only: its producer fixture retains
-  A's draft wire labels, while the frozen-baseline FR acceptance cases remain
-  open work under this task.
+- Review SR-024 through SR-032 requires criterion-level matrix bindings and a
+  positive parser/reader inventory before this candidate lane can become
+  qualification evidence. PR72 and `quire-spec-language#40` remain external
+  acceptance/traceability blockers; their candidate fixture does not mint a
+  promoted baseline.

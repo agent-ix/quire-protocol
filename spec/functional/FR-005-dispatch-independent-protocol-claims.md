@@ -7,16 +7,27 @@ relationships:
     type: implements
   - target: ix://agent-ix/quire-protocol/FR-004
     type: depends_on
+  - target: ix://agent-ix/quire-protocol/FR-029
+    type: contains
+  - target: ix://agent-ix/quire-protocol/FR-030
+    type: contains
   - target: ix://agent-ix/quire-specification/FR-060
     type: depends_on
+  - target: ix://agent-ix/quire-specification/FR-241
+    type: references
+  - target: ix://agent-ix/quire-specification/FR-249
+    type: references
+  - target: ix://agent-ix/quire-specification/FR-280
+    type: references
+  - target: ix://agent-ix/quire-specification/FR-281
+    type: references
 ---
 # FR-005: Dispatch independent protocol claims
 
 ## Description
 
-When one or more protocol claims are requested, the dispatcher SHALL return one
-independent execution disposition per exact claim without inferring a stronger
-claim or invoking an unreviewed fallback.
+When one or more protocol claims are requested, the dispatcher SHALL return one independent execution disposition per exact claim through the atomic requirements FR-029 and FR-030.
+When either FR-029 or FR-030 is unsatisfied for a requested claim, the dispatcher SHALL refuse that claim's disposition rather than returning a weaker or inferred one.
 
 ## Inputs
 
@@ -33,25 +44,78 @@ visibility premises, source identities, and derived-artifact correspondence.
 
 ## Behavior
 
-The dispatcher SHALL keep finite conformance available when projection is
-unsupported. It SHALL NOT infer projectability or realizability from a
-satisfiable trace, infer composition from circular local assumptions, or replace
-a failed selected backend with an unreviewed fallback. Unimplemented advanced
-claims SHALL return unsupported without weakening the finite replay result. The
-dispatcher SHALL refuse a disposition whose fragment, backend, assumption,
-premise, source or derived-artifact identity does not match its exact request.
+This requirement is the aggregate. It establishes no obligation of its own beyond
+composition: each obligation it previously stated in prose is now stated, once
+and independently verifiably, by exactly one of its parts.
+
+| Part | Obligation it owns |
+| --- | --- |
+| [FR-029](./FR-029-return-one-disposition-per-requested-claim.md) | One disposition per exact requested claim, no stronger-claim inference, explicit `unsupported`, and independent supported results preserved when another claim refuses, fails or is exhausted. |
+| [FR-030](./FR-030-bind-each-disposition-to-its-exact-premises.md) | Every disposition stays bound to its exact fragment, backend, assumptions, premises, source identities and derived-artifact correspondence; a mismatch refuses that disposition, and a failed selected backend invokes no fallback. |
+
+The two are separate requirements because their failures are separate failures. A
+dispatcher can keep claims independent while losing the premises a disposition
+was derived under, and it can retain every premise while inferring one claim's
+success from another's. FR-029 answers "how many dispositions, and whose"; FR-030
+answers "derived under what, and refused when that changes".
+
+The rule that finite conformance stays available when projection is unsupported
+is FR-029's; the rule that a failed backend is never replaced by an unreviewed
+fallback is FR-030's. Neither is restated here.
 
 ## Acceptance Criteria
 
 | ID | Criteria | Verification |
 | --- | --- | --- |
-| FR-005-AC-1 | A monitorable but unprojectable protocol retains its finite conformance result and an independent projection refusal. | Test (TC-005) |
-| FR-005-AC-2 | Satisfiable-but-unrealizable and circular-assumption cases cannot produce realizability or composition success. | Test (TC-005) |
-| FR-005-AC-3 | Unknown or unimplemented advanced claims return unsupported with exact premises and cannot erase a supported result. | Test (TC-005) |
-| FR-005-AC-4 | A selected backend failure returns failed for only that claim and invokes no fallback. | Test (TC-005) |
-| FR-005-AC-5 | Every claim disposition retains its exact admitted fragment, backend, assumptions, communication/visibility/environment premises and source/derived-artifact correspondence; removing or substituting any one refuses that disposition without changing independent results. | Test (TC-005) |
+| FR-005-AC-1 | Claim independence over the whole dispatch is exactly what [FR-029](./FR-029-return-one-disposition-per-requested-claim.md) establishes: a monitorable but unprojectable protocol retains its finite conformance result and an independent projection refusal, and no aggregate path derives one claim's disposition from another's. | Test (TC-005) |
+| FR-005-AC-2 | Non-inference over the whole dispatch is exactly what [FR-029](./FR-029-return-one-disposition-per-requested-claim.md)-AC-2 enforces: satisfiable-but-unrealizable and circular-assumption cases cannot produce realizability or composition success. | Test (TC-005) |
+| FR-005-AC-3 | Unsupported handling over the whole dispatch is exactly what [FR-029](./FR-029-return-one-disposition-per-requested-claim.md)-AC-3 enforces: unknown or unimplemented advanced claims return unsupported with exact premises and cannot erase a supported result. | Test (TC-005) |
+| FR-005-AC-4 | Backend failure over the whole dispatch is what [FR-029](./FR-029-return-one-disposition-per-requested-claim.md)-AC-4 and [FR-030](./FR-030-bind-each-disposition-to-its-exact-premises.md)-AC-3 jointly enforce: a selected backend failure returns failed for only that claim and invokes no fallback. | Test (TC-005) |
+| FR-005-AC-5 | Premise binding over the whole dispatch is exactly what [FR-030](./FR-030-bind-each-disposition-to-its-exact-premises.md) enforces: every claim disposition retains its exact admitted fragment, backend, assumptions, communication/visibility/environment premises and source/derived-artifact correspondence, and removing or substituting any one refuses that disposition without changing independent results. | Test (TC-005) |
+
+## Adopted vocabulary
+
+Every noun below is typed upstream and adopted by reference. Each part carries
+the slice of this table it actually uses; the table is retained here as the
+shared mapping the decomposition was derived from, not as a second definition.
+
+| Noun | Upstream object | Identity kind |
+| --- | --- | --- |
+| Assessment-execution disposition | `FR-241-assessment-execution-disposition` | value |
+| Assumption state | `FR-280-assumption-state` | value |
+| Claim strength | `FR-281-claim-strength` | value |
+| Derived portable projection result | `FR-249-derived-projection-result` | derived, keyed (canonical result identity and digest, target obligation and execution-binding identities, target contract version, adapter identity and version) |
+
+The two disposition words this requirement's Outputs use literally,
+`unsupported` and `failed`, are `FR-241` members, and their upstream
+descriptions already carry this requirement's rules: one unsupported request
+does not remove an independent supported result, and a failed selected backend
+fails for that exact claim without invoking a fallback or changing independent
+results. The Outputs list is therefore a reference, not a local enumeration.
+
+### Where the upstream vocabulary does not yet reach
+
+The gaps are recorded once, in the part that depends on each:
+
+- `FR-029` records that the six claim kinds this requirement's Inputs name —
+  conformance, monitorability, projection, realizability, refinement,
+  composition — are typed by no upstream object, so "one disposition per exact
+  claim" has no upstream equality over claims; and that `FR-281` does not state
+  whether a claim may carry more than one strength.
+- `FR-030` records that the admitted fragment and the analysis backend are typed
+  by no upstream object either, that `FR-283` and `FR-249` assign a
+  recomputed-digest mismatch to two different refusal codes and neither is
+  authoritative, that two code-spelling conventions coexist with no namespace
+  rule, that role internality has no normative spelling, and that the protocol
+  subject membership is stated four ways.
+
+Every one of those is owned by `agent-ix/quire-specification`. None is supplied
+locally: a locally authored claim-kind, fragment or backend vocabulary would be
+the second locally authored profile `FR-001` exists to refuse.
 
 ## Dependencies
 
 - [FR-004](./FR-004-assess-finite-global-conformance.md).
 - `ix://agent-ix/quire-specification/FR-060`.
+- Parts: [FR-029](./FR-029-return-one-disposition-per-requested-claim.md),
+  [FR-030](./FR-030-bind-each-disposition-to-its-exact-premises.md).

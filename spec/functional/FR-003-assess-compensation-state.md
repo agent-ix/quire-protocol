@@ -7,18 +7,48 @@ relationships:
     type: implements
   - target: ix://agent-ix/quire-protocol/FR-002
     type: depends_on
+  - target: ix://agent-ix/quire-protocol/FR-019
+    type: contains
+  - target: ix://agent-ix/quire-protocol/FR-020
+    type: contains
+  - target: ix://agent-ix/quire-protocol/FR-021
+    type: contains
+  - target: ix://agent-ix/quire-protocol/FR-022
+    type: contains
+  - target: ix://agent-ix/quire-protocol/FR-023
+    type: contains
+  - target: ix://agent-ix/quire-protocol/FR-024
+    type: contains
+  - target: ix://agent-ix/quire-protocol/FR-025
+    type: contains
   - target: ix://agent-ix/quire-specification/FR-055
     type: depends_on
   - target: ix://agent-ix/quire-specification/FR-058
     type: depends_on
+  - target: ix://agent-ix/quire-specification/FR-230
+    type: references
+  - target: ix://agent-ix/quire-specification/FR-231
+    type: references
+  - target: ix://agent-ix/quire-specification/FR-232
+    type: references
+  - target: ix://agent-ix/quire-specification/FR-233
+    type: references
+  - target: ix://agent-ix/quire-specification/FR-234
+    type: references
+  - target: ix://agent-ix/quire-specification/FR-236
+    type: references
+  - target: ix://agent-ix/quire-specification/FR-239
+    type: references
+  - target: ix://agent-ix/quire-specification/FR-264
+    type: references
 ---
 # FR-003: Assess compensation state
 
 ## Description
 
-When protocol observations establish activation, effects, commits, retries, or
-recovery facts, the evaluator SHALL derive compensation state only through the
-selected source requirements FR-055 through FR-058 without invoking any business action.
+When protocol observations establish activation, effect, commit, retry or recovery facts, the evaluator SHALL derive compensation state only through the atomic requirements FR-019 through FR-025 that together discharge source requirements FR-055 through FR-058.
+When any part of compensation state is derived, the evaluator SHALL invoke no business operation and no compensating operation.
+When any single atomic requirement FR-019 through FR-025 is unsatisfied, the evaluator SHALL report compensation state as unavailable rather than as an aggregate success.
 
 ## Inputs
 
@@ -33,32 +63,98 @@ violations, pending dependencies, or refusals.
 
 ## Behavior
 
-The evaluator SHALL keep activation independent from truth. It SHALL preserve
-trigger, capture, anchor, delivery, attempt, effect, registration, commit and
-recovery identities and states. An absent trigger under complete closed input is
-inactive; an unavailable trigger under open or incomplete input is
-activation-unknown. The evaluator SHALL register compensation only after the
-paired successful effect and SHALL NOT create another registration when that
-same effect identity is replayed. It SHALL enforce the finite retry bound and
-commit ordering; evaluate only the authored full or partial recovery relation
-against its exact captured target and achieved state; and require exact complete
-population authority for aggregated partial recovery. A successful send,
-receive, delivery, attempt or operation invocation SHALL NOT establish a
-successful business effect or recovery relation.
+This requirement is the aggregate. It establishes no obligation of its own beyond
+composition: each obligation it previously stated in prose is now stated, once
+and independently verifiably, by exactly one of its parts.
+
+| Part | Obligation it owns |
+| --- | --- |
+| [FR-019](./FR-019-derive-obligation-activation-state.md) | Activation state derivation, identity-substitution refusal, activation independent from truth. |
+| [FR-020](./FR-020-register-compensation-once-per-effect.md) | Registration only after the paired successful effect, and one registration per effect identity under replay. |
+| [FR-021](./FR-021-distinguish-commit-ordering-violations.md) | The three distinct commit-ordering violations. |
+| [FR-022](./FR-022-enforce-finite-compensation-retry-bound.md) | The authored finite retry bound and its refusal. |
+| [FR-023](./FR-023-preserve-attempt-and-effect-distinctness.md) | Attempt, effect and outcome distinctness and identity retention. |
+| [FR-024](./FR-024-decide-recovery-only-by-authored-relation.md) | Full and partial recovery decided only by the authored relation, with population completeness. |
+| [FR-025](./FR-025-assess-compensation-without-io.md) | The I/O purity boundary over the whole assessment surface. |
+
+The facts remain separate facts. Attempt, effect, commit and recovery facts are
+reported side by side and no one of them is derived from another; a successful
+send, receive, delivery, attempt or operation invocation establishes neither a
+successful business effect nor a recovery relation. That separation is the reason
+the parts are separate requirements rather than one.
 
 ## Acceptance Criteria
 
 | ID | Criteria | Verification |
 | --- | --- | --- |
-| FR-003-AC-1 | Established, absent-under-complete-closure and unavailable-under-open/incomplete triggers yield triggered, inactive and activation-unknown states respectively; substituting the workflow, role, effect, predicate, capture or evaluation-anchor identity refuses activation. | Test (TC-003) |
-| FR-003-AC-2 | One paired successful effect registers one matching compensation after the effect, while sends, receives, deliveries, failed attempts and replay of the same effect identity create no registration. | Test (TC-003) |
-| FR-003-AC-3 | Compensation before its effect, registration after commit, compensation after a forbidding commit, and attempts beyond the retry bound remain distinct violations. | Test (TC-003) |
-| FR-003-AC-4 | Failed, timed-out, duplicate and successful compensation attempts/effects remain distinct and retain their exact attempt, effect and registration identities. | Test (TC-003) |
-| FR-003-AC-5 | An achieved partial state may satisfy an authored partial-recovery relation while failing full restoration; either success requires the exact authored relation, captured target, achieved state and applicable complete population. | Test (TC-003) |
-| FR-003-AC-6 | Missing trigger, state, effect, commit, population, membership or completeness authority cannot produce activation, registration or recovery success. | Test (TC-003) |
-| FR-003-AC-7 | The implementation performs no network, storage, telemetry, business-operation or compensation-operation I/O while assessing compensation. | Test (TC-003, TC-009) |
+| FR-003-AC-1 | Activation over the whole assessment is exactly what [FR-019](./FR-019-derive-obligation-activation-state.md) reports: triggered, inactive and activation-unknown for established, absent-under-complete-closure and unavailable-under-open/incomplete triggers, with identity substitution refusing activation, and no other path assigns an activation state. | Test (TC-003) |
+| FR-003-AC-2 | Registration over the whole assessment is exactly what [FR-020](./FR-020-register-compensation-once-per-effect.md) creates: one registration per paired successful effect, none from sends, receives, deliveries or failed attempts, and none added by replay of the same effect identity. | Test (TC-003) |
+| FR-003-AC-3 | The ordering violations of [FR-021](./FR-021-distinguish-commit-ordering-violations.md) and the retry-bound refusal of [FR-022](./FR-022-enforce-finite-compensation-retry-bound.md) are reported as four mutually distinct violations, and no aggregation merges any two of them. | Test (TC-003) |
+| FR-003-AC-4 | The attempt, effect and outcome facts of [FR-023](./FR-023-preserve-attempt-and-effect-distinctness.md) reach the aggregate result with their exact attempt, effect and registration identities intact and no fact collapsed into another. | Test (TC-003) |
+| FR-003-AC-5 | Recovery in the aggregate result is exactly what [FR-024](./FR-024-decide-recovery-only-by-authored-relation.md) decides, so a partial success alongside a full-restoration failure is reported as both, and no aggregate path reports recovery success the authored relation did not produce. | Test (TC-003) |
+| FR-003-AC-6 | A missing trigger, state, effect, commit, population, membership or completeness authority anywhere in the assessment leaves activation, registration and recovery without success: [FR-019](./FR-019-derive-obligation-activation-state.md)-AC-4, [FR-020](./FR-020-register-compensation-once-per-effect.md)-AC-4, [FR-022](./FR-022-enforce-finite-compensation-retry-bound.md)-AC-4 and [FR-024](./FR-024-decide-recovery-only-by-authored-relation.md)-AC-4 each hold, and the aggregate reports unavailable rather than composing a success from the parts that did hold. | Test (TC-003) |
+| FR-003-AC-7 | The purity boundary of [FR-025](./FR-025-assess-compensation-without-io.md) holds over the whole assessment: the implementation performs no network, storage, telemetry, business-operation or compensation-operation I/O while assessing compensation. | Test (TC-003, TC-009) |
+
+## Adopted vocabulary
+
+Every noun below is typed upstream and adopted by reference. Each part carries
+the slice of this table it actually uses; the table is retained here as the
+shared mapping the decomposition was derived from, not as a second definition.
+
+| Noun | Upstream object | Identity kind |
+| --- | --- | --- |
+| Protocol obligation | `FR-230-protocol-obligation` | derived, keyed (clause subject, semantic trigger-event identity) |
+| Obligation activation state | `FR-231-obligation-activation-state` | value |
+| Activation capture | `FR-232-activation-capture` | value |
+| Compensation registration | `FR-233-compensation-registration` | derived, keyed (source compensation definition identity, established forward effect identity) |
+| Compensation obligation lifecycle | `FR-234-compensation-obligation-lifecycle` | value |
+| Compensation attempt outcome | `FR-236-compensation-attempt-outcome` | value |
+| Compensation retry policy | `FR-239-compensation-retry-policy` | value |
+| Membership rule | `FR-264-membership-rule` | value |
+
+`FR-233`'s key is exactly this requirement's replay rule: registration is keyed on
+(compensation definition identity, established forward effect identity), so
+replaying one effect identity cannot mint a second registration. The rule is
+adopted, not restated.
+
+### Where the upstream vocabulary does not yet reach
+
+Each gap is now recorded against the part that depends on it, which is where it
+blocks verification. The list is kept here as the aggregate view.
+
+- **Compensation attempt** — `FR-235-compensation-attempt` records under Open
+  gap that the prose establishes an attempt has an identity, is distinct from an
+  effect identity, and several things that cannot serve as it, and then that "It
+  does not establish:" its identity kind, its key components, or an order. Blocks
+  [FR-022](./FR-022-enforce-finite-compensation-retry-bound.md) and
+  [FR-023](./FR-023-preserve-attempt-and-effect-distinctness.md).
+- **Commit boundary** — `FR-237-commit-boundary`'s Open gap lists, verbatim:
+  "**Identity** — whether a commit boundary is a distinct identified subject or
+  only a position in the authored order"; "**Key** — which components identify
+  one commit boundary or one commit observation"; "**Order** — no key order
+  follows, since the components are unfixed." Blocks
+  [FR-021](./FR-021-distinguish-commit-ordering-violations.md).
+- **Recovery relation** — `FR-238-recovery-relation` records that the prose
+  establishes a recovery relation is authored, typed, per compensation and
+  evaluated under selected profiles, and then that "It does not establish:" the
+  components that identify one. Blocks
+  [FR-024](./FR-024-decide-recovery-only-by-authored-relation.md).
+- **Business effect duplication** — `FR-226-business-effect` states that its key
+  cannot detect a duplicate effect, which this requirement's partial-recovery
+  obligations depend on detecting. Blocks
+  [FR-020](./FR-020-register-compensation-once-per-effect.md),
+  [FR-023](./FR-023-preserve-attempt-and-effect-distinctness.md) and
+  [FR-024](./FR-024-decide-recovery-only-by-authored-relation.md).
+- **Activation axis contradiction** — `FR-231-obligation-activation-state`
+  records three requirements that do not agree on whether an unavailable required
+  trigger is an activation value or a completeness value, and states that the
+  selection belongs to an owner ruling. Blocks
+  [FR-019](./FR-019-derive-obligation-activation-state.md)-AC-1.
 
 ## Dependencies
 
 - [FR-002](./FR-002-link-finite-protocol-representation.md).
+- [FR-019](./FR-019-derive-obligation-activation-state.md) through
+  [FR-025](./FR-025-assess-compensation-without-io.md) are the parts this
+  requirement aggregates.
 - `ix://agent-ix/quire-specification/FR-055` through `FR-058`.

@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Opaque producer-domain digest references and the cross-domain guard.
 //!
-//! Producer-owned source, model, config and artifact digests are copied exactly
-//! and stay opaque. Nothing in this module feeds a producer reference into the
+//! Producer-owned artifact digests are copied exactly and stay opaque. Nothing in this module feeds a producer reference into the
 //! result-domain canonicaliser in [`crate::digest::jcs`]: there is no `From`,
 //! no `Into`, and no trait impl that connects the two. Recanonicalising a
 //! producer reference as an RFC 8785 protocol-result digest is therefore not
@@ -17,40 +16,63 @@ use std::fmt;
 /// spelling of the value. Cross-domain substitution is consequently invisible
 /// to any syntactic check and must be decided against an independently selected
 /// inventory.
+/// The two members selected from the published digest-domain vocabulary.
+///
+/// The vocabulary is not this crate's. `FR-201-canonical-identity-domain`
+/// publishes nine members and states of itself that it *is* the vocabulary of
+/// digest domains. `FR-015-digest-domain-selection` selects exactly these two
+/// and mints nothing. Spelling is load-bearing: an underscored spelling does
+/// not match a hyphenated one, and a raw `sha256` value cannot substitute for a
+/// `sha256-jcs` one.
+///
+/// An earlier revision of this enum declared five members of its own
+/// (`producer-artifact-bytes`, `producer-source`, `producer-model`,
+/// `producer-config`, `protocol-result-jcs`), none of which appears among the
+/// nine. The producer source, model and configuration digests were three
+/// separate local members for what the published vocabulary already calls
+/// `raw-artifact-digest`: "Hashes the complete supplied bytes, including
+/// layout."
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum DigestDomain {
-    /// Producer-owned: over the exact bytes of a producer artifact.
-    ProducerArtifactBytes,
-    /// Producer-owned: over the exact bytes of a producer source document.
-    ProducerSource,
-    /// Producer-owned: over the exact bytes of an admitted producer model.
-    ProducerModel,
-    /// Producer-owned: over the exact bytes of a producer configuration.
-    ProducerConfig,
-    /// Consumer-owned: over the RFC 8785/JCS canonical form of a protocol result.
-    ProtocolResultJcs,
+    /// `raw-artifact-digest`. Over the complete supplied bytes of an artifact,
+    /// including layout. Producer-owned, copied exactly, never recanonicalised.
+    RawArtifact,
+    /// `quire.verification.jcs`. Over the RFC 8785 canonical UTF-8 bytes of a
+    /// protocol result this crate produces. Emitted `sha256-jcs:` prefixed.
+    VerificationJcs,
 }
 
 impl DigestDomain {
+    /// Both selected members, in the order `FR-015` tabulates the selection.
+    pub const ALL: [Self; 2] = [Self::RawArtifact, Self::VerificationJcs];
+
     /// Whether the domain is owned by the producer and therefore copied exactly.
     pub const fn is_producer_owned(self) -> bool {
         match self {
-            Self::ProducerArtifactBytes
-            | Self::ProducerSource
-            | Self::ProducerModel
-            | Self::ProducerConfig => true,
-            Self::ProtocolResultJcs => false,
+            Self::RawArtifact => true,
+            Self::VerificationJcs => false,
         }
     }
 
-    /// Stable domain name, for diagnostics only; it is never parsed back.
+    /// The published member label, spelled exactly as the vocabulary publishes it.
     pub const fn as_str(self) -> &'static str {
         match self {
-            Self::ProducerArtifactBytes => "producer-artifact-bytes",
-            Self::ProducerSource => "producer-source",
-            Self::ProducerModel => "producer-model",
-            Self::ProducerConfig => "producer-config",
-            Self::ProtocolResultJcs => "protocol-result-jcs",
+            Self::RawArtifact => "raw-artifact-digest",
+            Self::VerificationJcs => "quire.verification.jcs",
+        }
+    }
+
+    /// The algorithm label a value in this domain is spelled with.
+    ///
+    /// These are different spellings on purpose: the published vocabulary
+    /// requires the verification domain to be emitted as `sha256-jcs:` and
+    /// states that a raw `sha256` digest cannot substitute for it. Rendering
+    /// both as `sha256:` is what made a cross-domain value look like a merely
+    /// divergent one.
+    pub const fn algorithm_label(self) -> &'static str {
+        match self {
+            Self::RawArtifact => "sha256",
+            Self::VerificationJcs => "sha256-jcs",
         }
     }
 }
@@ -78,10 +100,8 @@ impl DigestSlot {
     /// The one domain this slot accepts. A slot never accepts two domains.
     pub const fn selected_domain(self) -> DigestDomain {
         match self {
-            Self::Contract | Self::Baseline | Self::ProducerBinary => {
-                DigestDomain::ProducerArtifactBytes
-            }
-            Self::ProtocolResult => DigestDomain::ProtocolResultJcs,
+            Self::Contract | Self::Baseline | Self::ProducerBinary => DigestDomain::RawArtifact,
+            Self::ProtocolResult => DigestDomain::VerificationJcs,
         }
     }
 
@@ -174,7 +194,7 @@ impl ProducerDigestRef {
     /// impossible `None`.
     pub(crate) fn artifact_bytes(text: &str) -> Self {
         Self {
-            domain: DigestDomain::ProducerArtifactBytes,
+            domain: DigestDomain::RawArtifact,
             text: text.to_owned(),
         }
     }
@@ -199,5 +219,5 @@ pub fn algorithm_label(text: &str) -> Option<&str> {
     text.split_once(':').map(|(label, _)| label)
 }
 
-/// The one algorithm label A's producer-owned artifact references are spelled with.
-pub const PRODUCER_ARTIFACT_LABEL: &str = "sha256";
+/// The one algorithm label the producer's artifact references are spelled with.
+pub const PRODUCER_ARTIFACT_LABEL: &str = DigestDomain::RawArtifact.algorithm_label();

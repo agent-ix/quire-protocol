@@ -4,6 +4,14 @@ title: "Preserve the Rust assurance boundary"
 type: NFR
 quality_attribute: maintainability
 relationships:
+  - target: ix://agent-ix/quire-protocol/ADR-004
+    type: references
+  - target: ix://agent-ix/quire-protocol/ADR-005
+    type: references
+  - target: ix://agent-ix/quire-protocol/ADR-007
+    type: references
+  - target: ix://agent-ix/quire-protocol/US-007
+    type: derives_from
   - target: ix://agent-ix/quire-protocol/FR-001
     type: constrains
   - target: ix://agent-ix/quire-protocol/FR-002
@@ -20,6 +28,10 @@ relationships:
     type: constrains
   - target: ix://agent-ix/quire-protocol/FR-008
     type: constrains
+  - target: ix://agent-ix/quire-protocol/FR-009
+    type: constrains
+  - target: ix://agent-ix/quire-protocol/NFR-005
+    type: constrains
 ---
 # NFR-003: Preserve the Rust assurance boundary
 
@@ -33,6 +45,13 @@ retained evidence to Quoin through accepted typed interfaces.
 
 Applies to library code, generators, validators, canonicalization, adapters,
 fixture audits, test assertions, and any future command-line surface.
+
+This constraint propagates through containment. Where a requirement this
+non-functional requirement constrains is an aggregating parent, the constraint
+binds every requirement that parent `contains`, to the same extent and without
+a separate edge per child. The `constrains` edges in the frontmatter name the
+parents; enumerating each child instead would drift the moment a parent gains
+one, which is the failure this repository has already paid for elsewhere.
 
 ## Rationale
 

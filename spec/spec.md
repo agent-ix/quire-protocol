@@ -78,20 +78,26 @@ one canonical rich result, and may derive one narrower portable E02 result.
 
 Stakeholder intent is refined through user stories into atomic local
 implementation requirements. Each functional and non-functional requirement is
-bound to an authored test case in [TM-001](tests.md). Integration tests keep the
-compiler, temporal/observation, Engineering Assurance, Quoin, and E02 ownership
-seams independently observable.
+bound in [TM-001](tests.md) to the verification that discharges it: an authored
+test case where one exists, an integration scenario where the obligation is a
+seam, and a declared inspection or analysis where neither applies. TM-001 names
+the requirements that reach no test case rather than implying one. Integration
+tests keep the compiler, temporal/observation, Engineering Assurance, Quoin, and
+E02 ownership seams independently observable.
 
 ## 5. Requirement Classes
 
-The repository uses ISO-style StR, US, FR, NFR, IT, TC, TestMatrix,
+The repository uses ISO-style StR, US, FR, NFR, IT, TC, TestMatrix, ADR,
 AssuranceProfile, and ArchitectureDescription artifacts. External `ix://`
 relationships identify normative owners without copying their clauses.
 
 ## 6. Requirement Identification
 
 Local immutable identifiers begin at `StR-001`, `US-001`, `FR-001`, `NFR-001`,
-`IT-001`, `TC-001`, `TM-001`, `AP-001`, and `AD-001`.
+`IT-001`, `TC-001`, `ADR-001`, `TM-001`, `AP-001`, and `AD-001`.
+Each namespace is allocated sequentially with no gaps and no reuse; the highest
+allocated identifier is currently `StR-005`, `US-007`, `FR-041`, `NFR-008`,
+`IT-003`, `TC-014`, `ADR-009`, `TM-001`, `AP-001`, and `AD-001`.
 
 ## 7. Requirement Quality Policy
 
@@ -135,9 +141,27 @@ premises. Missing or conflicting premises remain explicit.
 
 ### 10.1 Error Classification
 
-Failures distinguish invalid or unaccepted input, identity mismatch, unsupported
-capability/version, resource exhaustion, incomplete evidence, producer failure,
-semantic violation, and projection finding loss.
+Failure classification is not this repository's vocabulary and is not restated
+here. Three owners publish it, and each is used at its own boundary:
+
+- Whether a requested evaluator ran:
+  `ix://agent-ix/quire-specification/FR-241`, five members.
+- Why a projection to E02 was refused:
+  `ix://agent-ix/quire-specification/FR-283`, whose spellings are kebab-case
+  and "distinct from the snake_case native producer codes of FR-271".
+- Why an offered artifact was not admitted: the producer's own
+  `protocol_artifact::Error`, with its `Invalid` and `Unsupported` payloads,
+  carried unmodified.
+
+[FR-014](functional/FR-014-typed-outcome-identity.md) states the identity of an
+outcome this library returns; [FR-008](functional/FR-008-return-typed-refusals.md)
+owns the envelope that carries one.
+
+An earlier revision of this section listed eight failure classes in prose —
+"invalid or unaccepted input, identity mismatch, unsupported capability/version,
+resource exhaustion, incomplete evidence, producer failure, semantic violation,
+and projection finding loss". That was a third rendering of FR-241's and
+FR-283's members in spellings neither publishes.
 
 ### 10.2 Failure Handling Guarantees
 
@@ -146,8 +170,30 @@ successful truth, adequacy, conformance, or sufficiency.
 
 ## 11. Traceability
 
-[TM-001](tests.md) records requirement-to-test status. Rust tests will carry bare
-compiler-checked `ix-trace-rs` bindings to the exact local and upstream obligations.
+[TM-001](tests.md) records requirement-to-test status over the repository as it
+stands: 41 functional requirements, 8 non-functional requirements, 5 stakeholder
+requirements, 7 user stories, 9 architecture decisions, 3 integration tests, 14
+test cases, and 288 acceptance criteria across the functional and non-functional
+sets.
+
+The functional set is three layers rather than one list: 9 aggregate or
+behavioural parents (`FR-001`..`FR-009`), 9 object requirements
+(`FR-010`..`FR-018`), and 23 atomic behavioural parts (`FR-019`..`FR-041`). A
+parent states each of its obligations once, through exactly one part, and
+reaches its parts by `contains`; a parent row and its part rows are therefore two
+views of one obligation and are not separate work.
+
+TM-001 separates four states and merges none of them: test-backed, backed only
+by an integration scenario, unbacked — verified by declared inspection or
+analysis with no test case at all — and unexecutable, meaning a backing exists
+and cannot be run today, which is neither passing nor failing. `FR-009-AC-3`,
+`NFR-007-AC-8` and `NFR-008-AC-8` each require an unexecutable obligation to be
+counted as a zero inside its denominator rather than omitted from it, and
+`NFR-005` denominates its metrics on owed scenarios for the same reason. `TC-014`
+is the highest authored test case and no matrix row cites a higher identifier.
+
+Rust tests will carry bare compiler-checked `ix-trace-rs` bindings to the exact
+local and upstream obligations.
 
 ## 12. Verification Strategy
 
@@ -164,9 +210,26 @@ review and semantic QUOIN `/gap-analysis` over one unchanged head.
 
 ## 14. Lifecycle Status
 
-The repository is specification-only. Every test is planned and every
-implementation requirement remains unimplemented until the accepted source
-baseline, license, specification review, and implementation plan gates close.
+The repository is partially implemented. Ten test binaries exist
+(`it001_native_handoff`, `it001_v2_handoff`, `it001_v2_intake`,
+`tc_002_identities`, `tc_004_closure_axes`, `tc_005_claim_dispositions`,
+`tc_006_digest_domains`, `tc_008_reproduction_record`, `tc_009_bounds`,
+`tc_011_typed_refusals`) and the local gate under `NFR-004` reports 149
+passing, 0 failing and 29 ignored across them and the in-crate unit tests,
+plus 37 passing doc-tests, on this head. The 29 ignored are 23 in the version 1 lane and 6 in the version 2
+handoff lane, each reported unexecuted rather than passing. An earlier revision of this section said "The repository is
+specification-only. Every test is planned", which was true when written and has
+not been true since the first test binary landed. `TM-001` recorded the executed
+slices while this section denied them; the matrix was right.
+
+What remains unimplemented is the larger part. `admit_and_link_v2` is now
+written against A's published `quire.compiled-protocol/2` reader at the pinned
+revision `04254a3`, but the scenarios that submit to it are reported unexecuted
+under the gate because A's handoff bundle is not reachable from a clean
+checkout. The canonical result and refusal surfaces are still module stubs, and
+47 acceptance criteria reach no test case at all. `TM-001` is the authority on which criteria
+are backed, unbacked, blocked or planned; this section states only that the
+repository is no longer specification-only.
 
 ## 15. Governance Notes
 
@@ -176,7 +239,37 @@ agent's owned producer or evidence surface.
 
 ## 16. References
 
-- `agent-ix/quire-specification` FR-050 through FR-062 and NFR-020/NFR-021.
-- `agent-ix/quire-verification` FR-007 and `quire-verification/e02-draft-2`.
-- `agent-ix/engineering-assurance` issue 34 producer-execution boundary.
+Every external producer this specification consumes, and the artifact that
+defines its contract. An entry here is a reference, not a pin: FR-009's
+version-lock manifest carries the pinned revision and the resolution status, and
+its entry-status table records why each is currently `unresolved`.
+
+- `agent-ix/quire-specification` — the formal-clause source. FR-047, FR-050
+  through FR-062, and NFR-020/NFR-021 define the semantics this repository
+  consumes — FR-047 owns the typed located cause vocabulary FR-008 and FR-036
+  adopt, and it sits outside the FR-050..FR-062 block;
+  FR-200 through FR-283 are the domain object layer it references for every
+  protocol, temporal and observation noun. Open questions this repository raised
+  against that layer are issues 28 and 29.
+- `agent-ix/quire-spec-language` — the A-owned native compiler and its
+  compiled-protocol artifact contracts. The pin is `04254a3`, A's promoted
+  `main`, which supplies both `quire.compiled-protocol/1` and `/2`; issue 40
+  owned the version 2 delivery and it has landed. This is the only native
+  compiler reader in the admitted path, and this repository adds no second one.
+- `agent-ix/quire-observation` — the F-owned observation producer interface,
+  carrying the scope facts and global closure record IT-002 consumes.
+- `agent-ix/quire-verification` FR-007 and `quire-verification/e02-draft-2` —
+  the E02 strict reader and its finding vocabulary.
+- `agent-ix/engineering-assurance` issue 34 — the producer-execution boundary.
+- The selected diagnostic catalog, whose identity, revision and byte digest
+  FR-008 binds. `quire-specification` FR-270 records that the only catalog
+  offered is a proposed native diagnostic interpretation that describes itself as
+  not adopted or implemented, so this reference names no adopted artifact yet.
+- `agent-ix/quoin` and `agent-ix/quire-research` issue 62 — the evidence
+  retention interface and its containment contract.
 - `agent-ix/quire-research` PT01, PT02, E03, and setup issue 33.
+
+The complete-global-conformance closure record is **not** an external reference.
+It is B-authored, landed in `quire-specification` through PR 22 from
+`agent-b/global-conformance-closure`, and takes no version-lock entry because no
+external owner can assert anything about it.
