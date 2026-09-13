@@ -689,7 +689,10 @@ fn it_001_refuses_one_axis_producer_identity_change() {
     let error = fixture.discriminate(&selection, &changed).unwrap_err();
     assert_eq!(
         error,
-        AdmissionRefusal::Selection(DivergedSelection::ProducerIdentity),
+        AdmissionRefusal::Selection {
+            axis: DivergedSelection::ProducerIdentity,
+            source: quire_protocol::Error::Invalid(Invalid::Selection),
+        },
         "got {error:?}"
     );
 }
@@ -829,7 +832,10 @@ fn it_001_refuses_one_axis_stale_baseline_selection() {
     let error = fixture.discriminate(&selection, &changed).unwrap_err();
     assert_eq!(
         error,
-        AdmissionRefusal::Selection(DivergedSelection::BaselineSelectionState),
+        AdmissionRefusal::Selection {
+            axis: DivergedSelection::BaselineSelectionState,
+            source: quire_protocol::Error::Invalid(Invalid::Selection),
+        },
         "got {error:?}"
     );
 }
@@ -857,7 +863,10 @@ fn it_001_refuses_one_axis_changed_baseline_digest() {
     let error = fixture.discriminate(&selection, &changed).unwrap_err();
     assert_eq!(
         error,
-        AdmissionRefusal::Selection(DivergedSelection::BaselineDigest),
+        AdmissionRefusal::Selection {
+            axis: DivergedSelection::BaselineDigest,
+            source: quire_protocol::Error::Invalid(Invalid::Selection),
+        },
         "got {error:?}"
     );
 }

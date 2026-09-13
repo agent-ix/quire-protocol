@@ -322,19 +322,22 @@ fn tc_006_no_two_selection_axes_share_a_code() {
     }
 }
 
-/// Every A refusal published at the pinned revision is named by B's mapping.
+/// Every A refusal published at the pinned revision survives B's mapping as
+/// the exact typed source value and retains A's stable code.
 ///
-/// A's enums are `#[non_exhaustive]`, so the mapping is forced to carry one
-/// final arm per enum. That arm produces `UnclassifiedSource`, and this test
-/// fails if any currently published A variant reaches it — so the arm can only
-/// ever absorb a genuinely new A variant, loudly, never an existing one.
+/// A's enums are `#[non_exhaustive]`. A debug-string catch-all therefore loses
+/// type identity exactly when A adds a family, and it already loses the
+/// published `Producer` and version-2 families at this pin. Retaining the
+/// complete `Error` makes the compulsory catch-all typed and future-safe.
 ///
-/// Tracing: TC-006, FR-008-AC-1.
+/// Tracing: TC-001, Task-001.
 #[test]
-#[trace("TC-006", "FR-008-AC-1")]
-fn tc_006_classification_names_every_known_source_variant() {
-    use quire_protocol::inventory::map::{classify_source, AdmissionRefusal};
-    use quire_protocol::{Error, Invalid, Unsupported};
+#[trace("TC-001", "Task-001")]
+fn tc_001_mapping_retains_every_published_source_error() {
+    use quire_protocol::inventory::map::classify_source;
+    use quire_protocol::{v2, Error, Invalid, NumberError, Unsupported};
+    use quire_spec_language::linking::composed::producer::ProducerModelRefusal;
+    use quire_spec_language::protocol_artifact::{Dimension, Exhaustion};
 
     const INVALID: [Invalid; 26] = [
         Invalid::Selection,
@@ -375,25 +378,33 @@ fn tc_006_classification_names_every_known_source_variant() {
     ];
 
     for code in INVALID {
-        let refusal = classify_source(&Error::Invalid(code));
-        assert!(
-            !matches!(refusal, AdmissionRefusal::UnclassifiedSource { .. }),
-            "{code:?} is unnamed"
-        );
+        let source = Error::Invalid(code);
+        let refusal = classify_source(source.clone());
+        assert_eq!(refusal.source_error(), Some(&source));
+        assert_eq!(refusal.source_code(), Some(source.code()));
     }
     for code in UNSUPPORTED {
-        let refusal = classify_source(&Error::Unsupported(code));
-        assert!(
-            !matches!(refusal, AdmissionRefusal::UnclassifiedSource { .. }),
-            "{code:?} is unnamed"
-        );
+        let source = Error::Unsupported(code);
+        let refusal = classify_source(source.clone());
+        assert_eq!(refusal.source_error(), Some(&source));
+        assert_eq!(refusal.source_code(), Some(source.code()));
     }
-    assert!(!matches!(
-        classify_source(&Error::Allocation),
-        AdmissionRefusal::UnclassifiedSource { .. }
-    ));
-    assert!(!matches!(
-        classify_source(&Error::Json { line: 1, column: 2 }),
-        AdmissionRefusal::UnclassifiedSource { .. }
-    ));
+    for source in [
+        Error::Allocation,
+        Error::Json { line: 1, column: 2 },
+        Error::Numeric(NumberError::NonPositiveDenominator),
+        Error::Producer(ProducerModelRefusal::Interface),
+        Error::V2(v2::Refusal::OfferOrder),
+        Error::Incomplete(Exhaustion {
+            dimension: Dimension::Entries,
+            used: 8,
+            requested: 1,
+            limit: 8,
+            locus: None,
+        }),
+    ] {
+        let refusal = classify_source(source.clone());
+        assert_eq!(refusal.source_error(), Some(&source));
+        assert_eq!(refusal.source_code(), Some(source.code()));
+    }
 }

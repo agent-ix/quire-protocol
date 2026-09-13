@@ -2,27 +2,22 @@
 //! A-error to B-refusal mapping, and the discriminating admission entry point.
 //!
 //! A owns its own error enums and B cannot extend them. This module is B's
-//! discriminating layer *over* what A returns: every A refusal is classified
-//! into a B-owned variant carrying typed context, and the one A code that
-//! collapses several axes — `Invalid::Selection` — is resolved against B's own
+//! discriminating layer *over* what A returns: every A refusal is retained as
+//! A's complete typed [`Error`], and the one A code that collapses several axes
+//! — `Invalid::Selection` — is additionally resolved against B's own
 //! independently selected inventory before it reaches the caller.
 //!
-//! The classification is derived from the cause, not from message text, and
-//! every known A variant is named explicitly. A's enums are `#[non_exhaustive]`,
-//! so the compiler *requires* one final arm per enum; that arm does not absorb
-//! anything silently — it produces the loud, separately assertable
-//! [`AdmissionRefusal::UnclassifiedSource`], and
-//! `tc_006_classification_names_every_known_source_variant` fails if any
-//! currently published A variant reaches it.
+//! A's error enum is `#[non_exhaustive]`, so a downstream match must have a
+//! catch-all arm. That arm retains the original value rather than formatting it
+//! into a string. A future A variant therefore remains typed, keeps A's stable
+//! [`Error::code`], and cannot be folded into a neighbouring B classification.
 
 use serde_json::Value;
-
-use quire_spec_language::protocol_artifact::{Exhaustion, NumberError};
 
 use crate::digest::producer::{CrossDomainDigest, DigestSlot};
 use crate::inventory::axis::DivergedSelection;
 use crate::inventory::{DigestClassification, InventoryError, SelectedInventory};
-use crate::{admit_and_link, wire, AdmittedPackage, Error, Expected, Invalid, Limits, Unsupported};
+use crate::{admit_and_link, wire, AdmittedPackage, Error, Expected, Invalid, Limits};
 
 /// A B-owned admission refusal. Each variant is independently assertable.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -31,38 +26,43 @@ pub enum AdmissionRefusal {
     /// before A sees the offer, so a cross-domain value never reaches semantic
     /// evaluation and never degrades into a parse failure.
     CrossDomainDigest(CrossDomainDigest),
-    /// A's collapsed selection refusal, resolved to the one axis that diverged.
-    Selection(DivergedSelection),
-    /// The offered bytes do not match the independently selected external seal.
-    Seal,
-    /// Any other A `Invalid` classification, retained uninterpreted.
-    Invalid(Invalid),
-    /// A recognised authority or feature with no supported interpretation.
-    Unsupported(Unsupported),
-    /// A's numeric refusal, retained exactly.
-    Numeric(NumberError),
-    /// A's closed JSON shape refusal, with A's original line and column.
-    Malformed {
-        /// Original byte-oriented line.
-        line: usize,
-        /// Original byte-oriented column.
-        column: usize,
+    /// A's collapsed selection refusal, resolved to the one axis that diverged
+    /// while retaining A's exact typed refusal.
+    Selection {
+        /// The component B's independently selected inventory found divergent.
+        axis: DivergedSelection,
+        /// A's original `Invalid::Selection` refusal, unchanged.
+        source: Error,
     },
-    /// A's allocator refused a reservation already bounded by the limits.
-    Allocation,
-    /// A refused the next bounded step.
-    Incomplete(Exhaustion),
+    /// Any A refusal that needs no B-owned selection-axis refinement.
+    ///
+    /// The complete owner type is retained, not its `Debug` or `Display`
+    /// rendering. Callers can match every published nested family directly and
+    /// can always read A's stable machine code through [`Self::source_code`].
+    Source(Error),
     /// B's own selections could not be reduced to an inventory. This names B's
     /// inputs, not the offer, which has not been read when it is raised.
     UnusableSelections(InventoryError),
-    /// An A variant published after this mapping was written.
+}
+
+impl AdmissionRefusal {
+    /// A's exact typed refusal, when this outcome came from A's reader.
     ///
-    /// Reachable only through the arm `#[non_exhaustive]` forces. It is a
-    /// refusal, never a success, and it retains A's original rendering.
-    UnclassifiedSource {
-        /// A's own `Debug` rendering, retained uninterpreted.
-        source: String,
-    },
+    /// Pre-admission digest-domain checks and unusable B selections have no A
+    /// refusal because A was deliberately not called.
+    #[must_use]
+    pub const fn source_error(&self) -> Option<&Error> {
+        match self {
+            Self::Selection { source, .. } | Self::Source(source) => Some(source),
+            Self::CrossDomainDigest(_) | Self::UnusableSelections(_) => None,
+        }
+    }
+
+    /// A's stable machine-readable code, without formatting the error.
+    #[must_use]
+    pub fn source_code(&self) -> Option<&'static str> {
+        self.source_error().map(Error::code)
+    }
 }
 
 /// Admit an offer and return a refusal B can discriminate.
@@ -90,12 +90,13 @@ pub fn admit_discriminating(
     }
     match admit_and_link(bytes, expected, limits).into_result() {
         Ok(package) => Ok(package),
-        Err(error) => Err(match classify_source(&error) {
+        Err(error) => Err(match classify_source(error) {
             // A's one collapsed code is the only classification that needs B's
             // inventory to become a single axis.
-            AdmissionRefusal::Selection(DivergedSelection::Undetermined) => {
-                AdmissionRefusal::Selection(selection_axis(&inventory, offer.as_ref(), expected))
-            }
+            AdmissionRefusal::Selection { source, .. } => AdmissionRefusal::Selection {
+                axis: selection_axis(&inventory, offer.as_ref(), expected),
+                source,
+            },
             refused => refused,
         }),
     }
@@ -130,77 +131,20 @@ fn cross_domain_refusal(inventory: &SelectedInventory, offer: &Value) -> Option<
     None
 }
 
-/// Classify one A refusal into a B-owned refusal, without any offer context.
+/// Retain one A refusal and add the only classification that needs offer
+/// context later.
 ///
-/// Every A variant published at the pinned revision is named. The two final
-/// arms exist only because A's enums are `#[non_exhaustive]`; each produces
-/// [`AdmissionRefusal::UnclassifiedSource`] rather than folding an unknown
-/// cause into a neighbouring code.
-pub fn classify_source(error: &Error) -> AdmissionRefusal {
+/// `Error` is `#[non_exhaustive]`, so the final arm is compulsory. It keeps the
+/// owner type intact: when A publishes another family, that value remains
+/// inspectable through [`AdmissionRefusal::source_error`] and its stable code
+/// through [`AdmissionRefusal::source_code`] without a B update first.
+pub fn classify_source(error: Error) -> AdmissionRefusal {
     match error {
-        Error::Allocation => AdmissionRefusal::Allocation,
-        Error::Json { line, column } => AdmissionRefusal::Malformed {
-            line: *line,
-            column: *column,
+        Error::Invalid(Invalid::Selection) => AdmissionRefusal::Selection {
+            axis: DivergedSelection::Undetermined,
+            source: Error::Invalid(Invalid::Selection),
         },
-        Error::Numeric(number) => AdmissionRefusal::Numeric(*number),
-        Error::Incomplete(exhaustion) => AdmissionRefusal::Incomplete(exhaustion.clone()),
-        Error::Unsupported(code) => classify_unsupported(*code),
-        Error::Invalid(code) => classify_invalid(*code),
-        other => AdmissionRefusal::UnclassifiedSource {
-            source: format!("{other:?}"),
-        },
-    }
-}
-
-fn classify_unsupported(code: Unsupported) -> AdmissionRefusal {
-    match code {
-        Unsupported::Wire
-        | Unsupported::Feature
-        | Unsupported::Definition
-        | Unsupported::Profile
-        | Unsupported::ProducerCorrespondence
-        | Unsupported::FamilyProof
-        | Unsupported::Export => AdmissionRefusal::Unsupported(code),
-        other => AdmissionRefusal::UnclassifiedSource {
-            source: format!("{other:?}"),
-        },
-    }
-}
-
-fn classify_invalid(code: Invalid) -> AdmissionRefusal {
-    match code {
-        // Left unresolved here: naming the axis needs B's own inventory and the
-        // offer, which `admit_discriminating` supplies.
-        Invalid::Selection => AdmissionRefusal::Selection(DivergedSelection::Undetermined),
-        Invalid::Seal => AdmissionRefusal::Seal,
-        Invalid::Name
-        | Invalid::StructuralInteger
-        | Invalid::WrongNumericKind
-        | Invalid::NumericDomain
-        | Invalid::Inventory
-        | Invalid::Order
-        | Invalid::Duplicate
-        | Invalid::Dependency
-        | Invalid::Definition
-        | Invalid::Model
-        | Invalid::ForeignLocus
-        | Invalid::Locus
-        | Invalid::Reference
-        | Invalid::Owner
-        | Invalid::Scope
-        | Invalid::Type
-        | Invalid::Profile
-        | Invalid::Call
-        | Invalid::Binding
-        | Invalid::Control
-        | Invalid::Cycle
-        | Invalid::Feature
-        | Invalid::Canonical
-        | Invalid::Encoding => AdmissionRefusal::Invalid(code),
-        other => AdmissionRefusal::UnclassifiedSource {
-            source: format!("{other:?}"),
-        },
+        source => AdmissionRefusal::Source(source),
     }
 }
 

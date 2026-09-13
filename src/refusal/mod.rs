@@ -57,16 +57,14 @@
 //!
 //! # A's enums are `#[non_exhaustive]`, so one wildcard arm is compulsory
 //!
-//! Nothing above changes the fact that `quire_spec_language`'s `Error`,
-//! `Invalid` and `Unsupported` are `#[non_exhaustive]`: the compiler *requires*
-//! a final arm on every `match` over them, and a literally catch-all-free
-//! mapping is impossible from B. The mapping chunks (C-05, and PR #36 before
-//! it) name every published variant explicitly and make the compulsory arm emit
-//! a loud, separately assertable "unclassified source" refusal, with a test
-//! that fails if any published A variant reaches it. This module supports that
-//! shape rather than pretending the constraint away: the envelope carries
-//! [`Cause::retained`] so an unclassified source cause keeps A's original
-//! rendering uninterpreted instead of being folded into a neighbouring code.
+//! Nothing above changes the fact that `quire_spec_language`'s `Error` is
+//! `#[non_exhaustive]`: the compiler *requires* a final arm on every downstream
+//! `match`. C-05 makes that arm retain A's complete typed `Error` and its stable
+//! machine code rather than a `Debug` rendering. A future A variant therefore
+//! stays inspectable without being folded into a neighbouring B classification.
+//! Turning that value into this envelope still requires the exact selected
+//! diagnostic catalog and typed-cause contract owned upstream; C-02/C-03 do not
+//! manufacture those missing contracts locally.
 //!
 //! # Boundary
 //!

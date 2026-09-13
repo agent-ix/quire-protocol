@@ -12,11 +12,13 @@
 /// closure, profile identity, required feature, resealed bytes.
 pub mod axis;
 
-/// `quire_spec_language` `Error` to `ProtocolRefusal` mapping. Owner chunk: **C-05**.
+/// Discriminating `quire_spec_language::Error` retention. Owner chunk: **C-05**.
 ///
-/// Will own a total (catch-all-free) mapping carrying A's stage, A's locus or an
-/// explicit `Unavailable`, the C-04 axis code, and A's original value retained
-/// uninterpreted.
+/// Retains A's complete typed error and stable code, and adds C-04's selection
+/// axis where A deliberately collapses several selection failures. Converting
+/// that value into `ProtocolRefusal` remains gated on the selected diagnostic
+/// catalog and typed-cause contract owned upstream; this module does not invent
+/// either one.
 pub mod map;
 
 use serde_json::Value;
