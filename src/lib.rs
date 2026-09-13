@@ -49,6 +49,8 @@ pub mod refusal;
 pub mod repro;
 /// Canonical protocol result record. Owner chunk: C-26 (submodules: C-27, C-28).
 pub mod result;
+/// B-owned version-lock manifest resolution and exact-byte delivery guard.
+pub mod version_lock;
 
 pub use outcome::{ClaimOutcome, OperationOutcome};
 

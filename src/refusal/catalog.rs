@@ -346,6 +346,99 @@ pub const BOUNDS_CODES: CodeModule = CodeModule {
     ],
 };
 
+/// Task-013's independently assertable version-lock refusal axes.
+pub const VERSION_LOCK_CODES: CodeModule = CodeModule {
+    root: "version-lock",
+    owner: "Task-013",
+    module_path: "quire_protocol::version_lock",
+    entries: &[
+        CodeEntry {
+            provenance: Provenance::Minted,
+            code: "version-lock.entry.absent",
+            domain: RefusalDomain::Admission,
+            retry: RetryDecision::Never,
+            summary: "a required version-lock entry is absent",
+        },
+        CodeEntry {
+            provenance: Provenance::Minted,
+            code: "version-lock.entry.duplicate-key",
+            domain: RefusalDomain::Admission,
+            retry: RetryDecision::Never,
+            summary: "two version-lock entries share one owner and contract version",
+        },
+        CodeEntry {
+            provenance: Provenance::Minted,
+            code: "version-lock.requirement.duplicate-key",
+            domain: RefusalDomain::Admission,
+            retry: RetryDecision::Never,
+            summary: "a scenario declared one required version-lock key twice",
+        },
+        CodeEntry {
+            provenance: Provenance::Minted,
+            code: "version-lock.entry.revision-absent",
+            domain: RefusalDomain::Admission,
+            retry: RetryDecision::Never,
+            summary: "a pinned version-lock entry has no revision",
+        },
+        CodeEntry {
+            provenance: Provenance::Minted,
+            code: "version-lock.entry.immutability-assertion-absent",
+            domain: RefusalDomain::Admission,
+            retry: RetryDecision::Never,
+            summary: "a pinned entry has no owner immutability assertion",
+        },
+        CodeEntry {
+            provenance: Provenance::Minted,
+            code: "version-lock.artifact.member-absent",
+            domain: RefusalDomain::Admission,
+            retry: RetryDecision::Never,
+            summary: "an artifact entry selects no delivery member",
+        },
+        CodeEntry {
+            provenance: Provenance::Minted,
+            code: "version-lock.interface.digest-present",
+            domain: RefusalDomain::Admission,
+            retry: RetryDecision::Never,
+            summary: "an interface-only entry improperly carries a digest",
+        },
+        CodeEntry {
+            provenance: Provenance::Minted,
+            code: "version-lock.delivery.member-absent",
+            domain: RefusalDomain::Admission,
+            retry: RetryDecision::Never,
+            summary: "a selected delivery member is absent",
+        },
+        CodeEntry {
+            provenance: Provenance::Minted,
+            code: "version-lock.delivery.unexpected-member",
+            domain: RefusalDomain::Admission,
+            retry: RetryDecision::Never,
+            summary: "the delivery contains a member no required entry selects",
+        },
+        CodeEntry {
+            provenance: Provenance::Minted,
+            code: "version-lock.delivery.duplicate-member",
+            domain: RefusalDomain::Admission,
+            retry: RetryDecision::Never,
+            summary: "two delivered members share one name",
+        },
+        CodeEntry {
+            provenance: Provenance::Minted,
+            code: "version-lock.delivery.digest-mismatch",
+            domain: RefusalDomain::Admission,
+            retry: RetryDecision::Never,
+            summary: "delivered bytes do not match the selected exact-byte digest",
+        },
+        CodeEntry {
+            provenance: Provenance::Minted,
+            code: "version-lock.entry.unresolved-reason-absent",
+            domain: RefusalDomain::Admission,
+            retry: RetryDecision::Never,
+            summary: "an unresolved entry carries no reason",
+        },
+    ],
+};
+
 /// Every code this crate may emit.
 ///
 /// A chunk that mints codes appends **one** `CodeModule` line here and defines
@@ -361,6 +454,7 @@ pub const REGISTRY: &[CodeModule] = &[
     crate::result::contract_ir::MAPPING_CODES,
     crate::conformance::CODES,
     crate::claims::dispatch::CODES,
+    VERSION_LOCK_CODES,
 ];
 
 /// The registered code with this exact spelling, if any.
