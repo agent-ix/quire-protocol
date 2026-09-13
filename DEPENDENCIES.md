@@ -10,13 +10,14 @@ record discharges.
 
 | Crate | Pinned revision | Declared license | Role |
 | --- | --- | --- | --- |
-| `quire-spec-language` | `5690c2b29c155ec72e21f5a7bb00fe1146b6f71a` | `AGPL-3.0-only` | Supplies the accepted `quire.compiled-protocol/1` wire contract and its public Rust reader. |
+| `quire-spec-language` | `04254a31071cc2d4c97e5c0707e1414141e55d89` | `AGPL-3.0-only` | Supplies the accepted `quire.compiled-protocol/1` and `/2` wire contracts, their public Rust readers, and the published `protocol_artifact::handoff` record shapes. |
+| `agent-ix-baseline-producer` | `f79e5a641b3eac702642282ad6cc84dd48d280dc` | `AGPL-3.0-only` | Transitive baseline producer reached through `quire-spec-language`; sourced from `agent-ix/filament-core-data`. |
 | `quire-contract-ir` | `690bde7f2dc58662cf9ff0595c2c0e3b17107c6f` | `MIT OR Apache-2.0` | Transitive contract-IR types reached through `quire-spec-language`. |
 | `ix-trace-rs` | `2ce4ebf47f726b9d76388220545cd0abda8a5cfb` | `AGPL-3.0-or-later` | Test-only trace attributes binding tests to acceptance criteria. |
 
-All three are compatible with this repository's `AGPL-3.0-or-later` decision:
-two are AGPL, and the permissive `MIT OR Apache-2.0` grant may be consumed under
-it.
+All four are compatible with this repository's `AGPL-3.0-or-later` decision:
+three are AGPL, and the permissive `MIT OR Apache-2.0` grant may be consumed
+under it.
 
 This crate adds no copied parser, encoder, formal semantics, or fixture corpus.
 
@@ -36,11 +37,22 @@ ever misstated the consumed revision should say so.
 entirely. That is the closure gap `NFR-006` names: `FR-009` pins the producers
 and nothing pinned this repository's own consumed set.
 
+## Correction: the record trailed the version 2 pin, and omitted a transitive
+
+This record named `5690c2b` while `Cargo.toml` and `Cargo.lock` pinned
+`04254a3`, A's promoted `main` carrying the `/2` contract. It also omitted
+`agent-ix-baseline-producer`, which `quire-spec-language` `04254a3` pins from
+`agent-ix/filament-core-data` and which the lockfile therefore resolves into
+this build. Both are corrected above: the same closure gap `NFR-006` names,
+recurring on the transitive edge rather than the direct one.
+
 ## What this record does not establish
 
 - It asserts no immutability of any pinned revision. `FR-009` takes an
   owner-supplied assertion for that; `AD-001` and `NFR-003` forbid this
   repository from reaching a network or a version-control system to check it.
-- It records no `quire.compiled-protocol/2` revision. A has published none, so
-  `admit_and_link_v2` is unwritten and every version 2 scenario is unexecutable
-  rather than failing.
+- It does not assert that a version 2 scenario executed. `quire-spec-language`
+  `04254a3` supplies both the `/1` and `/2` contracts and `admit_and_link_v2` is
+  written against `/2`, but A's handoff bundle is not retained in this
+  repository, so the scenarios that submit to A are reported unexecuted under
+  the declared gate rather than passing. `spec/tests.md` records that state.

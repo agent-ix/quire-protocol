@@ -44,6 +44,25 @@ pub const CHECKSUM_FILE: &str = "SHA256SUMS";
 /// The mutation manifest envelope version this reader accepts.
 pub const MUTATION_FORMAT: &str = "quire.protocol.v2-mutations/1";
 
+/// What B still needs from A, reported rather than filled in locally.
+///
+/// Tracked as `agent-ix/quire-spec-language#78`.
+///
+/// The constants above are A's file schema and A's corpus format identity, not
+/// B's. Three of the four file names are cross-checked against the manifest's
+/// own `base_offer`/`base_artifact`/`independent_selection` members, so a rename
+/// refuses rather than drifts; `SHA256SUMS` and `MUTATION_FORMAT` have no such
+/// anchor, and A publishes neither as an exported constant.
+pub const A_OWED_API: &[&str] = &[
+    "A publishes no path constant naming its own handoff directory, so B can \
+     only reach it through QUIRE_PROTOCOL_A_V2_HANDOFF. Until A publishes one, \
+     the bundle is not anchored to the pinned revision, the lane cannot execute \
+     on a clean checkout, and IT-001 SC-06..SC-09 stay unscored.",
+    "A publishes its handoff file names and its mutation-corpus format \
+     identity only as literals inside its own tests, so B's copies above are \
+     the sole authority for them in this tree. B asks A to export them.",
+];
+
 // ---------------------------------------------------------------------------
 // Absence
 // ---------------------------------------------------------------------------
@@ -68,9 +87,23 @@ pub enum Absence {
     /// The selection names an accounting contract whose counters B does not
     /// interpret, so its ceilings cannot be carried over.
     AccountingVersion { named: String },
-    /// A selected ceiling is wider than this platform's `usize`, so B cannot
-    /// run under the budget A selected.
-    LimitWidth { field: &'static str, value: u64 },
+    /// A selected ceiling exceeds A's own hard maximum for that counter. A's
+    /// publisher clamps to that maximum, so a higher value did not come from
+    /// it, and honouring it would run B under a budget A never selected.
+    ExcessiveLimit {
+        dimension: artifact::Dimension,
+        selected: u64,
+        hard: u64,
+    },
+    /// A published path is not a plain sequence of handoff-relative segments,
+    /// so it could name bytes outside the handoff.
+    EscapingMember { role: String, named: String },
+    /// A handoff member is a symbolic link, so its bytes are not the published
+    /// ones and its target is not covered by the checksum manifest.
+    SymbolicLink { relative: String },
+    /// The handoff nests deeper than B walks, so its coverage cannot be
+    /// established.
+    TooDeep { relative: String },
     /// A checksum manifest line is not `<64 hex>  <path>`.
     ChecksumLine { line: String },
     /// A published member does not hash to its checksum-manifest digest.
@@ -126,10 +159,27 @@ impl fmt::Display for Absence {
                  not {}",
                 artifact::ACCOUNTING_VERSION
             ),
-            Self::LimitWidth { field, value } => write!(
+            Self::ExcessiveLimit {
+                dimension,
+                selected,
+                hard,
+            } => write!(
                 f,
-                "the independent selection's {field} ceiling {value} exceeds \
-                 this platform's usize"
+                "the independent selection's {dimension:?} ceiling {selected} \
+                 exceeds A's hard maximum {hard}"
+            ),
+            Self::EscapingMember { role, named } => write!(
+                f,
+                "published {role} path {named:?} is not a plain handoff-relative \
+                 path"
+            ),
+            Self::SymbolicLink { relative } => {
+                write!(f, "{relative} is a symbolic link, not published bytes")
+            }
+            Self::TooDeep { relative } => write!(
+                f,
+                "{relative} nests deeper than {MAX_DEPTH} directories below the \
+                 handoff root"
             ),
             Self::InputDigest {
                 role,
@@ -181,32 +231,40 @@ pub use artifact::handoff::{
 
 /// A's selected ceilings as this platform's `Limits`.
 ///
-/// The published record is fixed-width `u64`. A ceiling wider than `usize` here
-/// cannot be honoured, so it is refused rather than truncated into a smaller
-/// budget that would report exhaustion A never selected.
-fn selected_limits(selected: &SelectedArtifactLimits) -> Result<artifact::Limits, Absence> {
+/// The published record is fixed-width `u64`, and A's own publisher clamps each
+/// counter to that counter's hard maximum before writing it. A value above the
+/// maximum therefore did not come from A's publisher, and a value too wide for
+/// this platform saturates above it: both are refused rather than narrowed into
+/// a budget A never selected.
+pub fn selected_limits(selected: &SelectedArtifactLimits) -> Result<artifact::Limits, Absence> {
+    let hard = artifact::Limits::default();
     macro_rules! native {
-        ($field:ident) => {
-            usize::try_from(selected.$field).map_err(|_| Absence::LimitWidth {
-                field: stringify!($field),
-                value: selected.$field,
-            })?
-        };
+        ($field:ident, $dimension:expr) => {{
+            let value = usize::try_from(selected.$field).unwrap_or(usize::MAX);
+            if value > hard.$field {
+                return Err(Absence::ExcessiveLimit {
+                    dimension: $dimension,
+                    selected: selected.$field,
+                    hard: u64::try_from(hard.$field).unwrap_or(u64::MAX),
+                });
+            }
+            value
+        }};
     }
     Ok(artifact::Limits {
-        payload_bytes: native!(payload_bytes),
-        output_bytes: native!(output_bytes),
-        source_bytes: native!(source_bytes),
-        content_bytes: native!(content_bytes),
-        sources: native!(sources),
-        dependencies: native!(dependencies),
-        definitions: native!(definitions),
-        models: native!(models),
-        declarations: native!(declarations),
-        entries: native!(entries),
-        references: native!(references),
-        byte_work: native!(byte_work),
-        depth: native!(depth),
+        payload_bytes: native!(payload_bytes, artifact::Dimension::PayloadBytes),
+        output_bytes: native!(output_bytes, artifact::Dimension::OutputBytes),
+        source_bytes: native!(source_bytes, artifact::Dimension::SourceBytes),
+        content_bytes: native!(content_bytes, artifact::Dimension::ContentBytes),
+        sources: native!(sources, artifact::Dimension::Sources),
+        dependencies: native!(dependencies, artifact::Dimension::Dependencies),
+        definitions: native!(definitions, artifact::Dimension::Definitions),
+        models: native!(models, artifact::Dimension::Models),
+        declarations: native!(declarations, artifact::Dimension::Declarations),
+        entries: native!(entries, artifact::Dimension::Entries),
+        references: native!(references, artifact::Dimension::References),
+        byte_work: native!(byte_work, artifact::Dimension::ByteWork),
+        depth: native!(depth, artifact::Dimension::Depth),
     })
 }
 
@@ -602,13 +660,57 @@ fn expected_declaration(selected: &SelectedDeclaration) -> artifact::ExpectedDec
     }
 }
 
+/// Resolve one handoff-relative member path.
+///
+/// Every path B joins onto the handoff root arrives from a published file — the
+/// checksum manifest, the selection sidecar, the mutation manifest. A path that
+/// is absolute, or that carries `..`, `.` or an empty segment, can name bytes
+/// the handoff does not publish and that no coverage sweep over the root would
+/// ever see, so only a plain sequence of named segments is accepted. Accepting
+/// exactly one spelling per file also makes the manifest's paths and the walk's
+/// paths directly comparable.
+fn member_path(root: &Path, relative: &str, role: &str) -> Result<PathBuf, Absence> {
+    let escaping = || Absence::EscapingMember {
+        role: role.to_owned(),
+        named: relative.to_owned(),
+    };
+    if relative.is_empty() || relative.contains('\\') {
+        return Err(escaping());
+    }
+    let mut resolved = root.to_path_buf();
+    let mut segments = 0usize;
+    for segment in relative.split('/') {
+        if segment.is_empty() || segment == "." || segment == ".." {
+            return Err(escaping());
+        }
+        segments += 1;
+        if segments > MAX_DEPTH {
+            return Err(Absence::TooDeep {
+                relative: relative.to_owned(),
+            });
+        }
+        resolved.push(segment);
+    }
+    Ok(resolved)
+}
+
 /// Verify A's published checksum manifest before any member is trusted.
 ///
 /// Every listed member must hash to its listed digest, and every file the
 /// handoff carries must be listed: an unlisted file — a mutation fixture above
 /// all — would otherwise be submitted to the reader with no published integrity
 /// claim behind it.
+///
+/// This establishes that the directory is internally whole and self-consistent.
+/// It does not establish provenance: the manifest is verified only against
+/// itself, and the handoff arrives through an out-of-band directory rather than
+/// through the pinned `Cargo.toml` revision. Anchoring the bundle to A's pinned
+/// crate source is the retention question `A_OWED_API` records.
 fn verify_checksums(root: &Path) -> Result<(), Absence> {
+    // The walk runs first: it refuses symbolic links, whose bytes are not the
+    // published ones, before any member is read through one.
+    let present = published_files(root, root, 0)?;
+
     let text = read_member(root, CHECKSUM_FILE, "checksum manifest")?;
     let text = String::from_utf8(text).map_err(|error| Absence::Unreadable {
         path: root.join(CHECKSUM_FILE),
@@ -617,18 +719,26 @@ fn verify_checksums(root: &Path) -> Result<(), Absence> {
 
     let mut listed = BTreeSet::new();
     for line in text.lines().filter(|line| !line.trim().is_empty()) {
+        // Lowercase hex only: that is the spelling `ByteDigest`'s `LowerHex`
+        // renders, and accepting a second spelling would compare unequal.
         let (digest, name) = line
             .split_once("  ")
             .filter(|(digest, name)| {
                 digest.len() == 64
-                    && digest.bytes().all(|b| b.is_ascii_hexdigit())
+                    && digest
+                        .bytes()
+                        .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
                     && !name.is_empty()
             })
             .ok_or_else(|| Absence::ChecksumLine {
                 line: line.to_owned(),
             })?;
         let relative = name.strip_prefix("./").unwrap_or(name).to_owned();
-        let bytes = read_member(root, &relative, "checksummed")?;
+        let path = member_path(root, &relative, "checksummed")?;
+        let bytes = fs::read(&path).map_err(|_| Absence::MissingMember {
+            role: "checksummed".to_owned(),
+            path,
+        })?;
         let actual = format!("{:x}", ByteDigest::of(&bytes));
         if actual != digest {
             return Err(Absence::Checksum {
@@ -640,16 +750,23 @@ fn verify_checksums(root: &Path) -> Result<(), Absence> {
         listed.insert(relative);
     }
 
-    for present in published_files(root, root)? {
-        if present != CHECKSUM_FILE && !listed.contains(&present) {
-            return Err(Absence::Unlisted { relative: present });
+    for relative in present {
+        if relative != CHECKSUM_FILE && !listed.contains(&relative) {
+            return Err(Absence::Unlisted { relative });
         }
     }
     Ok(())
 }
 
+/// How many directories below the handoff root B walks and joins.
+const MAX_DEPTH: usize = 32;
+
 /// Every file under `directory`, as a handoff-relative slash-separated path.
-fn published_files(root: &Path, directory: &Path) -> Result<Vec<String>, Absence> {
+///
+/// Symbolic links are refused rather than followed: a link's bytes are not the
+/// ones the handoff publishes, its target need not lie under the root, and a
+/// directory cycle would otherwise recurse without end.
+fn published_files(root: &Path, directory: &Path, depth: usize) -> Result<Vec<String>, Absence> {
     let unreadable = |error: std::io::Error| Absence::Unreadable {
         path: directory.to_path_buf(),
         cause: error.to_string(),
@@ -657,24 +774,37 @@ fn published_files(root: &Path, directory: &Path) -> Result<Vec<String>, Absence
     let mut found = Vec::new();
     for entry in fs::read_dir(directory).map_err(unreadable)? {
         let path = entry.map_err(unreadable)?.path();
+        let relative = relative_name(root, &path);
+        if fs::symlink_metadata(&path)
+            .map_err(unreadable)?
+            .is_symlink()
+        {
+            return Err(Absence::SymbolicLink { relative });
+        }
         if path.is_dir() {
-            found.extend(published_files(root, &path)?);
+            if depth + 1 > MAX_DEPTH {
+                return Err(Absence::TooDeep { relative });
+            }
+            found.extend(published_files(root, &path, depth + 1)?);
         } else {
-            let relative = path.strip_prefix(root).unwrap_or(&path);
-            found.push(
-                relative
-                    .components()
-                    .map(|part| part.as_os_str().to_string_lossy().into_owned())
-                    .collect::<Vec<_>>()
-                    .join("/"),
-            );
+            found.push(relative);
         }
     }
     Ok(found)
 }
 
+/// `path` as a handoff-relative slash-separated name.
+fn relative_name(root: &Path, path: &Path) -> String {
+    path.strip_prefix(root)
+        .unwrap_or(path)
+        .components()
+        .map(|part| part.as_os_str().to_string_lossy().into_owned())
+        .collect::<Vec<_>>()
+        .join("/")
+}
+
 fn read_member(root: &Path, relative: &str, role: &str) -> Result<Vec<u8>, Absence> {
-    let path = root.join(relative);
+    let path = member_path(root, relative, role)?;
     fs::read(&path).map_err(|_| Absence::MissingMember {
         role: role.to_owned(),
         path,

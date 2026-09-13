@@ -97,10 +97,11 @@ carries no causal meaning". Two bindings on two different declarations compare
 equal under it. The association between a binding and the declaration it binds
 is therefore A's wire concern, not an upstream semantic one.
 
-The sentence above lives in A's `docs/compiled-protocol-v2.md` on an unpublished
-branch. Under FR-009 that entry is `unresolved`, so the four mutations it grounds
-are unexecutable until A publishes a revision B can pin — not because the rule is
-missing, but because it is not yet citable at an immutable revision.
+The sentence above lives in A's `docs/compiled-protocol-v2.md`, published on
+A's `main` and citable at `04254a31071cc2d4c97e5c0707e1414141e55d89`. The four
+mutations it grounds are in A's published manifest and each refuses with the
+identity A declares. They remain unexecuted under the declared gate for the
+retention reason in Notes, not for want of a citable revision.
 
 Both lanes use one-axis mutations of offered wire/version, seal,
 producer/source/dependency/baseline identity, feature, a binding actually
@@ -237,8 +238,12 @@ or campaign-completion result.
 
 The A-owned frozen profile and each versioned compiled-protocol artifact contract
 must be accepted. `quire-spec-language` PR72 at `5690c2b` supplies the signed-64
-version 1 endpoint candidate. `quire-spec-language#40` owns version 2 contract
-acceptance, traceability, and the public typed boundary.
+version 1 endpoint candidate. `quire-spec-language#40` owned version 2 contract
+acceptance, traceability, and the public typed boundary; all of it is delivered
+and promoted at `04254a31071cc2d4c97e5c0707e1414141e55d89`, which is the pinned
+revision. One item is outstanding and it is addressing, not contract: A
+publishes no path constant naming its own handoff directory inside its crate
+source, so this repository cannot reach the bundle under the declared gate.
 
 the version 2 reader is implemented and under final integration: the surface named in
 Preconditions exists, passes A's focused integration suite, and carries the
@@ -273,9 +278,9 @@ offer that ships its own acceptance context authorizes itself. SC-01 forbids
 this for version 1 and it holds identically for version 2.
 
 The version 1 numeric and handoff commits that were previously reachable only from
-`agent-a/handoff-numeric-domains` are already included in A's coherent
-integration branch. B does not wait on a separate PR for
-`5690c2b29c155ec72e21f5a7bb00fe1146b6f71a`; it repins to A's final revision.
+`agent-a/handoff-numeric-domains` are contained in A's `main`. B no longer pins
+`5690c2b29c155ec72e21f5a7bb00fe1146b6f71a`: it pins
+`04254a31071cc2d4c97e5c0707e1414141e55d89`, A's promoted revision.
 
 A prose definition, native source file, emitted sidecar, hand-authored bytes, or
 a version 1 value cannot substitute for either compiled interface because this
@@ -290,13 +295,25 @@ selections from the retained generated inputs. The complete positive parser-set
 proof for SC-05 is still an open integration obligation, not an absence-of-known
 bad-dependencies claim.
 
-The version 2 lane's fixture loader, mutation corpus, and scenario enumeration are
-authored against A's published surface but ahead of A's final revision. They add no `[features]` entry and no `cfg`
-attribute, so the crate stays single-lane under NFR-004-AC-7: the corpus builder
-compiles and is checked on every gate run, and the parts that need A's boundary
-live in one `#[ignore]` lane that fails explicitly rather than passing vacuously.
-Until A's final revision is pinned, SC-06 through SC-09 assert nothing about A's
-behaviour and remain unexecuted; the version 1 SC-01 through SC-05 lane is unchanged.
+The version 2 lane submits to A's published `/2` reader at the pinned revision.
+It adds no `[features]` entry and no `cfg` attribute, so the crate stays
+single-lane under NFR-004-AC-7. Its integrity mechanism — `SHA256SUMS`
+verification over every published member, and refusal of an unlisted file, an
+escaping path, a symbolic link, a malformed checksum line and a ceiling above
+A's hard maximum — builds synthetic handoffs under `CARGO_TARGET_TMPDIR` and is
+checked on every gate run.
+
+What is not checked on every gate run is submission to A. A's handoff bundle is
+not retained in this repository and A publishes no path constant naming it
+inside A's own crate source, so the lane reads it from
+`QUIRE_PROTOCOL_A_V2_HANDOFF` and the 6 submitting tests are `#[ignore]`d. The
+gate therefore sees `7 passed; 6 ignored`: SC-06 through SC-09 are reported
+unexecuted and counted as zero under FR-009-AC-3, never as passing. With the
+bundle configured they all execute — the base offer admits, and every one of
+A's 28 declared mutation cases refuses with the identity A declares, over an
+inventory of 21 axes frozen at the pin. Vendoring A's 13 MB of published
+artifacts here is refused: it would mirror what its owner already publishes.
+The version 1 SC-01 through SC-05 lane is unchanged.
 
 ## Traceability
 

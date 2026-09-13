@@ -65,11 +65,16 @@ Does not apply to:
 ## Rationale
 
 FR-009 pins the *external producers* B consumes. Nothing pins B. This
-repository's own build closure is 131 lockfile packages, three of them git
-sources carrying a revision and no content checksum, and the rights record in
-`DEPENDENCIES.md` already names a `quire-spec-language` revision that
-`Cargo.toml` does not pin — `84975dd687d38d9b24eae84b7356e3f24cdc7b42` in the
-record against `5690c2b29c155ec72e21f5a7bb00fe1146b6f71a` in the manifest. A
+repository's own build closure is 132 lockfile packages, four of them git
+sources carrying a revision and no content checksum. The rights record in
+`DEPENDENCIES.md` has drifted from the manifest twice on the same edge: first
+naming `84975dd687d38d9b24eae84b7356e3f24cdc7b42` against a manifest pinning
+`5690c2b29c155ec72e21f5a7bb00fe1146b6f71a`, then trailing at `5690c2b` after
+the manifest moved to `04254a31071cc2d4c97e5c0707e1414141e55d89`, while
+`agent-ix-baseline-producer` — a fourth git source the newer revision drags in
+transitively — went unrecorded entirely. Both are corrected in the record, and
+the recurrence is the argument for this requirement: the drift is structural,
+not a one-off transcription slip. A
 consumer that verifies a producer's bytes to the byte while resolving its own
 compiler input from a moving reference has verified the wrong half of the
 supply chain.
@@ -126,7 +131,7 @@ B-authored fixture root can carry an unenumerated file.
 | NFR-006-AC-1 | Every declared dependency and dev-dependency resolves through an exact `=` version requirement or an exact 40-hex git `rev`; introducing a caret or range requirement, a `branch`, a `tag`, or a `path` source for any one of them is refused, and the refusal names the offending dependency. | Inspection |
 | NFR-006-AC-2 | Every lockfile package other than this crate carries either a `checksum` or a git `rev` byte-equal to the revision its manifest entry pins; deleting one `checksum` line, or changing one lockfile `rev` so it differs from the manifest's, is refused and names that package. | Inspection |
 | NFR-006-AC-3 | The build-execution enumeration and the lockfile agree in both directions; adding a closure package that runs a build script or is a procedural macro without enumerating it, and leaving an enumerated entry whose package no longer appears in the closure, are each refused and each names the unmatched side. | Inspection |
-| NFR-006-AC-4 | Every git-sourced dependency's revision in the rights record equals the revision the build manifest pins; a divergence is refused and names both revisions. This criterion fails on the tree as it stands, because `DEPENDENCIES.md` records `84975dd687d38d9b24eae84b7356e3f24cdc7b42` where `Cargo.toml` pins `5690c2b29c155ec72e21f5a7bb00fe1146b6f71a`. | Inspection |
+| NFR-006-AC-4 | Every git-sourced dependency's revision in the rights record equals the revision the resolved lockfile carries, and no git source in the lockfile is absent from the record; a divergence or an omission is refused and names the package and both revisions. The criterion covers transitive git sources, not only the manifest's direct pins. | Inspection |
 | NFR-006-AC-5 | A verification run whose lockfile is not byte-identical before and after it is not accepted as evidence of the closure; introducing a dependency change that the run would resolve rather than refuse is detected by that comparison alone, independently of which commands [NFR-004](./NFR-004-define-local-verification-gate.md) enumerates. | Inspection |
 | NFR-006-AC-6 | A byte sequence in a pinned delivery root that no `pinned` entry's recorded digest covers does not reach a consumer path, and adding one unenumerated file to an otherwise complete fixture root returns a typed refusal naming that file rather than admitting the delivery. | Test (TC-013) |
 | NFR-006-AC-7 | Swapping one delivery member's bytes for different bytes at the same path returns a typed refusal, and the substituted bytes reach no consumer path; the refusal is distinct from the refusal an absent member produces. | Test (TC-013) |

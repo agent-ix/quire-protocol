@@ -79,7 +79,7 @@ metrics and no acceptance criteria.
 
 ### What each status word in this matrix means
 
-The four words below are not interchangeable, and no total mixes them.
+The five words below are not interchangeable, and no total mixes them.
 
 - **Test-backed** — the criterion's `Verification` cell names at least one
   authored test case (`TC-0NN`). 229 of 288 criteria.
@@ -112,7 +112,7 @@ The four words below are not interchangeable, and no total mixes them.
   is `#[ignore]`d, so the criterion was never checked by a run in the first
   place.
 
-  The gap between 229 test-backed and 24 engine-bound is not a contradiction —
+  The gap between 229 test-backed and 23 engine-bound is not a contradiction —
   the two words mean different things, and the definitions above say so — but it
   is the number that says how much of this specification a test currently
   reaches. **Read it as the coverage figure.** "Test-backed" says a criterion has
@@ -130,10 +130,12 @@ The four words below are not interchangeable, and no total mixes them.
   - **Deliberately unbound.** The 24 tests in `tests/it001_v2_intake.rs` carry
     `Task-009` and no criterion, because they exercise this repository's own
     fixture loader rather than any IT-001 scenario. Tagging them `IT-001` would
-    make 24 unexecuted scenarios look covered. They stay as they are. The 7 tests
-    in `tests/it001_v2_handoff.rs` carry `Task-012` for the same reason: they run
-    A's `/2` handoff, but only when one is configured out of band, and against an
-    unpromoted A revision.
+    make 24 unexecuted scenarios look covered. They stay as they are. The 13 tests
+    in `tests/it001_v2_handoff.rs` carry `Task-012` for the same reason. A's
+    revision is promoted now, so the remaining reason is retention: the 6 that
+    submit to A are `#[ignore]`d because the handoff is configured out of band,
+    and the 7 that exercise the integrity mechanism build their own synthetic
+    handoffs under `CARGO_TARGET_TMPDIR` and run on every gate.
   - **Still under-tagged.** Tests that exercise a criterion they do not name.
     `tests/it001_native_handoff.rs` is the largest remaining case, at 24 traces
     over 4 criteria.
@@ -185,12 +187,15 @@ the version 2 row nor any criterion resting on it is scored against it:
   published `SHA256SUMS` covers all 109 members; the lane verifies every one of
   them, and refuses any member the manifest does not list, before reading any.
 - **Not met.** The handoff directory is not retained in this repository. The lane
-  reads it from `QUIRE_PROTOCOL_A_V2_HANDOFF` and reports "unexecuted" when that
-  is unset, which is what the local gate sees. A scenario that cannot execute
+  reads it from `QUIRE_PROTOCOL_A_V2_HANDOFF`, and the 6 tests that submit to A
+  are `#[ignore]`d on it, so with the variable unset the local gate sees
+  `7 passed; 6 ignored` — six scenarios reported unexecuted and counted as zero,
+  as `FR-009-AC-3` requires, never as passing. A scenario that cannot execute
   under the gate on a clean checkout is not executed coverage. Vendoring A's 13 MB
   of published artifacts here would mirror what its owner already publishes, so
   the resolution asked of A is a published path constant naming the handoff
-  inside its own crate source, which every dependent already has on disk.
+  inside its own crate source, which every dependent already has on disk. Filed
+  as `agent-ix/quire-spec-language#78`.
 
 The version 2 lane's tests are therefore tagged `Task-012` only and carry no
 `IT-001` trace tag, for the same reason the loader tests in
@@ -201,8 +206,8 @@ as backing symbols for any IT-001 scenario until both conditions above are met.
 `unresolved` today. IT-002 and IT-003 declare FR-009 preconditions, so every one
 of their scenarios is unexecutable. IT-001 declares no manifest precondition, so
 its version 1 lane SC-01..SC-05 is planned rather than unexecutable, while its version 2
-lane is unexecutable for want of a promoted immutable A revision and a retained
-handoff.
+lane is unexecutable for want of a handoff this repository can reach under the
+declared gate; A's immutable revision is promoted and pinned at `04254a3`.
 
 ## Functional Requirement Coverage
 
@@ -211,8 +216,8 @@ in Domain Object Coverage instead.
 
 | Functional Req | Acceptance Criteria | Test Cases | Status |
 | --- | --- | --- | --- |
-| FR-001 | FR-001-AC-1, FR-001-AC-2, FR-001-AC-3, FR-001-AC-4, FR-001-AC-5 | TC-001 (AC-1..AC-4); IT-001 (AC-4, AC-5) | 🚧 Planned — 5 of 5 criteria backed, 0 unbacked. FR-001-AC-5 is integration-backed only and unexecutable: its sole backing is IT-001 SC-06/SC-06a, gated on A's final version 2 revision |
-| FR-002 | FR-002-AC-1, FR-002-AC-2, FR-002-AC-3, FR-002-AC-4, FR-002-AC-5 | TC-002 (AC-1..AC-4); IT-001 (AC-5) | 🚧 Planned — 5 of 5 criteria backed, 0 unbacked. FR-002-AC-5 is integration-backed only and unexecutable: its sole backing is IT-001 SC-08, gated on A's final version 2 revision |
+| FR-001 | FR-001-AC-1, FR-001-AC-2, FR-001-AC-3, FR-001-AC-4, FR-001-AC-5 | TC-001 (AC-1..AC-4); IT-001 (AC-4, AC-5) | 🚧 Planned — 5 of 5 criteria backed, 0 unbacked. FR-001-AC-5 is integration-backed only and unexecutable: its sole backing is IT-001 SC-06/SC-06a, gated not on A's revision, which is pinned at `04254a3`, but on a handoff this repository can reach under the declared gate |
+| FR-002 | FR-002-AC-1, FR-002-AC-2, FR-002-AC-3, FR-002-AC-4, FR-002-AC-5 | TC-002 (AC-1..AC-4); IT-001 (AC-5) | 🚧 Planned — 5 of 5 criteria backed, 0 unbacked. FR-002-AC-5 is integration-backed only and unexecutable: its sole backing is IT-001 SC-08, gated not on A's revision, which is pinned at `04254a3`, but on a handoff this repository can reach under the declared gate |
 | FR-003 | FR-003-AC-1, FR-003-AC-2, FR-003-AC-3, FR-003-AC-4, FR-003-AC-5, FR-003-AC-6, FR-003-AC-7 | TC-003 (AC-1..AC-7); TC-009 (AC-7) | 🚧 Planned — 7 of 7 criteria test-backed, 0 unbacked, 0 unexecutable. Aggregate view of FR-019..FR-025 |
 | FR-004 | FR-004-AC-1, FR-004-AC-2, FR-004-AC-3, FR-004-AC-4 | TC-004 (AC-1..AC-4) | 🚧 Planned — 4 of 4 criteria test-backed, 0 unbacked, 0 unexecutable (FR-004-AC-3 landed by `tests/tc_004_closure_axes.rs`). Aggregate view of FR-026..FR-028 and FR-041 |
 | FR-005 | FR-005-AC-1, FR-005-AC-2, FR-005-AC-3, FR-005-AC-4, FR-005-AC-5 | TC-005 (AC-1..AC-5) | 🚧 Planned — 5 of 5 criteria test-backed, 0 unbacked, 0 unexecutable. Aggregate view of FR-029 and FR-030 |
@@ -280,7 +285,7 @@ the reference resolves in both directions.
 | Non-Functional Req | Verification Method | Evidence/Test Cases | Status |
 | --- | --- | --- | --- |
 | NFR-001 | Property and metamorphic testing | TC-008 (AC-1..AC-3) | 🚧 Planned — 3 of 3 criteria test-backed, 0 unbacked, 0 unexecutable |
-| NFR-002 | Property, mutation, and source-bound inventory inspection | TC-009 (AC-1..AC-4) | 🚧 Planned — 4 of 4 criteria test-backed, 0 unbacked, 0 unexecutable. IT-001 SC-07/SC-09 additionally verify this requirement and are unexecutable on A's final version 2 revision; no criterion rests on them alone |
+| NFR-002 | Property, mutation, and source-bound inventory inspection | TC-009 (AC-1..AC-4) | 🚧 Planned — 4 of 4 criteria test-backed, 0 unbacked, 0 unexecutable. IT-001 SC-07/SC-09 additionally verify this requirement and are unexecutable for want of a reachable handoff, not for want of A's revision; no criterion rests on them alone |
 | NFR-003 | Shared Rust language-boundary check, static analysis, architecture inspection, Rust review, Quire coverage, gap analysis | TC-010 (AC-1..AC-6); IT-003 (AC-4, AC-6) | 🚧 Planned — 6 of 6 criteria test-backed, 0 unbacked, 0 unexecutable |
 | NFR-004 | Cargo metadata inspection, conditional-compilation inventory, enumerated gate execution over one unchanged head, per-criterion negative controls | TC-012 (AC-1..AC-10) | 🚧 Planned — 10 of 10 criteria backed by TC-012, 0 unbacked, 0 unexecutable. NFR-004-AC-2's cell reads `Inspection (TC-012)`, so it is inspection-method but test-case-backed. IT-003 previously appeared here but declares and exercises no NFR-004 scenario |
 | NFR-005 | Static inspection and Quire coverage over the integration lanes, denominated on owed rather than executed scenarios | IT-002, IT-003 | 🚧 Planned — this requirement states five metrics and no acceptance criteria, so it contributes 0 to the 288. Its denominator is the 22 scenarios IT-002 and IT-003 owe (12 + 10); all 22 are unexecutable, so every metric scores 0 of 22 rather than a vacuous 100% |
@@ -342,7 +347,7 @@ a coverage claim in this matrix.
 Row counts, recomputed from the tree. Every matrix row above is counted exactly
 once, and `Blocked` means unexecutable — neither passing nor failing.
 
-Engine-measured binding, which is the figure to read for coverage, is 24 of 322
+Engine-measured binding, which is the figure to read for coverage, is 23 of 322
 rows (7%) — see **Engine-bound** above. The table below counts matrix rows and
 their planned state; it does not measure binding.
 
@@ -366,7 +371,7 @@ fully blocked integration cannot score 100%. These totals follow that rule: the
 denominator is every authored acceptance criterion, and an unexecutable
 criterion is a zero inside it rather than a row removed from it.
 
-Engine-measured binding, which is the figure to read for coverage, is 24 of 322
+Engine-measured binding, which is the figure to read for coverage, is 23 of 322
 rows (7%) — see **Engine-bound** above. The table below counts matrix rows and
 their planned state; it does not measure binding.
 
@@ -379,9 +384,11 @@ their planned state; it does not measure binding.
 
 The 12 unexecutable criteria are FR-001-AC-5, FR-002-AC-5, FR-013-AC-4,
 FR-018-AC-3, FR-018-AC-5, FR-018-AC-6, FR-018-AC-8, NFR-007-AC-3, NFR-007-AC-4,
-NFR-007-AC-5 and NFR-007-AC-7 — eleven waiting on a
-`quire.compiled-protocol/2` revision B can pin — and FR-014-AC-6, waiting on
-IT-003 and Engineering Assurance #34.
+NFR-007-AC-5 and NFR-007-AC-7 — eleven whose backing scenarios cannot execute
+under the declared gate because the `quire.compiled-protocol/2` handoff is not
+reachable from a clean checkout; B pins A's promoted revision `04254a3` and the
+scenarios do execute when `QUIRE_PROTOCOL_A_V2_HANDOFF` names the published
+bundle — and FR-014-AC-6, waiting on IT-003 and Engineering Assurance #34.
 
 The 47 unbacked criteria are FR-008-AC-9, FR-010-AC-1, FR-010-AC-2,
 FR-010-AC-3, FR-011-AC-1, FR-011-AC-7, FR-012-AC-7, FR-013-AC-7, FR-013-AC-8,

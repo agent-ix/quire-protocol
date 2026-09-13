@@ -1,11 +1,36 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! IT-001 SC-06..SC-09: the B-owned version 2 fixture loader and mutation corpus.
+//! IT-001 SC-06..SC-09: the B-owned version 2 evidence index and scenario corpus.
 //!
-//! This module is authored ahead of A's `protocol_artifact::v2` delivery. It
-//! deliberately names no A type: it indexes B's own retained evidence and
-//! enumerates the scenarios the version 2 lane must run. It parses no compiled
-//! artifact — `b-v2-delivery-index.json` is B's evidence index, written by B at pin
-//! time, and the offered bytes are carried through untouched.
+//! A has delivered. `protocol_artifact::v2` is published at the pinned revision
+//! and `quire_protocol::admit_and_link_v2` runs against it; the executing lane
+//! is `tests/it001_v2_handoff.rs`, which decodes A's own published handoff
+//! types and runs A's own published mutation manifest.
+//!
+//! What remains here is B's evidence-intake subsystem: the delivery index
+//! `b-v2-delivery-index.json` (written by B at pin time, never by A), its
+//! absence taxonomy, and the scenario inventory B planned before A published
+//! one. That inventory is **B's planning vocabulary, not protocol vocabulary**:
+//! `MutatedSelection`, `OfferedAxis`, `TemporalBindingMutation`, `LimitBound`
+//! and `ExpectedRefusal` name rows in B's own table and are never submitted to
+//! A or compared against A's wire strings. The refusal identities A actually
+//! declares are `protocol_artifact::Error::code`, exercised in the handoff lane.
+//!
+//! Task-012 owes the injective mapping from `ExpectedRefusal` onto
+//! `Error::code`, and with A's manifest now published that mapping supersedes
+//! this corpus rather than annotating it. Until that retirement is specified
+//! (TM-001, IT-001 Notes, and the `spec/reviews/v2-intake` findings all name
+//! this lane), the corpus stays and claims nothing about A's behaviour. This
+//! module parses no compiled artifact and the offered bytes are carried
+//! through untouched.
+//!
+//! The `REQUIRED_A_DELIVERABLES` list this module used to publish is gone: all
+//! five of its entries — the immutable revision, the raw `/2` bytes and their
+//! reference, the selection recipe (A publishes it as
+//! `protocol_artifact::handoff`), the original unrecanonicalized input corpus,
+//! and the per-axis mutation fixtures with their declared refusal identities —
+//! are in hand at the pinned revision and exercised by the handoff lane. The
+//! one addressing gap that remains is stated once, in
+//! `tests/support/v2_handoff/mod.rs::A_OWED_API`, and is not restated here.
 
 pub use quire_protocol::digest::producer::DigestDomain;
 use std::{
@@ -20,26 +45,6 @@ pub const FIXTURE_ENV: &str = "QUIRE_PROTOCOL_A_V2_FIXTURE";
 
 /// B's evidence index inside that directory. Not emitted by A.
 pub const DELIVERY_INDEX_FILE: &str = "b-v2-delivery-index.json";
-
-/// What `quire-spec-language#40` still owes before this lane can execute.
-///
-/// The version 2 reader is implemented and under final integration; its public surface is
-/// settled and recorded in IT-001 Preconditions, so it is not listed here. What
-/// remains is the final revision and its fixtures. The lane refuses to report a
-/// version 2 outcome until every one of these is in hand, and none may be
-/// substituted by prose, a native source file, an emitted sidecar, a
-/// hand-authored byte string, or a version 1 value.
-///
-/// B pins no intermediate commit: only A's one final immutable revision.
-pub const REQUIRED_A_DELIVERABLES: [&str; 5] = [
-    "A's one final immutable quire-spec-language revision to pin",
-    "the raw /2 artifact bytes and their external artifact reference",
-    "the derivation recipe B implements to construct v2::Expected, \
-     v2::ExpectedDefinition and v2::ExpectedTemporal from the original inputs \
-     -- a recipe B executes, never a sidecar B reads",
-    "the original, unrecanonicalized producer input corpus",
-    "the per-axis mutation-fixture paths and their documented refusal identities",
-];
 
 // ---------------------------------------------------------------------------
 // Absence

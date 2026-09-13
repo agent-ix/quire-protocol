@@ -25,38 +25,34 @@ byte-for-byte unchanged in behaviour.
 
 ## Dependency state
 
-A's `/2` is **implemented and under final integration**, not absent. The
-published surface B builds against is:
+**Delivered.** A's `/2` is published and promoted. `quire-spec-language`
+`04254a31071cc2d4c97e5c0707e1414141e55d89` is that repository's `main` after
+PR #75 merged, released as `v0.1.0`, and it is what `Cargo.toml` and
+`Cargo.lock` pin. The surface B builds against:
 
 - `protocol_artifact::v2::{Expected, ExpectedDefinition, ExpectedTemporal,
   AdmittedPackage, read, encode_candidate}`
 - `protocol_artifact::v2::wire::{Package, TemporalBinding, ClockConfiguration}`
 - `protocol_artifact::native::{TemporalSelection, AdmissionV2, admit_v2}`
 - `temporal::{evaluate_v2, evaluate_with_progress_v2, mapping_support_v2}`
-- the existing shared `protocol_artifact::{Limits, Report, Error, Invalid,
-  Unsupported}`
+- `protocol_artifact::handoff::{SelectionV2, MutationManifest, ...}` — the
+  interchange record shapes for `expected-v2.json` and
+  `mutations/manifest.json`, decoded rather than mirrored
+- `protocol_artifact::Error::code` — the stable refusal identity per axis
+- the existing shared `protocol_artifact::{Limits, Report, Invalid, Unsupported}`
 
-`/1` stays strict and byte-compatible; `/1` and `/2` mutually refuse. A's
-implementation already carries a declared unique declaration-index key and total
-order, typed per-axis mutation refusals, independent `Expected` construction,
-raw-byte digest-domain crossing tests, and a non-vacuous pretty-JSON
-recanonicalization mutation over original model bytes.
+`/1` stays strict and byte-compatible; `/1` and `/2` mutually refuse.
 
-The surface is not yet on `quire-spec-language` `origin/main` or any remote
-branch, so B has not verified it directly. B builds against these exact names
-now and keeps execution dependency-gated.
+The handoff bundle A committed under `artifacts/compiled-protocol-v2/` is 109
+files plus `SHA256SUMS`, carrying 28 mutation cases over 21 axes in format
+`quire.protocol.v2-mutations/1`.
 
-**B pins no intermediate commit.** A is integrating the evaluator, occurrence
-schema, real `/2` handoff directory, and final review, and will supply one final
-immutable revision together with the raw `/2` bytes and reference, the sidecar
-recipe, the original input corpus, and the mutation-fixture paths. B pins only
-that revision.
-
-The previously provisional `/1` numeric and handoff commits — reachable only
-from `agent-a/handoff-numeric-domains`, including the current pin
-`5690c2b29c155ec72e21f5a7bb00fe1146b6f71a` — are already included in A's
-coherent integration branch. B does **not** wait on a separate PR for that
-commit; it repins to A's final revision.
+**What is still owed** is addressing, not content: A publishes no path constant
+naming that directory inside its own crate source, so B can only reach it
+through the out-of-band `QUIRE_PROTOCOL_A_V2_HANDOFF` variable and the
+submitting tests stay `#[ignore]`d under the declared gate. Stated once in
+`tests/support/v2_handoff/mod.rs::A_OWED_API`. Vendoring the bundle here is
+refused: it would mirror what its owner publishes.
 
 ## Subtasks
 
@@ -91,20 +87,40 @@ commit; it repins to A's final revision.
   pretty-printed JSON re-encoding of the original model bytes, byte-distinct
   from the as-delivered form, and crosses digest domains over raw bytes.
 
-### Blocked on A's delivery
+### Discharged at the pin
 
-- [ ] Obtain A's immutable revision, raw `/2` bytes and external artifact
+- [x] Obtain A's immutable revision, raw `/2` bytes and external artifact
   reference, independent selection recipe, original unrecanonicalized input
   corpus, per-axis mutation fixtures with documented refusal expectations, and
-  the exact public names of the `/2` boundary.
-- [ ] Pin that revision in `Cargo.toml` and `Cargo.lock`. Do not pin a branch
-  commit; require an ancestor of A's `origin/main`.
-- [ ] Add `quire_protocol::admit_and_link_v2` as a distinct public entry point
+  the exact public names of the `/2` boundary. All in hand at `04254a3`.
+- [x] Pin that revision in `Cargo.toml` and `Cargo.lock`. `04254a3` is A's
+  `origin/main`, not a branch commit.
+- [x] Add `quire_protocol::admit_and_link_v2` as a distinct public entry point
   over A's `/2` reader, leaving `admit_and_link` untouched.
-- [ ] Rederive B's `/2` selection from the original input corpus without reading
-  the offered bytes, and record it as a B-owned fixture with provenance.
-- [ ] Run the owed scenarios and report the public API, the pinned commit, and
-  the exact refusal outcome per axis.
+- [x] Rederive B's `/2` selection from the original input corpus without reading
+  the offered bytes. B decodes A's independent selection sidecar through A's own
+  published `handoff::SelectionV2` and checks each original input against the
+  identity the sidecar selects for it before any admission runs.
+- [x] Run the owed scenarios and report the public API, the pinned commit, and
+  the exact refusal outcome per axis. All 28 declared cases refuse with the
+  identity A declares, scored through `Error::code`; the unmutated offer admits
+  under the same expectation as the non-vacuity control; and the 21-axis
+  inventory is frozen at the pin so the corpus cannot shrink unnoticed.
+
+### Remaining
+
+- [ ] Reach the handoff under the declared gate. Until A publishes a path
+  constant for its own handoff directory, the 6 submitting tests are
+  `#[ignore]`d and SC-06..SC-09 are reported unexecuted rather than passing.
+  The 7 tests that exercise B's integrity mechanism build synthetic handoffs
+  under `CARGO_TARGET_TMPDIR` and do run on every gate.
+- [ ] Settle the pre-delivery corpus. `tests/support/v2/mod.rs` and
+  `tests/it001_v2_intake.rs` hold B's own scenario inventory, planned before A
+  published one, whose `ExpectedRefusal` identities were to be mapped
+  injectively onto A's typed refusals at the pin step. A now publishes its own
+  28-case manifest, so that mapping supersedes the corpus rather than annotating
+  it. Retiring it touches TM-001, IT-001 Notes and the `spec/reviews/v2-intake`
+  findings, so it is specified before it is deleted.
 
 ## Deliverables
 

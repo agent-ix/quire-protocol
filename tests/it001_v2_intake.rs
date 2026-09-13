@@ -4,10 +4,13 @@
 //! The version 1 lane in `it001_native_handoff.rs` is unchanged and remains the
 //! compatibility precedent. This file owns only version 2.
 //!
-//! A's `protocol_artifact::v2` boundary is not published yet, so no test here
-//! calls it. What is exercised today is B-owned: the evidence loader, its
-//! absence reporting, and the scenario corpus the lane owes. The single
-//! `#[ignore]` lane test fails loudly rather than passing vacuously.
+//! A's `protocol_artifact::v2` boundary is published and pinned, and the lane
+//! that submits to it is `it001_v2_handoff.rs`. No test here calls it: what is
+//! exercised in this file is B-owned only — the evidence-index loader, its
+//! absence reporting, and the scenario corpus B planned before A published a
+//! manifest of its own. Every assertion here is B's table against B's own
+//! enums and claims nothing about A's behaviour; `tests/support/v2/mod.rs`
+//! records that the corpus is superseded and what its retirement owes.
 
 use std::{
     fs,
@@ -22,7 +25,7 @@ mod v2;
 use v2::{
     Absence, CrossVersion, DigestDomain, Disposition, ExpectedRefusal, Fixture, IndexedLimit,
     LimitBound, MutatedSelection, OfferedAxis, ProducerInput, Scenario, ScenarioKind,
-    TemporalBindingMutation, REQUIRED_A_DELIVERABLES,
+    TemporalBindingMutation,
 };
 
 // ---------------------------------------------------------------------------
@@ -426,44 +429,46 @@ fn a_delivery_owes_a_scenario_row_for_every_declared_limit() {
 // The lane itself
 // ---------------------------------------------------------------------------
 
-/// SC-06 through SC-09 cannot run until A publishes its final version 2 revision.
+/// SC-06 through SC-09 run in `tests/it001_v2_handoff.rs`, not from this index.
 ///
-/// A's `protocol_artifact::v2` is implemented and under final integration, and
-/// B's spec and corpus are built against its exact published names. Execution
-/// stays dependency-gated: B pins no intermediate commit, so until the final
-/// revision lands there is nothing to submit.
+/// A published its final version 2 revision; it is pinned in `Cargo.toml` and
+/// `quire_protocol::admit_and_link_v2` runs against it. What this lane owns is
+/// B's own evidence index, and no delivery in that shape exists: A publishes a
+/// handoff bundle, which the handoff lane decodes through A's own
+/// `protocol_artifact::handoff` types. So this index is unfed, and the corpus
+/// it addresses is superseded rather than blocked.
 ///
 /// This test is deliberately NOT `#[ignore]`d. The declared gate in AGENTS.md
 /// runs `cargo test --locked`, which never executes ignored tests, so an
-/// ignored lane test could not report the block to the gate at all. Here the
-/// blocked state is what the gate sees: with no delivery configured the lane
-/// reports exactly why it cannot run, and the moment a delivery appears the
-/// test fails until `admit_and_link_v2` is written against a pinned revision.
+/// ignored lane test could not report this state to the gate at all. With no
+/// delivery configured the lane says exactly why it did not run; the moment a
+/// delivery in B's index shape appears, the test fails until the scenarios it
+/// registers have been run and reconciled against A's published manifest.
 ///
-/// It carries no `IT-001` trace tag. It exercises no IT-001 scenario, and
-/// tagging it would count it among IT-001's backing symbols while SC-06
-/// through SC-09 are unexecuted.
+/// It carries no `IT-001` trace tag. It exercises no IT-001 scenario against A,
+/// and tagging it would count it among IT-001's backing symbols.
 #[test]
 #[trace("Task-009")]
 fn the_v2_lane_reports_its_blocked_state_to_the_gate() {
-    let owed = REQUIRED_A_DELIVERABLES.join("\n  - ");
     match Fixture::load() {
         Err(Absence::EnvUnset) => {
-            // The expected state today: no delivery, lane unexecuted, nothing
-            // claimed about A. Recorded, not skipped.
+            // The expected state today: no delivery in B's index shape. The
+            // executing evidence for SC-06..SC-09 is the handoff lane, which
+            // reads A's published bundle instead. Recorded, not skipped.
         }
-        Err(absence) => panic!(
-            "a /2 delivery was configured but could not be assembled: {absence}.\n\
-             quire-spec-language#40 owes:\n  - {owed}"
-        ),
+        Err(absence) => {
+            panic!("a /2 delivery was configured but could not be assembled: {absence}")
+        }
         Ok(fixture) => {
             let undelivered = fixture.undelivered_scenarios();
             panic!(
-                "a /2 delivery is present at {} (producer revision {}), but \
-                 quire_protocol::admit_and_link_v2 is not implemented. If that \
-                 is A's final revision, pin it in Cargo.toml over the \
-                 provisional /1 pin, rederive B's selection, and run the {} \
-                 scenarios this delivery owes. Refusal scenarios with no \
+                "a /2 delivery is present at {} (producer revision {}), but this \
+                 index-driven corpus has not been reconciled against A's \
+                 published mutation manifest. Either run the {} scenarios it \
+                 registers through quire_protocol::admit_and_link_v2 and map \
+                 every expected refusal identity injectively onto \
+                 protocol_artifact::Error::code, or retire this corpus in favour \
+                 of tests/it001_v2_handoff.rs. Refusal scenarios with no \
                  delivered mutation fixture: {}.",
                 fixture.root().display(),
                 fixture.delivery_index().producer_revision,

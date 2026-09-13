@@ -210,19 +210,23 @@ review and semantic QUOIN `/gap-analysis` over one unchanged head.
 
 ## 14. Lifecycle Status
 
-The repository is partially implemented. Six test binaries exist
-(`it001_native_handoff`, `it001_v2_intake`, `tc_002_identities`,
-`tc_004_closure_axes`, `tc_006_digest_domains`, `tc_008_reproduction_record`)
-and the local gate under `NFR-004` reports 106 passing, 0 failing and 23 ignored
-on this head. An earlier revision of this section said "The repository is
+The repository is partially implemented. Seven test binaries exist
+(`it001_native_handoff`, `it001_v2_handoff`, `it001_v2_intake`,
+`tc_002_identities`, `tc_004_closure_axes`, `tc_006_digest_domains`,
+`tc_008_reproduction_record`) and the local gate under `NFR-004` reports 75
+passing, 0 failing and 29 ignored across them, plus 32 passing doc-tests, on
+this head. The 29 ignored are 23 in the version 1 lane and 6 in the version 2
+handoff lane, each reported unexecuted rather than passing. An earlier revision of this section said "The repository is
 specification-only. Every test is planned", which was true when written and has
 not been true since the first test binary landed. `TM-001` recorded the executed
 slices while this section denied them; the matrix was right.
 
-What remains unimplemented is the larger part: `admit_and_link_v2` is unwritten
-because agent A has published no `quire.compiled-protocol/2` revision, the
-canonical result and refusal surfaces are module stubs, and 47 acceptance
-criteria reach no test case at all. `TM-001` is the authority on which criteria
+What remains unimplemented is the larger part. `admit_and_link_v2` is now
+written against A's published `quire.compiled-protocol/2` reader at the pinned
+revision `04254a3`, but the scenarios that submit to it are reported unexecuted
+under the gate because A's handoff bundle is not reachable from a clean
+checkout. The canonical result and refusal surfaces are still module stubs, and
+47 acceptance criteria reach no test case at all. `TM-001` is the authority on which criteria
 are backed, unbacked, blocked or planned; this section states only that the
 repository is no longer specification-only.
 
@@ -247,9 +251,10 @@ its entry-status table records why each is currently `unresolved`.
   protocol, temporal and observation noun. Open questions this repository raised
   against that layer are issues 28 and 29.
 - `agent-ix/quire-spec-language` — the A-owned native compiler and its
-  compiled-protocol artifact contracts. `quire.compiled-protocol/1` is the
-  current pin; version 2 is issue 40. This is the only native compiler reader in the
-  admitted path, and this repository adds no second one.
+  compiled-protocol artifact contracts. The pin is `04254a3`, A's promoted
+  `main`, which supplies both `quire.compiled-protocol/1` and `/2`; issue 40
+  owned the version 2 delivery and it has landed. This is the only native
+  compiler reader in the admitted path, and this repository adds no second one.
 - `agent-ix/quire-observation` — the F-owned observation producer interface,
   carrying the scope facts and global closure record IT-002 consumes.
 - `agent-ix/quire-verification` FR-007 and `quire-verification/e02-draft-2` —
