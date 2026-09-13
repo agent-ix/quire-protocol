@@ -366,8 +366,15 @@ fn tc_013_resolution_budgets_are_inclusive_typed_and_fresh_per_attempt() {
     let deliveries = vec![delivery("compiled.json", ARTIFACT_BYTES)];
     let required = vec![entry.key().clone()];
 
-    let exact_clock =
-        ScriptedClock::new(&[Duration::ZERO, Duration::ZERO, Duration::from_millis(10)]);
+    let exact_clock = ScriptedClock::new(&[
+        Duration::ZERO,
+        Duration::ZERO,
+        Duration::ZERO,
+        Duration::ZERO,
+        Duration::ZERO,
+        Duration::ZERO,
+        Duration::from_millis(10),
+    ]);
     assert!(matches!(
         resolve(
             &manifest,
@@ -400,8 +407,15 @@ fn tc_013_resolution_budgets_are_inclusive_typed_and_fresh_per_attempt() {
         assert_eq!(incomplete.consumed_bytes(), 0);
     }
 
-    let expired_clock =
-        ScriptedClock::new(&[Duration::ZERO, Duration::ZERO, Duration::from_millis(10)]);
+    let expired_clock = ScriptedClock::new(&[
+        Duration::ZERO,
+        Duration::ZERO,
+        Duration::ZERO,
+        Duration::ZERO,
+        Duration::ZERO,
+        Duration::ZERO,
+        Duration::from_millis(10),
+    ]);
     let ResolutionOutcome::Incomplete(ResolutionIncomplete::Deadline(incomplete)) = resolve(
         &manifest,
         &required,
@@ -426,6 +440,41 @@ fn tc_013_resolution_budgets_are_inclusive_typed_and_fresh_per_attempt() {
         ),
         ResolutionOutcome::Resolved(_)
     ));
+}
+
+#[test]
+#[trace("TC-013", "FR-009-AC-6", "FR-016-AC-8")]
+fn tc_013_manifest_validation_is_entry_and_deadline_bounded() {
+    let duplicate = artifact_entry("A", "1", "compiled.json", ARTIFACT_BYTES);
+    let manifest = VersionLockManifest::new(vec![duplicate.clone(), duplicate]);
+    let required = vec![key("A", "1")];
+
+    let count_clock = ScriptedClock::new(&[Duration::ZERO]);
+    let ResolutionOutcome::Incomplete(count) = resolve(
+        &manifest,
+        &required,
+        &[delivery("compiled.json", ARTIFACT_BYTES)],
+        ResolutionBudget::new(1, ARTIFACT_BYTES.len(), Duration::from_secs(1)),
+        &count_clock,
+    ) else {
+        panic!("the full manifest, not only the required subset, consumes entry budget");
+    };
+    assert_eq!(count.dimension(), ResolutionDimension::EntryCount);
+
+    let deadline_clock =
+        ScriptedClock::new(&[Duration::ZERO, Duration::ZERO, Duration::from_millis(2)]);
+    let ResolutionOutcome::Incomplete(deadline) = resolve(
+        &manifest,
+        &required,
+        &[delivery("compiled.json", ARTIFACT_BYTES)],
+        ResolutionBudget::new(2, ARTIFACT_BYTES.len(), Duration::from_millis(1)),
+        &deadline_clock,
+    ) else {
+        panic!("manifest validation that crosses the deadline is incomplete");
+    };
+    assert_eq!(deadline.dimension(), ResolutionDimension::Deadline);
+    assert_eq!(deadline.consumed_entries(), 0);
+    assert_eq!(deadline.consumed_bytes(), 0);
 }
 
 #[test]

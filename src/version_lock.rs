@@ -15,6 +15,8 @@ use crate::ByteDigest;
 /// Per-scenario evidence values, composed for handoff and never stored here.
 pub mod evidence;
 
+const MANIFEST_UNIT: UnitLabel = UnitLabel::new("version-lock-manifest-validation");
+const DELIVERY_UNIT: UnitLabel = UnitLabel::new("version-lock-delivery-validation");
 const DIGEST_UNIT: UnitLabel = UnitLabel::new("version-lock-digest");
 
 /// Bytes retained without parsing, normalization or re-encoding.
@@ -757,6 +759,159 @@ fn required_artifact_member(
     })
 }
 
+fn prevalidate_manifest(
+    manifest: &VersionLockManifest,
+    required: &[EntryKey],
+) -> Option<ResolutionOutcome> {
+    if let Some(key) = duplicate_key(&manifest.entries) {
+        return Some(ResolutionOutcome::Refused(ResolutionRefusal::for_key(
+            ResolutionRefusalCode::DuplicateEntryKey,
+            key,
+            &[],
+        )));
+    }
+    if let Some(key) = duplicate_required_key(required) {
+        return Some(ResolutionOutcome::Refused(ResolutionRefusal::for_key(
+            ResolutionRefusalCode::DuplicateRequiredKey,
+            key,
+            &[],
+        )));
+    }
+
+    for key in required {
+        let Some(entry) = entry_for(manifest, key) else {
+            return Some(ResolutionOutcome::Refused(ResolutionRefusal::for_key(
+                ResolutionRefusalCode::EntryAbsent,
+                key,
+                &[],
+            )));
+        };
+        if entry.status == EntryStatus::Unresolved {
+            let Some(reason) = entry
+                .unresolved_reason
+                .as_ref()
+                .filter(|reason| !reason.as_bytes().is_empty())
+            else {
+                return Some(ResolutionOutcome::Refused(ResolutionRefusal::for_key(
+                    ResolutionRefusalCode::UnresolvedReasonAbsent,
+                    key,
+                    &[],
+                )));
+            };
+            return Some(ResolutionOutcome::Unexecutable(UnexecutableResolution {
+                key: key.clone(),
+                reason: reason.clone(),
+                resolved_before: Vec::new(),
+            }));
+        }
+        if entry
+            .revision
+            .as_ref()
+            .is_none_or(|revision| revision.as_bytes().is_empty())
+        {
+            return Some(ResolutionOutcome::Refused(ResolutionRefusal::for_key(
+                ResolutionRefusalCode::RevisionAbsent,
+                key,
+                &[],
+            )));
+        }
+        if entry
+            .immutability_assertion
+            .as_ref()
+            .is_none_or(|assertion| assertion.as_bytes().is_empty())
+        {
+            return Some(ResolutionOutcome::Refused(ResolutionRefusal::for_key(
+                ResolutionRefusalCode::ImmutabilityAssertionAbsent,
+                key,
+                &[],
+            )));
+        }
+        match &entry.subject {
+            EntrySubject::Artifact { member, .. } if member.as_bytes().is_empty() => {
+                return Some(ResolutionOutcome::Refused(ResolutionRefusal::for_key(
+                    ResolutionRefusalCode::ArtifactMemberAbsent,
+                    key,
+                    &[],
+                )));
+            }
+            EntrySubject::Interface { digest } if digest.is_some() => {
+                return Some(ResolutionOutcome::Refused(ResolutionRefusal::for_key(
+                    ResolutionRefusalCode::InterfaceDigestPresent,
+                    key,
+                    &[],
+                )));
+            }
+            EntrySubject::Artifact { .. }
+            | EntrySubject::UnresolvedArtifact { .. }
+            | EntrySubject::Interface { .. } => {}
+        }
+    }
+    None
+}
+
+fn prevalidate_delivery(
+    manifest: &VersionLockManifest,
+    required: &[EntryKey],
+    deliveries: &[ArtifactDelivery],
+    budget: ResolutionBudget,
+) -> Result<usize, ResolutionOutcome> {
+    if let Some(member) = duplicate_member(deliveries) {
+        return Err(ResolutionOutcome::Refused(ResolutionRefusal::for_member(
+            ResolutionRefusalCode::DuplicateDeliveryMember,
+            member,
+        )));
+    }
+    if let Some(delivery) = deliveries
+        .iter()
+        .find(|delivery| !required_artifact_member(manifest, required, &delivery.member))
+    {
+        return Err(ResolutionOutcome::Refused(ResolutionRefusal::for_member(
+            ResolutionRefusalCode::UnexpectedDeliveryMember,
+            &delivery.member,
+        )));
+    }
+
+    let mut required_bytes = 0usize;
+    for key in required {
+        let Some(entry) = entry_for(manifest, key) else {
+            return Err(ResolutionOutcome::Refused(ResolutionRefusal::for_key(
+                ResolutionRefusalCode::EntryAbsent,
+                key,
+                &[],
+            )));
+        };
+        if let Some(member) = entry.member() {
+            let Some(delivery) = deliveries.iter().find(|offer| offer.member() == member) else {
+                return Err(ResolutionOutcome::Refused(ResolutionRefusal::for_key(
+                    ResolutionRefusalCode::DeliveryMemberAbsent,
+                    key,
+                    &[],
+                )));
+            };
+            let Some(next) = required_bytes.checked_add(delivery.bytes().len()) else {
+                return Err(ResolutionOutcome::Incomplete(
+                    ResolutionIncomplete::BytesDigested(PrecheckedIncomplete {
+                        dimension: ResolutionDimension::BytesDigested,
+                        granted: budget.bytes,
+                        required: usize::MAX,
+                    }),
+                ));
+            };
+            required_bytes = next;
+        }
+    }
+    if required_bytes > budget.bytes {
+        return Err(ResolutionOutcome::Incomplete(
+            ResolutionIncomplete::BytesDigested(PrecheckedIncomplete {
+                dimension: ResolutionDimension::BytesDigested,
+                granted: budget.bytes,
+                required: required_bytes,
+            }),
+        ));
+    }
+    Ok(required_bytes)
+}
+
 /// Resolve every key a scenario independently declares before returning any
 /// producer byte to its consumer.
 #[must_use]
@@ -767,161 +922,58 @@ pub fn resolve<C: Clock + ?Sized>(
     budget: ResolutionBudget,
     clock: &C,
 ) -> ResolutionOutcome {
-    if let Some(key) = duplicate_key(&manifest.entries) {
-        return ResolutionOutcome::Refused(ResolutionRefusal::for_key(
-            ResolutionRefusalCode::DuplicateEntryKey,
-            key,
-            &[],
-        ));
-    }
-
-    if let Some(key) = duplicate_required_key(required) {
-        return ResolutionOutcome::Refused(ResolutionRefusal::for_key(
-            ResolutionRefusalCode::DuplicateRequiredKey,
-            key,
-            &[],
-        ));
-    }
-
-    // Validate the complete required entry set before inspecting or hashing a
-    // producer delivery. In particular, an unresolved entry cannot be papered
-    // over by bytes for another version of the same owner.
-    for key in required {
-        let Some(entry) = entry_for(manifest, key) else {
-            return ResolutionOutcome::Refused(ResolutionRefusal::for_key(
-                ResolutionRefusalCode::EntryAbsent,
-                key,
-                &[],
-            ));
-        };
-        if entry.status == EntryStatus::Unresolved {
-            let Some(reason) = entry
-                .unresolved_reason
-                .as_ref()
-                .filter(|reason| !reason.as_bytes().is_empty())
-            else {
-                return ResolutionOutcome::Refused(ResolutionRefusal::for_key(
-                    ResolutionRefusalCode::UnresolvedReasonAbsent,
-                    key,
-                    &[],
-                ));
-            };
-            return ResolutionOutcome::Unexecutable(UnexecutableResolution {
-                key: key.clone(),
-                reason: reason.clone(),
-                resolved_before: Vec::new(),
-            });
-        }
-        if entry
-            .revision
-            .as_ref()
-            .is_none_or(|revision| revision.as_bytes().is_empty())
-        {
-            return ResolutionOutcome::Refused(ResolutionRefusal::for_key(
-                ResolutionRefusalCode::RevisionAbsent,
-                key,
-                &[],
-            ));
-        }
-        if entry
-            .immutability_assertion
-            .as_ref()
-            .is_none_or(|assertion| assertion.as_bytes().is_empty())
-        {
-            return ResolutionOutcome::Refused(ResolutionRefusal::for_key(
-                ResolutionRefusalCode::ImmutabilityAssertionAbsent,
-                key,
-                &[],
-            ));
-        }
-        match &entry.subject {
-            EntrySubject::Artifact { member, .. } if member.as_bytes().is_empty() => {
-                return ResolutionOutcome::Refused(ResolutionRefusal::for_key(
-                    ResolutionRefusalCode::ArtifactMemberAbsent,
-                    key,
-                    &[],
-                ));
-            }
-            EntrySubject::Interface { digest } if digest.is_some() => {
-                return ResolutionOutcome::Refused(ResolutionRefusal::for_key(
-                    ResolutionRefusalCode::InterfaceDigestPresent,
-                    key,
-                    &[],
-                ));
-            }
-            EntrySubject::Artifact { .. }
-            | EntrySubject::UnresolvedArtifact { .. }
-            | EntrySubject::Interface { .. } => {}
-        }
-    }
-
-    if let Some(member) = duplicate_member(deliveries) {
-        return ResolutionOutcome::Refused(ResolutionRefusal::for_member(
-            ResolutionRefusalCode::DuplicateDeliveryMember,
-            member,
-        ));
-    }
-    if let Some(delivery) = deliveries
-        .iter()
-        .find(|delivery| !required_artifact_member(manifest, required, &delivery.member))
-    {
-        return ResolutionOutcome::Refused(ResolutionRefusal::for_member(
-            ResolutionRefusalCode::UnexpectedDeliveryMember,
-            &delivery.member,
-        ));
-    }
-
-    if required.len() > budget.entries {
+    let entry_work = manifest.entries.len().max(required.len());
+    if entry_work > budget.entries {
         return ResolutionOutcome::Incomplete(ResolutionIncomplete::EntryCount(
             PrecheckedIncomplete {
                 dimension: ResolutionDimension::EntryCount,
                 granted: budget.entries,
-                required: required.len(),
-            },
-        ));
-    }
-
-    let mut required_bytes = 0usize;
-    for key in required {
-        let Some(entry) = entry_for(manifest, key) else {
-            return ResolutionOutcome::Refused(ResolutionRefusal::for_key(
-                ResolutionRefusalCode::EntryAbsent,
-                key,
-                &[],
-            ));
-        };
-        if let Some(member) = entry.member() {
-            let Some(delivery) = deliveries.iter().find(|offer| offer.member() == member) else {
-                return ResolutionOutcome::Refused(ResolutionRefusal::for_key(
-                    ResolutionRefusalCode::DeliveryMemberAbsent,
-                    key,
-                    &[],
-                ));
-            };
-            let Some(next) = required_bytes.checked_add(delivery.bytes().len()) else {
-                return ResolutionOutcome::Incomplete(ResolutionIncomplete::BytesDigested(
-                    PrecheckedIncomplete {
-                        dimension: ResolutionDimension::BytesDigested,
-                        granted: budget.bytes,
-                        required: usize::MAX,
-                    },
-                ));
-            };
-            required_bytes = next;
-        }
-    }
-    if required_bytes > budget.bytes {
-        return ResolutionOutcome::Incomplete(ResolutionIncomplete::BytesDigested(
-            PrecheckedIncomplete {
-                dimension: ResolutionDimension::BytesDigested,
-                granted: budget.bytes,
-                required: required_bytes,
+                required: entry_work,
             },
         ));
     }
 
     let mut deadline = DeadlineGuard::start(clock, budget.deadline);
     let mut usage = ResolutionUsage::default();
+
+    let manifest_token = match deadline.begin_unit(clock, MANIFEST_UNIT) {
+        Ok(token) => token,
+        Err(refusal) => {
+            return ResolutionOutcome::Incomplete(ResolutionIncomplete::Deadline(
+                DeadlineIncomplete { refusal, usage },
+            ));
+        }
+    };
+    let manifest_outcome = prevalidate_manifest(manifest, required);
+    if let Err(refusal) = deadline.end_unit(clock, manifest_token) {
+        return ResolutionOutcome::Incomplete(ResolutionIncomplete::Deadline(DeadlineIncomplete {
+            refusal,
+            usage,
+        }));
+    }
+    if let Some(outcome) = manifest_outcome {
+        return outcome;
+    }
+
+    let delivery_token = match deadline.begin_unit(clock, DELIVERY_UNIT) {
+        Ok(token) => token,
+        Err(refusal) => {
+            return ResolutionOutcome::Incomplete(ResolutionIncomplete::Deadline(
+                DeadlineIncomplete { refusal, usage },
+            ));
+        }
+    };
+    let delivery_outcome = prevalidate_delivery(manifest, required, deliveries, budget);
+    if let Err(refusal) = deadline.end_unit(clock, delivery_token) {
+        return ResolutionOutcome::Incomplete(ResolutionIncomplete::Deadline(DeadlineIncomplete {
+            refusal,
+            usage,
+        }));
+    }
+    if let Err(outcome) = delivery_outcome {
+        return outcome;
+    }
+
     let mut resolved_entries = Vec::with_capacity(required.len());
     let mut resolved_artifacts = Vec::new();
 
