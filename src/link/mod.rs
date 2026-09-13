@@ -213,6 +213,15 @@ pub enum LinkRefusal {
         selected: u32,
         /// How many binding requirements the declaration carries.
         available: usize,
+        /// The original source region of the referring record.
+        ///
+        /// The index is an authored field of that record, and `FR-002-AC-3`
+        /// requires an unresolved reference refused at its source location. The
+        /// site that range-checks it already holds the referrer's `locus` — it
+        /// passes the same one to [`LinkRefusal::WrongRequirementKind`] on the
+        /// very next line — so an earlier revision that dropped it here was
+        /// discarding a region it had, not reporting one it lacked.
+        locus: Locus,
     },
     /// A binding requirement exists but declares a different kind from the one
     /// the referring record requires.
@@ -293,24 +302,27 @@ pub enum Referrer {
 impl LinkRefusal {
     /// The original source region this finding is about, when it has one.
     ///
-    /// Four variants return `None`, and they are the four that refuse a
+    /// Three variants return `None`, and they are the three that refuse a
     /// *table position* or a whole declaration rather than authored text: a
     /// declaration index outside the package, a declaration whose body is not a
-    /// protocol, a binding-requirement index outside its declaration, and two
-    /// records mapping onto one identity. None of those occupies a source
-    /// region, and the alternatives — a zero span, or the enclosing
-    /// declaration's — both point a caret at text that is not what was refused.
-    /// See [`diagnostics`] for why that is an absence rather than a
+    /// protocol, and two records mapping onto one identity. None of those
+    /// occupies a source region, and the alternatives — a zero span, or the
+    /// enclosing declaration's — both point a caret at text that is not what was
+    /// refused. See [`diagnostics`] for why that is an absence rather than a
     /// placeholder.
+    ///
+    /// The two refusals about a binding-requirement index are *not* among them.
+    /// The index is authored, the referrer's region is in hand where it is
+    /// checked, and `FR-002-AC-3` asks for exactly that.
     #[must_use]
     pub fn locus(&self) -> Option<&Locus> {
         match self {
-            Self::WrongRequirementKind { locus, .. }
+            Self::NoSuchRequirement { locus, .. }
+            | Self::WrongRequirementKind { locus, .. }
             | Self::ZeroProgressIteration { locus, .. }
             | Self::DuplicateRoleAuthority { locus, .. } => Some(locus),
             Self::NoSuchDeclaration { .. }
             | Self::NotAProtocol { .. }
-            | Self::NoSuchRequirement { .. }
             | Self::CollidingIdentity { .. } => None,
         }
     }
@@ -334,6 +346,7 @@ impl fmt::Display for LinkRefusal {
                 referrer,
                 selected,
                 available,
+                ..
             } => write!(
                 f,
                 "{referrer:?} selects binding requirement {selected} from a table of {available}"
@@ -367,6 +380,8 @@ impl fmt::Display for LinkRefusal {
         }
     }
 }
+
+impl std::error::Error for LinkRefusal {}
 
 // ---------------------------------------------------------------------------
 // Identity derivation
@@ -938,9 +953,11 @@ fn link_declarations(
         let receive = found.keep(premise(ChannelPremise::Receive, channel.receive));
         let delivery = found.keep(premise(ChannelPremise::Delivery, channel.delivery_instance));
 
-        // The channel's identity is derived from premises that resolved, so it
-        // is a dependent check: a channel missing one is not given an identity
-        // at all rather than one built from three quarters of its premises.
+        // A channel's linked form is derived from premises that resolved, so
+        // it is a dependent check: a channel missing one contributes nothing
+        // rather than a record built from three quarters of its premises. The
+        // compiler enforces that, not a convention — the four are `Option`s and
+        // there is no `LinkedChannel` to build without all four.
         let (Some(message), Some(send), Some(receive), Some(delivery)) =
             (message, send, receive, delivery)
         else {
@@ -969,12 +986,15 @@ fn link_declarations(
                 &delivery.name,
             ),
         };
-        if linked_channels.insert(identity.clone(), linked).is_some() {
-            found.record(LinkRefusal::CollidingIdentity {
-                kind: IdentityKind::Channel,
-                identity: identity.identity_bytes().to_vec(),
-            });
-        }
+        // No collision check on the key. `channel_identity` mixes `position`
+        // into the preimage, so two channels at two table positions cannot
+        // produce one `ChannelId`, and a check for it could never fire — the
+        // same argument that deleted the five below, reached one paragraph
+        // later. An earlier revision of this chunk kept the check, recorded a
+        // `CollidingIdentity { kind: Channel }` into the accumulator, and wrote
+        // a test asserting no such finding appeared; the test passed because
+        // the finding was unreachable, not because the skip above prevented it.
+        linked_channels.insert(identity, linked);
     }
 
     // Only roles can collide.
@@ -1034,11 +1054,14 @@ impl<'a> Linker<'a> {
     ) -> Result<&'a BindingRequirement, LinkRefusal> {
         let bindings = &self.declared.bindings;
         let index = usize::try_from(selected).unwrap_or(usize::MAX);
-        let requirement = bindings.get(index).ok_or(LinkRefusal::NoSuchRequirement {
-            referrer,
-            selected,
-            available: bindings.len(),
-        })?;
+        let requirement = bindings
+            .get(index)
+            .ok_or_else(|| LinkRefusal::NoSuchRequirement {
+                referrer,
+                selected,
+                available: bindings.len(),
+                locus: locus.clone(),
+            })?;
         if requirement.kind != required {
             return Err(LinkRefusal::WrongRequirementKind {
                 referrer,
@@ -1520,8 +1543,12 @@ mod tests {
                 referrer: Referrer::Role { index: 0 },
                 selected: 99,
                 available: 11,
+                locus: locus(),
             })
         );
+        // And it is located: the index is authored, so FR-002-AC-3's "at its
+        // source location" applies to it as much as to the wrong-kind case.
+        assert_eq!(refusal.located().count(), 1);
     }
 
     #[trace("TC-002", "FR-002-AC-3")]
@@ -1717,14 +1744,14 @@ mod tests {
 
         let diagnostics = link_declarations(&duplicate, 0).expect_err("one authority, two roles");
         assert_eq!(
-            diagnostics.all(),
+            diagnostics.iter().collect::<Vec<_>>(),
             [
-                LinkRefusal::DuplicateRoleAuthority {
+                &LinkRefusal::DuplicateRoleAuthority {
                     role: 1,
                     model: (0, 0),
                     locus: locus(),
                 },
-                LinkRefusal::CollidingIdentity {
+                &LinkRefusal::CollidingIdentity {
                     kind: IdentityKind::RoleInstance,
                     identity: requirement_identity(
                         &declaration_identity(0, &fixture()[0]),
@@ -1761,7 +1788,6 @@ mod tests {
         let diagnostics =
             link_declarations(&zeroes, 0).expect_err("three repeats make no progress");
         let controls: Vec<u32> = diagnostics
-            .all()
             .iter()
             .map(|finding| match finding {
                 LinkRefusal::ZeroProgressIteration { control, .. } => *control,
@@ -1794,7 +1820,6 @@ mod tests {
 
         let diagnostics = link_declarations(&wrong, 0).expect_err("two premises are wrong");
         let premises: Vec<ChannelPremise> = diagnostics
-            .all()
             .iter()
             .map(|finding| match finding {
                 LinkRefusal::WrongRequirementKind {
@@ -1807,40 +1832,13 @@ mod tests {
         assert_eq!(premises, [ChannelPremise::Message, ChannelPremise::Receive]);
     }
 
-    /// A channel that lost a premise contributes no identity.
-    ///
-    /// The identity is derived from premises that resolved, so it is a
-    /// dependent check and is skipped rather than run on a channel built from
-    /// three quarters of its premises. Two channels that would otherwise
-    /// collide therefore report the premise, and not a collision between a real
-    /// identity and a half-built one.
-    #[trace("TC-002", "Task-002")]
-    #[test]
-    fn tc_002_a_channel_missing_a_premise_mints_no_identity() {
-        let mut wrong = fixture();
-        let Body::Protocol { channels, .. } = &mut wrong[0].body else {
-            unreachable!("the fixture is a protocol")
-        };
-        let mut second = channel("duplicate", 5);
-        second.send = 9;
-        channels.push(second);
-
-        let diagnostics = link_declarations(&wrong, 0).expect_err("the second channel is wrong");
-        assert_eq!(diagnostics.len(), 1, "got {diagnostics:?}");
-        assert!(
-            matches!(
-                diagnostics.first(),
-                LinkRefusal::WrongRequirementKind {
-                    referrer: Referrer::Channel {
-                        index: 1,
-                        premise: ChannelPremise::Send,
-                    },
-                    ..
-                }
-            ),
-            "got {diagnostics:?}"
-        );
-    }
+    // A channel that loses a premise contributes nothing to the linked
+    // representation, and there is deliberately no test for it: the four
+    // premises are `Option`s, so there is no `LinkedChannel` to build without
+    // all four and the compiler refuses the alternative. An earlier revision of
+    // this chunk did assert it, against the now-deleted channel-identity
+    // collision check; that check was unreachable, so the assertion held no
+    // matter what the skip did.
 
     /// A gating refusal carries exactly one finding.
     ///
@@ -1865,7 +1863,7 @@ mod tests {
             )
             .expect_err("a predicate is not a protocol"),
         ] {
-            assert_eq!(diagnostics.len(), 1, "got {diagnostics:?}");
+            assert_eq!(diagnostics.count(), 1, "got {diagnostics:?}");
         }
     }
 
@@ -1888,13 +1886,15 @@ mod tests {
         roles.push(role("Seller", 1));
 
         let diagnostics = link_declarations(&mixed, 0).expect_err("three findings");
-        assert_eq!(diagnostics.len(), 3, "got {diagnostics:?}");
+        assert_eq!(diagnostics.count(), 3, "got {diagnostics:?}");
 
         // The repeat and the duplicate authority are authored; the identity
-        // collision is two table positions producing one value.
-        assert_eq!(diagnostics.located().count(), 2);
+        // collision is two table positions producing one value. The facts are
+        // read from `located` and `locus`, never from the rendered text —
+        // FR-037 forbids deriving a refusal fact from prose.
+        let located: Vec<&Locus> = diagnostics.located().map(|(_, locus)| locus).collect();
+        assert_eq!(located, [&locus(), &locus()]);
         let unlocated: Vec<&LinkRefusal> = diagnostics
-            .all()
             .iter()
             .filter(|finding| finding.locus().is_none())
             .collect();
@@ -1903,11 +1903,45 @@ mod tests {
             "got {unlocated:?}"
         );
 
-        // Rendering names each located finding's region and does not invent one
-        // for the third.
-        let rendered = diagnostics.to_string();
-        assert_eq!(rendered.lines().count(), 3);
-        assert_eq!(rendered.matches("source 0, 0..1: ").count(), 2);
+        // Rendering is presentation, and is asserted only as a line count: one
+        // line per finding, and no fourth line invented for the unlocated one.
+        assert_eq!(diagnostics.to_string().lines().count(), 3);
+    }
+
+    /// Past the ceiling the linker stops recording and says so.
+    ///
+    /// It keeps refusing, and it keeps refusing for the reasons already
+    /// recorded. The ceiling drops findings, never the refusal, and never
+    /// silently: `truncated` is the difference between "these are all of them"
+    /// and "these are the first thousand".
+    #[trace("TC-002", "Task-002")]
+    #[test]
+    fn tc_002_findings_past_the_ceiling_are_dropped_and_declared() {
+        let mut many = fixture();
+        let Body::Protocol { controls, .. } = &mut many[0].body else {
+            unreachable!("the fixture is a protocol")
+        };
+        for _ in 0..=diagnostics::CEILING {
+            controls.push(repeat_control("0"));
+        }
+
+        let diagnostics = link_declarations(&many, 0).expect_err("every repeat is zero");
+        assert_eq!(diagnostics.count(), diagnostics::CEILING);
+        assert!(diagnostics.truncated());
+        assert!(diagnostics.to_string().ends_with("reported here"));
+
+        // One under the ceiling is not truncated, so the flag tracks the
+        // ceiling rather than being set by the presence of many findings.
+        let mut fewer = fixture();
+        let Body::Protocol { controls, .. } = &mut fewer[0].body else {
+            unreachable!("the fixture is a protocol")
+        };
+        for _ in 0..diagnostics::CEILING - 1 {
+            controls.push(repeat_control("0"));
+        }
+        let diagnostics = link_declarations(&fewer, 0).expect_err("every repeat is zero");
+        assert_eq!(diagnostics.count(), diagnostics::CEILING - 1);
+        assert!(!diagnostics.truncated());
     }
 
     /// Many findings still produce no linked representation.
@@ -1935,7 +1969,8 @@ mod tests {
         let outcome = link_declarations(&broken, 0);
         assert!(outcome.is_err(), "got {outcome:?}");
         let diagnostics = outcome.expect_err("four findings");
-        assert!(diagnostics.len() >= 3, "got {diagnostics:?}");
+        // Exact, not a floor: a floor passes a regression that drops one.
+        assert_eq!(diagnostics.count(), 4, "got {diagnostics:?}");
     }
 
     /// FR-002-AC-4's semantic half, for the four mutations that used to pass.
