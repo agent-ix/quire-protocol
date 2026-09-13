@@ -277,6 +277,14 @@ pub enum LinkRefusal {
         kind: IdentityKind,
         /// The identity bytes that two records both produced.
         identity: Vec<u8>,
+        /// The original source region of the later of the two records.
+        ///
+        /// The later one, because that is the record an author would delete or
+        /// change to resolve the collision; the earlier one is not at fault by
+        /// itself. Both records are authored and both carry a region, so this
+        /// finding is located even though what it refuses — one identity from
+        /// two — is a fact about the pair rather than about either.
+        locus: Locus,
     },
 }
 
@@ -302,28 +310,31 @@ pub enum Referrer {
 impl LinkRefusal {
     /// The original source region this finding is about, when it has one.
     ///
-    /// Three variants return `None`, and they are the three that refuse a
-    /// *table position* or a whole declaration rather than authored text: a
-    /// declaration index outside the package, a declaration whose body is not a
-    /// protocol, and two records mapping onto one identity. None of those
-    /// occupies a source region, and the alternatives — a zero span, or the
-    /// enclosing declaration's — both point a caret at text that is not what was
-    /// refused. See [`diagnostics`] for why that is an absence rather than a
-    /// placeholder.
+    /// Two variants return `None`, and neither is about the submitted artifact.
+    /// [`Self::NoSuchDeclaration`] and [`Self::NotAProtocol`] both refuse the
+    /// **caller's own `declaration` argument** to [`link`] — a selection made at
+    /// the call site, not a record in the package — so there is no authored text
+    /// to point at. Manufacturing a zero span, or borrowing the package's, would
+    /// put a caret over source that is not what was refused. See [`diagnostics`]
+    /// for why that is an absence rather than a placeholder.
     ///
-    /// The two refusals about a binding-requirement index are *not* among them.
-    /// The index is authored, the referrer's region is in hand where it is
-    /// checked, and `FR-002-AC-3` asks for exactly that.
+    /// Every finding that *is* about the artifact carries a region, which is
+    /// what `FR-002`'s "independent **located** diagnostics established from the
+    /// submitted artifact" asks for. Two earlier revisions of this chunk fell
+    /// short of that and defended the shortfall in prose: the first left
+    /// [`Self::NoSuchRequirement`] unlocated although the referrer's region was
+    /// in hand at the site that checks it, and the second left
+    /// [`Self::CollidingIdentity`] unlocated although both colliding records are
+    /// authored.
     #[must_use]
     pub fn locus(&self) -> Option<&Locus> {
         match self {
             Self::NoSuchRequirement { locus, .. }
             | Self::WrongRequirementKind { locus, .. }
             | Self::ZeroProgressIteration { locus, .. }
-            | Self::DuplicateRoleAuthority { locus, .. } => Some(locus),
-            Self::NoSuchDeclaration { .. }
-            | Self::NotAProtocol { .. }
-            | Self::CollidingIdentity { .. } => None,
+            | Self::DuplicateRoleAuthority { locus, .. }
+            | Self::CollidingIdentity { locus, .. } => Some(locus),
+            Self::NoSuchDeclaration { .. } | Self::NotAProtocol { .. } => None,
         }
     }
 }
@@ -902,7 +913,7 @@ fn link_declarations(
     // contributes no identity — building one from the wrong kind is the
     // confusion the sixteen newtypes exist to prevent — so it is recorded and
     // skipped, and the next role is still resolved.
-    let mut role_instances = Vec::new();
+    let mut role_instances: Vec<(RoleInstanceId, Locus)> = Vec::new();
     for (position, role) in roles.iter().enumerate() {
         let referrer = Referrer::Role { index: position };
         let resolved = found.keep(linker.requirement(
@@ -912,9 +923,12 @@ fn link_declarations(
             &role.locus,
         ));
         if let Some(requirement) = resolved {
-            role_instances.push(RoleInstanceId::new(
-                &requirement_identity(&scope, declaration, role.instance, requirement),
-                &role.name,
+            role_instances.push((
+                RoleInstanceId::new(
+                    &requirement_identity(&scope, declaration, role.instance, requirement),
+                    &role.name,
+                ),
+                role.locus.clone(),
             ));
         }
     }
@@ -1006,6 +1020,7 @@ fn link_declarations(
             found.record(LinkRefusal::CollidingIdentity {
                 kind: IdentityKind::Channel,
                 identity: identity.identity_bytes().to_vec(),
+                locus: channel.locus.clone(),
             });
         }
     }
@@ -1032,6 +1047,13 @@ fn link_declarations(
     if let Some(diagnostics) = found.into_diagnostics() {
         return Err(diagnostics);
     }
+
+    // The loci were carried only so a collision could name the later record's
+    // region; the linked representation stores the identities alone.
+    let role_instances: Vec<RoleInstanceId> = role_instances
+        .into_iter()
+        .map(|(identity, _locus)| identity)
+        .collect();
 
     Ok(LinkedProtocol {
         definition,
@@ -1168,13 +1190,14 @@ fn channel_identity(scope: &[u8], declaration: u32, position: usize, message: u3
 /// Sorted rather than nested: the previous version compared every value against
 /// every earlier one, which is quadratic, and it did that for six collections of
 /// which five could not collide.
-fn check_distinct_roles(values: &[RoleInstanceId], found: &mut Accumulator) {
+fn check_distinct_roles(values: &[(RoleInstanceId, Locus)], found: &mut Accumulator) {
     let mut seen: BTreeSet<&[u8]> = BTreeSet::new();
-    for value in values {
+    for (value, locus) in values {
         if !seen.insert(value.identity_bytes()) {
             found.record(LinkRefusal::CollidingIdentity {
                 kind: IdentityKind::RoleInstance,
                 identity: value.identity_bytes().to_vec(),
+                locus: locus.clone(),
             });
         }
     }
@@ -1626,6 +1649,7 @@ mod tests {
                     1,
                     &bindings()[1]
                 ),
+                locus: locus(),
             })
         );
     }
@@ -1772,6 +1796,7 @@ mod tests {
                         1,
                         &bindings()[1]
                     ),
+                    locus: locus(),
                 },
             ]
         );
@@ -1880,11 +1905,16 @@ mod tests {
         }
     }
 
-    /// A finding is located when it refuses authored text, and unlocated when
-    /// it refuses a table position.
+    /// Every finding about the submitted artifact carries its source region,
+    /// and the two that refuse the caller's own argument carry none.
     ///
-    /// The absence is the point: a zero span or the enclosing declaration's
-    /// would render a caret over text that is not what was refused.
+    /// `FR-002` asks for "independent located diagnostics established from the
+    /// submitted artifact". Two earlier revisions of this chunk left a finding
+    /// about artifact content unlocated — first an out-of-range binding index,
+    /// then an identity collision — and defended each absence in prose. This
+    /// test is what closes that off: it fails if any artifact finding loses its
+    /// region, and it fails if a region is invented for a refusal of the
+    /// `declaration` argument, which is not artifact content at all.
     #[trace("TC-002", "Task-002")]
     #[test]
     fn tc_002_only_findings_over_authored_text_carry_a_region() {
@@ -1898,27 +1928,40 @@ mod tests {
         controls.push(repeat_control("0"));
         roles.push(role("Seller", 1));
 
+        // Three findings over artifact content: a zero-progress repeat, a
+        // duplicate authority, and the role-instance collision the second role
+        // also causes. All three are authored, so all three are located. The
+        // facts are read from `located` and `locus`, never from the rendered
+        // text — FR-037 forbids deriving a refusal fact from prose.
         let diagnostics = link_declarations(&mixed, 0).expect_err("three findings");
         assert_eq!(diagnostics.count(), 3, "got {diagnostics:?}");
-
-        // The repeat and the duplicate authority are authored; the identity
-        // collision is two table positions producing one value. The facts are
-        // read from `located` and `locus`, never from the rendered text —
-        // FR-037 forbids deriving a refusal fact from prose.
         let located: Vec<&Locus> = diagnostics.located().map(|(_, locus)| locus).collect();
-        assert_eq!(located, [&locus(), &locus()]);
-        let unlocated: Vec<&LinkRefusal> = diagnostics
-            .iter()
-            .filter(|finding| finding.locus().is_none())
-            .collect();
-        assert!(
-            matches!(unlocated[..], [LinkRefusal::CollidingIdentity { .. }]),
-            "got {unlocated:?}"
-        );
+        assert_eq!(located, [&locus(), &locus(), &locus()]);
 
         // Rendering is presentation, and is asserted only as a line count: one
-        // line per finding, and no fourth line invented for the unlocated one.
+        // line per finding, and no fourth line invented.
         assert_eq!(diagnostics.to_string().lines().count(), 3);
+
+        // The two refusals of the caller's `declaration` argument are the only
+        // unlocated findings, and they stay unlocated: the argument is a
+        // selection made at the call site, with no authored text behind it.
+        for diagnostics in [
+            link_declarations(&fixture(), 7).expect_err("there is one declaration"),
+            link_declarations(
+                &[declaration(
+                    Body::Predicate {
+                        parameters: Vec::new(),
+                        result: 0,
+                        root: handle(0),
+                    },
+                    bindings(),
+                )],
+                0,
+            )
+            .expect_err("a predicate is not a protocol"),
+        ] {
+            assert_eq!(diagnostics.located().count(), 0, "got {diagnostics:?}");
+        }
     }
 
     /// Many findings still produce no linked representation.

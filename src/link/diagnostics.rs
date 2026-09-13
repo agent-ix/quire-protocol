@@ -49,23 +49,34 @@
 //! A finding's location is A's [`Locus`] — the original source region the
 //! producer recorded. It is A's type, imported, never re-spelled here.
 //!
-//! Not every finding has one, and the ones that do not are not given a
-//! substitute. A declaration index outside the package's declaration table, a
-//! declaration whose body is not a protocol, and two records mapping onto one
-//! identity are refusals about *table positions* and whole declarations, which
-//! occupy no source region. Manufacturing a zero span, or borrowing the
-//! enclosing declaration's, would make a reader's caret point at source text
-//! that is not what was refused. [`LinkRefusal::locus`] returns `None` for those
-//! three, and [`Diagnostics::located`] yields only the findings that genuinely
-//! carry a region.
+//! **Every finding about the submitted artifact carries one.** That is what
+//! `FR-002` asks for — "independent *located* diagnostics established from the
+//! submitted artifact" — and it is a property of this module rather than an
+//! aspiration in its prose. Two earlier revisions fell short and argued the
+//! shortfall was inherent:
 //!
-//! The two refusals about a binding-requirement *index* — out of range, and
-//! present but of the wrong kind — do carry one. The index is an authored field
-//! of the referring record, the referrer's own `locus` is in hand at the site
-//! that checks it, and `FR-002-AC-3` requires an unresolved or wrong-kind
-//! reference refused at its source location. An earlier revision of this module
-//! gave the out-of-range case no region and defended the absence in prose; the
-//! prose was wrong, because the region was never missing.
+//! - the first left an out-of-range binding-requirement index unlocated,
+//!   calling it a refusal about a "table position". The index is an authored
+//!   field of the referring record and the referrer's own `locus` was already in
+//!   hand at the site that checks it, so the region was never missing.
+//! - the second left [`LinkRefusal::CollidingIdentity`] unlocated on the same
+//!   reasoning. Both colliding records are authored and both carry a region; the
+//!   finding now names the later of the two, which is the record an author would
+//!   change to resolve the collision.
+//!
+//! Two variants still return `None`, and neither is about the submitted
+//! artifact. [`LinkRefusal::NoSuchDeclaration`] and [`LinkRefusal::NotAProtocol`]
+//! refuse the **caller's own `declaration` argument** to [`link`] — a selection
+//! made at the call site, not a record in the package. There is no authored text
+//! to point at, and manufacturing a zero span, or borrowing the package's, would
+//! put a reader's caret over source that is not what was refused.
+//! [`Diagnostics::located`] yields only the findings that genuinely carry a
+//! region.
+//!
+//! [`link`]: super::link
+//! [`LinkRefusal::CollidingIdentity`]: super::LinkRefusal::CollidingIdentity
+//! [`LinkRefusal::NoSuchDeclaration`]: super::LinkRefusal::NoSuchDeclaration
+//! [`LinkRefusal::NotAProtocol`]: super::LinkRefusal::NotAProtocol
 //!
 //! # How many findings one refusal may carry
 //!
@@ -168,8 +179,9 @@ impl Diagnostics {
 
     /// Each finding that carries an original source region, with that region.
     ///
-    /// Findings about table positions carry none and are absent here rather
-    /// than present with an invented span; see the module documentation.
+    /// The two findings that refuse the caller's `declaration` argument carry
+    /// none and are absent here rather than present with an invented span; see
+    /// the module documentation.
     pub fn located(&self) -> impl Iterator<Item = (&LinkRefusal, &Locus)> {
         self.iter()
             .filter_map(|finding| finding.locus().map(|locus| (finding, locus)))
