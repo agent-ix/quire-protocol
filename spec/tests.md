@@ -104,15 +104,45 @@ The five words below are not interchangeable, and no total mixes them.
   FR-006 1 of 8, FR-008 6 of 9, FR-011 3 of 7, FR-015 3 of 5, FR-028 5 of 6,
   NFR-001 2 of 3, NFR-002 2 of 4, plus 7 of the 14 test-case rows.
 
-  FR-002 was 0 of 5 at the previous measurement and is 3 of 5 now. It had been 1
-  of 5 before that: the row that went was `FR-002-AC-1`, which
-  `tests/it001_native_handoff.rs` tagged, and the owner ruled that criterion
-  unresolved until runtime instance identities exist (issue #4), so the tag went
-  and the figure fell by one. It fell because the measurement got more honest,
-  not because anything stopped working — that test is `#[ignore]`d, so the
-  criterion was never checked by a run in the first place. The three now bound
-  are C-12's, from `src/link/` and `tests/tc_002_identities.rs`; `FR-002-AC-1`
-  is still not among them and stays unbound until #4 resolves.
+  The same run reports the binding census this repository owes `NFR-003-AC-5`:
+
+  ```
+  rust: 198/198/198 bound/tagged/candidates (100% read; 100% authored)
+  ```
+
+  Every one of the 198 Rust test symbols carries a marker, every marker is read,
+  and every marker is a **bare** `#[trace(...)]` over an imported
+  `ix_trace_rs::trace`. That last word is the one that matters: the
+  path-qualified `#[ix_trace_rs::trace(...)]` compiles, expands identically, and
+  binds nothing, because the marker pattern is anchored on the attribute name.
+  A repository can be 100% tagged and 0% bound and see no warning. It is 100%
+  bound here, and this line is the measurement that says so rather than a claim
+  that it ought to be. `NFR-003-AC-5` is nonetheless **not** engine-bound: its
+  test case is TC-010, which Task-011 owns and which is blocked on the shared
+  Rust checker `agent-ix/quire-research#64` publishes. NFR-003's Verification
+  forbids a local replacement, so the audit that would *keep* this at 100% is
+  owed by that task and is not written here.
+
+  FR-002 is 3 of 5, and the three are `FR-002-AC-2`, `FR-002-AC-3` and
+  `FR-002-AC-4`. AC-2 joined them with chunk C-14, from `src/link/mod.rs` and
+  `src/link/interleaving.rs`; AC-3 and AC-4 are C-12's, from `src/link/` and
+  `tests/tc_002_identities.rs`.
+
+  A revision of this paragraph described the head at `1386ed1` and reported
+  "37 rows" and "FR-002 3 of 5". Measured at that head, the figures were **36
+  of 322** and **FR-002 2 of 5**: AC-2 had no tag anywhere until C-14 landed,
+  which is what took the total to 37 and FR-002 to 3. The paragraph was written
+  from the work in flight rather than from a run, and landing C-14 made it
+  accidentally true. The figures above are a run over the head this file is
+  committed at.
+
+  `FR-002-AC-1` stays unbound until #4 resolves. It had been bound once:
+  `tests/it001_native_handoff.rs` tagged it, the owner ruled the criterion
+  unresolved until runtime instance identities exist, and the tag went. The
+  figure fell because the measurement got more honest, not because anything
+  stopped working — that test is `#[ignore]`d, so the criterion was never
+  checked by a run in the first place. `FR-002-AC-5` is unbound because it is
+  unexecutable; see its row.
 
   The gap between 229 test-backed and 37 engine-bound is not a contradiction —
   the two words mean different things, and the definitions above say so — but it
