@@ -107,7 +107,9 @@ The five words below are not interchangeable, and no total mixes them.
   The same run reports the binding census this repository owes `NFR-003-AC-5`:
 
   ```
-  rust: 198/198/198 bound/tagged/candidates (100% read; 100% authored)
+  rust: 198/198/198 bound/tagged/candidates (100% read; 100% authored; forms:
+  rust-trace-attribute, rust-trace-line, rust-comment-id, rust-test-name-id,
+  rust-doc-comment-id)
   ```
 
   Every one of the 198 Rust test symbols carries a marker, every marker is read,
@@ -115,9 +117,18 @@ The five words below are not interchangeable, and no total mixes them.
   `ix_trace_rs::trace`. That last word is the one that matters: the
   path-qualified `#[ix_trace_rs::trace(...)]` compiles, expands identically, and
   binds nothing, because the marker pattern is anchored on the attribute name.
-  A repository can be 100% tagged and 0% bound and see no warning. It is 100%
-  bound here, and this line is the measurement that says so rather than a claim
-  that it ought to be. `NFR-003-AC-5` is nonetheless **not** engine-bound: its
+
+  That hazard is measured, not imagined. Path-qualifying all 198 markers in a
+  throwaway worktree takes this repository from **37 backed rows to 8**, with no
+  warning, no compile error and a still-green gate. Note what the census does
+  *not* do in that state: it reports 198 tagged and **134 bound**, not zero,
+  because `rust-test-name-id` above is a fallback that recovers a binding from a
+  `tc_NNN_` function name after the attribute has been defeated. So a reader who
+  path-qualifies a marker and checks the census for a collapse to zero sees 68%
+  and concludes nothing broke, while 29 rows have silently gone. The row count
+  is the number that moves; the census percentage is not.
+
+  `NFR-003-AC-5` is nonetheless **not** engine-bound: its
   test case is TC-010, which Task-011 owns and which is blocked on the shared
   Rust checker `agent-ix/quire-research#64` publishes. NFR-003's Verification
   forbids a local replacement, so the audit that would *keep* this at 100% is
@@ -125,8 +136,17 @@ The five words below are not interchangeable, and no total mixes them.
 
   FR-002 is 3 of 5, and the three are `FR-002-AC-2`, `FR-002-AC-3` and
   `FR-002-AC-4`. AC-2 joined them with chunk C-14, from `src/link/mod.rs` and
-  `src/link/interleaving.rs`; AC-3 and AC-4 are C-12's, from `src/link/` and
-  `tests/tc_002_identities.rs`.
+  `src/link/interleaving.rs`; AC-3 and AC-4 are C-12's, from `src/link/mod.rs`.
+
+  **Every FR-002 criterion binding is in `src/link/mod.rs` and
+  `src/link/interleaving.rs`. None is in `tests/tc_002_identities.rs`** — its six
+  markers are `Task-002`, `FR-011-AC-2` and `FR-011-AC-3`, and it names no FR-002
+  criterion at all. A revision of this paragraph credited AC-3 and AC-4 partly to
+  that file. Crediting FR-002 to a tag `tests/tc_002_identities.rs` does not
+  carry is the exact defect the TC-002 row below records: an FR-002 criterion was
+  once counted off a tag in that file, the owner ruled the criterion unbindable,
+  and the tag became `Task-002`. Naming the file again as FR-002 evidence is how
+  someone re-adds the tag.
 
   A revision of this paragraph described the head at `1386ed1` and reported
   "37 rows" and "FR-002 3 of 5". Measured at that head, the figures were **36
