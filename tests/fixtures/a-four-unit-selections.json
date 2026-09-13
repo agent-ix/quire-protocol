@@ -8,7 +8,7 @@
       "namespace": "example-output",
       "value": "1"
     },
-    "digest": "sha256:e0842bfd5a0cd78e9ed2ebc463e70854467c7508b887dcb63b323a2964ca056a",
+    "digest": "sha256:5bcba8cfebb88b082d718db6030096a90fc0047043f3f9c2db0e0bd877f1d0de",
     "wire": {
       "identity": "quire.compiled-protocol",
       "version": "1"
@@ -23,7 +23,7 @@
       "namespace": "compiled-protocol-contract",
       "value": "1"
     },
-    "digest": "sha256:2af532b020f5955493216cfdc643c2bb8a1debf8f1506460fa4fcca956ea0dc1",
+    "digest": "sha256:66a9f5e89748de461b3d2eef002540b1183566a21aee1eb42c6ec83481059ef8",
     "wire": {
       "identity": "text/markdown",
       "version": "1"
@@ -59,7 +59,7 @@
         "namespace": "crate-version",
         "value": "0.1.0"
       },
-      "digest": "sha256:9db108a768f93bbf9fa3256c10f19a66ace133259d9b590f3818f512e6a5cf5b",
+      "digest": "sha256:49ff42ff4b90459cd639981bb6b40e7e7eb9c2f78de1943cdee14db65bd13980",
       "wire": {
         "identity": "ELF",
         "version": "1"
@@ -369,7 +369,7 @@
           "namespace": "crate-version",
           "value": "0.1.0"
         },
-        "digest": "sha256:9db108a768f93bbf9fa3256c10f19a66ace133259d9b590f3818f512e6a5cf5b",
+        "digest": "sha256:49ff42ff4b90459cd639981bb6b40e7e7eb9c2f78de1943cdee14db65bd13980",
         "wire": {
           "identity": "ELF",
           "version": "1"
@@ -407,7 +407,7 @@
           "namespace": "compiled-protocol-contract",
           "value": "1"
         },
-        "digest": "sha256:2af532b020f5955493216cfdc643c2bb8a1debf8f1506460fa4fcca956ea0dc1",
+        "digest": "sha256:66a9f5e89748de461b3d2eef002540b1183566a21aee1eb42c6ec83481059ef8",
         "wire": {
           "identity": "text/markdown",
           "version": "1"

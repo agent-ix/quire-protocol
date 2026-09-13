@@ -703,14 +703,23 @@ fn it_001_refuses_one_axis_cross_domain_baseline_digest() {
     );
 }
 
-/// The load-bearing case: a cross-domain substitution that **parses cleanly**.
+/// The load-bearing case: a cross-domain substitution B must *identify*.
 ///
-/// The offered value is a syntactically perfect `sha256:` digest. It is simply
-/// the digest of a different domain — B's own RFC 8785/JCS protocol-result
-/// digest of the same baseline reference, copied into the slot that accepts
-/// only the producer's exact-bytes digest. Nothing about its spelling is wrong,
-/// so no parser and no syntactic guard can refuse it; only an independently
-/// selected inventory that holds both domains can tell the two apart.
+/// The offered value is B's own RFC 8785/JCS protocol-result digest of the same
+/// baseline reference, copied into the slot that accepts only the producer's
+/// exact-bytes digest. It renders `sha256-jcs:`, the label its own domain
+/// requires, so B has to name the domain it was given rather than report a bare
+/// mismatch: the refusal below carries `Identified(VerificationJcs)`, not the
+/// `ForeignLabel` an unknown algorithm produces.
+///
+/// That labelled spelling is itself the guard, and it is recent. `ResultDigest`
+/// deliberately does not delegate to the producer's `Display` — see
+/// `src/digest/jcs.rs`, "rendering both domains identically is what let a
+/// cross-domain value pass the algorithm-label test as a merely divergent one".
+/// Before that change this test asserted the offered value began `sha256:`, and
+/// the assertion survived the change only because the lane does not run under
+/// the gate. The inventory is still what tells the two domains apart; the label
+/// now says which one is present.
 ///
 /// Tracing: IT-001, FR-001-AC-4.
 #[test]
@@ -728,12 +737,19 @@ fn it_001_refuses_well_formed_cross_domain_baseline_digest() {
     });
     let selected_digest = fixture.selection.baseline.digest.to_string();
     assert_ne!(result_domain, selected_digest);
-    assert!(result_domain.starts_with("sha256:"));
-    let changed = replace_unique(
-        &bytes,
-        BASELINE_FIELD.as_bytes(),
-        mutated_baseline_field(&selected_digest, &result_domain).as_bytes(),
+    assert!(
+        result_domain.starts_with("sha256-jcs:"),
+        "the result domain must render under its own label, got {result_domain}"
     );
+    assert!(
+        selected_digest.starts_with("sha256:"),
+        "the producer's exact-bytes domain renders bare, got {selected_digest}"
+    );
+    // The two domains no longer render at the same width — `sha256:` against
+    // `sha256-jcs:` — so this substitution resizes the payload and cannot go
+    // through `replace_unique`. The width difference is part of what is under
+    // test, not an accident to be normalised away.
+    let changed = respell_within(&bytes, BASELINE_FIELD, &selected_digest, &result_domain);
     let selection = resealed(&fixture.selection, &changed);
     let error = fixture.discriminate(&selection, &changed).unwrap_err();
     assert_eq!(
