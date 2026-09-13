@@ -49,6 +49,15 @@ const LIBRARY_MODULES: &[&str] = &[
 /// without being added here fails the lane, so a second frontend, an alternate
 /// decoder or a foreign runtime cannot enter unannounced.
 const INVENTORY: &[&str] = &[
+    // A third repository's crate, reaching B's published library as a normal
+    // (not development) dependency of A: `filament-core-data` at
+    // `f79e5a6`, pulled in by `quire-spec-language` at the pinned revision.
+    // Named rather than left to the alphabet because a hundred-entry sorted
+    // list announces nothing, and announcing is what this inventory is for.
+    // It is not a frontend and not a decoder -- the one-frontend assertion
+    // below still resolves exactly one package from A's repository -- and B
+    // did not choose it: A did, and B's only say is whether it pins A.
+    "agent-ix-baseline-producer",
     "ahash",
     "aho-corasick",
     "anyhow",
@@ -249,6 +258,10 @@ fn it_001_resolves_one_frontend_in_the_whole_graph() {
     // Exactly one resolved package comes from A's repository, at the frozen
     // revision: there is no second copy, fork or alternate revision of the
     // native frontend anywhere in the graph.
+    // The baseline producer named in the inventory above comes from a third
+    // repository, so the one-frontend claim would be empty if it could be a
+    // second reader under another name. It cannot: it is not from A's
+    // repository, which is what the assertion below counts.
     let from_a = LOCKFILE
         .lines()
         .filter(|line| {
@@ -276,20 +289,28 @@ fn it_001_library_source_only_delegates() {
         .collect::<Vec<_>>();
     assert_eq!(files, frozen);
 
-    // Exactly one function, and its whole body is a call into A's reader. B
-    // adds no parser, decoder, numeric layer or alternate semantics: every
-    // other item in `lib.rs` is a re-export of an A-owned name.
+    // Two functions, one per admitted contract, and each whole body is a call
+    // into A's reader for that contract. B adds no parser, decoder, numeric
+    // layer or alternate semantics: every other item in `lib.rs` is a re-export
+    // of an A-owned name.
     //
-    // This counts `lib.rs` alone. The modules the facade reserves are empty on
-    // this head; a version 2 delegation adds a second function to this count
-    // when that lane lands.
+    // This counts `lib.rs` alone, and it is an exact count rather than a
+    // ceiling: a third function here would be B doing something to the offered
+    // bytes that neither reader does. The count was 1 until the version 2
+    // delegation landed, which is the increment this assertion was written to
+    // require a reviewer to make deliberately.
     let functions = LIBRARY.match_indices("fn ").count();
     assert_eq!(
-        functions, 1,
-        "the library must expose one delegating function"
+        functions, 2,
+        "the library must expose one delegating function per admitted contract"
     );
     assert!(
-        LIBRARY.contains("quire_spec_language::protocol_artifact::read(bytes, expected, limits)")
+        LIBRARY.contains("quire_spec_language::protocol_artifact::read(bytes, expected, limits)"),
+        "the version 1 delegation must be a bare call into A's reader"
+    );
+    assert!(
+        LIBRARY.contains("v2::read(bytes, expected, limits)"),
+        "the version 2 delegation must be a bare call into A's reader"
     );
 
     for line in LIBRARY.lines() {
