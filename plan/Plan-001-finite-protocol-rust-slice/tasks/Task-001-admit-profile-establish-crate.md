@@ -43,3 +43,7 @@ through the contract's lossless numeric wire profile.
   versioned compiled-protocol artifact contract and numeric wire profile tracked by
   [quire-spec-language#40](https://github.com/agent-ix/quire-spec-language/issues/40).
 - No source or dependency manifest may be added while either source gate remains open.
+- C-05 now retains every A-owned admission error as the exact published `Error`
+  value and delegates its stable code to `Error::code`; `Producer` and `/2`
+  errors no longer fall through to a debug string. This is partial admission
+  evidence only and does not complete TC-001 or change this task's status.

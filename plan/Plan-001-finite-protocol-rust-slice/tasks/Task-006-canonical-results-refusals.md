@@ -44,3 +44,8 @@ complete typed refusal envelope shared by every public operation.
 ## Notes
 
 - Unblocks Tasks 007 and 010.
+- C-05 preserves the complete typed A-owned error at the admission boundary,
+  including error families added after the first mapper was written. It does
+  not convert that error into `ProtocolRefusal` or claim FR-008 coverage:
+  selected-catalog validation (C-02) remains blocked by upstream FR-270, and
+  the typed cause contract (C-03) remains blocked by upstream FR-272.

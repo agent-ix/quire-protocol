@@ -194,19 +194,21 @@ mutation cannot be run is recorded as unexecutable rather than as passing.
   selection and is an `unresolved` FR-009 entry; FR-271 through FR-274 each record
   an open gap that FR-008 and FR-014 enumerate. No member list, key, order or
   spelling is supplied here.
-- **Downstream**: [TM-001](../tests.md) does not yet carry a row for this
-  requirement, and neither TC-008's nor TC-011's Traceability yet names it. Both
-  are outstanding back-edges, not claims of coverage.
+- **Downstream**: [TM-001](../tests.md) carries this requirement's row and names
+  TC-008/TC-011 as the planned evidence. Neither test's Rust trace attributes
+  yet name an NFR-008 criterion, so the matrix plan is not an execution claim.
 
 ## Status
 
-Draft, and unexecuted. Nothing here asserts that any refusal has been observed.
+Draft and partially implemented, but unexecuted as a complete requirement.
+Nothing here asserts that every owed refusal axis has been observed.
 
-- The refusal envelope does not exist yet. `src/refusal/mod.rs` is a facade
-  documenting `ProtocolRefusal` as owner chunk **C-01**, and no
-  `ProtocolRefusal` type is defined anywhere in `src/`. Every criterion stating a
-  property of the returned value is therefore an obligation on a type that is
-  planned, not a measurement of one that exists.
+- C-01's `ProtocolRefusal` envelope and local code registry exist in
+  `src/refusal/`. C-05 separately retains A's complete typed admission `Error`
+  and stable code rather than formatting it. The two are not yet joined:
+  selected-catalog validation is blocked on upstream FR-270, and typed cause
+  construction is blocked on upstream FR-272. The complete returned-value
+  requirement therefore remains planned.
 - AC-3 and AC-4 are the two criteria measurable against the tree today, and both
   hold so far: `src/` contains no `println!` or `eprintln!` at all, and outside
   doc comments and `#[cfg(test)]` modules no `panic!`, `unwrap()` or `expect(`.
