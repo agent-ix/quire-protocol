@@ -110,6 +110,14 @@
 /// a refusal reports every independent finding rather than only the first.
 pub mod diagnostics;
 
+/// The `FR-002-AC-2` interleaving proof. Owner chunk: **C-14**.
+///
+/// Test-only: AC-2 is a property of the retained causal graph rather than a
+/// refusal, so nothing in the shipped surface consumes it. See the module
+/// documentation.
+#[cfg(test)]
+mod interleaving;
+
 use diagnostics::{Accumulator, Diagnostics};
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -117,8 +125,8 @@ use std::fmt;
 
 use quire_spec_language::protocol_artifact::{
     wire::{
-        BindingKind, BindingRequirement, Body, CausalEdge, Control, ControlOperation, Declaration,
-        Integer, Locus,
+        BindingKind, BindingRequirement, Body, CausalEdge, Channel, Control, ControlOperation,
+        Declaration, Integer, Locus, Ordering,
     },
     AdmittedPackage, NumberWire,
 };
@@ -450,16 +458,23 @@ fn push_bytes(bytes: &mut Vec<u8>, value: &[u8]) {
 // The linked representation
 // ---------------------------------------------------------------------------
 
-/// One linked channel and its four premises, each on its own identity kind.
+/// One linked channel: its four bound occurrences and its authored premise set.
 ///
-/// The four are separate types, so a send can never be passed where its paired
-/// receive is expected, and a delivery is never its message.
+/// The four occurrences are separate types, so a send can never be passed where
+/// its paired receive is expected, and a delivery is never its message. They are
+/// *references* — which binding requirement each premise resolved to — and they
+/// are not the premises themselves; two channels differing in sender, receiver,
+/// message type, ordering or delivery cardinality resolve the same four
+/// requirements. [`ChannelPremises`] is what makes those axes identity-bearing,
+/// and an earlier revision of this doc counted it as a fifth premise rather than
+/// as the answer to a different question.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct LinkedChannel {
     message: MessageId,
     send: SendId,
     receive: ReceiveId,
     delivery: DeliveryId,
+    premises: ChannelPremises,
 }
 
 impl LinkedChannel {
@@ -482,6 +497,96 @@ impl LinkedChannel {
     #[must_use]
     pub const fn delivery(&self) -> &DeliveryId {
         &self.delivery
+    }
+}
+
+/// The authored premises of one channel, with its display name excluded.
+///
+/// `FR-216` fixes the premise set's key as six components — sender, receiver,
+/// message types, ordering policy, delivery cardinality and duplication premise
+/// — and `FR-054-AC-4` makes every one of them significant: "Changing any
+/// channel premise changes the conformance request identity and its result
+/// provenance." `FR-002-AC-4` carries the same obligation into the linked
+/// representation.
+///
+/// An earlier revision of [`LinkedChannel`] carried the four *binding
+/// requirements* and nothing else, so a channel whose sender, receiver, message
+/// type, ordering policy or delivery cardinality was changed linked to an
+/// **equal** value while `spec/tests.md` recorded FR-002-AC-4 as executing.
+/// That is the same shape [`ControlShape`] was added to close, found the same
+/// way: by mutating one axis at a time and comparing.
+///
+/// # Five of the six, and the sixth is an open question upstream
+///
+/// This struct carries five: `from` is the sender, `to` the receiver,
+/// `message_type` the message type, `ordering` the ordering policy, and
+/// `delivery` the cardinality. A's `Channel` at the pinned revision publishes
+/// no field for the **duplication premise**, and it is not derived here —
+/// reading "duplication can occur" off an interval bound would be this crate
+/// interpreting A's numerals, and `FR-216` Absence forbids reading an absent
+/// premise as a default.
+///
+/// That is a contradiction between a requirement and an artifact, and
+/// `CLAUDE.md` says a contradiction is a stop rather than a paragraph. It is
+/// asked, not absorbed: **`agent-ix/quire-spec-language` issue 85** puts the
+/// question to the producer, and `FR-216`'s own Open gap 1 records the
+/// specification half of the same disagreement. Until one of them answers,
+/// `FR-002-AC-4` and `FR-054-AC-4` are **partially backed** in `spec/tests.md`
+/// — five components proven identity-bearing, one with no authored field to
+/// mutate — and this doc comment claims nothing further.
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub struct ChannelPremises {
+    sender: u32,
+    receiver: u32,
+    message_type: u32,
+    ordering: &'static str,
+    ordering_scope: Vec<u32>,
+    delivery: (u32, u32),
+}
+
+impl ChannelPremises {
+    // No accessors.
+    //
+    // What `FR-002-AC-4` and `FR-054-AC-4` require of this type is that
+    // changing a component changes the linked protocol, and that is carried by
+    // `PartialEq` and `Hash` over the fields. A reader that wants a component
+    // back has no obligation asking for it: nothing in this crate consumes one,
+    // and `Debug` already renders the set for a diagnostic.
+    //
+    // An earlier revision shipped six `pub` accessors with no caller anywhere
+    // in `src/` or `tests/`. That is the same API debt `link::interleaving`
+    // declines to take on in its own module documentation, and the argument
+    // does not stop applying because the item is an accessor rather than an
+    // enumerator. When a consumer needs a component, it arrives with that
+    // consumer.
+}
+
+/// Project one channel's authored premises.
+///
+/// The two tags are A's own `Ordering` spellings at the pinned revision, quoted
+/// as [`body_tag`] and [`control_shape`] quote theirs: A's `tagged!` records
+/// publish no accessor for them, and the alternative — collapsing the two into
+/// one untagged shape — would make an unordered channel and a FIFO one
+/// comparable on their scopes alone.
+fn channel_premises(channel: &Channel) -> ChannelPremises {
+    let (ordering, ordering_scope) = match &channel.ordering {
+        Ordering::Unordered {} => ("unordered", Vec::new()),
+        Ordering::Fifo {
+            binder,
+            key,
+            anchor,
+        } => ("fifo", vec![binder.index, key.index, anchor.index]),
+    };
+    ChannelPremises {
+        sender: channel.from.index,
+        receiver: channel.to.index,
+        message_type: channel.message_type,
+        ordering,
+        ordering_scope,
+        delivery: (
+            numeric_fingerprint(&channel.delivery.lower),
+            numeric_fingerprint(&channel.delivery.upper),
+        ),
     }
 }
 
@@ -549,6 +654,27 @@ impl ControlShape {
     #[must_use]
     pub fn indices(&self) -> &[u32] {
         &self.indices
+    }
+
+    /// Whether this control's sub-bodies are alternatives rather than
+    /// concurrent branches.
+    ///
+    /// A derives the same `branch` and `join` edge kinds for a `Parallel` and
+    /// for a `Choice`, so the causal edge set alone cannot tell concurrency
+    /// from alternation. The operation kind can, and this is the one place that
+    /// reads it: the spellings are the ones [`control_shape`] writes, a few
+    /// lines below.
+    ///
+    /// - `choice` — exactly one case runs (`FR-053`).
+    /// - `repeat` — the body arm and the exhausted arm are alternatives, and
+    ///   the body arm repeats rather than running once.
+    /// - `await` — the `then` arm and the `timeout` arm are alternatives.
+    ///
+    /// A `sequence` and a `parallel` admit no alternative, and a leaf control
+    /// has no sub-body to choose between.
+    #[must_use]
+    pub fn admits_alternatives(&self) -> bool {
+        matches!(self.kind, "choice" | "repeat" | "await")
     }
 }
 
@@ -999,6 +1125,7 @@ fn link_declarations(
                 &requirement_identity(&scope, declaration, channel.delivery_instance, delivery),
                 &delivery.name,
             ),
+            premises: channel_premises(channel),
         };
         // The key is checked, and the finding is not dead code.
         //
@@ -1241,13 +1368,14 @@ const fn body_tag(body: &Body) -> &'static str {
 mod tests {
     use ix_trace_rs::trace;
     use quire_spec_language::protocol_artifact::wire::{
-        Activation, ArtifactKind, ArtifactRef, Branch, Channel, Control, ControlOperation,
-        Execution, ExportRef, Finish, Handle, Integer, Interval, Nullable, Ordering, Requirement,
-        Revision, Role, Span, Subject, Wire,
+        Activation, ArtifactKind, ArtifactRef, Branch, Channel, ChoiceCase, Control,
+        ControlOperation, EdgeKind, Endpoint, Execution, ExportRef, Finish, Handle, Integer,
+        Interval, Nullable, Ordering, Port, Requirement, Revision, Role, Span, Subject, Wire,
     };
     use quire_spec_language::protocol_artifact::NumberWire;
     use quire_spec_language::ByteDigest;
 
+    use super::interleaving::{interleavings, precedence, Endpoint as Step};
     use super::*;
 
     fn handle(index: u32) -> Handle {
@@ -1257,10 +1385,71 @@ mod tests {
         }
     }
 
+    /// The region of a record that is not in one of the stamped tables.
+    ///
+    /// The declaration itself and its finish clause: one of each per fixture,
+    /// so there is nothing to tell apart.
     fn locus() -> Locus {
+        locus_at(0, 0)
+    }
+
+    /// A's source table index.
+    const BINDINGS: u32 = 1;
+    /// A's source table index.
+    const ROLES: u32 = 2;
+    /// A's source table index.
+    const CHANNELS: u32 = 3;
+    /// A's source table index.
+    const CONTROLS: u32 = 4;
+
+    /// One distinct source region per record.
+    ///
+    /// Every fixture record used to carry the same `source 0, 0..1`, which made
+    /// every `locus` in every expectation compare equal to every other. A
+    /// refusal that named the wrong role, control or channel still matched, so
+    /// `FR-002-AC-3`'s "refused **at its source location**" was asserted by
+    /// tests that could not see the location. These coordinates are arbitrary —
+    /// A's `source` is an index into a source table this crate does not resolve
+    /// — but they are *distinct*, which is the only property the assertions
+    /// need.
+    fn locus_at(source: u32, index: u32) -> Locus {
         Locus {
-            source: 0,
-            span: Span { start: 0, end: 1 },
+            source,
+            span: Span {
+                start: index,
+                end: index + 1,
+            },
+        }
+    }
+
+    /// Give every record in a fixture its own region, by table and position.
+    ///
+    /// Applied after a fixture is built and after any mutation that adds or
+    /// moves a record, so a record's region always follows its position rather
+    /// than being fixed when the helper that made it ran.
+    fn stamp(declarations: &mut [Declaration]) {
+        for declaration in declarations.iter_mut() {
+            for (index, requirement) in declaration.bindings.iter_mut().enumerate() {
+                requirement.locus = locus_at(BINDINGS, index as u32);
+            }
+            let Body::Protocol {
+                roles,
+                channels,
+                controls,
+                ..
+            } = &mut declaration.body
+            else {
+                continue;
+            };
+            for (index, role) in roles.iter_mut().enumerate() {
+                role.locus = locus_at(ROLES, index as u32);
+            }
+            for (index, channel) in channels.iter_mut().enumerate() {
+                channel.locus = locus_at(CHANNELS, index as u32);
+            }
+            for (index, control) in controls.iter_mut().enumerate() {
+                control.locus = locus_at(CONTROLS, index as u32);
+            }
         }
     }
 
@@ -1426,10 +1615,12 @@ mod tests {
 
     /// One well-formed protocol declaration.
     fn fixture() -> Vec<Declaration> {
-        vec![declaration(
+        let mut declarations = vec![declaration(
             protocol_body(vec![role("Buyer", 1)], vec![channel("order", 5)]),
             bindings(),
-        )]
+        )];
+        stamp(&mut declarations);
+        declarations
     }
 
     #[trace("TC-002", "Task-002")]
@@ -1558,7 +1749,7 @@ mod tests {
                 },
                 required: BindingKind::Send,
                 found: BindingKind::Delivery,
-                locus: locus(),
+                locus: locus_at(CHANNELS, 0),
             })
         );
     }
@@ -1578,8 +1769,8 @@ mod tests {
             Diagnostics::of(LinkRefusal::NoSuchRequirement {
                 referrer: Referrer::Role { index: 0 },
                 selected: 99,
-                available: 11,
-                locus: locus(),
+                available: bindings().len(),
+                locus: locus_at(ROLES, 0),
             })
         );
         // And it is located: the index is authored, so FR-002-AC-3's "at its
@@ -2098,5 +2289,1072 @@ mod tests {
             "a channel must not be shared across packages"
         );
         assert_ne!(first, second);
+    }
+
+    // -----------------------------------------------------------------------
+    // C-14: FR-002-AC-2, permitted interleavings
+    // -----------------------------------------------------------------------
+
+    /// A leaf control. A derives one `sequence` edge from `enter` to `exit` for
+    /// it, which is what makes a branch body an ordered step rather than two
+    /// unrelated endpoints.
+    fn check_control() -> Control {
+        Control {
+            name: "step".to_owned(),
+            original_node: 0,
+            locus: locus(),
+            operation: ControlOperation::Check {
+                profile: 0,
+                value: handle(0),
+            },
+        }
+    }
+
+    fn sequence_control(children: Vec<u32>) -> Control {
+        Control {
+            name: "then".to_owned(),
+            original_node: 0,
+            locus: locus(),
+            operation: ControlOperation::Sequence {
+                children: children.into_iter().map(handle).collect(),
+            },
+        }
+    }
+
+    fn branch(label: &str, body: u32) -> Branch {
+        Branch {
+            label: label.to_owned(),
+            body: handle(body),
+            locus: locus(),
+        }
+    }
+
+    fn endpoint(node: u32, port: Port) -> Endpoint {
+        Endpoint {
+            node: handle(node),
+            port,
+        }
+    }
+
+    /// One of A's derived edges, written as A derives it.
+    fn edge(kind: EdgeKind, owner: u32, from: (u32, Port), to: (u32, Port)) -> CausalEdge {
+        CausalEdge {
+            kind,
+            owner: handle(owner),
+            from: endpoint(from.0, from.1),
+            to: endpoint(to.0, to.1),
+            maximum: Nullable(None),
+        }
+    }
+
+    /// A parallel of two branches, each an authored sequence of two steps.
+    ///
+    /// The control table and the edge set are A's, not a model of A's: the
+    /// edges below are exactly what A's `edges` derives for this table —
+    /// `branch` from the parallel's `enter` to each branch body's `enter`,
+    /// `join` from each body's `exit` to the parallel's `exit`, a `sequence`
+    /// chain through each body's children, and one `sequence` edge across each
+    /// leaf — in A's own sort order. B retains them; it derives none of them.
+    fn parallel_fixture() -> Vec<Declaration> {
+        let mut declarations = fixture();
+        let Body::Protocol {
+            controls,
+            causal_edges,
+            ..
+        } = &mut declarations[0].body
+        else {
+            unreachable!("the fixture is a protocol")
+        };
+
+        controls.push(Control {
+            name: "split".to_owned(),
+            original_node: 0,
+            locus: locus(),
+            operation: ControlOperation::Parallel {
+                branches: vec![branch("left", 1), branch("right", 2)],
+                join: vec![0, 1],
+            },
+        });
+        controls.push(sequence_control(vec![3, 4]));
+        controls.push(sequence_control(vec![5, 6]));
+        for _ in 0..4 {
+            controls.push(check_control());
+        }
+
+        use EdgeKind::{Branch as BranchEdge, Join, Sequence};
+        use Port::{Enter, Exit};
+        *causal_edges = vec![
+            edge(BranchEdge, 0, (0, Enter), (1, Enter)),
+            edge(BranchEdge, 0, (0, Enter), (2, Enter)),
+            edge(Join, 0, (1, Exit), (0, Exit)),
+            edge(Join, 0, (2, Exit), (0, Exit)),
+            edge(Sequence, 1, (1, Enter), (3, Enter)),
+            edge(Sequence, 1, (3, Exit), (4, Enter)),
+            edge(Sequence, 1, (4, Exit), (1, Exit)),
+            edge(Sequence, 2, (2, Enter), (5, Enter)),
+            edge(Sequence, 2, (5, Exit), (6, Enter)),
+            edge(Sequence, 2, (6, Exit), (2, Exit)),
+            edge(Sequence, 3, (3, Enter), (3, Exit)),
+            edge(Sequence, 4, (4, Enter), (4, Exit)),
+            edge(Sequence, 5, (5, Enter), (5, Exit)),
+            edge(Sequence, 6, (6, Enter), (6, Exit)),
+        ];
+
+        stamp(&mut declarations);
+        declarations
+    }
+
+    /// The endpoints of one branch, in the order that branch authored them.
+    fn left_branch() -> [Step; 6] {
+        [
+            (1, "enter"),
+            (3, "enter"),
+            (3, "exit"),
+            (4, "enter"),
+            (4, "exit"),
+            (1, "exit"),
+        ]
+    }
+
+    fn right_branch() -> [Step; 6] {
+        [
+            (2, "enter"),
+            (5, "enter"),
+            (5, "exit"),
+            (6, "enter"),
+            (6, "exit"),
+            (2, "exit"),
+        ]
+    }
+
+    /// Where one endpoint sits in one interleaving.
+    fn position(order: &[Step], endpoint: Step) -> usize {
+        order
+            .iter()
+            .position(|placed| *placed == endpoint)
+            .unwrap_or_else(|| panic!("{endpoint:?} is not in {order:?}"))
+    }
+
+    /// Both branches may interleave, and neither loses its own order.
+    ///
+    /// `FR-002-AC-2` in its own terms, and upstream `FR-052-AC-1`: "Split
+    /// shipments S1 and S2 may interleave while each branch preserves its own
+    /// order". The count is the check that neither half slipped. Two branches
+    /// of six endpoints, with the parallel's own `enter` first and `exit` last,
+    /// merge in exactly `C(12, 6) = 924` ways: fewer means a permitted order
+    /// was lost, more means an order was admitted that breaks a branch chain.
+    /// The number is arithmetic over the fixture, not a figure read off a run.
+    #[trace("TC-002", "FR-002-AC-2")]
+    #[test]
+    fn tc_002_bounded_parallel_branches_admit_every_interleaving_that_keeps_each_branch() {
+        let linked = link_declarations(&parallel_fixture(), 0).expect("the fixture links");
+        let orders = interleavings(linked.controls(), linked.edges())
+            .expect("the fixture is a parallel and two sequences");
+
+        assert_eq!(orders.len(), 924, "C(12, 6) merges of two six-step chains");
+
+        let relation = precedence(linked.edges());
+        for order in &orders {
+            assert_eq!(order.len(), 14, "every endpoint is placed once: {order:?}");
+            for (from, to) in &relation {
+                assert!(
+                    position(order, *from) < position(order, *to),
+                    "{from:?} -> {to:?} is not preserved by {order:?}"
+                );
+            }
+        }
+
+        // Both extremes and one strict alternation are admitted, so "may
+        // interleave" is checked by exhibiting the interleavings rather than by
+        // counting alone.
+        let left = left_branch();
+        let right = right_branch();
+        for expected in [
+            [&left[..], &right[..]].concat(),
+            [&right[..], &left[..]].concat(),
+            left.iter()
+                .zip(right.iter())
+                .flat_map(|(l, r)| [*l, *r])
+                .collect(),
+        ] {
+            let whole: Vec<Step> = [&[(0, "enter")][..], &expected, &[(0, "exit")][..]].concat();
+            assert!(orders.contains(&whole), "{whole:?} is not admitted");
+        }
+    }
+
+    /// Every permitted interleaving satisfies the **declared** join.
+    ///
+    /// The rule is upstream's: `FR-228` names the admitted completion rule the
+    /// "all-branch join", so the parallel's `exit` may not be reached until
+    /// every branch the declaration names in `join` has completed.
+    ///
+    /// The word to earn is *declared*. An earlier revision read the join from
+    /// A's retained `Join` edges and asserted the order respected them, which
+    /// is a restatement of the test above: the same edges are already in
+    /// `precedence`, so a topological sort was being asked whether it had
+    /// sorted topologically. A fixture declaring a different join rule with the
+    /// same edges would have passed it unchanged.
+    ///
+    /// So this reads `ControlOperation::Parallel`'s own `join` field out of the
+    /// authored declaration and checks two things the enumerator cannot supply:
+    /// that A's `Join` edges are exactly the declared branches and no others,
+    /// and that every admitted order puts each declared branch's completion
+    /// before the parallel's. The first is the link between the authored field
+    /// and the retained graph; without it the second is vacuous.
+    #[trace("TC-002", "FR-002-AC-2")]
+    #[test]
+    fn tc_002_every_interleaving_satisfies_the_declared_join() {
+        let fixture = parallel_fixture();
+        let Body::Protocol {
+            controls,
+            causal_edges,
+            ..
+        } = &fixture[0].body
+        else {
+            unreachable!("the fixture is a protocol")
+        };
+        let ControlOperation::Parallel { branches, join } = &controls[0].operation else {
+            unreachable!("control 0 is the parallel")
+        };
+
+        // The declared join names branch positions; these are the bodies it
+        // requires to have completed.
+        let declared: BTreeSet<u32> = join
+            .iter()
+            .map(|position| branches[*position as usize].body.index)
+            .collect();
+        assert_eq!(
+            declared,
+            BTreeSet::from([1, 2]),
+            "the fixture declares the all-branch join"
+        );
+
+        // A's retained join edges are exactly those bodies' exits reaching the
+        // parallel's exit — no fewer, so the rule is not weakened, and no more,
+        // so it is not a different rule wearing the same name.
+        let joining: BTreeSet<u32> = causal_edges
+            .iter()
+            .filter(|edge| edge.kind == EdgeKind::Join && edge.to.node.index == 0)
+            .map(|edge| edge.from.node.index)
+            .collect();
+        assert_eq!(
+            joining, declared,
+            "A's join edges are not the declared join"
+        );
+
+        let linked = link_declarations(&fixture, 0).expect("the fixture links");
+        for order in interleavings(linked.controls(), linked.edges())
+            .expect("the fixture is a parallel and two sequences")
+        {
+            let exit = position(&order, (0, "exit"));
+            for body in &declared {
+                assert!(
+                    position(&order, (*body, "exit")) < exit,
+                    "branch {body} completes after the parallel in {order:?}"
+                );
+            }
+        }
+    }
+
+    /// An edge set spanning a choice, a repeat or an await is refused, not
+    /// enumerated.
+    ///
+    /// A derives `branch` and `join` edges identically for a `Parallel` and a
+    /// `Choice`, so a linear extension over a choice's edges reports an order
+    /// taking *both* cases — a false answer, not a missing one. The guard is
+    /// the control kind, which is the only thing that distinguishes them.
+    ///
+    /// This is the mutation-proof for the guard: delete `admits_alternatives`'s
+    /// `"choice"` arm and this test fails while every other test stays green,
+    /// because no other fixture carries an exclusive control.
+    #[trace("TC-002", "FR-002-AC-2")]
+    #[test]
+    fn tc_002_an_exclusive_control_is_refused_rather_than_interleaved() {
+        let linked = link_declarations(&sweep_fixture(), 0).expect("the fixture links");
+
+        let refused = interleavings(linked.controls(), linked.edges())
+            .expect_err("the sweep fixture carries a choice and a repeat");
+        // Control 7 is the choice, and it is the first exclusive control in
+        // table order.
+        assert_eq!(refused.control, 7);
+        assert_eq!(refused.kind, "choice");
+
+        // Refused before enumerating, which also matters: the sweep fixture is
+        // thirteen controls wide and its linear extensions are a factorial the
+        // module doc declines to bound. `linear_extensions` is the function
+        // with that cost, and it is not what the guard calls.
+        assert!(
+            linked
+                .controls()
+                .iter()
+                .any(ControlShape::admits_alternatives),
+            "the fixture is the one carrying an exclusive control"
+        );
+    }
+
+    /// The join is read from the retained edges, not assumed from the shape.
+    ///
+    /// Drop one branch's `join` edge and an order appears in which that branch
+    /// completes after the parallel does. The assertion above would pass
+    /// vacuously if the permitted set were computed from anything but A's
+    /// edges; this is the mutation that says it is not.
+    #[trace("TC-002", "FR-002-AC-2")]
+    #[test]
+    fn tc_002_a_dropped_join_edge_admits_a_branch_completing_late() {
+        let mut missing = parallel_fixture();
+        let Body::Protocol { causal_edges, .. } = &mut missing[0].body else {
+            unreachable!("the fixture is a protocol")
+        };
+        causal_edges.retain(|edge| edge.kind != EdgeKind::Join || edge.from.node.index != 2);
+
+        let linked = link_declarations(&missing, 0).expect("the fixture links");
+        let orders = interleavings(linked.controls(), linked.edges())
+            .expect("the fixture is a parallel and two sequences");
+
+        assert!(
+            orders
+                .iter()
+                .any(|order| { position(order, (2, "exit")) > position(order, (0, "exit")) }),
+            "dropping the join edge left the join enforced by something else"
+        );
+    }
+
+    /// The permitted set is a property of the relation, not of the table order.
+    ///
+    /// `FR-002-AC-4` refuses an edge added by reordering equal-time input. A
+    /// sorts `causal_edges` on the full edge key and refuses an offer whose
+    /// order differs, so a reordered table cannot reach this crate from an
+    /// admitted artifact at all; what this checks is that nothing downstream of
+    /// the retained sequence depends on it. `LinkedProtocol` still compares the
+    /// edges as the sequence A supplied, which is A's canonical one.
+    #[trace("TC-002", "FR-002-AC-2")]
+    #[test]
+    fn tc_002_reordering_the_edge_table_admits_the_same_interleavings() {
+        let linked = link_declarations(&parallel_fixture(), 0).expect("the fixture links");
+
+        let mut reversed = parallel_fixture();
+        let Body::Protocol { causal_edges, .. } = &mut reversed[0].body else {
+            unreachable!("the fixture is a protocol")
+        };
+        causal_edges.reverse();
+        let reversed = link_declarations(&reversed, 0).expect("the fixture links");
+
+        assert_eq!(
+            interleavings(linked.controls(), linked.edges()),
+            interleavings(reversed.controls(), reversed.edges())
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // C-14: the FR-050..FR-054 mutation sweep
+    // -----------------------------------------------------------------------
+
+    /// A role whose authority is chosen rather than fixed.
+    fn role_with_model(name: &str, instance: u32, model: (u32, u32)) -> Role {
+        Role {
+            name: name.to_owned(),
+            model: ExportRef {
+                model: model.0,
+                export: model.1,
+            },
+            instance,
+            locus: locus(),
+        }
+    }
+
+    fn choice_case(label: &str, guard: u32, body: u32) -> ChoiceCase {
+        ChoiceCase {
+            label: label.to_owned(),
+            guard: handle(guard),
+            body: handle(body),
+            locus: locus(),
+        }
+    }
+
+    /// A channel carrying a FIFO premise with an authored key scope.
+    fn fifo_channel(name: &str, message: u32) -> Channel {
+        let mut channel = channel(name, message);
+        channel.ordering = Ordering::Fifo {
+            binder: handle(0),
+            key: handle(1),
+            anchor: handle(2),
+        };
+        channel
+    }
+
+    /// The fixture every mutation below is one edit away from.
+    ///
+    /// `parallel_fixture` plus the records the remaining axes need: a choice
+    /// with an owner, a visible set and two labelled cases, a bounded repeat
+    /// with an authored maximum, and a second channel carrying a FIFO premise.
+    /// Each added control carries the edges A derives for it, so the fixture
+    /// stays one A could have emitted.
+    fn sweep_fixture() -> Vec<Declaration> {
+        let mut declarations = parallel_fixture();
+        let Body::Protocol {
+            channels,
+            controls,
+            causal_edges,
+            ..
+        } = &mut declarations[0].body
+        else {
+            unreachable!("the fixture is a protocol")
+        };
+
+        channels.push(fifo_channel("receipt", 5));
+
+        // 7: the choice, over leaf bodies 8 and 9.
+        controls.push(Control {
+            name: "decide".to_owned(),
+            original_node: 0,
+            locus: locus(),
+            operation: ControlOperation::Choice {
+                owner: handle(0),
+                visible: vec![handle(0)],
+                cases: vec![choice_case("ship", 0, 8), choice_case("cancel", 1, 9)],
+            },
+        });
+        controls.push(check_control());
+        controls.push(check_control());
+
+        // 10: the bounded repeat, over body 11 and exhausted branch 12.
+        controls.push(Control {
+            name: "retry".to_owned(),
+            original_node: 0,
+            locus: locus(),
+            operation: ControlOperation::Repeat {
+                owner: handle(0),
+                visible: vec![handle(0)],
+                maximum: integer("3"),
+                guard: handle(11),
+                body: handle(11),
+                exhausted: handle(12),
+            },
+        });
+        controls.push(check_control());
+        controls.push(check_control());
+
+        use EdgeKind::{Branch as BranchEdge, Join, RepeatProgress, Sequence};
+        use Port::{Enter, Exit};
+        causal_edges.extend([
+            edge(BranchEdge, 7, (7, Enter), (8, Enter)),
+            edge(BranchEdge, 7, (7, Enter), (9, Enter)),
+            edge(Join, 7, (8, Exit), (7, Exit)),
+            edge(Join, 7, (9, Exit), (7, Exit)),
+            edge(Sequence, 8, (8, Enter), (8, Exit)),
+            edge(Sequence, 9, (9, Enter), (9, Exit)),
+            edge(BranchEdge, 10, (10, Enter), (10, Exit)),
+            edge(BranchEdge, 10, (10, Enter), (11, Enter)),
+            edge(BranchEdge, 10, (10, Enter), (12, Enter)),
+            CausalEdge {
+                maximum: Nullable(Some(integer("3"))),
+                ..edge(RepeatProgress, 10, (11, Exit), (10, Enter))
+            },
+            edge(Join, 10, (12, Exit), (10, Exit)),
+            edge(Sequence, 11, (11, Enter), (11, Exit)),
+            edge(Sequence, 12, (12, Enter), (12, Exit)),
+        ]);
+
+        stamp(&mut declarations);
+        declarations
+    }
+
+    /// The protocol body of a fixture under mutation.
+    fn body(
+        declarations: &mut [Declaration],
+    ) -> (
+        &mut Vec<Role>,
+        &mut Vec<Channel>,
+        &mut Vec<Control>,
+        &mut Vec<CausalEdge>,
+        &mut Finish,
+    ) {
+        let Body::Protocol {
+            roles,
+            channels,
+            controls,
+            causal_edges,
+            finish,
+            ..
+        } = &mut declarations[0].body
+        else {
+            unreachable!("the fixture is a protocol")
+        };
+        (roles, channels, controls, causal_edges, finish)
+    }
+
+    /// What stops one mutation, and how that is observed here.
+    enum Guard {
+        /// This crate refuses it. The first finding must be this one, and a
+        /// refusal carries no linked representation by the shape of the result.
+        Refused(LinkRefusal),
+        /// Admitted here, and the linked protocol differs. This is the
+        /// `FR-002-AC-4` half that makes a semantic change identity-bearing.
+        Distinct,
+        /// Admitted here, and the linked protocol compares equal. The other
+        /// `FR-002-AC-4` half: presentation is not identity.
+        Presentation,
+        /// A refuses it inside `read`, so an admitted package cannot carry it.
+        /// These fixtures are built as wire records and never pass through
+        /// `read`, so what is checked here is the weaker true statement: the
+        /// mutation does not link to an equal protocol. The named check is A's.
+        Upstream(&'static str),
+        /// Nobody refuses it. The mutation links, and the criterion stays open.
+        ///
+        /// Asserting the absence is deliberate. When a guard lands, this row
+        /// fails and has to be moved to [`Guard::Refused`], which is how the
+        /// hole gets closed in the matrix at the same time as in the code.
+        Unguarded(&'static str),
+    }
+
+    /// One mutation axis: what is changed, and what stops it.
+    struct Axis {
+        /// The criterion the axis belongs to.
+        criterion: &'static str,
+        /// What the mutation changes, in the requirement's own words.
+        change: &'static str,
+        /// The mutation, applied to a fresh `sweep_fixture`.
+        apply: fn(&mut Vec<Declaration>),
+        /// What stops it.
+        guard: Guard,
+    }
+
+    /// Every `FR-050`..`FR-054` mutation axis this crate can express.
+    ///
+    /// # What is not here, and why
+    ///
+    /// - **An ownerless or multiply owned choice.** `FR-053` requires both
+    ///   refused. Neither is representable: A's `ControlOperation::Choice`
+    ///   carries exactly one `owner: Handle`, so there is no artifact with
+    ///   none and none with two. The type is the guard, and a row asserting a
+    ///   refusal that can never be offered would be theatre.
+    /// - **A duplication premise.** `FR-216` fixes six premise components and
+    ///   A's `Channel` publishes five; see [`ChannelPremises`]. An axis with no
+    ///   authored field has no mutation.
+    /// - **Runtime instance identities.** `FR-050-AC-3`'s two concurrent
+    ///   workflow instances are not link-time subjects; the owner has ruled
+    ///   `FR-002-AC-1` unresolved until instance identities exist.
+    fn sweep() -> Vec<Axis> {
+        vec![
+            // --- FR-050: identities ---------------------------------------
+            Axis {
+                criterion: "FR-050",
+                change: "a second role over one authority",
+                apply: |declarations| {
+                    declarations[0]
+                        .bindings
+                        .push(requirement("another-instance", BindingKind::RoleInstance));
+                    let (roles, ..) = body(declarations);
+                    roles.push(role_with_model("Seller", 11, (0, 0)));
+                },
+                guard: Guard::Refused(LinkRefusal::DuplicateRoleAuthority {
+                    role: 1,
+                    model: (0, 0),
+                    locus: locus_at(ROLES, 1),
+                }),
+            },
+            Axis {
+                criterion: "FR-050",
+                change: "two roles selecting one role-instance requirement",
+                apply: |declarations| {
+                    let (roles, ..) = body(declarations);
+                    roles.push(role_with_model("Seller", 1, (1, 0)));
+                },
+                guard: Guard::Refused(LinkRefusal::CollidingIdentity {
+                    kind: IdentityKind::RoleInstance,
+                    // The identity the second role collides with, read off a
+                    // successful link of the same fixture rather than
+                    // recomputed here. An earlier revision called
+                    // `requirement_identity` inline with hand-passed
+                    // arguments, so a wrong declaration, index or requirement
+                    // moved both sides together and the row still passed.
+                    identity: link_declarations(&sweep_fixture(), 0)
+                        .expect("the sweep fixture links")
+                        .role_instances()[0]
+                        .identity_bytes()
+                        .to_vec(),
+                    locus: locus_at(ROLES, 1),
+                }),
+            },
+            Axis {
+                criterion: "FR-050-AC-2",
+                change: "a component identity substituted for a role instance",
+                apply: |declarations| {
+                    let (roles, ..) = body(declarations);
+                    roles[0].instance = 3;
+                },
+                guard: Guard::Refused(LinkRefusal::WrongRequirementKind {
+                    referrer: Referrer::Role { index: 0 },
+                    required: BindingKind::RoleInstance,
+                    found: BindingKind::Component,
+                    locus: locus_at(ROLES, 0),
+                }),
+            },
+            Axis {
+                criterion: "FR-050-AC-4",
+                change: "an unresolved role-instance reference",
+                apply: |declarations| {
+                    let (roles, ..) = body(declarations);
+                    roles[0].instance = 99;
+                },
+                guard: Guard::Refused(LinkRefusal::NoSuchRequirement {
+                    referrer: Referrer::Role { index: 0 },
+                    selected: 99,
+                    available: bindings().len(),
+                    locus: locus_at(ROLES, 0),
+                }),
+            },
+            Axis {
+                criterion: "FR-050",
+                change: "a role's authored name",
+                apply: |declarations| {
+                    let (roles, ..) = body(declarations);
+                    roles[0].name = "Purchaser".to_owned();
+                },
+                guard: Guard::Presentation,
+            },
+            // --- FR-051: correspondence -----------------------------------
+            Axis {
+                criterion: "FR-051-AC-4",
+                change: "a delivery requirement substituted for a message premise",
+                apply: |declarations| {
+                    let (_, channels, ..) = body(declarations);
+                    channels[0].message = 8;
+                },
+                guard: Guard::Refused(LinkRefusal::WrongRequirementKind {
+                    referrer: Referrer::Channel {
+                        index: 0,
+                        premise: ChannelPremise::Message,
+                    },
+                    required: BindingKind::Message,
+                    found: BindingKind::Delivery,
+                    locus: locus_at(CHANNELS, 0),
+                }),
+            },
+            // --- FR-052: control and termination --------------------------
+            Axis {
+                criterion: "FR-052-AC-3",
+                change: "a zero-progress iteration maximum",
+                apply: |declarations| {
+                    let (_, _, controls, ..) = body(declarations);
+                    let ControlOperation::Repeat { maximum, .. } = &mut controls[10].operation
+                    else {
+                        unreachable!("control 10 is the repeat")
+                    };
+                    *maximum = integer("0");
+                },
+                guard: Guard::Refused(LinkRefusal::ZeroProgressIteration {
+                    control: 10,
+                    locus: locus_at(CONTROLS, 10),
+                }),
+            },
+            Axis {
+                criterion: "FR-052-AC-4",
+                change: "an authored iteration maximum",
+                apply: |declarations| {
+                    let (_, _, controls, ..) = body(declarations);
+                    let ControlOperation::Repeat { maximum, .. } = &mut controls[10].operation
+                    else {
+                        unreachable!("control 10 is the repeat")
+                    };
+                    *maximum = integer("4");
+                },
+                guard: Guard::Distinct,
+            },
+            Axis {
+                criterion: "FR-052-AC-4",
+                change: "a parallel's join rule",
+                apply: |declarations| {
+                    let (_, _, controls, ..) = body(declarations);
+                    let ControlOperation::Parallel { join, .. } = &mut controls[0].operation else {
+                        unreachable!("control 0 is the parallel")
+                    };
+                    join.pop();
+                },
+                guard: Guard::Distinct,
+            },
+            Axis {
+                criterion: "FR-052-AC-4",
+                change: "which body a parallel branch runs",
+                apply: |declarations| {
+                    let (_, _, controls, ..) = body(declarations);
+                    let ControlOperation::Parallel { branches, .. } = &mut controls[0].operation
+                    else {
+                        unreachable!("control 0 is the parallel")
+                    };
+                    branches.swap(0, 1);
+                },
+                guard: Guard::Distinct,
+            },
+            Axis {
+                criterion: "FR-052",
+                change: "a control's authored name",
+                apply: |declarations| {
+                    let (_, _, controls, ..) = body(declarations);
+                    controls[0].name = "fork".to_owned();
+                },
+                guard: Guard::Presentation,
+            },
+            Axis {
+                criterion: "FR-052",
+                change: "the termination's closure binding",
+                apply: |declarations| {
+                    let (.., finish) = body(declarations);
+                    finish.closure = 1;
+                },
+                guard: Guard::Distinct,
+            },
+            Axis {
+                criterion: "FR-052",
+                change: "the termination's authored name",
+                apply: |declarations| {
+                    let (.., finish) = body(declarations);
+                    finish.name = "finished".to_owned();
+                },
+                guard: Guard::Presentation,
+            },
+            Axis {
+                criterion: "FR-052-AC-3",
+                change: "a causal cycle",
+                apply: |declarations| {
+                    let (_, _, _, causal_edges, _) = body(declarations);
+                    causal_edges.push(edge(
+                        EdgeKind::Sequence,
+                        0,
+                        (0, Port::Exit),
+                        (0, Port::Enter),
+                    ));
+                },
+                guard: Guard::Upstream("A's acyclicity check over the offered edge set"),
+            },
+            Axis {
+                criterion: "FR-052-AC-3",
+                change: "a missing join edge",
+                apply: |declarations| {
+                    let (_, _, _, causal_edges, _) = body(declarations);
+                    causal_edges
+                        .retain(|edge| edge.kind != EdgeKind::Join || edge.from.node.index != 2);
+                },
+                guard: Guard::Upstream("A's element-by-element comparison of the derived edge set"),
+            },
+            Axis {
+                criterion: "FR-052",
+                change: "a control no causal edge reaches",
+                apply: |declarations| {
+                    let (_, _, controls, ..) = body(declarations);
+                    controls.push(check_control());
+                },
+                guard: Guard::Unguarded(
+                    "unreachable termination: no reachability analysis exists in either repository",
+                ),
+            },
+            // --- FR-053: choice and visibility ----------------------------
+            Axis {
+                criterion: "FR-053",
+                change: "a choice's owning role",
+                apply: |declarations| {
+                    let (_, _, controls, ..) = body(declarations);
+                    let ControlOperation::Choice { owner, .. } = &mut controls[7].operation else {
+                        unreachable!("control 7 is the choice")
+                    };
+                    *owner = handle(1);
+                },
+                guard: Guard::Distinct,
+            },
+            Axis {
+                criterion: "FR-002-AC-4",
+                change: "a choice's visibility premise",
+                apply: |declarations| {
+                    let (_, _, controls, ..) = body(declarations);
+                    let ControlOperation::Choice { visible, .. } = &mut controls[7].operation
+                    else {
+                        unreachable!("control 7 is the choice")
+                    };
+                    visible.push(handle(1));
+                },
+                guard: Guard::Distinct,
+            },
+            Axis {
+                criterion: "FR-053",
+                change: "which body a choice case selects",
+                apply: |declarations| {
+                    let (_, _, controls, ..) = body(declarations);
+                    let ControlOperation::Choice { cases, .. } = &mut controls[7].operation else {
+                        unreachable!("control 7 is the choice")
+                    };
+                    cases[0].body = handle(9);
+                },
+                guard: Guard::Distinct,
+            },
+            Axis {
+                criterion: "FR-053",
+                change: "a choice case's label",
+                apply: |declarations| {
+                    let (_, _, controls, ..) = body(declarations);
+                    let ControlOperation::Choice { cases, .. } = &mut controls[7].operation else {
+                        unreachable!("control 7 is the choice")
+                    };
+                    cases[0].label = "dispatch".to_owned();
+                },
+                guard: Guard::Presentation,
+            },
+            Axis {
+                criterion: "FR-053-AC-3",
+                change: "two choice cases under one guard",
+                apply: |declarations| {
+                    let (_, _, controls, ..) = body(declarations);
+                    let ControlOperation::Choice { cases, .. } = &mut controls[7].operation else {
+                        unreachable!("control 7 is the choice")
+                    };
+                    cases[1].guard = cases[0].guard.clone();
+                },
+                guard: Guard::Unguarded(
+                    "overlapping choices: guard disjointness is a decision procedure over \
+                     arbitrary predicates, which neither repository has",
+                ),
+            },
+            Axis {
+                criterion: "FR-053-AC-2",
+                change: "a choice whose owner is outside its visible set",
+                apply: |declarations| {
+                    let (_, _, controls, ..) = body(declarations);
+                    let ControlOperation::Choice { visible, .. } = &mut controls[7].operation
+                    else {
+                        unreachable!("control 7 is the choice")
+                    };
+                    *visible = vec![handle(1)];
+                },
+                guard: Guard::Unguarded(
+                    "owner-unobservable choices: values carry no role attribution to relate a \
+                     guard's operands to the visible set",
+                ),
+            },
+            // --- FR-054: channel premises ---------------------------------
+            Axis {
+                criterion: "FR-054-AC-3",
+                change: "an unresolved send premise",
+                apply: |declarations| {
+                    let (_, channels, ..) = body(declarations);
+                    channels[0].send = 99;
+                },
+                guard: Guard::Refused(LinkRefusal::NoSuchRequirement {
+                    referrer: Referrer::Channel {
+                        index: 0,
+                        premise: ChannelPremise::Send,
+                    },
+                    selected: 99,
+                    available: bindings().len(),
+                    locus: locus_at(CHANNELS, 0),
+                }),
+            },
+            Axis {
+                criterion: "FR-054-AC-4",
+                change: "a channel's sender",
+                apply: |declarations| {
+                    let (_, channels, ..) = body(declarations);
+                    channels[0].from = handle(2);
+                },
+                guard: Guard::Distinct,
+            },
+            Axis {
+                criterion: "FR-054-AC-4",
+                change: "a channel's receiver",
+                apply: |declarations| {
+                    let (_, channels, ..) = body(declarations);
+                    channels[0].to = handle(2);
+                },
+                guard: Guard::Distinct,
+            },
+            Axis {
+                criterion: "FR-054-AC-4",
+                change: "a channel's message type",
+                apply: |declarations| {
+                    let (_, channels, ..) = body(declarations);
+                    channels[0].message_type = 1;
+                },
+                guard: Guard::Distinct,
+            },
+            Axis {
+                criterion: "FR-054-AC-4",
+                change: "a channel's ordering policy",
+                apply: |declarations| {
+                    let (_, channels, ..) = body(declarations);
+                    channels[0].ordering = Ordering::Fifo {
+                        binder: handle(0),
+                        key: handle(1),
+                        anchor: handle(2),
+                    };
+                },
+                guard: Guard::Distinct,
+            },
+            Axis {
+                criterion: "FR-054-AC-2",
+                change: "a FIFO premise's key scope",
+                apply: |declarations| {
+                    let (_, channels, ..) = body(declarations);
+                    let Ordering::Fifo { key, .. } = &mut channels[1].ordering else {
+                        unreachable!("channel 1 carries the FIFO premise")
+                    };
+                    *key = handle(3);
+                },
+                guard: Guard::Distinct,
+            },
+            Axis {
+                criterion: "FR-054-AC-4",
+                change: "a channel's delivery cardinality",
+                apply: |declarations| {
+                    let (_, channels, ..) = body(declarations);
+                    channels[0].delivery.upper = integer("2");
+                },
+                guard: Guard::Distinct,
+            },
+            Axis {
+                criterion: "FR-054",
+                change: "a channel's authored name",
+                apply: |declarations| {
+                    let (_, channels, ..) = body(declarations);
+                    channels[0].name = "purchase-order".to_owned();
+                },
+                guard: Guard::Presentation,
+            },
+        ]
+    }
+
+    /// Every mutation reaches its guard, one axis at a time.
+    ///
+    /// `FR-002-AC-3` requires each mutation refused at its source location with
+    /// no linked representation, and `FR-002-AC-4` requires a semantic change
+    /// to change the linked identity while a presentation change does not. One
+    /// table discharges both, because the interesting question for an axis is
+    /// *which* of the two it lands on — and five of these axes landed on
+    /// neither before this chunk: a channel's sender, receiver, message type,
+    /// ordering policy and delivery cardinality all linked to an equal protocol
+    /// while the matrix recorded AC-4 as executing. See [`ChannelPremises`].
+    /// Link a mutated fixture, re-stamping so every record keeps its own region.
+    fn sweep_outcome(apply: fn(&mut Vec<Declaration>)) -> Result<LinkedProtocol, Diagnostics> {
+        let mut mutated = sweep_fixture();
+        apply(&mut mutated);
+        // A mutation that adds or moves a record changes which position each
+        // record holds, and a region follows the position.
+        stamp(&mut mutated);
+        link_declarations(&mutated, 0)
+    }
+
+    /// Every axis this crate refuses is refused, with the right finding at the
+    /// right place.
+    ///
+    /// `FR-002-AC-3` asks for a refusal "at its source location", so the
+    /// expected `LinkRefusal` is compared whole — the finding's kind, its
+    /// fields **and** its `locus`. `stamp` gives each record its own region,
+    /// so a refusal that names the wrong control, role or channel fails here
+    /// rather than comparing equal to the right one.
+    #[trace("TC-002", "FR-002-AC-3")]
+    #[test]
+    fn tc_002_every_refused_axis_is_refused_at_its_source() {
+        let mut seen = 0;
+        for Axis {
+            criterion,
+            change,
+            apply,
+            guard,
+        } in sweep()
+        {
+            let Guard::Refused(expected) = guard else {
+                continue;
+            };
+            seen += 1;
+            let diagnostics = sweep_outcome(apply)
+                .err()
+                .unwrap_or_else(|| panic!("{criterion}: {change} was not refused"));
+            assert_eq!(diagnostics.first(), &expected, "{criterion}: {change}");
+        }
+        assert_eq!(seen, 7, "the sweep's refusal axes");
+    }
+
+    /// Every semantic axis changes the linked protocol, and every presentation
+    /// axis leaves it equal.
+    ///
+    /// This is the `FR-002-AC-4` half of the sweep, and it carries its own tag:
+    /// an earlier revision ran both halves under one test tagged
+    /// `FR-002-AC-3`, so `quire coverage` saw eighteen identity axes backing a
+    /// refusal criterion and nothing backing the identity one.
+    #[trace("TC-002", "FR-002-AC-4")]
+    #[test]
+    fn tc_002_every_semantic_axis_changes_the_linked_protocol() {
+        let base = link_declarations(&sweep_fixture(), 0).expect("the sweep fixture links");
+        let mut seen = 0;
+        for Axis {
+            criterion,
+            change,
+            apply,
+            guard,
+        } in sweep()
+        {
+            let expect_change = match guard {
+                Guard::Distinct => true,
+                Guard::Presentation => false,
+                _ => continue,
+            };
+            seen += 1;
+            let linked = sweep_outcome(apply)
+                .unwrap_or_else(|error| panic!("{criterion}: {change} refused: {error}"));
+            if expect_change {
+                assert_ne!(
+                    linked, base,
+                    "{criterion}: {change} left the identity equal"
+                );
+            } else {
+                assert_eq!(linked, base, "{criterion}: {change} changed the identity");
+            }
+        }
+        assert_eq!(seen, 18, "the sweep's identity axes");
+    }
+
+    /// The axes this crate does not guard, recorded as still unguarded.
+    ///
+    /// Two kinds, and neither discharges an acceptance criterion — the tag is
+    /// `Task-002`, not `FR-002-AC-3`, because every assertion here says a
+    /// mutation is **accepted**:
+    ///
+    /// - `Guard::Upstream` — A refuses it inside `read`, before this crate sees
+    ///   it. What is checked is that B does not *also* refuse it, which is what
+    ///   would happen if someone re-implemented A's acyclicity or join check
+    ///   here. An earlier revision asserted the linked protocol differed
+    ///   instead; both axes add or remove a `CausalEdge`, and the edge set is
+    ///   part of the identity, so that assertion could not fail and said
+    ///   nothing about A.
+    /// - `Guard::Unguarded` — nobody refuses it, in either repository. The
+    ///   assertion is the hole itself, so that the day someone closes it, this
+    ///   test fails and says which row to move.
+    #[trace("TC-002", "Task-002")]
+    #[test]
+    fn tc_002_the_unguarded_axes_are_still_unguarded() {
+        let mut seen = 0;
+        for Axis {
+            criterion,
+            change,
+            apply,
+            guard,
+        } in sweep()
+        {
+            let note = match guard {
+                Guard::Upstream(check) => {
+                    format!(
+                        "upstream it is refused by {check}, and this crate must not re-check it"
+                    )
+                }
+                Guard::Unguarded(hole) => {
+                    format!("{hole} — move this axis to Guard::Refused and update spec/tests.md")
+                }
+                _ => continue,
+            };
+            seen += 1;
+            let outcome = sweep_outcome(apply);
+            assert!(
+                outcome.is_ok(),
+                "{criterion}: {change} is refused here. {note}"
+            );
+        }
+        assert_eq!(seen, 5, "the sweep's unguarded axes");
     }
 }

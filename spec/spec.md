@@ -215,11 +215,17 @@ The repository is partially implemented. Eleven test binaries exist
 `it001_v2_intake`, `tc_002_identities`, `tc_004_closure_axes`,
 `tc_005_claim_dispositions`, `tc_006_digest_domains`,
 `tc_008_reproduction_record`, `tc_009_bounds`, `tc_011_typed_refusals`) and the
-local gate under `NFR-004` reports 157 passing, 0 failing and 29 ignored across
+local gate under `NFR-004` reports 169 passing, 0 failing and 29 ignored across
 them and the in-crate unit tests, plus 37 passing doc-tests, on this head.
 An earlier revision of this paragraph said ten binaries and 149 passing: it
 omitted `it001_dependency_inventory` and its three tests from both figures. The
-remaining five of the eight-test difference are C-13's, in `src/link/mod.rs`. The 29 ignored are 23 in the version 1 lane and 6 in the version 2
+remaining five of that eight-test difference are C-13's, in `src/link/mod.rs`.
+The twelve tests above 157 are C-14's, and they are in two files: eight in
+`src/link/mod.rs` and four in `src/link/interleaving.rs`. A revision of this
+paragraph put all twelve in `src/link/mod.rs`. At that revision the two files
+held 25 and 3, and the 28 it reported was their sum, not the one file it
+named. No binary was added — C-14 is a
+unit-test chunk. The 29 ignored are 23 in the version 1 lane and 6 in the version 2
 handoff lane, each reported unexecuted rather than passing. An earlier revision of this section said "The repository is
 specification-only. Every test is planned", which was true when written and has
 not been true since the first test binary landed. `TM-001` recorded the executed
