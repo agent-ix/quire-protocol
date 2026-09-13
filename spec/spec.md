@@ -183,17 +183,28 @@ parent states each of its obligations once, through exactly one part, and
 reaches its parts by `contains`; a parent row and its part rows are therefore two
 views of one obligation and are not separate work.
 
-TM-001 separates four states and merges none of them: test-backed, backed only
+TM-001 separates five states and merges none of them: test-backed, backed only
 by an integration scenario, unbacked — verified by declared inspection or
-analysis with no test case at all — and unexecutable, meaning a backing exists
-and cannot be run today, which is neither passing nor failing. `FR-009-AC-3`,
+analysis with no test case at all — unexecutable, meaning a backing exists
+and cannot be run today, which is neither passing nor failing — and
+engine-bound, meaning a compiler-checked trace symbol actually resolves to the
+criterion. Test-backed and engine-bound are different words: the first says a
+criterion has somewhere to be tested, the second says something tests it. An
+earlier revision of this paragraph said four states and omitted engine-bound,
+while TM-001 defined it and reported it as the coverage figure. `FR-009-AC-3`,
 `NFR-007-AC-8` and `NFR-008-AC-8` each require an unexecutable obligation to be
 counted as a zero inside its denominator rather than omitted from it, and
 `NFR-005` denominates its metrics on owed scenarios for the same reason. `TC-014`
 is the highest authored test case and no matrix row cites a higher identifier.
 
-Rust tests will carry bare compiler-checked `ix-trace-rs` bindings to the exact
-local and upstream obligations.
+Rust tests carry bare compiler-checked `ix-trace-rs` bindings to the exact
+local and upstream obligations: a census over this head reports 198 tagged
+tests and 198 bare `#[trace(...)]` markers, none path-qualified. The future
+tense this sentence carried through an earlier revision was superseded by that
+run. What does not yet exist is the enforcement — nothing today fails when a
+test is added untagged or a marker is path-qualified. That obligation is
+`NFR-003-AC-5`'s, its sole declared verification is `TC-010`, and `TC-010` is
+owned by `Task-011`, which is `blocked`.
 
 ## 12. Verification Strategy
 
