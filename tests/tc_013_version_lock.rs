@@ -497,7 +497,7 @@ fn tc_013_entry_identity_is_only_owner_and_contract_version() {
 }
 
 #[test]
-#[trace("TC-013", "FR-009-AC-2", "FR-017-AC-4")]
+#[trace("TC-013", "FR-009-AC-2")]
 fn tc_013_refusal_axes_are_distinct_and_registered() {
     for (index, code) in ResolutionRefusalCode::ALL.iter().enumerate() {
         assert_eq!(
