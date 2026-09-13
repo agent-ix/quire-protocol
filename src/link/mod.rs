@@ -986,15 +986,28 @@ fn link_declarations(
                 &delivery.name,
             ),
         };
-        // No collision check on the key. `channel_identity` mixes `position`
-        // into the preimage, so two channels at two table positions cannot
-        // produce one `ChannelId`, and a check for it could never fire — the
-        // same argument that deleted the five below, reached one paragraph
-        // later. An earlier revision of this chunk kept the check, recorded a
-        // `CollidingIdentity { kind: Channel }` into the accumulator, and wrote
-        // a test asserting no such finding appeared; the test passed because
-        // the finding was unreachable, not because the skip above prevented it.
-        linked_channels.insert(identity, linked);
+        // The key is checked, and the finding is not dead code.
+        //
+        // `channel_identity` mixes `position` into the preimage, so two
+        // channels at two distinct positions normally cannot produce one
+        // `ChannelId` — which is why the five scans below were deleted as
+        // unreachable. This one is not quite in that class: `channel_identity`
+        // saturates the position with `u32::try_from(..).unwrap_or(u32::MAX)`,
+        // so every position at or past `u32::MAX` is written as `u32::MAX` and
+        // two of them with one message do collide.
+        //
+        // The reason to keep it is the cost of the alternative. Dropping the
+        // check does not drop a refusal; it turns one into a *silent
+        // overwrite*, because `BTreeMap::insert` replaces. The linker would
+        // return `Ok` with a channel missing from the representation and no
+        // diagnostic anywhere. One `is_some()` on a map insert buys that back,
+        // and it is O(1) rather than the quadratic scans that were deleted.
+        if linked_channels.insert(identity.clone(), linked).is_some() {
+            found.record(LinkRefusal::CollidingIdentity {
+                kind: IdentityKind::Channel,
+                identity: identity.identity_bytes().to_vec(),
+            });
+        }
     }
 
     // Only roles can collide.
@@ -1908,42 +1921,6 @@ mod tests {
         assert_eq!(diagnostics.to_string().lines().count(), 3);
     }
 
-    /// Past the ceiling the linker stops recording and says so.
-    ///
-    /// It keeps refusing, and it keeps refusing for the reasons already
-    /// recorded. The ceiling drops findings, never the refusal, and never
-    /// silently: `truncated` is the difference between "these are all of them"
-    /// and "these are the first thousand".
-    #[trace("TC-002", "Task-002")]
-    #[test]
-    fn tc_002_findings_past_the_ceiling_are_dropped_and_declared() {
-        let mut many = fixture();
-        let Body::Protocol { controls, .. } = &mut many[0].body else {
-            unreachable!("the fixture is a protocol")
-        };
-        for _ in 0..=diagnostics::CEILING {
-            controls.push(repeat_control("0"));
-        }
-
-        let diagnostics = link_declarations(&many, 0).expect_err("every repeat is zero");
-        assert_eq!(diagnostics.count(), diagnostics::CEILING);
-        assert!(diagnostics.truncated());
-        assert!(diagnostics.to_string().ends_with("reported here"));
-
-        // One under the ceiling is not truncated, so the flag tracks the
-        // ceiling rather than being set by the presence of many findings.
-        let mut fewer = fixture();
-        let Body::Protocol { controls, .. } = &mut fewer[0].body else {
-            unreachable!("the fixture is a protocol")
-        };
-        for _ in 0..diagnostics::CEILING - 1 {
-            controls.push(repeat_control("0"));
-        }
-        let diagnostics = link_declarations(&fewer, 0).expect_err("every repeat is zero");
-        assert_eq!(diagnostics.count(), diagnostics::CEILING - 1);
-        assert!(!diagnostics.truncated());
-    }
-
     /// Many findings still produce no linked representation.
     ///
     /// The two halves of `Task-002`'s requirement are one type: the accumulated
@@ -2044,7 +2021,14 @@ mod tests {
     /// package, identity and clause produced byte-identical role-instance,
     /// participant and channel identities. A consumer collecting from both into
     /// one map merged two unrelated parties.
-    #[trace("TC-002", "FR-002-AC-1")]
+    // `Task-002`, not `FR-002-AC-1`. Cross-package distinctness of *link-time*
+    // identities is what this establishes; AC-1 is about concurrent workflow
+    // instances, role instances, participants, duplicate deliveries and
+    // attempts retaining distinct identities at run time, which do not exist
+    // here. The module header 860 lines above already said none of these tests
+    // carries an AC-1 tag, and `spec/tests.md` repeated it — while this one
+    // did, and `quire coverage` counted FR-002 backed partly on it.
+    #[trace("TC-002", "Task-002")]
     #[test]
     fn tc_002_two_packages_do_not_share_identities() {
         let first = link_declarations(&fixture(), 0).expect("the fixture links");

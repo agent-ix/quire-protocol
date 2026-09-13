@@ -124,10 +124,17 @@ hundred per cent.
 ## Verification
 
 The three static metrics are read from the repository's own tracked Rust sources
-and are offline. They exclude documentation comments, which is why the two "0
-today" figures are stated as non-doc counts: the only `unwrap`, `expect` and
-`panic` occurrences in `src/` today are inside three doc comments, in
-`src/ids.rs` and `src/repro.rs`.
+and are offline. They exclude documentation comments **and `#[cfg(test)]`
+modules**, which is why the two "0 today" figures are stated as non-doc counts.
+
+An earlier revision of this paragraph said the only `unwrap`, `expect` and
+`panic` occurrences in `src/` were three doc comments in `src/ids.rs` and
+`src/repro.rs`. That was already false when written and is more so now:
+`src/link/mod.rs` alone carries 38, every one of them inside its
+`#[cfg(test)] mod tests`. A test that asserts `expect("the fixture links")` is
+not a refusal path, and counting it makes the metric fail against a denominator
+that was never what AC-4 is about. The exclusion is stated here rather than
+left to the reader of the count.
 
 The rendering control is a mutation: every `Display`, `Debug` and serialization
 impl reachable from a returned non-success value is replaced by a constant, and
@@ -201,9 +208,12 @@ Draft, and unexecuted. Nothing here asserts that any refusal has been observed.
   property of the returned value is therefore an obligation on a type that is
   planned, not a measurement of one that exists.
 - AC-3 and AC-4 are the two criteria measurable against the tree today, and both
-  hold trivially so far: `src/` contains no `println!` or `eprintln!` at all and
-  no non-doc `panic!`, `unwrap()` or `expect(`. That is a baseline worth
-  recording precisely because it is cheap to lose once the envelope lands.
+  hold so far: `src/` contains no `println!` or `eprintln!` at all, and outside
+  doc comments and `#[cfg(test)]` modules no `panic!`, `unwrap()` or `expect(`.
+  That is a baseline worth recording precisely because it is cheap to lose once
+  the envelope lands — and it was nearly lost by C-13, whose `Diagnostics::first`
+  carried an `expect` asserting an invariant the type did not enforce until the
+  type was reshaped to enforce it.
 - AC-1, AC-2, AC-6 depend on TC-011, which [TM-001](../tests.md) records as
   planned. AC-7 depends on TC-008, whose reproduction-record slice has executed
   and whose full mutation matrix has not.

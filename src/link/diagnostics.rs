@@ -69,27 +69,40 @@
 //!
 //! # How many findings one refusal may carry
 //!
-//! [`CEILING`] of them. The accumulation is bounded because an admitted artifact
-//! is large: A admits up to 100 000 entries, and a package with a mistake in
-//! every record would otherwise make this crate allocate one finding per record
-//! — turning a constant-size refusal into one that scales with the input. Past
-//! the ceiling the linker stops recording and sets [`Diagnostics::truncated`],
-//! which the rendering names. It still refuses, and it still refuses for the
-//! reasons already recorded: a ceiling drops findings, never the refusal.
+//! As many as the artifact has faulty records, and **no locally invented
+//! ceiling**.
 //!
-//! This is a bound on *this crate's own output*, not a caller-granted budget.
-//! `FR-016`'s dimensions are the ones a caller grants for a request, and the
-//! linker takes no budget today; when it does, this ceiling becomes one more
-//! thing that budget selects.
+//! This was not the first answer. A revision of this module capped the list at
+//! a `CEILING` of 1 000 and set a truncation flag past it, on the reasoning
+//! that A's `entries` limit of 100 000 makes a one-finding-per-record refusal
+//! scale with the input. That reasoning was wrong twice. `entries: 100_000` is
+//! A's `Limits::default()` — a grant the caller sets, not a cap — so the
+//! constant was derived from another repository's default, which is the
+//! mirroring `CLAUDE.md` forbids. And the constant itself is what `FR-016`
+//! Absence rules out in as many words: an ungranted dimension "is never
+//! defaulted to zero, to unbounded, to another dimension's grant, or to an
+//! ambient universal threshold". `FR-016` declares no diagnostic-count
+//! dimension, so under `CLAUDE.md` this is "the spec shows no owner → stop and
+//! ask", not a gap to fill with a round number.
+//!
+//! What is true without a ceiling: the accumulator holds at most one finding per
+//! record of an artifact A has **already admitted and already holds in memory**,
+//! so it grows with an input that is itself bounded by the caller's `entries`
+//! and `input-byte` grants. It is not an unbounded traversal of a
+//! server-supplied cursor.
+//!
+//! What is still owed: [`Accumulator`] is a caller-controlled retention site,
+//! and `NFR-002` requires every such site to appear in the resource inventory —
+//! `crate::bounds::inventory`, owner chunk **C-30**, today an empty stub. When
+//! C-30 lands, this site is charged through a granted dimension rather than
+//! capped here. Naming the obligation is this module's job; inventing the
+//! dimension is not.
 
 use std::fmt;
 
 use quire_spec_language::protocol_artifact::wire::Locus;
 
 use super::LinkRefusal;
-
-/// The most findings one refusal carries. See the module documentation.
-pub const CEILING: usize = 1_000;
 
 /// One or more construction-fatal findings from a single link attempt.
 ///
@@ -113,7 +126,6 @@ pub const CEILING: usize = 1_000;
 pub struct Diagnostics {
     first: LinkRefusal,
     rest: Vec<LinkRefusal>,
-    truncated: bool,
 }
 
 impl Diagnostics {
@@ -125,7 +137,6 @@ impl Diagnostics {
         Self {
             first: finding,
             rest: Vec::new(),
-            truncated: false,
         }
     }
 
@@ -135,18 +146,17 @@ impl Diagnostics {
         &self.first
     }
 
-    /// Every finding after the first, in the order the linker established them.
-    #[must_use]
-    pub fn rest(&self) -> &[LinkRefusal] {
-        &self.rest
-    }
-
     /// Every finding, in the order the linker established them.
+    ///
+    /// The only way to read past the first. There is no `rest` accessor: a
+    /// caller wanting all of them wants all of them, and the split into a field
+    /// and a vector is how non-emptiness is enforced, not a shape callers should
+    /// have to know about.
     pub fn iter(&self) -> impl Iterator<Item = &LinkRefusal> {
         std::iter::once(&self.first).chain(self.rest.iter())
     }
 
-    /// How many independent checks failed, up to [`CEILING`].
+    /// How many independent checks failed.
     ///
     /// Named `count` rather than `len`: a `len` on a type that cannot be empty
     /// invites an `is_empty` that always answers `false`, which is a question
@@ -154,14 +164,6 @@ impl Diagnostics {
     #[must_use]
     pub fn count(&self) -> usize {
         1 + self.rest.len()
-    }
-
-    /// Whether the linker stopped recording at [`CEILING`] findings.
-    ///
-    /// `true` means there were more; it never means the refusal is in doubt.
-    #[must_use]
-    pub const fn truncated(&self) -> bool {
-        self.truncated
     }
 
     /// Each finding that carries an original source region, with that region.
@@ -176,7 +178,7 @@ impl Diagnostics {
 
 impl fmt::Display for Diagnostics {
     /// The findings, one per line, each preceded by its source region when it
-    /// has one, and a final line when the list was truncated.
+    /// has one.
     ///
     /// A single finding renders as that finding's own text with no count and no
     /// list, so the common case reads as a sentence rather than as a report of
@@ -190,9 +192,6 @@ impl fmt::Display for Diagnostics {
                 Some(locus) => write!(f, "{}: {finding}", region(locus))?,
                 None => write!(f, "{finding}")?,
             }
-        }
-        if self.truncated {
-            write!(f, "\n... and more, beyond the {CEILING} reported here")?;
         }
         Ok(())
     }
@@ -226,22 +225,16 @@ fn region(locus: &Locus) -> String {
 #[derive(Debug, Default)]
 pub(super) struct Accumulator {
     findings: Vec<LinkRefusal>,
-    truncated: bool,
 }
 
 impl Accumulator {
     /// Record one independent finding and keep going.
     ///
-    /// Past [`CEILING`] the finding is dropped and the truncation recorded. The
-    /// traversal continues either way: stopping early would make the *presence*
-    /// of a later finding depend on how many earlier ones there were, and the
-    /// dependent-skip decisions below read resolved values, not the finding
-    /// count.
+    /// No cap, and no early return. See the module documentation: the bound
+    /// belongs to the resource inventory C-30 owns, and stopping early here
+    /// would make the *presence* of a later finding depend on how many earlier
+    /// ones there were.
     pub(super) fn record(&mut self, finding: LinkRefusal) {
-        if self.findings.len() >= CEILING {
-            self.truncated = true;
-            return;
-        }
         self.findings.push(finding);
     }
 
@@ -267,7 +260,6 @@ impl Accumulator {
         Some(Diagnostics {
             first,
             rest: findings.collect(),
-            truncated: self.truncated,
         })
     }
 }
