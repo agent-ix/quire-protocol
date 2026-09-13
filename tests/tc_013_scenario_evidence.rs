@@ -66,11 +66,16 @@ fn resolved_manifest() -> quire_protocol::version_lock::ResolvedManifest {
 }
 
 fn budget() -> Vec<BudgetFigure> {
-    vec![
-        BudgetFigure::new(BudgetDimension::ResolutionEntryCount, 1, 1),
-        BudgetFigure::new(BudgetDimension::ResolutionBytesDigested, 20, 20),
-        BudgetFigure::new(BudgetDimension::ResolutionDeadline, 1_000_000, 0),
-    ]
+    BudgetDimension::ALL
+        .iter()
+        .copied()
+        .map(|dimension| match dimension {
+            BudgetDimension::ResolutionEntryCount => BudgetFigure::new(dimension, 1, 1),
+            BudgetDimension::ResolutionBytesDigested => BudgetFigure::new(dimension, 20, 20),
+            BudgetDimension::ResolutionDeadline => BudgetFigure::new(dimension, 1_000_000, 0),
+            _ => BudgetFigure::new(dimension, 100, 0),
+        })
+        .collect()
 }
 
 fn refusal_record(
@@ -132,8 +137,38 @@ fn tc_013_scenario_record_carries_resolution_owner_outcome_budget_and_trace() {
         record.outcome(),
         EvidenceOutcome::CanonicalResult(_)
     ));
-    assert_eq!(record.budget().len(), 3);
+    assert_eq!(record.budget().len(), BudgetDimension::ALL.len());
+    assert!(BudgetDimension::ALL.iter().all(|dimension| record
+        .budget()
+        .iter()
+        .any(|figure| figure.dimension() == *dimension)));
     assert_eq!(record.trace().criterion().as_bytes(), b"NFR-005-AC-1");
+}
+
+#[test]
+#[trace("TC-013", "FR-017-AC-3", "FR-017-AC-5")]
+fn tc_013_scenario_record_refuses_each_missing_budget_dimension() {
+    let resolved = resolved_manifest();
+    for missing in BudgetDimension::ALL {
+        let incomplete = budget()
+            .into_iter()
+            .filter(|figure| figure.dimension() != *missing)
+            .collect();
+        let error = ScenarioEvidenceRecord::new(
+            ScenarioKey::new(IntegrationId::It003, b"IT-003-SC-08b").expect("scenario key"),
+            ResolutionEvidence::complete(&resolved),
+            vec![ValueOwner::new(b"observation-value-7", b"F").expect("value owner")],
+            EvidenceOutcome::CanonicalResult(ExactBytes::new(b"sha256-jcs:result")),
+            None,
+            incomplete,
+            TraceBinding::new(b"FR-017-AC-3").expect("trace binding"),
+        )
+        .expect_err("a scenario missing one declared budget dimension is unexecuted");
+        assert_eq!(
+            error,
+            quire_protocol::version_lock::evidence::EvidenceError::MissingBudgetDimension(*missing)
+        );
+    }
 }
 
 #[test]
@@ -227,13 +262,23 @@ fn tc_013_scenario_record_identity_is_only_integration_and_scenario() {
         "absent-entry",
         ResolutionRefusalCode::EntryAbsent,
     );
+    let changed_budget = budget()
+        .into_iter()
+        .map(|figure| {
+            if figure.dimension() == BudgetDimension::Operation {
+                BudgetFigure::new(BudgetDimension::Operation, 99, 12)
+            } else {
+                figure
+            }
+        })
+        .collect();
     let changed_state = ScenarioEvidenceRecord::new(
         first.key().clone(),
         ResolutionEvidence::complete(&resolved_manifest()),
         vec![ValueOwner::new(b"different-value", b"different-owner").expect("value owner")],
         EvidenceOutcome::CanonicalResult(ExactBytes::new(b"different-result")),
         None,
-        vec![BudgetFigure::new(BudgetDimension::Operation, 99, 12)],
+        changed_budget,
         TraceBinding::new(b"FR-017-AC-6").expect("trace binding"),
     )
     .expect("complete alternate state");

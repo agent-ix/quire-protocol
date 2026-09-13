@@ -131,9 +131,22 @@ impl ValueOwner {
     }
 }
 
-/// Every caller-facing budget dimension FR-016 declares.
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Hash)]
-pub enum BudgetDimension {
+macro_rules! define_budget_dimensions {
+    ($($dimension:ident),+ $(,)?) => {
+        /// Every caller-facing budget dimension FR-016 declares.
+        #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Hash)]
+        pub enum BudgetDimension {
+            $($dimension),+
+        }
+
+        impl BudgetDimension {
+            /// The complete FR-016 dimension population in declaration order.
+            pub const ALL: &[Self] = &[$(Self::$dimension),+];
+        }
+    };
+}
+
+define_budget_dimensions!(
     InputByte,
     Definition,
     Node,
@@ -154,7 +167,7 @@ pub enum BudgetDimension {
     ResolutionEntryCount,
     ResolutionBytesDigested,
     ResolutionDeadline,
-}
+);
 
 /// Granted and consumed figures for one dimension.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -258,6 +271,7 @@ pub enum EvidenceError {
     UnexpectedRefusalAxis,
     DuplicateValue(ExactBytes),
     DuplicateBudgetDimension(BudgetDimension),
+    MissingBudgetDimension(BudgetDimension),
     RefusalHasNoEntryCause,
 }
 
@@ -325,6 +339,11 @@ impl ScenarioEvidenceRecord {
                 .any(|other| other.dimension == figure.dimension)
             {
                 return Err(EvidenceError::DuplicateBudgetDimension(figure.dimension));
+            }
+        }
+        for dimension in BudgetDimension::ALL {
+            if !budget.iter().any(|figure| figure.dimension == *dimension) {
+                return Err(EvidenceError::MissingBudgetDimension(*dimension));
             }
         }
 
