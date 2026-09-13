@@ -97,22 +97,24 @@ The five words below are not interchangeable, and no total mixes them.
 
   ```
   $ quire coverage --scope /home/peter/dev/quire-protocol
-  Coverage: 23/322 rows backed (7%)
+  Coverage: 37/322 rows backed (11%)
   ```
 
-  Twenty-three rows: FR-001 3 of 5, FR-004 1 of 4, FR-006 1 of 8, FR-008 1 of 9,
-  FR-011 3 of 7, FR-015 3 of 5, FR-028 5 of 6, NFR-001 2 of 3, plus 4 of the 14
-  test-case rows.
+  Thirty-seven rows: FR-001 3 of 5, FR-002 3 of 5, FR-004 1 of 4, FR-005 1 of 5,
+  FR-006 1 of 8, FR-008 6 of 9, FR-011 3 of 7, FR-015 3 of 5, FR-028 5 of 6,
+  NFR-001 2 of 3, NFR-002 2 of 4, plus 7 of the 14 test-case rows.
 
-  FR-002 is 0 of 5, and was 1 of 5 until this measurement. The row that went is
-  `FR-002-AC-1`, which `tests/it001_native_handoff.rs` tagged. The owner has
-  ruled that criterion unresolved until runtime instance identities exist (issue
-  #4), so the tag is gone and the figure fell by one. It fell because the
-  measurement got more honest, not because anything stopped working: that test
-  is `#[ignore]`d, so the criterion was never checked by a run in the first
-  place.
+  FR-002 was 0 of 5 at the previous measurement and is 3 of 5 now. It had been 1
+  of 5 before that: the row that went was `FR-002-AC-1`, which
+  `tests/it001_native_handoff.rs` tagged, and the owner ruled that criterion
+  unresolved until runtime instance identities exist (issue #4), so the tag went
+  and the figure fell by one. It fell because the measurement got more honest,
+  not because anything stopped working — that test is `#[ignore]`d, so the
+  criterion was never checked by a run in the first place. The three now bound
+  are C-12's, from `src/link/` and `tests/tc_002_identities.rs`; `FR-002-AC-1`
+  is still not among them and stays unbound until #4 resolves.
 
-  The gap between 229 test-backed and 23 engine-bound is not a contradiction —
+  The gap between 229 test-backed and 37 engine-bound is not a contradiction —
   the two words mean different things, and the definitions above say so — but it
   is the number that says how much of this specification a test currently
   reaches. **Read it as the coverage figure.** "Test-backed" says a criterion has
@@ -347,8 +349,8 @@ a coverage claim in this matrix.
 Row counts, recomputed from the tree. Every matrix row above is counted exactly
 once, and `Blocked` means unexecutable — neither passing nor failing.
 
-Engine-measured binding, which is the figure to read for coverage, is 23 of 322
-rows (7%) — see **Engine-bound** above. The table below counts matrix rows and
+Engine-measured binding, which is the figure to read for coverage, is 37 of 322
+rows (11%) — see **Engine-bound** above. The table below counts matrix rows and
 their planned state; it does not measure binding.
 
 | Category | Total | Passed | Failed | Blocked | Planned |
@@ -371,8 +373,8 @@ fully blocked integration cannot score 100%. These totals follow that rule: the
 denominator is every authored acceptance criterion, and an unexecutable
 criterion is a zero inside it rather than a row removed from it.
 
-Engine-measured binding, which is the figure to read for coverage, is 23 of 322
-rows (7%) — see **Engine-bound** above. The table below counts matrix rows and
+Engine-measured binding, which is the figure to read for coverage, is 37 of 322
+rows (11%) — see **Engine-bound** above. The table below counts matrix rows and
 their planned state; it does not measure binding.
 
 | Category | Total | Passed | Failed | Blocked | Planned |
