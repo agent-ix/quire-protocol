@@ -32,6 +32,29 @@
 //!   A relation carrying the back edge has no linear extension at all, so
 //!   including it would report zero permitted interleavings for every loop.
 //!
+//! # Concurrency, not alternation
+//!
+//! **A linear extension is an interleaving only when every branch edge means
+//! concurrency.** That is the case for a parallel and for nothing else, and the
+//! distinction is not visible in the edges: A derives a `branch` edge from a
+//! control's `enter` to each sub-body and a `join` edge back, identically for
+//! `Parallel` and for `Choice`, and `Repeat` adds `branch` edges to its body
+//! and its exhausted arm. Those are **alternatives**. Ordering a choice's two
+//! cases against each other would report an order in which the protocol takes
+//! `ship` *and* `cancel`, which no run does.
+//!
+//! An earlier revision filtered `repeat_progress` and treated every other edge
+//! as precedence, with the domain restriction stated only in this prose. It
+//! computed exactly that false answer for any artifact carrying a choice,
+//! repeat or await, and no test called it on one, so the prose was never
+//! contradicted by a run. [`interleavings`] now takes the control shapes and
+//! refuses such an edge set through [`Exclusive`]; the unrestricted graph
+//! walk is [`linear_extensions`], which claims nothing about runs.
+//!
+//! Enumerating the runs of a choice or a bounded repeat is a different
+//! obligation with a different owner — `FR-053` and `FR-052`'s bounded
+//! progress — and this module does not quietly stand in for it.
+//!
 //! # Bound
 //!
 //! There is none, and none is invented. The count of linear extensions is
@@ -46,27 +69,70 @@
 
 use std::collections::BTreeSet;
 
-use super::EdgeShape;
+use quire_spec_language::protocol_artifact::wire::EdgeKind;
+
+use super::{ControlShape, EdgeShape};
 
 /// One control endpoint: A's node index and its port.
 ///
 /// The same pair [`EdgeShape`] carries, not a second spelling of it.
 pub(super) type Endpoint = (u32, &'static str);
 
-/// A's own spelling of the cyclic back edge.
-const REPEAT_PROGRESS: &str = "repeat_progress";
+/// The edge set spans a control whose branches are alternatives.
+///
+/// Returned rather than filtered away: dropping the control's edges would
+/// answer a question about a *different* graph, and answering it silently is
+/// how the earlier revision was wrong.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) struct Exclusive {
+    /// The control's index in A's control table.
+    pub control: u32,
+    /// Its operation kind, as [`ControlShape`] spells it.
+    pub kind: &'static str,
+}
 
-/// Every permitted interleaving of the endpoints these edges relate.
+/// Every permitted interleaving of a purely concurrent edge set.
 ///
 /// One linear extension per element, each a total order over every endpoint the
 /// edge set mentions. The outer order is deterministic: candidates are tried in
 /// endpoint order, so two runs and two hosts produce the same list.
 ///
-/// An empty result means the acyclic relation has a cycle. A refuses a cyclic
+/// Refuses with [`Exclusive`] when any control the edges reach admits
+/// alternatives rather than concurrency — see the module documentation.
+///
+/// An empty `Ok` means the acyclic relation has a cycle. A refuses a cyclic
 /// edge set inside `read`, so an admitted artifact cannot produce one; a
 /// hand-built fixture can, and this says so by returning nothing rather than
 /// by looping.
-pub(super) fn interleavings(edges: &[EdgeShape]) -> Vec<Vec<Endpoint>> {
+pub(super) fn interleavings(
+    controls: &[ControlShape],
+    edges: &[EdgeShape],
+) -> Result<Vec<Vec<Endpoint>>, Exclusive> {
+    for (index, control) in controls.iter().enumerate() {
+        let index = u32::try_from(index).expect("A's control table is indexed by u32");
+        if !control.admits_alternatives() {
+            continue;
+        }
+        if edges
+            .iter()
+            .any(|edge| edge.from.0 == index || edge.to.0 == index || edge.owner == index)
+        {
+            return Err(Exclusive {
+                control: index,
+                kind: control.kind(),
+            });
+        }
+    }
+    Ok(linear_extensions(edges))
+}
+
+/// Every linear extension of the acyclic half of an edge set.
+///
+/// The graph walk with no claim attached: a linear extension of a relation
+/// containing a choice's branch edges is a well-defined order over that
+/// relation and is **not** a run of the protocol. [`interleavings`] is the
+/// entry point that asserts the difference.
+pub(super) fn linear_extensions(edges: &[EdgeShape]) -> Vec<Vec<Endpoint>> {
     let mut endpoints: BTreeSet<Endpoint> = BTreeSet::new();
     for edge in edges {
         endpoints.insert(edge.from);
@@ -82,10 +148,13 @@ pub(super) fn interleavings(edges: &[EdgeShape]) -> Vec<Vec<Endpoint>> {
 }
 
 /// The acyclic half of A's edge set, as ordered pairs.
+///
+/// The excluded kind is A's own [`EdgeKind::RepeatProgress`], asked for by its
+/// published spelling rather than by a literal repeated here.
 pub(super) fn precedence(edges: &[EdgeShape]) -> Vec<(Endpoint, Endpoint)> {
     edges
         .iter()
-        .filter(|edge| edge.kind != REPEAT_PROGRESS)
+        .filter(|edge| edge.kind != EdgeKind::RepeatProgress.as_str())
         .map(|edge| (edge.from, edge.to))
         .collect()
 }
@@ -123,11 +192,19 @@ mod tests {
 
     use super::*;
 
+    /// One control shape, with the field the guard reads.
+    fn control(kind: &'static str) -> ControlShape {
+        ControlShape {
+            kind,
+            indices: Vec::new(),
+        }
+    }
+
     /// One edge, with the fields the order is computed from.
     fn edge(kind: &'static str, from: Endpoint, to: Endpoint) -> EdgeShape {
         EdgeShape {
             kind,
-            owner: 0,
+            owner: from.0,
             from,
             to,
             maximum: None,
@@ -151,7 +228,7 @@ mod tests {
         ];
 
         assert_eq!(
-            interleavings(&edges),
+            linear_extensions(&edges),
             [
                 vec![left.0, left.1, right.0, right.1],
                 vec![left.0, right.0, left.1, right.1],
@@ -172,27 +249,79 @@ mod tests {
             edge("sequence", (1, "exit"), (1, "enter")),
         ];
 
-        assert!(interleavings(&edges).is_empty());
+        assert!(linear_extensions(&edges).is_empty());
     }
 
     /// The repeat back edge is excluded, so a bounded loop still orders.
     ///
     /// With `repeat_progress` in the relation this graph is the cycle above and
     /// reports nothing; A publishes that edge as the explicit cyclic one, so it
-    /// is the one edge the acyclic order leaves out.
+    /// is the one edge the acyclic order leaves out. The kind is asked for by
+    /// `EdgeKind::RepeatProgress.as_str()` on both sides, so a rename upstream
+    /// moves the filter and this fixture together instead of silently
+    /// un-filtering the edge.
     #[trace("TC-002", "FR-002-AC-2")]
     #[test]
     fn tc_002_the_repeat_back_edge_is_not_an_ordering() {
+        let back = EdgeKind::RepeatProgress.as_str();
         let edges = [
             edge("branch", (0, "enter"), (1, "enter")),
             edge("sequence", (1, "enter"), (1, "exit")),
-            edge("repeat_progress", (1, "exit"), (0, "enter")),
+            edge(back, (1, "exit"), (0, "enter")),
         ];
 
         assert_eq!(
-            interleavings(&edges),
+            linear_extensions(&edges),
             [vec![(0, "enter"), (1, "enter"), (1, "exit")]]
         );
         assert_eq!(precedence(&edges).len(), 2);
+    }
+
+    /// A choice's two cases are alternatives, and ordering them is refused.
+    ///
+    /// This is the smallest graph that shows why the guard exists. The edges
+    /// are exactly what A derives for a two-case choice, and they are
+    /// indistinguishable from a two-branch parallel's: `branch` out to each
+    /// case, `join` back from each. Every linear extension of that relation
+    /// places both `(1, "exit")` and `(2, "exit")`, so every one of them
+    /// describes a run taking `ship` **and** `cancel`.
+    ///
+    /// So the enumerator is not asked. [`interleavings`] reads the control kind
+    /// and returns [`Exclusive`], and the false orders below are shown through
+    /// [`linear_extensions`] — which promises only a topological order — to
+    /// record what the guard is preventing rather than to assert it is right.
+    #[trace("TC-002", "FR-002-AC-2")]
+    #[test]
+    fn tc_002_a_choice_is_refused_and_its_orders_would_run_both_cases() {
+        let edges = [
+            edge("branch", (0, "enter"), (1, "enter")),
+            edge("branch", (0, "enter"), (2, "enter")),
+            edge("sequence", (1, "enter"), (1, "exit")),
+            edge("sequence", (2, "enter"), (2, "exit")),
+            edge("join", (1, "exit"), (0, "exit")),
+            edge("join", (2, "exit"), (0, "exit")),
+        ];
+        let choice = [control("choice"), control("check"), control("check")];
+        let parallel = [control("parallel"), control("check"), control("check")];
+
+        assert_eq!(
+            interleavings(&choice, &edges),
+            Err(Exclusive {
+                control: 0,
+                kind: "choice",
+            })
+        );
+
+        // The identical edge set under a parallel is enumerated: the edges did
+        // not change, the control kind did, and that is the whole distinction.
+        let orders = interleavings(&parallel, &edges).expect("a parallel admits interleavings");
+        assert_eq!(orders.len(), 6, "C(4, 2) merges of two two-step chains");
+
+        for order in &orders {
+            assert!(
+                order.contains(&(1, "exit")) && order.contains(&(2, "exit")),
+                "an order over a choice's edges runs both cases: {order:?}"
+            );
+        }
     }
 }
