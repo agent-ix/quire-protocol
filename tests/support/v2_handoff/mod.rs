@@ -10,13 +10,13 @@
 //! offer is carried to `admit_and_link_v2` untouched and has no authority to
 //! select or repair any expectation.
 //!
-//! The record shapes below are the *envelope* of A's sidecar and mutation
-//! manifest, which A publishes as JSON but not as a Rust type. Every field
-//! inside them is an A-owned published type (`protocol_artifact::wire::*`,
-//! `protocol_artifact::v2::wire::*`); this module declares no protocol
-//! vocabulary of its own. See `missing_a_api()` for what B owes A here.
+//! The sidecar and mutation-manifest record shapes are A's own published types
+//! (`protocol_artifact::handoff`), decoded here rather than re-declared, and
+//! refusal identities come from A's `Error::code`. This module declares no
+//! protocol vocabulary of its own.
 
 use std::{
+    collections::BTreeSet,
     env, fmt, fs,
     path::{Path, PathBuf},
 };
@@ -29,7 +29,6 @@ use quire_spec_language::{
     protocol_artifact::{self as artifact, v2, wire as w},
     ByteDigest, Source, SourceIdentity,
 };
-use serde::Deserialize;
 
 /// Directory holding A's `/2` handoff, as published by its release producer.
 pub const FIXTURE_ENV: &str = "QUIRE_PROTOCOL_A_V2_HANDOFF";
@@ -39,6 +38,8 @@ pub const OFFER_FILE: &str = "compiled-protocol-v2.json";
 pub const REFERENCE_FILE: &str = "compiled-protocol-v2.ref.json";
 pub const SELECTION_FILE: &str = "expected-v2.json";
 pub const MUTATION_MANIFEST_FILE: &str = "mutations/manifest.json";
+/// The published checksum manifest covering every other member.
+pub const CHECKSUM_FILE: &str = "SHA256SUMS";
 
 /// The mutation manifest envelope version this reader accepts.
 pub const MUTATION_FORMAT: &str = "quire.protocol.v2-mutations/1";
@@ -67,6 +68,20 @@ pub enum Absence {
     /// The selection names an accounting contract whose counters B does not
     /// interpret, so its ceilings cannot be carried over.
     AccountingVersion { named: String },
+    /// A selected ceiling is wider than this platform's `usize`, so B cannot
+    /// run under the budget A selected.
+    LimitWidth { field: &'static str, value: u64 },
+    /// A checksum manifest line is not `<64 hex>  <path>`.
+    ChecksumLine { line: String },
+    /// A published member does not hash to its checksum-manifest digest.
+    Checksum {
+        relative: String,
+        listed: String,
+        actual: String,
+    },
+    /// A file is present in the handoff but absent from the checksum manifest,
+    /// so it carries no published integrity claim.
+    Unlisted { relative: String },
     /// Two temporal selections name one clock identity.
     RepeatedClockIdentity { identity: String },
     /// A retained original input does not hash to the identity the sidecar
@@ -111,6 +126,11 @@ impl fmt::Display for Absence {
                  not {}",
                 artifact::ACCOUNTING_VERSION
             ),
+            Self::LimitWidth { field, value } => write!(
+                f,
+                "the independent selection's {field} ceiling {value} exceeds \
+                 this platform's usize"
+            ),
             Self::InputDigest {
                 role,
                 path,
@@ -122,6 +142,20 @@ impl fmt::Display for Absence {
                  selection names {selected}",
                 path.display()
             ),
+            Self::ChecksumLine { line } => {
+                write!(f, "{CHECKSUM_FILE} line is malformed: {line:?}")
+            }
+            Self::Checksum {
+                relative,
+                listed,
+                actual,
+            } => write!(
+                f,
+                "{relative} hashes to {actual}, but {CHECKSUM_FILE} lists {listed}"
+            ),
+            Self::Unlisted { relative } => {
+                write!(f, "{relative} is present but not listed in {CHECKSUM_FILE}")
+            }
             Self::RepeatedClockIdentity { identity } => {
                 write!(f, "two temporal selections name clock identity {identity}")
             }
@@ -133,163 +167,47 @@ impl fmt::Display for Absence {
 }
 
 // ---------------------------------------------------------------------------
-// A's sidecar envelope
+// A's published handoff envelopes
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct SelectedDeclaration {
-    pub name: String,
-    pub span: w::Span,
-    pub requirement: w::Requirement,
-    pub clause: String,
-    pub execution: w::Execution,
-}
+// `expected-v2.json` and `mutations/manifest.json` are A's record shapes, and A
+// publishes them as `protocol_artifact::handoff`. B decodes those types; it
+// declares no envelope of its own, so a producer-side field change is a compile
+// error here rather than a silent divergence.
+pub use artifact::handoff::{
+    MutationInput, MutationManifest, SelectedArtifactLimits, SelectedDeclaration, SelectedModel,
+    SelectionV2,
+};
 
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct SelectedSource {
-    pub file: String,
-    pub source: w::Source,
-    pub declarations: Vec<SelectedDeclaration>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct SelectedDependency {
-    pub artifact: w::ArtifactRef,
-    pub file: String,
-    pub requires: Vec<w::ArtifactRef>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct SelectedModel {
-    pub artifact: w::ArtifactRef,
-    pub source: w::Source,
-    pub source_file: String,
-    pub source_format: String,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct Selection {
-    pub artifact: w::ArtifactRef,
-    pub contract: w::ArtifactRef,
-    pub baseline: w::ArtifactRef,
-    pub producer: w::Producer,
-    pub language: w::Language,
-    pub sources: Vec<SelectedSource>,
-    pub dependencies: Vec<SelectedDependency>,
-    pub model: SelectedModel,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct SelectedClockInput {
-    pub identity: String,
-    pub digest: String,
-    pub file: String,
-    pub configuration: v2::wire::ClockConfiguration,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct SelectedTemporal {
-    pub source: w::ArtifactRef,
-    pub declaration: SelectedDeclaration,
-    pub definition_identity: String,
-    pub definition_revision: w::Revision,
-    pub definition_artifact: w::ArtifactRef,
-    pub clock_input: SelectedClockInput,
-}
-
-/// A's selected artifact ceilings. Deserialised into A's own `Limits`; the
-/// `accounting_version` is carried so a changed accounting contract is visible
-/// rather than silently reinterpreted.
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct SelectedLimits {
-    pub accounting_version: String,
-    pub payload_bytes: usize,
-    pub output_bytes: usize,
-    pub source_bytes: usize,
-    pub content_bytes: usize,
-    pub sources: usize,
-    pub dependencies: usize,
-    pub definitions: usize,
-    pub models: usize,
-    pub declarations: usize,
-    pub entries: usize,
-    pub references: usize,
-    pub byte_work: usize,
-    pub depth: usize,
-}
-
-impl SelectedLimits {
-    /// A's accepted ceiling record, with no member left to a local default.
-    pub fn limits(&self) -> artifact::Limits {
-        artifact::Limits {
-            payload_bytes: self.payload_bytes,
-            output_bytes: self.output_bytes,
-            source_bytes: self.source_bytes,
-            content_bytes: self.content_bytes,
-            sources: self.sources,
-            dependencies: self.dependencies,
-            definitions: self.definitions,
-            models: self.models,
-            declarations: self.declarations,
-            entries: self.entries,
-            references: self.references,
-            byte_work: self.byte_work,
-            depth: self.depth,
-        }
+/// A's selected ceilings as this platform's `Limits`.
+///
+/// The published record is fixed-width `u64`. A ceiling wider than `usize` here
+/// cannot be honoured, so it is refused rather than truncated into a smaller
+/// budget that would report exhaustion A never selected.
+fn selected_limits(selected: &SelectedArtifactLimits) -> Result<artifact::Limits, Absence> {
+    macro_rules! native {
+        ($field:ident) => {
+            usize::try_from(selected.$field).map_err(|_| Absence::LimitWidth {
+                field: stringify!($field),
+                value: selected.$field,
+            })?
+        };
     }
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct SelectionV2 {
-    pub inherited: Selection,
-    pub temporal: Vec<SelectedTemporal>,
-    pub limits: SelectedLimits,
-}
-
-// ---------------------------------------------------------------------------
-// A's mutation corpus envelope
-// ---------------------------------------------------------------------------
-
-#[derive(Clone, Debug, Deserialize)]
-#[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
-pub enum MutationInput {
-    /// Submit these bytes in place of the base offer, under the named
-    /// independently selected external artifact reference.
-    Offer {
-        file: String,
-        artifact: w::ArtifactRef,
-    },
-    /// Replace one retained original input's bytes, then submit the unchanged
-    /// base offer.
-    ReplaceOriginal { target: String, file: String },
-}
-
-#[derive(Clone, Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct MutationCase {
-    pub identity: String,
-    pub axis: String,
-    pub input: MutationInput,
-    pub expected_refusal_code: String,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct MutationManifest {
-    pub format: String,
-    pub base_offer: String,
-    pub base_artifact: String,
-    pub independent_selection: String,
-    pub cases: Vec<MutationCase>,
+    Ok(artifact::Limits {
+        payload_bytes: native!(payload_bytes),
+        output_bytes: native!(output_bytes),
+        source_bytes: native!(source_bytes),
+        content_bytes: native!(content_bytes),
+        sources: native!(sources),
+        dependencies: native!(dependencies),
+        definitions: native!(definitions),
+        models: native!(models),
+        declarations: native!(declarations),
+        entries: native!(entries),
+        references: native!(references),
+        byte_work: native!(byte_work),
+        depth: native!(depth),
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -303,6 +221,8 @@ pub struct Handoff {
     offer: Vec<u8>,
     reference: w::ArtifactRef,
     selection: SelectionV2,
+    /// A's selected ceilings, narrowed to this platform once at load.
+    limits: artifact::Limits,
     mutations: MutationManifest,
     /// Original source text per `selection.inherited.sources`, in that order.
     source_text: Vec<String>,
@@ -325,6 +245,7 @@ impl Handoff {
         if !root.is_dir() {
             return Err(Absence::MissingRoot(root.to_path_buf()));
         }
+        verify_checksums(root)?;
         let offer = read_member(root, OFFER_FILE, "offer")?;
         let reference: w::ArtifactRef = read_json(root, REFERENCE_FILE, "artifact reference")?;
         let selection: SelectionV2 = read_json(root, SELECTION_FILE, "independent selection")?;
@@ -362,6 +283,7 @@ impl Handoff {
                 named: selection.limits.accounting_version.clone(),
             });
         }
+        let limits = selected_limits(&selection.limits)?;
 
         // The sidecar is an independent selection, not an oracle: every identity
         // it names is checked against the original bytes A also published. A
@@ -430,13 +352,14 @@ impl Handoff {
             clock_identities.push(identity);
         }
 
-        let model = admit_model(&selection.inherited.model, &model_source_bytes, &selection)?;
+        let model = admit_model(&selection.inherited.model, &model_source_bytes, limits)?;
 
         Ok(Self {
             root: root.to_path_buf(),
             offer,
             reference,
             selection,
+            limits,
             mutations,
             source_text,
             dependency_bytes,
@@ -469,7 +392,7 @@ impl Handoff {
 
     /// A's accepted ceilings for this handoff.
     pub fn limits(&self) -> artifact::Limits {
-        self.selection.limits.limits()
+        self.limits
     }
 
     /// Read a mutation fixture's bytes.
@@ -654,43 +577,15 @@ pub struct Inventories<'a> {
 
 /// Whether `error` is the refusal A's manifest declares as `code`.
 ///
-/// `v2::Refusal` publishes its own stable `code()`. The two codes A's corpus
-/// declares outside that enum — a closed-shape JSON refusal and a seal refusal —
-/// have no published accessor on `artifact::Error`, so they are matched against
-/// A's typed variants here rather than against a rendered message. This is a
-/// reading of A's declared identities, not a B-owned code vocabulary; see
-/// `missing_a_api()`.
+/// The identity is A's own `Error::code`, which covers every axis; B neither
+/// matches on a variant nor parses a rendered message.
 pub fn matches_declared_code(error: &artifact::Error, code: &str) -> bool {
-    match code {
-        "json" => matches!(error, artifact::Error::Json { .. }),
-        "invalid.seal" => matches!(error, artifact::Error::Invalid(artifact::Invalid::Seal)),
-        _ => matches!(error, artifact::Error::V2(refusal) if refusal.code() == code),
-    }
+    error.code() == code
 }
 
-/// The refusal identity B can report for `error`, for a failure message.
-pub fn reported_code(error: &artifact::Error) -> String {
-    match error {
-        artifact::Error::V2(refusal) => refusal.code().to_owned(),
-        artifact::Error::Json { .. } => "json".to_owned(),
-        artifact::Error::Invalid(artifact::Invalid::Seal) => "invalid.seal".to_owned(),
-        other => format!("{other:?}"),
-    }
-}
-
-/// What B needs from A that the handoff does not publish. Reported to A rather
-/// than filled in locally.
-pub const fn missing_a_api() -> [&'static str; 2] {
-    [
-        "expected-v2.json and mutations/manifest.json have no published Rust \
-         type: their envelope is declared only inside A's example, so every \
-         consumer re-declares it. B asks A to publish the two envelope records \
-         from the library.",
-        "protocol_artifact::Error publishes no stable code accessor, so the \
-         `json` and `invalid.seal` identities A's corpus declares can only be \
-         matched by variant. B asks A for `Error::code()` alongside \
-         `v2::Refusal::code()`.",
-    ]
+/// The refusal identity A reports for `error`, for a failure message.
+pub fn reported_code(error: &artifact::Error) -> &'static str {
+    error.code()
 }
 
 // ---------------------------------------------------------------------------
@@ -705,6 +600,77 @@ fn expected_declaration(selected: &SelectedDeclaration) -> artifact::ExpectedDec
         clause: &selected.clause,
         execution: &selected.execution,
     }
+}
+
+/// Verify A's published checksum manifest before any member is trusted.
+///
+/// Every listed member must hash to its listed digest, and every file the
+/// handoff carries must be listed: an unlisted file — a mutation fixture above
+/// all — would otherwise be submitted to the reader with no published integrity
+/// claim behind it.
+fn verify_checksums(root: &Path) -> Result<(), Absence> {
+    let text = read_member(root, CHECKSUM_FILE, "checksum manifest")?;
+    let text = String::from_utf8(text).map_err(|error| Absence::Unreadable {
+        path: root.join(CHECKSUM_FILE),
+        cause: error.to_string(),
+    })?;
+
+    let mut listed = BTreeSet::new();
+    for line in text.lines().filter(|line| !line.trim().is_empty()) {
+        let (digest, name) = line
+            .split_once("  ")
+            .filter(|(digest, name)| {
+                digest.len() == 64
+                    && digest.bytes().all(|b| b.is_ascii_hexdigit())
+                    && !name.is_empty()
+            })
+            .ok_or_else(|| Absence::ChecksumLine {
+                line: line.to_owned(),
+            })?;
+        let relative = name.strip_prefix("./").unwrap_or(name).to_owned();
+        let bytes = read_member(root, &relative, "checksummed")?;
+        let actual = format!("{:x}", ByteDigest::of(&bytes));
+        if actual != digest {
+            return Err(Absence::Checksum {
+                relative,
+                listed: digest.to_owned(),
+                actual,
+            });
+        }
+        listed.insert(relative);
+    }
+
+    for present in published_files(root, root)? {
+        if present != CHECKSUM_FILE && !listed.contains(&present) {
+            return Err(Absence::Unlisted { relative: present });
+        }
+    }
+    Ok(())
+}
+
+/// Every file under `directory`, as a handoff-relative slash-separated path.
+fn published_files(root: &Path, directory: &Path) -> Result<Vec<String>, Absence> {
+    let unreadable = |error: std::io::Error| Absence::Unreadable {
+        path: directory.to_path_buf(),
+        cause: error.to_string(),
+    };
+    let mut found = Vec::new();
+    for entry in fs::read_dir(directory).map_err(unreadable)? {
+        let path = entry.map_err(unreadable)?.path();
+        if path.is_dir() {
+            found.extend(published_files(root, &path)?);
+        } else {
+            let relative = path.strip_prefix(root).unwrap_or(&path);
+            found.push(
+                relative
+                    .components()
+                    .map(|part| part.as_os_str().to_string_lossy().into_owned())
+                    .collect::<Vec<_>>()
+                    .join("/"),
+            );
+        }
+    }
+    Ok(found)
 }
 
 fn read_member(root: &Path, relative: &str, role: &str) -> Result<Vec<u8>, Absence> {
@@ -752,7 +718,7 @@ fn check_digest(
 fn admit_model(
     selected: &SelectedModel,
     bytes: &[u8],
-    selection: &SelectionV2,
+    limits: artifact::Limits,
 ) -> Result<NativeModel, Absence> {
     let source = Source::read(
         SourceIdentity {
@@ -761,7 +727,7 @@ fn admit_model(
         },
         selected.source.path.clone(),
         bytes,
-        selection.limits.source_bytes,
+        limits.source_bytes,
     )
     .map_err(|error| Absence::Model {
         cause: error.to_string(),

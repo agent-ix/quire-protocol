@@ -34,11 +34,9 @@ fn the_v2_handoff_lane_reports_its_state_to_the_gate() {
             // No handoff on this machine: SC-06..SC-09 unexecuted, and nothing
             // claimed about A.
         }
-        Err(absence) => panic!(
-            "a /2 handoff was configured but could not be assembled: {absence}.\n\
-             What B still needs from A:\n  - {}",
-            handoff::missing_a_api().join("\n  - ")
-        ),
+        Err(absence) => {
+            panic!("a /2 handoff was configured but could not be assembled: {absence}")
+        }
         Ok(loaded) => {
             assert!(
                 !loaded.offer().is_empty(),
@@ -252,9 +250,9 @@ fn configured() -> Option<Handoff> {
 }
 
 /// `None` when the outcome is the declared refusal; otherwise what was observed.
-fn outcome(report: artifact::Report<v2::AdmittedPackage>, declared: &str) -> Option<String> {
+fn outcome(report: artifact::Report<v2::AdmittedPackage>, declared: &str) -> Option<&'static str> {
     match report.result() {
-        Ok(_) => Some("admission".to_owned()),
+        Ok(_) => Some("admission"),
         Err(error) if handoff::matches_declared_code(error, declared) => None,
         Err(error) => Some(handoff::reported_code(error)),
     }
