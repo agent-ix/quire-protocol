@@ -3,7 +3,7 @@ id: SR-037
 title: "Gap analysis — Plan-001 on agent-b/it001-v2-intake"
 type: SpecReview
 analysis: gap-analysis
-scope: "plan/Plan-001-finite-protocol-rust-slice/, spec/tests.md, src/, tests/"
+scope: "plan/Plan-001-finite-protocol-rust-slice/, spec/tests.md, src/, tests/, as they stood at 4a10925"
 review_set: subset
 relationships:
   - { target: "ix://agent-ix/quire-protocol/Plan-001", type: reviews }

@@ -3,7 +3,7 @@ id: SR-040
 title: "Dependency review of the /2 version-explicit intake lane"
 type: SpecReview
 analysis: dependency
-scope: "IT-001 SC-06..SC-09, FR-001, FR-002, Task-009, tests/support/v2/mod.rs, tests/it001_v2_intake.rs"
+scope: "IT-001 SC-06..SC-09, FR-001, FR-002, Task-009, tests/support/v2/mod.rs, tests/it001_v2_intake.rs, as they stood at 3d2f789"
 review_set: all
 relationships:
   - { target: ix://agent-ix/quire-protocol/IT-001, type: reviews }

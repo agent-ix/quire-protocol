@@ -3,7 +3,7 @@ id: SR-044
 title: "EARS conformance review of the /2 version-explicit intake scenarios and their requirement statements"
 type: SpecReview
 analysis: ears-conformance
-scope: "IT-001 scenarios SC-06..SC-09 and the requirement statements they lean on in FR-001, FR-002 and FR-008, as they stand in the agent-b/it001-v2-intake working tree (including the FR-001-AC-5 / FR-002-AC-5 amendments)"
+scope: "IT-001 scenarios SC-06..SC-09 and the requirement statements they lean on in FR-001, FR-002 and FR-008, as they stand in the agent-b/it001-v2-intake working tree (including the FR-001-AC-5 / FR-002-AC-5 amendments), as they stood at 3d2f789"
 review_set: all
 relationships:
   - { target: ix://agent-ix/quire-protocol/IT-001, type: reviews }

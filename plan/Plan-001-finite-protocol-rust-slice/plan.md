@@ -96,7 +96,7 @@ by downstream integrations; no adapter may introduce another semantic model.
 
 ### Integration Tests
 
-- [ ] **IT-001 SC-01..SC-05** (FR-001, FR-002): consume the accepted native compiler artifact without a local parser, numeric loss, digest-domain substitution, or identity reinterpretation.
+- [ ] **IT-001 SC-01..SC-09** (FR-001, FR-002, NFR-002, NFR-007): consume the accepted native compiler artifact without a local parser, numeric loss, digest-domain substitution, or identity reinterpretation. Task-009 owns the `/1` contract and SC-01..SC-05; Task-012 owns the `/2` contract and SC-06..SC-09.
 - [ ] **IT-002 SC-01..SC-04** (FR-003, FR-004, FR-006): consume accepted observation and temporal facts without duplicating their producer semantics.
 - [ ] **IT-003 SC-01..SC-05** (FR-006, FR-007, NFR-003): publish typed results through Engineering Assurance, E02, and Quoin without a local runner, transcript parser, or evidence store.
 

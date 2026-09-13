@@ -3,7 +3,7 @@ id: SR-031
 title: "EARS conformance review of native compiler IT-001 intake"
 type: SpecReview
 analysis: ears-conformance
-scope: "FR-001, FR-002, IT-001"
+scope: "FR-001, FR-002, IT-001, as they stood at 2e95ec4"
 review_set: all
 ---
 ## Summary

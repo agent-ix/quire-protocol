@@ -13,10 +13,12 @@
 //
 // Every module the planned chunk set needs is declared here in one commit so
 // that no later PR has to edit this file to introduce its module (COLLISION-1).
-// Each module below is empty and documents the chunk that owns its body; a
-// module is declared here only so that its owner can fill it without touching
-// the facade. After this commit `src/lib.rs` changes only to append a
-// re-export, in the module order established here.
+// Each module below documents the chunk that owns its body; a module was
+// declared here only so that its owner could fill it without touching the
+// facade. Several owners have since done so, so this is a reservation record,
+// not a claim that the modules are empty. After the reserving commit
+// `src/lib.rs` changes only to append a re-export, in the module order
+// established here.
 // ---------------------------------------------------------------------------
 
 /// Count, allocation and deadline guards. Owner chunk: C-29 (submodule: C-30).

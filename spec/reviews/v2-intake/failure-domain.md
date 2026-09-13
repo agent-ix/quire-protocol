@@ -3,7 +3,7 @@ id: SR-038
 title: "Failure-domain review of the version-explicit /2 intake lane"
 type: SpecReview
 analysis: failure-domain
-scope: "spec/integration/IT-001-consume-native-protocol-artifact.md scenarios IT-001-SC-06..SC-09; FR-001, FR-002, FR-008, NFR-002, NFR-004; plan/Plan-001-finite-protocol-rust-slice/tasks/Task-009-integrate-native-compiler.md; as authored in tests/support/v2/mod.rs and tests/it001_v2_intake.rs on agent-b/it001-v2-intake over 992904e"
+scope: "spec/integration/IT-001-consume-native-protocol-artifact.md scenarios IT-001-SC-06..SC-09; FR-001, FR-002, FR-008, NFR-002, NFR-004; plan/Plan-001-finite-protocol-rust-slice/tasks/Task-009-integrate-native-compiler.md; as authored in tests/support/v2/mod.rs and tests/it001_v2_intake.rs on agent-b/it001-v2-intake over 992904e, as they stood at 3d2f789"
 review_set: all
 relationships:
   - { target: ix://agent-ix/quire-protocol/IT-001, type: reviews }

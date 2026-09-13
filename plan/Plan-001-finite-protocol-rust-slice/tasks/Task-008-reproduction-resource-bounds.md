@@ -2,7 +2,7 @@
 id: Task-008
 title: "Enforce reproduction and resource bounds"
 type: Task
-status: blocked
+status: in_progress
 track: A
 priority: P0
 relationships:

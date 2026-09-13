@@ -3,7 +3,7 @@ id: SR-039
 title: "Integrity review of the IT-001 /2 version-explicit intake scenarios"
 type: SpecReview
 analysis: integrity
-scope: "spec/integration/IT-001-consume-native-protocol-artifact.md SC-06..SC-09; FR-001; FR-002; FR-008; NFR-002; NFR-004; plan/Plan-001-finite-protocol-rust-slice/tasks/Task-009-integrate-native-compiler.md"
+scope: "spec/integration/IT-001-consume-native-protocol-artifact.md SC-06..SC-09; FR-001; FR-002; FR-008; NFR-002; NFR-004; plan/Plan-001-finite-protocol-rust-slice/tasks/Task-009-integrate-native-compiler.md, as they stood at 3d2f789"
 review_set: all
 relationships:
   - { target: ix://agent-ix/quire-protocol/IT-001, type: reviews }

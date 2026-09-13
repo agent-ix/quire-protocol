@@ -3,7 +3,7 @@ id: SR-036
 title: "Gap analysis — Plan-001 native compiler IT-001 increment"
 type: SpecReview
 analysis: gap-analysis
-scope: "plan/Plan-001-finite-protocol-rust-slice/, spec/tests.md, src/, tests/"
+scope: "plan/Plan-001-finite-protocol-rust-slice/, spec/tests.md, src/, tests/, as they stood at 8efb826"
 review_set: subset
 relationships:
   - { target: "ix://agent-ix/quire-protocol/Plan-001", type: reviews }

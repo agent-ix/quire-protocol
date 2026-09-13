@@ -3,7 +3,7 @@ id: SR-037
 title: "Base review of the version-explicit /2 protocol intake"
 type: SpecReview
 analysis: base
-scope: "IT-001 (SC-06..SC-09), FR-001, FR-002, NFR-002, TM-001, Task-009"
+scope: "IT-001 (SC-06..SC-09), FR-001, FR-002, NFR-002, TM-001, Task-009, as they stood at 3d2f789"
 review_set: all
 ---
 ## Summary

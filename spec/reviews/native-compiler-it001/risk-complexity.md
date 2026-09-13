@@ -3,7 +3,7 @@ id: SR-029
 title: "Risk-complexity review of native compiler IT-001 intake"
 type: SpecReview
 analysis: risk-complexity
-scope: "IT-001, FR-001, FR-002, TC-001, Task-009"
+scope: "IT-001, FR-001, FR-002, TC-001, Task-009, as they stood at 2e95ec4"
 review_set: all
 ---
 ## Summary

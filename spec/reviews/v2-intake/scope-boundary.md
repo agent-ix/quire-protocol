@@ -3,7 +3,7 @@ id: SR-043
 title: "Scope-boundary review of the version-explicit /2 consumer intake"
 type: SpecReview
 analysis: scope-boundary
-scope: "IT-001 SC-06..SC-09, FR-001, FR-002, NFR-003, AD-001, Task-009, tests/support/v2/mod.rs, tests/it001_v2_intake.rs"
+scope: "IT-001 SC-06..SC-09, FR-001, FR-002, NFR-003, AD-001, Task-009, tests/support/v2/mod.rs, tests/it001_v2_intake.rs, as they stood at 3d2f789"
 review_set: all
 relationships:
   - { target: ix://agent-ix/quire-protocol/IT-001, type: reviews }

@@ -2,7 +2,7 @@
 id: Task-002
 title: "Link the finite protocol representation"
 type: Task
-status: blocked
+status: in_progress
 track: A
 priority: P0
 relationships:

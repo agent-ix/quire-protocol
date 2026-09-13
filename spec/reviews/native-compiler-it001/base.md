@@ -3,7 +3,7 @@ id: SR-024
 title: "Base review of native compiler IT-001 intake"
 type: SpecReview
 analysis: base
-scope: "IT-001, FR-001, FR-002, TC-001, TM-001, Task-009"
+scope: "IT-001, FR-001, FR-002, TC-001, TM-001 and Task-009 at 2e95ec4"
 review_set: all
 ---
 ## Summary

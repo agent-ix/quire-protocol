@@ -3,7 +3,7 @@ id: SR-030
 title: "Scope-boundary review of native compiler IT-001 intake"
 type: SpecReview
 analysis: scope-boundary
-scope: "IT-001, FR-001, FR-002, Task-009"
+scope: "IT-001, FR-001, FR-002, Task-009, as they stood at 2e95ec4"
 review_set: all
 ---
 ## Summary

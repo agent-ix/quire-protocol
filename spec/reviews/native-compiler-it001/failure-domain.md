@@ -3,7 +3,7 @@ id: SR-025
 title: "Failure-domain review of native compiler IT-001 intake"
 type: SpecReview
 analysis: failure-domain
-scope: "IT-001, FR-001, FR-002, TC-001, Task-009"
+scope: "IT-001, FR-001, FR-002, TC-001, Task-009, as they stood at 2e95ec4"
 review_set: all
 ---
 ## Summary
