@@ -106,10 +106,11 @@
 
 /// Located link diagnostics. Owner chunk: **C-13**.
 ///
-/// Will own the accumulation of independently established located diagnostics
-/// across definitions, so a refusal can report every independent finding rather
-/// than only the first.
+/// Owns the accumulation of independently established located diagnostics, so
+/// a refusal reports every independent finding rather than only the first.
 pub mod diagnostics;
+
+use diagnostics::{Accumulator, Diagnostics};
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -287,6 +288,32 @@ pub enum Referrer {
     },
     /// The workflow instance the protocol runs as.
     WorkflowInstance,
+}
+
+impl LinkRefusal {
+    /// The original source region this finding is about, when it has one.
+    ///
+    /// Four variants return `None`, and they are the four that refuse a
+    /// *table position* or a whole declaration rather than authored text: a
+    /// declaration index outside the package, a declaration whose body is not a
+    /// protocol, a binding-requirement index outside its declaration, and two
+    /// records mapping onto one identity. None of those occupies a source
+    /// region, and the alternatives — a zero span, or the enclosing
+    /// declaration's — both point a caret at text that is not what was refused.
+    /// See [`diagnostics`] for why that is an absence rather than a
+    /// placeholder.
+    #[must_use]
+    pub fn locus(&self) -> Option<&Locus> {
+        match self {
+            Self::WrongRequirementKind { locus, .. }
+            | Self::ZeroProgressIteration { locus, .. }
+            | Self::DuplicateRoleAuthority { locus, .. } => Some(locus),
+            Self::NoSuchDeclaration { .. }
+            | Self::NotAProtocol { .. }
+            | Self::NoSuchRequirement { .. }
+            | Self::CollidingIdentity { .. } => None,
+        }
+    }
 }
 
 impl fmt::Display for LinkRefusal {
@@ -743,9 +770,16 @@ impl LinkedProtocol {
 ///
 /// The package has already been admitted by A, which is where the structural
 /// refusals live; see the module documentation for what this does and does not
-/// check. A refusal here returns no linked representation at all, never a
-/// partially built one.
-pub fn link(package: &AdmittedPackage, declaration: u32) -> Result<LinkedProtocol, LinkRefusal> {
+/// check.
+///
+/// A refusal returns no linked representation at all, never a partially built
+/// one, and returns **every** independent finding rather than the first. The
+/// two are the same obligation read from both ends: the traversal continues
+/// past a failure precisely so that it can report the rest, and the result type
+/// is what stops a partially built graph escaping alongside them. See
+/// [`diagnostics`] for which checks are independent and which are skipped
+/// because their input was never established.
+pub fn link(package: &AdmittedPackage, declaration: u32) -> Result<LinkedProtocol, Diagnostics> {
     link_declarations(&package.package().declarations, declaration)
 }
 
@@ -763,14 +797,17 @@ pub fn link(package: &AdmittedPackage, declaration: u32) -> Result<LinkedProtoco
 fn link_declarations(
     declarations: &[Declaration],
     declaration: u32,
-) -> Result<LinkedProtocol, LinkRefusal> {
+) -> Result<LinkedProtocol, Diagnostics> {
+    // The two gating checks. Neither accumulates with anything, because a
+    // declaration that is absent or is not a protocol leaves no tables to walk:
+    // every check below reads one of them.
     let index = usize::try_from(declaration).unwrap_or(usize::MAX);
-    let declared = declarations
-        .get(index)
-        .ok_or(LinkRefusal::NoSuchDeclaration {
+    let declared = declarations.get(index).ok_or_else(|| {
+        Diagnostics::of(LinkRefusal::NoSuchDeclaration {
             selected: declaration,
             available: declarations.len(),
-        })?;
+        })
+    })?;
 
     let Body::Protocol {
         roles,
@@ -781,11 +818,13 @@ fn link_declarations(
         ..
     } = &declared.body
     else {
-        return Err(LinkRefusal::NotAProtocol {
+        return Err(Diagnostics::of(LinkRefusal::NotAProtocol {
             declaration,
             found: body_tag(&declared.body),
-        });
+        }));
     };
+
+    let mut found = Accumulator::default();
 
     // Every identity below is scoped by the owning declaration's own producer
     // coordinates, so two packages cannot mint the same one.
@@ -811,10 +850,14 @@ fn link_declarations(
     // Refusals A does not make. See the module documentation: A's validator
     // covers the edge set, joins, cycles and reference resolution, and these are
     // the items on FR-002's list that it leaves open.
+    //
+    // Every control is checked, not just up to the first zero: two repeats that
+    // can make no progress are two authoring mistakes, and reporting one of
+    // them sends the author back for a second link to be told about the other.
     for (position, control) in controls.iter().enumerate() {
         if let ControlOperation::Repeat { maximum, .. } = &control.operation {
             if is_zero(maximum) {
-                return Err(LinkRefusal::ZeroProgressIteration {
+                found.record(LinkRefusal::ZeroProgressIteration {
                     control: u32::try_from(position).unwrap_or(u32::MAX),
                     locus: control.locus.clone(),
                 });
@@ -826,28 +869,39 @@ fn link_declarations(
     for (position, role) in roles.iter().enumerate() {
         let model = (role.model.model, role.model.export);
         if seen_authorities.contains(&model) {
-            return Err(LinkRefusal::DuplicateRoleAuthority {
+            found.record(LinkRefusal::DuplicateRoleAuthority {
                 role: position,
                 model,
                 locus: role.locus.clone(),
             });
         }
+        // Pushed whether or not it duplicated one already seen. A third role
+        // over the same authority is then reported against the first, not
+        // against the second, so N roles over one authority give N-1 findings
+        // rather than one.
         seen_authorities.push(model);
     }
 
+    // Each role's binding requirement is resolved independently of every other
+    // role's. A role whose requirement is absent or of the wrong kind
+    // contributes no identity — building one from the wrong kind is the
+    // confusion the sixteen newtypes exist to prevent — so it is recorded and
+    // skipped, and the next role is still resolved.
     let mut role_instances = Vec::new();
     for (position, role) in roles.iter().enumerate() {
         let referrer = Referrer::Role { index: position };
-        let requirement = linker.requirement(
+        let resolved = found.keep(linker.requirement(
             referrer,
             role.instance,
             BindingKind::RoleInstance,
             &role.locus,
-        )?;
-        role_instances.push(RoleInstanceId::new(
-            &requirement_identity(&scope, declaration, role.instance, requirement),
-            &role.name,
         ));
+        if let Some(requirement) = resolved {
+            role_instances.push(RoleInstanceId::new(
+                &requirement_identity(&scope, declaration, role.instance, requirement),
+                &role.name,
+            ));
+        }
     }
 
     // Participants, components, endpoints, attempts and effects are not named by
@@ -874,10 +928,24 @@ fn link_declarations(
                 &channel.locus,
             )
         };
-        let message = premise(ChannelPremise::Message, channel.message)?;
-        let send = premise(ChannelPremise::Send, channel.send)?;
-        let receive = premise(ChannelPremise::Receive, channel.receive)?;
-        let delivery = premise(ChannelPremise::Delivery, channel.delivery_instance)?;
+        // All four premises, and in this order, before any of them is used. A
+        // channel with a bad message and a bad receive is two findings: the
+        // earlier `?` chain reported the message and left the receive to be
+        // discovered on a later run, which is the behaviour this chunk exists
+        // to replace.
+        let message = found.keep(premise(ChannelPremise::Message, channel.message));
+        let send = found.keep(premise(ChannelPremise::Send, channel.send));
+        let receive = found.keep(premise(ChannelPremise::Receive, channel.receive));
+        let delivery = found.keep(premise(ChannelPremise::Delivery, channel.delivery_instance));
+
+        // The channel's identity is derived from premises that resolved, so it
+        // is a dependent check: a channel missing one is not given an identity
+        // at all rather than one built from three quarters of its premises.
+        let (Some(message), Some(send), Some(receive), Some(delivery)) =
+            (message, send, receive, delivery)
+        else {
+            continue;
+        };
 
         let identity = ChannelId::new(
             &channel_identity(&scope, declaration, position, channel.message),
@@ -902,7 +970,7 @@ fn link_declarations(
             ),
         };
         if linked_channels.insert(identity.clone(), linked).is_some() {
-            return Err(LinkRefusal::CollidingIdentity {
+            found.record(LinkRefusal::CollidingIdentity {
                 kind: IdentityKind::Channel,
                 identity: identity.identity_bytes().to_vec(),
             });
@@ -921,7 +989,16 @@ fn link_declarations(
     //
     // Roles are different: two roles may select one role-instance requirement,
     // so this one is live. It is a sorted scan rather than a nested one.
-    check_distinct_roles(&role_instances)?;
+    //
+    // It runs over the roles that resolved. A collision among those is a real
+    // collision, so a finding here is never spurious; the absence of one proves
+    // nothing when a role was skipped above, which is the incompleteness
+    // `diagnostics` states rather than hides.
+    check_distinct_roles(&role_instances, &mut found);
+
+    if let Some(diagnostics) = found.into_diagnostics() {
+        return Err(diagnostics);
+    }
 
     Ok(LinkedProtocol {
         definition,
@@ -1055,17 +1132,16 @@ fn channel_identity(scope: &[u8], declaration: u32, position: usize, message: u3
 /// Sorted rather than nested: the previous version compared every value against
 /// every earlier one, which is quadratic, and it did that for six collections of
 /// which five could not collide.
-fn check_distinct_roles(values: &[RoleInstanceId]) -> Result<(), LinkRefusal> {
+fn check_distinct_roles(values: &[RoleInstanceId], found: &mut Accumulator) {
     let mut seen: BTreeSet<&[u8]> = BTreeSet::new();
     for value in values {
         if !seen.insert(value.identity_bytes()) {
-            return Err(LinkRefusal::CollidingIdentity {
+            found.record(LinkRefusal::CollidingIdentity {
                 kind: IdentityKind::RoleInstance,
                 identity: value.identity_bytes().to_vec(),
             });
         }
     }
-    Ok(())
 }
 
 /// The tag of a declaration body kind, for a refusal that names what it found.
@@ -1416,7 +1492,7 @@ mod tests {
         let refusal = link_declarations(&wrong, 0).expect_err("a wrong kind refuses");
         assert_eq!(
             refusal,
-            LinkRefusal::WrongRequirementKind {
+            Diagnostics::of(LinkRefusal::WrongRequirementKind {
                 referrer: Referrer::Channel {
                     index: 0,
                     premise: ChannelPremise::Send,
@@ -1424,7 +1500,7 @@ mod tests {
                 required: BindingKind::Send,
                 found: BindingKind::Delivery,
                 locus: locus(),
-            }
+            })
         );
     }
 
@@ -1440,11 +1516,11 @@ mod tests {
         let refusal = link_declarations(&missing, 0).expect_err("an absent requirement refuses");
         assert_eq!(
             refusal,
-            LinkRefusal::NoSuchRequirement {
+            Diagnostics::of(LinkRefusal::NoSuchRequirement {
                 referrer: Referrer::Role { index: 0 },
                 selected: 99,
                 available: 11,
-            }
+            })
         );
     }
 
@@ -1461,10 +1537,10 @@ mod tests {
         )];
         assert_eq!(
             link_declarations(&not_a_protocol, 0).expect_err("a predicate is not a protocol"),
-            LinkRefusal::NotAProtocol {
+            Diagnostics::of(LinkRefusal::NotAProtocol {
                 declaration: 0,
                 found: "predicate",
-            }
+            })
         );
     }
 
@@ -1473,10 +1549,10 @@ mod tests {
     fn tc_002_a_declaration_outside_the_package_is_refused() {
         assert_eq!(
             link_declarations(&fixture(), 7).expect_err("there is one declaration"),
-            LinkRefusal::NoSuchDeclaration {
+            Diagnostics::of(LinkRefusal::NoSuchDeclaration {
                 selected: 7,
                 available: 1,
-            }
+            })
         );
     }
 
@@ -1502,7 +1578,7 @@ mod tests {
 
         assert_eq!(
             link_declarations(&colliding, 0).expect_err("one identity for two roles refuses"),
-            LinkRefusal::CollidingIdentity {
+            Diagnostics::of(LinkRefusal::CollidingIdentity {
                 kind: IdentityKind::RoleInstance,
                 identity: requirement_identity(
                     &declaration_identity(0, &fixture()[0]),
@@ -1510,7 +1586,7 @@ mod tests {
                     1,
                     &bindings()[1]
                 ),
-            }
+            })
         );
     }
 
@@ -1563,14 +1639,17 @@ mod tests {
         // the refusal names the premise that was wrong rather than some
         // neighbouring one, and that a working fixture does link.
         match link_declarations(&wrong, 0) {
-            Err(LinkRefusal::WrongRequirementKind { referrer, .. }) => assert_eq!(
-                referrer,
-                Referrer::Channel {
-                    index: 0,
-                    premise: ChannelPremise::Receive,
-                }
-            ),
-            other => panic!("expected the receive premise to be named, got {other:?}"),
+            Err(diagnostics) => match diagnostics.first() {
+                LinkRefusal::WrongRequirementKind { referrer, .. } => assert_eq!(
+                    *referrer,
+                    Referrer::Channel {
+                        index: 0,
+                        premise: ChannelPremise::Receive,
+                    }
+                ),
+                other => panic!("expected the receive premise to be named, got {other:?}"),
+            },
+            Ok(linked) => panic!("a wrong premise kind must refuse, got {linked:?}"),
         }
         assert!(link_declarations(&fixture(), 0).is_ok());
     }
@@ -1591,10 +1670,10 @@ mod tests {
             controls.push(repeat_control(spelling));
             assert_eq!(
                 link_declarations(&zero, 0).expect_err("zero progress refuses"),
-                LinkRefusal::ZeroProgressIteration {
+                Diagnostics::of(LinkRefusal::ZeroProgressIteration {
                     control: 0,
                     locus: locus(),
-                },
+                }),
                 "{spelling} is zero however it is spelled"
             );
         }
@@ -1615,6 +1694,16 @@ mod tests {
     ///
     /// A dedupes role names, which are display text; nothing dedupes
     /// `role.model`, which is the authority the role speaks for.
+    ///
+    /// This fixture is two findings, not one, and it always was. Its second
+    /// role selects role-instance requirement 1, which is the one the first
+    /// role selects, so the two roles also produce one role-instance identity.
+    /// The previous revision of this test asserted a sole
+    /// `DuplicateRoleAuthority` and carried a comment saying the second role
+    /// had "a different binding" — it does not, and the first-refusal-wins
+    /// linker returned before reaching the collision, so the comment was never
+    /// contradicted by a run. Accumulating the findings is what made the second
+    /// one visible.
     #[trace("TC-002", "FR-002-AC-3")]
     #[test]
     fn tc_002_two_roles_naming_one_authority_are_refused() {
@@ -1622,17 +1711,231 @@ mod tests {
         let Body::Protocol { roles, .. } = &mut duplicate[0].body else {
             unreachable!("the fixture is a protocol")
         };
-        // A different name and a different binding, the same authority.
+        // A different name, the same authority, and the same role-instance
+        // binding as `fixture`'s Buyer.
         roles.push(role("Seller", 1));
 
+        let diagnostics = link_declarations(&duplicate, 0).expect_err("one authority, two roles");
         assert_eq!(
-            link_declarations(&duplicate, 0).expect_err("one authority, two roles"),
-            LinkRefusal::DuplicateRoleAuthority {
-                role: 1,
-                model: (0, 0),
-                locus: locus(),
-            }
+            diagnostics.all(),
+            [
+                LinkRefusal::DuplicateRoleAuthority {
+                    role: 1,
+                    model: (0, 0),
+                    locus: locus(),
+                },
+                LinkRefusal::CollidingIdentity {
+                    kind: IdentityKind::RoleInstance,
+                    identity: requirement_identity(
+                        &declaration_identity(0, &fixture()[0]),
+                        0,
+                        1,
+                        &bindings()[1]
+                    ),
+                },
+            ]
         );
+    }
+
+    // -----------------------------------------------------------------------
+    // C-13: accumulating located diagnostics
+    // -----------------------------------------------------------------------
+
+    /// Every zero-progress repeat is reported, not just the first.
+    ///
+    /// The mutation that proves this: make `link_declarations` return after
+    /// recording the first `ZeroProgressIteration` and this fails at three
+    /// findings against one, while every other test in this module stays green.
+    #[trace("TC-002", "Task-002")]
+    #[test]
+    fn tc_002_every_zero_progress_repeat_is_reported() {
+        let mut zeroes = fixture();
+        let Body::Protocol { controls, .. } = &mut zeroes[0].body else {
+            unreachable!("the fixture is a protocol")
+        };
+        controls.push(repeat_control("0"));
+        controls.push(repeat_control("1"));
+        controls.push(repeat_control("-0"));
+        controls.push(repeat_control("000"));
+
+        let diagnostics =
+            link_declarations(&zeroes, 0).expect_err("three repeats make no progress");
+        let controls: Vec<u32> = diagnostics
+            .all()
+            .iter()
+            .map(|finding| match finding {
+                LinkRefusal::ZeroProgressIteration { control, .. } => *control,
+                other => panic!("expected only zero-progress findings, got {other:?}"),
+            })
+            .collect();
+
+        // Control 1 authors a maximum of one and is absent. The order is the
+        // control table's, which is what "declared, not sorted" means.
+        assert_eq!(controls, [0, 2, 3]);
+    }
+
+    /// All four channel premises are resolved before any is used, so a channel
+    /// with two bad premises reports two findings.
+    ///
+    /// Under the previous `?` chain the receive was never reached: the message
+    /// refusal returned first, and an author fixing it learned about the
+    /// receive only on the next run.
+    #[trace("TC-002", "Task-002")]
+    #[test]
+    fn tc_002_every_failing_channel_premise_is_reported() {
+        let mut wrong = fixture();
+        let Body::Protocol { channels, .. } = &mut wrong[0].body else {
+            unreachable!("the fixture is a protocol")
+        };
+        // Binding 9 is the attempt and binding 3 the component: neither is a
+        // message, and neither is a receive.
+        channels[0].message = 9;
+        channels[0].receive = 3;
+
+        let diagnostics = link_declarations(&wrong, 0).expect_err("two premises are wrong");
+        let premises: Vec<ChannelPremise> = diagnostics
+            .all()
+            .iter()
+            .map(|finding| match finding {
+                LinkRefusal::WrongRequirementKind {
+                    referrer: Referrer::Channel { premise, .. },
+                    ..
+                } => *premise,
+                other => panic!("expected channel-premise findings, got {other:?}"),
+            })
+            .collect();
+        assert_eq!(premises, [ChannelPremise::Message, ChannelPremise::Receive]);
+    }
+
+    /// A channel that lost a premise contributes no identity.
+    ///
+    /// The identity is derived from premises that resolved, so it is a
+    /// dependent check and is skipped rather than run on a channel built from
+    /// three quarters of its premises. Two channels that would otherwise
+    /// collide therefore report the premise, and not a collision between a real
+    /// identity and a half-built one.
+    #[trace("TC-002", "Task-002")]
+    #[test]
+    fn tc_002_a_channel_missing_a_premise_mints_no_identity() {
+        let mut wrong = fixture();
+        let Body::Protocol { channels, .. } = &mut wrong[0].body else {
+            unreachable!("the fixture is a protocol")
+        };
+        let mut second = channel("duplicate", 5);
+        second.send = 9;
+        channels.push(second);
+
+        let diagnostics = link_declarations(&wrong, 0).expect_err("the second channel is wrong");
+        assert_eq!(diagnostics.len(), 1, "got {diagnostics:?}");
+        assert!(
+            matches!(
+                diagnostics.first(),
+                LinkRefusal::WrongRequirementKind {
+                    referrer: Referrer::Channel {
+                        index: 1,
+                        premise: ChannelPremise::Send,
+                    },
+                    ..
+                }
+            ),
+            "got {diagnostics:?}"
+        );
+    }
+
+    /// A gating refusal carries exactly one finding.
+    ///
+    /// There is no declaration to walk, so there is nothing to accumulate with,
+    /// and reporting anything alongside it would be reporting a check that
+    /// never ran.
+    #[trace("TC-002", "Task-002")]
+    #[test]
+    fn tc_002_a_gating_refusal_accumulates_with_nothing() {
+        for diagnostics in [
+            link_declarations(&fixture(), 7).expect_err("there is one declaration"),
+            link_declarations(
+                &[declaration(
+                    Body::Predicate {
+                        parameters: Vec::new(),
+                        result: 0,
+                        root: handle(0),
+                    },
+                    bindings(),
+                )],
+                0,
+            )
+            .expect_err("a predicate is not a protocol"),
+        ] {
+            assert_eq!(diagnostics.len(), 1, "got {diagnostics:?}");
+        }
+    }
+
+    /// A finding is located when it refuses authored text, and unlocated when
+    /// it refuses a table position.
+    ///
+    /// The absence is the point: a zero span or the enclosing declaration's
+    /// would render a caret over text that is not what was refused.
+    #[trace("TC-002", "Task-002")]
+    #[test]
+    fn tc_002_only_findings_over_authored_text_carry_a_region() {
+        let mut mixed = fixture();
+        let Body::Protocol {
+            roles, controls, ..
+        } = &mut mixed[0].body
+        else {
+            unreachable!("the fixture is a protocol")
+        };
+        controls.push(repeat_control("0"));
+        roles.push(role("Seller", 1));
+
+        let diagnostics = link_declarations(&mixed, 0).expect_err("three findings");
+        assert_eq!(diagnostics.len(), 3, "got {diagnostics:?}");
+
+        // The repeat and the duplicate authority are authored; the identity
+        // collision is two table positions producing one value.
+        assert_eq!(diagnostics.located().count(), 2);
+        let unlocated: Vec<&LinkRefusal> = diagnostics
+            .all()
+            .iter()
+            .filter(|finding| finding.locus().is_none())
+            .collect();
+        assert!(
+            matches!(unlocated[..], [LinkRefusal::CollidingIdentity { .. }]),
+            "got {unlocated:?}"
+        );
+
+        // Rendering names each located finding's region and does not invent one
+        // for the third.
+        let rendered = diagnostics.to_string();
+        assert_eq!(rendered.lines().count(), 3);
+        assert_eq!(rendered.matches("source 0, 0..1: ").count(), 2);
+    }
+
+    /// Many findings still produce no linked representation.
+    ///
+    /// The two halves of `Task-002`'s requirement are one type: the accumulated
+    /// findings are the error, so there is no shape in which a caller receives
+    /// both a graph and a reason it should not have one.
+    #[trace("TC-002", "FR-002-AC-3")]
+    #[test]
+    fn tc_002_accumulated_findings_still_emit_no_linked_representation() {
+        let mut broken = fixture();
+        let Body::Protocol {
+            roles,
+            channels,
+            controls,
+            ..
+        } = &mut broken[0].body
+        else {
+            unreachable!("the fixture is a protocol")
+        };
+        controls.push(repeat_control("0"));
+        roles.push(role("Seller", 1));
+        channels[0].send = 8;
+
+        let outcome = link_declarations(&broken, 0);
+        assert!(outcome.is_err(), "got {outcome:?}");
+        let diagnostics = outcome.expect_err("four findings");
+        assert!(diagnostics.len() >= 3, "got {diagnostics:?}");
     }
 
     /// FR-002-AC-4's semantic half, for the four mutations that used to pass.
