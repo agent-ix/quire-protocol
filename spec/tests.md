@@ -104,7 +104,8 @@ The five words below are not interchangeable, and no total mixes them.
   FR-006 1 of 8, FR-008 6 of 9, FR-011 3 of 7, FR-015 3 of 5, FR-028 5 of 6,
   NFR-001 2 of 3, NFR-002 2 of 4, plus 7 of the 14 test-case rows.
 
-  The same run reports the binding census this repository owes `NFR-003-AC-5`:
+  The same run reports a binding census, which is related to `NFR-003-AC-5`
+  without being the measurement that criterion asks for:
 
   ```
   rust: 198/198/198 bound/tagged/candidates (100% read; 100% authored; forms:
@@ -112,9 +113,21 @@ The five words below are not interchangeable, and no total mixes them.
   rust-doc-comment-id)
   ```
 
-  Every one of the 198 Rust test symbols carries a marker, every marker is read,
-  and every marker is a **bare** `#[trace(...)]` over an imported
-  `ix_trace_rs::trace`. That last word is the one that matters: the
+  Every one of the 198 Rust test symbols carries a marker and every marker is
+  read. **`bound` counts symbols, not obligations** — a test carrying five ids is
+  one bound candidate, and a test carrying only `Task-009` is a bound candidate
+  too. `NFR-003-AC-5` asks for a binding "to each obligation it claims", which is
+  a per-relation property this figure does not measure: the next section records
+  24 tests carrying `Task-009` and no criterion, 13 carrying `Task-012`, and
+  `tests/it001_native_handoff.rs` under-tagged at 24 traces over 4 criteria. All
+  of that is consistent with 198/198. Read this line as "every test says
+  something", never as "every claim is bound".
+
+  Separately, and verified by reading the source rather than by this line: every
+  marker is a **bare** `#[trace(...)]` over an imported `ix_trace_rs::trace`.
+  The census cannot establish that on its own — `bound` is equally consistent
+  with binding through the `rust-comment-id`, `rust-test-name-id` or
+  `rust-doc-comment-id` forms it lists. That distinction matters because the
   path-qualified `#[ix_trace_rs::trace(...)]` compiles, expands identically, and
   binds nothing, because the marker pattern is anchored on the attribute name.
 
@@ -128,11 +141,35 @@ The five words below are not interchangeable, and no total mixes them.
   and concludes nothing broke, while 29 rows have silently gone. The row count
   is the number that moves; the census percentage is not.
 
-  `NFR-003-AC-5` is nonetheless **not** engine-bound: its
-  test case is TC-010, which Task-011 owns and which is blocked on the shared
-  Rust checker `agent-ix/quire-research#64` publishes. NFR-003's Verification
-  forbids a local replacement, so the audit that would *keep* this at 100% is
-  owed by that task and is not written here.
+  `NFR-003-AC-5` is itself **not** engine-bound, and the audit that would *keep*
+  the census at 100% — the thing that fails when someone adds an untagged test or
+  path-qualifies a marker — is not written here.
+
+  The reason is narrow, and it is worth stating narrowly. AC-5's only declared
+  verification is `Test (TC-010)`; TC-010 is Task-011's; Task-011 is `blocked`.
+  Its own subtask for TC-010 ends "add no local scanner", so a scanner written
+  here would not discharge the criterion even if it worked. An earlier revision
+  of this paragraph reached instead for NFR-003's Verification clause forbidding
+  a local replacement. That clause is about the shared Rust-native
+  *language-boundary* checker, which verifies AC-3, not AC-5 — and the same
+  sentence names Quire coverage as a permitted method. Stretching a real
+  prohibition to cover something it does not reach is not a stronger reason for
+  waiting; it is a weaker one, because it can be checked and found wrong.
+
+  Nor is TC-010 one upstream publish away. Task-011 `depends_on` Task-008,
+  Task-009 and Task-010, and its first subtask freezes five external revisions
+  at once: Engineering Assurance issue 34, E02, the Quoin interface, Quoin
+  containment (`agent-ix/quire-research#62`) and the shared Rust checker
+  (`agent-ix/quire-research#64`). Naming only #64 would make the block read as
+  nearly lifted.
+
+  Note also what `ix-trace-rs` does and does not check, since "compiler-checked"
+  is easy to over-read. The macro validates argument **shape** only: it rejects
+  a non-literal or a malformed id at compile time, and it explicitly does not
+  know which kinds exist or whether an id appears in any matrix. So deleting a
+  `#[trace(...)]` outright, or misspelling `FR-002-AC-2` into a well-shaped and
+  nonexistent `FR-002-AC-9`, compiles clean. Only `quire coverage` catches
+  either, and no gate command asserts the census.
 
   FR-002 is 3 of 5, and the three are `FR-002-AC-2`, `FR-002-AC-3` and
   `FR-002-AC-4`. AC-2 joined them with chunk C-14, from `src/link/mod.rs` and
@@ -269,7 +306,7 @@ in Domain Object Coverage instead.
 | Functional Req | Acceptance Criteria | Test Cases | Status |
 | --- | --- | --- | --- |
 | FR-001 | FR-001-AC-1, FR-001-AC-2, FR-001-AC-3, FR-001-AC-4, FR-001-AC-5 | TC-001 (AC-1..AC-4); IT-001 (AC-4, AC-5) | 🚧 Planned — 5 of 5 criteria backed, 0 unbacked. FR-001-AC-5 is integration-backed only and unexecutable: its sole backing is IT-001 SC-06/SC-06a, gated not on A's revision, which is pinned at `04254a3`, but on a handoff this repository can reach under the declared gate |
-| FR-002 | FR-002-AC-1, FR-002-AC-2, FR-002-AC-3, FR-002-AC-4, FR-002-AC-5 | TC-002 (AC-1..AC-4); IT-001 (AC-5) | 🚧 Planned — 5 of 5 criteria backed, 0 unbacked, and two of the five backed only in part: FR-002-AC-3 by three refusals nobody implements, FR-002-AC-4 by five of FR-216's six premise components. FR-002-AC-5 is integration-backed only and unexecutable: its sole backing is IT-001 SC-08, gated not on A's revision, which is pinned at `04254a3`, but on a handoff this repository can reach under the declared gate. The identity mapping landed as chunk C-12: AC-4 executes in both directions and AC-3 executes partially. AC-2 landed as chunk C-14 and is now test-backed: `src/link/interleaving.rs` enumerates the linear extensions of the causal order A retained, excluding the `repeat_progress` back edge A documents as its explicit cyclic edge, and TC-002 asserts every one preserves the authored edges and satisfies the declared join. C-14 also closed part of an AC-4 defect: five channel premise axes — sender, receiver, message type, ordering policy and delivery cardinality — were not identity-bearing, and `ChannelPremises` now carries them. AC-4 is therefore **partially backed, not closed**. FR-216 fixes the channel premise key at six components; A's `Channel` at the pin publishes five, and no field carries a duplication premise separate from the delivery interval. Deriving one would be this crate interpreting A's numerals, which FR-216 Absence forbids, so the contradiction is asked rather than absorbed: `agent-ix/quire-spec-language` issue 85 puts it to the producer, and FR-216's own Open gap 1 records the specification half. Until one of them answers, the sixth component has no authored field to mutate and no axis in the sweep. FR-002's refusal list divides three ways — A refuses the causal edge set, joins, cycles and reference resolution inside `read`; this crate refuses zero-progress iteration and duplicate role authorities, which A leaves open; and unreachable termination, overlapping choices and owner-unobservable choices are refused by nobody, because no reachability analysis exists in either repository and choice disjointness is a decision procedure over arbitrary guards that neither has. Those three are AC-3 obligations no code discharges. AC-1 is unresolved by owner ruling on issue #4: it requires distinct runtime instance identities, and A carries binding requirements rather than instances, so no test here can establish it |
+| FR-002 | FR-002-AC-1, FR-002-AC-2, FR-002-AC-3, FR-002-AC-4, FR-002-AC-5 | TC-002 (AC-1..AC-4); IT-001 (AC-5) | 🚧 Planned — 5 of 5 criteria backed, 0 unbacked, and two of the five backed only in part: FR-002-AC-3 by three refusals nobody implements, FR-002-AC-4 by five of FR-216's six premise components. FR-002-AC-5 is integration-backed only and unexecutable: its sole backing is IT-001 SC-08, gated not on A's revision, which is pinned at `04254a3`, but on a handoff this repository can reach under the declared gate. The identity mapping landed as chunk C-12: AC-4 executes in both directions and AC-3 executes partially. AC-2 landed as chunk C-14 and is now engine-bound: `src/link/interleaving.rs` enumerates the linear extensions of the causal order A retained, excluding the `repeat_progress` back edge A documents as its explicit cyclic edge, and TC-002 asserts every one preserves the authored edges and satisfies the declared join. C-14 also closed part of an AC-4 defect: five channel premise axes — sender, receiver, message type, ordering policy and delivery cardinality — were not identity-bearing, and `ChannelPremises` now carries them. AC-4 is therefore **partially backed, not closed**. FR-216 fixes the channel premise key at six components; A's `Channel` at the pin publishes five, and no field carries a duplication premise separate from the delivery interval. Deriving one would be this crate interpreting A's numerals, which FR-216 Absence forbids, so the contradiction is asked rather than absorbed: `agent-ix/quire-spec-language` issue 85 puts it to the producer, and FR-216's own Open gap 1 records the specification half. Until one of them answers, the sixth component has no authored field to mutate and no axis in the sweep. FR-002's refusal list divides three ways — A refuses the causal edge set, joins, cycles and reference resolution inside `read`; this crate refuses zero-progress iteration and duplicate role authorities, which A leaves open; and unreachable termination, overlapping choices and owner-unobservable choices are refused by nobody, because no reachability analysis exists in either repository and choice disjointness is a decision procedure over arbitrary guards that neither has. Those three are AC-3 obligations no code discharges. AC-1 is unresolved by owner ruling on issue #4: it requires distinct runtime instance identities, and A carries binding requirements rather than instances, so no test here can establish it |
 | FR-003 | FR-003-AC-1, FR-003-AC-2, FR-003-AC-3, FR-003-AC-4, FR-003-AC-5, FR-003-AC-6, FR-003-AC-7 | TC-003 (AC-1..AC-7); TC-009 (AC-7) | 🚧 Planned — 7 of 7 criteria test-backed, 0 unbacked, 0 unexecutable. Aggregate view of FR-019..FR-025 |
 | FR-004 | FR-004-AC-1, FR-004-AC-2, FR-004-AC-3, FR-004-AC-4 | TC-004 (AC-1..AC-4) | 🚧 Planned — 4 of 4 criteria test-backed, 0 unbacked, 0 unexecutable (FR-004-AC-3 landed by `tests/tc_004_closure_axes.rs`). Aggregate view of FR-026..FR-028 and FR-041 |
 | FR-005 | FR-005-AC-1, FR-005-AC-2, FR-005-AC-3, FR-005-AC-4, FR-005-AC-5 | TC-005 (AC-1..AC-5) | 🚧 Planned — 5 of 5 criteria test-backed, 0 unbacked, 0 unexecutable. FR-005-AC-1's disposition shape landed as chunk C-22 in `tests/tc_005_claim_dispositions.rs`; its end-to-end scenario and AC-2..AC-5 are pending. Aggregate view of FR-029 and FR-030 |
@@ -380,7 +417,7 @@ a coverage claim in this matrix.
 | Test ID | Title | Type | Priority | Traces To | Status |
 | --- | --- | --- | --- | --- | --- |
 | TC-001 | Admit only the selected protocol profile | Property | P0 | FR-001, FR-013, FR-015 | 🚧 Planned |
-| TC-002 | Link and discriminate finite protocol structure | Property | P0 | FR-002 | 🚧 Planned — the linked mapping executes in 20 tests in `src/link/mod.rs` and 6 in `tests/tc_002_identities.rs`, tagged `Task-002`, `FR-002-AC-3` or `FR-002-AC-4`, and none claiming FR-002-AC-1. An earlier revision of this row said "all tagged `Task-002`" while fourteen carried a criterion tag, and said none claimed FR-002-AC-1 while `tc_002_two_packages_do_not_share_identities` did — so `quire coverage` counted FR-002 backed partly on a tag FR-002's own text rules out. The tag is now `Task-002`. The five added by C-13 cover accumulation: every zero-progress repeat reported, every failing channel premise reported, a gating refusal accumulating with nothing, every finding over artifact content carrying its region while the two refusals of the caller's `declaration` argument carry none, and accumulated findings still emitting no linked representation. C-14 added twelve more, in two files: `src/link/mod.rs` goes to 28 and the new `src/link/interleaving.rs` carries 4, for 32 in the unit binary. Nine tagged `FR-002-AC-2` prove the interleaving obligation — over a two-branch parallel fixture, all 924 = C(12,6) linear extensions of the retained causal order are admitted, every one puts each branch named by the parallel's own `join` field before the parallel's exit, dropping a join edge admits a branch completing late, and permuting A's edge table changes nothing; over hand-built graphs, a cycle admits none and the repeat back edge is not an ordering. Two of the nine guard the enumerator's domain: A derives `branch` and `join` edges identically for a `Parallel` and a `Choice`, so an edge set spanning a choice, repeat or await is refused rather than enumerated — ordering a choice's cases would report a run taking both. The sweep is three tests over one 30-axis table: `tc_002_every_refused_axis_is_refused_at_its_source` (7 axes, `FR-002-AC-3`, comparing each finding's `locus` against a fixture whose records each carry a distinct region), `tc_002_every_semantic_axis_changes_the_linked_protocol` (18 axes, `FR-002-AC-4`) and `tc_002_the_unguarded_axes_are_still_unguarded` (5 axes, `Task-002`). The last is deliberately tagged to no criterion: every assertion in it says a mutation is *accepted*, either because A refuses it first or because nobody does, and tagging non-refusal to a refusal criterion is how this row's own history records FR-002 being miscounted before |
+| TC-002 | Link and discriminate finite protocol structure | Property | P0 | FR-002 | 🚧 Planned — the linked mapping executes in 28 tests in `src/link/mod.rs`, 4 in `src/link/interleaving.rs` and 6 in `tests/tc_002_identities.rs`, tagged `Task-002`, `FR-002-AC-2`, `FR-002-AC-3`, `FR-002-AC-4`, `FR-011-AC-2` or `FR-011-AC-3`, and none claiming FR-002-AC-1. That opening sentence has now been wrong twice, both times by being written once and left. A revision of it counted 20 tests in `src/link/mod.rs` and listed neither `FR-002-AC-2` nor the two `FR-011` tags, while the rest of this same row said `src/link/mod.rs` "goes to 28" and that nine tests carry `FR-002-AC-2` — a row contradicting itself 200 words apart. The counts here are from the tree, and the tag list from `grep`. An earlier revision of this row said "all tagged `Task-002`" while fourteen carried a criterion tag, and said none claimed FR-002-AC-1 while `tc_002_two_packages_do_not_share_identities` did — so `quire coverage` counted FR-002 backed partly on a tag FR-002's own text rules out. The tag is now `Task-002`. The five added by C-13 cover accumulation: every zero-progress repeat reported, every failing channel premise reported, a gating refusal accumulating with nothing, every finding over artifact content carrying its region while the two refusals of the caller's `declaration` argument carry none, and accumulated findings still emitting no linked representation. C-14 added twelve more, in two files: `src/link/mod.rs` goes to 28 and the new `src/link/interleaving.rs` carries 4, for 32 in the unit binary. Nine tagged `FR-002-AC-2` prove the interleaving obligation — over a two-branch parallel fixture, all 924 = C(12,6) linear extensions of the retained causal order are admitted, every one puts each branch named by the parallel's own `join` field before the parallel's exit, dropping a join edge admits a branch completing late, and permuting A's edge table changes nothing; over hand-built graphs, a cycle admits none and the repeat back edge is not an ordering. Two of the nine guard the enumerator's domain: A derives `branch` and `join` edges identically for a `Parallel` and a `Choice`, so an edge set spanning a choice, repeat or await is refused rather than enumerated — ordering a choice's cases would report a run taking both. The sweep is three tests over one 30-axis table: `tc_002_every_refused_axis_is_refused_at_its_source` (7 axes, `FR-002-AC-3`, comparing each finding's `locus` against a fixture whose records each carry a distinct region), `tc_002_every_semantic_axis_changes_the_linked_protocol` (18 axes, `FR-002-AC-4`) and `tc_002_the_unguarded_axes_are_still_unguarded` (5 axes, `Task-002`). The last is deliberately tagged to no criterion: every assertion in it says a mutation is *accepted*, either because A refuses it first or because nobody does, and tagging non-refusal to a refusal criterion is how this row's own history records FR-002 being miscounted before |
 | TC-003 | Assess compensation, retry, commit, and recovery | Property | P0 | FR-003, FR-019, FR-020, FR-021, FR-022, FR-023, FR-024, FR-025 | 🚧 Planned — backs the parent and all seven atomic parts; its Traceability section names only FR-003 today |
 | TC-004 | Assess finite global conformance | Property | P0 | FR-004, FR-026, FR-027, FR-028, FR-041 | 🚧 Planned (FR-004-AC-3 landed; AC-1/AC-2/AC-4 pending the batch and incremental evaluators) |
 | TC-005 | Separate protocol claim dispositions | Property | P0 | FR-005, FR-029, FR-030 | 🚧 Planned — the six-disposition record and its no-aggregate-verdict proof landed; premise retention, dispatch and the conformance controls are pending |
