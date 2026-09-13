@@ -222,8 +222,9 @@ omitted `it001_dependency_inventory` and its three tests from both figures. The
 remaining five of that eight-test difference are C-13's, in `src/link/mod.rs`.
 The twelve tests above 157 are C-14's, and they are in two files: eight in
 `src/link/mod.rs` and four in `src/link/interleaving.rs`. A revision of this
-paragraph put all of them in `src/link/mod.rs` and counted 28 there, which is
-the whole unit binary rather than one file. No binary was added — C-14 is a
+paragraph put all twelve in `src/link/mod.rs`. At that revision the two files
+held 25 and 3, and the 28 it reported was their sum, not the one file it
+named. No binary was added — C-14 is a
 unit-test chunk. The 29 ignored are 23 in the version 1 lane and 6 in the version 2
 handoff lane, each reported unexecuted rather than passing. An earlier revision of this section said "The repository is
 specification-only. Every test is planned", which was true when written and has

@@ -201,9 +201,13 @@ mod tests {
     }
 
     /// One edge, with the fields the order is computed from.
-    fn edge(kind: &'static str, from: Endpoint, to: Endpoint) -> EdgeShape {
+    ///
+    /// The kind is A's [`EdgeKind`], asked for its own spelling here rather than
+    /// written out: a rename upstream moves these fixtures with it instead of
+    /// leaving four tests asserting against a literal no artifact carries.
+    fn edge(kind: EdgeKind, from: Endpoint, to: Endpoint) -> EdgeShape {
         EdgeShape {
-            kind,
+            kind: kind.as_str(),
             owner: from.0,
             from,
             to,
@@ -223,8 +227,8 @@ mod tests {
         let left = ((1, "enter"), (1, "exit"));
         let right = ((2, "enter"), (2, "exit"));
         let edges = [
-            edge("sequence", left.0, left.1),
-            edge("sequence", right.0, right.1),
+            edge(EdgeKind::Sequence, left.0, left.1),
+            edge(EdgeKind::Sequence, right.0, right.1),
         ];
 
         assert_eq!(
@@ -245,8 +249,8 @@ mod tests {
     #[test]
     fn tc_002_a_cycle_admits_no_interleaving() {
         let edges = [
-            edge("sequence", (1, "enter"), (1, "exit")),
-            edge("sequence", (1, "exit"), (1, "enter")),
+            edge(EdgeKind::Sequence, (1, "enter"), (1, "exit")),
+            edge(EdgeKind::Sequence, (1, "exit"), (1, "enter")),
         ];
 
         assert!(linear_extensions(&edges).is_empty());
@@ -263,11 +267,10 @@ mod tests {
     #[trace("TC-002", "FR-002-AC-2")]
     #[test]
     fn tc_002_the_repeat_back_edge_is_not_an_ordering() {
-        let back = EdgeKind::RepeatProgress.as_str();
         let edges = [
-            edge("branch", (0, "enter"), (1, "enter")),
-            edge("sequence", (1, "enter"), (1, "exit")),
-            edge(back, (1, "exit"), (0, "enter")),
+            edge(EdgeKind::Branch, (0, "enter"), (1, "enter")),
+            edge(EdgeKind::Sequence, (1, "enter"), (1, "exit")),
+            edge(EdgeKind::RepeatProgress, (1, "exit"), (0, "enter")),
         ];
 
         assert_eq!(
@@ -287,19 +290,20 @@ mod tests {
     /// describes a run taking `ship` **and** `cancel`.
     ///
     /// So the enumerator is not asked. [`interleavings`] reads the control kind
-    /// and returns [`Exclusive`], and the false orders below are shown through
-    /// [`linear_extensions`] — which promises only a topological order — to
-    /// record what the guard is preventing rather than to assert it is right.
+    /// and returns [`Exclusive`]. The same six edges under a `parallel` are then
+    /// enumerated and written out in full: that list is what the guard prevents
+    /// being claimed of a choice, and reading it shows both `exit`s in every
+    /// order and both relative orders of them across the six.
     #[trace("TC-002", "FR-002-AC-2")]
     #[test]
     fn tc_002_a_choice_is_refused_and_its_orders_would_run_both_cases() {
         let edges = [
-            edge("branch", (0, "enter"), (1, "enter")),
-            edge("branch", (0, "enter"), (2, "enter")),
-            edge("sequence", (1, "enter"), (1, "exit")),
-            edge("sequence", (2, "enter"), (2, "exit")),
-            edge("join", (1, "exit"), (0, "exit")),
-            edge("join", (2, "exit"), (0, "exit")),
+            edge(EdgeKind::Branch, (0, "enter"), (1, "enter")),
+            edge(EdgeKind::Branch, (0, "enter"), (2, "enter")),
+            edge(EdgeKind::Sequence, (1, "enter"), (1, "exit")),
+            edge(EdgeKind::Sequence, (2, "enter"), (2, "exit")),
+            edge(EdgeKind::Join, (1, "exit"), (0, "exit")),
+            edge(EdgeKind::Join, (2, "exit"), (0, "exit")),
         ];
         let choice = [control("choice"), control("check"), control("check")];
         let parallel = [control("parallel"), control("check"), control("check")];
@@ -315,13 +319,60 @@ mod tests {
         // The identical edge set under a parallel is enumerated: the edges did
         // not change, the control kind did, and that is the whole distinction.
         let orders = interleavings(&parallel, &edges).expect("a parallel admits interleavings");
-        assert_eq!(orders.len(), 6, "C(4, 2) merges of two two-step chains");
-
-        for order in &orders {
-            assert!(
-                order.contains(&(1, "exit")) && order.contains(&(2, "exit")),
-                "an order over a choice's edges runs both cases: {order:?}"
-            );
-        }
+        let (enter, exit) = ((0, "enter"), (0, "exit"));
+        assert_eq!(
+            orders,
+            [
+                vec![
+                    enter,
+                    (1, "enter"),
+                    (1, "exit"),
+                    (2, "enter"),
+                    (2, "exit"),
+                    exit
+                ],
+                vec![
+                    enter,
+                    (1, "enter"),
+                    (2, "enter"),
+                    (1, "exit"),
+                    (2, "exit"),
+                    exit
+                ],
+                vec![
+                    enter,
+                    (1, "enter"),
+                    (2, "enter"),
+                    (2, "exit"),
+                    (1, "exit"),
+                    exit
+                ],
+                vec![
+                    enter,
+                    (2, "enter"),
+                    (1, "enter"),
+                    (1, "exit"),
+                    (2, "exit"),
+                    exit
+                ],
+                vec![
+                    enter,
+                    (2, "enter"),
+                    (1, "enter"),
+                    (2, "exit"),
+                    (1, "exit"),
+                    exit
+                ],
+                vec![
+                    enter,
+                    (2, "enter"),
+                    (2, "exit"),
+                    (1, "enter"),
+                    (1, "exit"),
+                    exit
+                ],
+            ],
+            "C(4, 2) merges of two two-step chains, each bracketed by the control"
+        );
     }
 }
