@@ -12,9 +12,6 @@ use std::time::Duration;
 use crate::bounds::{Clock, DeadlineGuard, DeadlineRefusal, UnitLabel};
 use crate::ByteDigest;
 
-/// Per-scenario evidence values, composed for handoff and never stored here.
-pub mod evidence;
-
 const MANIFEST_UNIT: UnitLabel = UnitLabel::new("version-lock-manifest-validation");
 const DELIVERY_UNIT: UnitLabel = UnitLabel::new("version-lock-delivery-validation");
 const DIGEST_UNIT: UnitLabel = UnitLabel::new("version-lock-digest");
