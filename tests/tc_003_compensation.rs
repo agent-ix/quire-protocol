@@ -1172,6 +1172,32 @@ fn tc_003_aggregate_composes_every_atomic_fact_without_inference() {
             .consumed(BudgetDimension::ResultItem),
         7
     );
+
+    let one_allocation = Budget::nothing_granted()
+        .grant(BudgetDimension::AccountedAllocation, 1)
+        .expect("one compensation snapshot allocation");
+    let mut allocation_resources = ResourceAccountant::new(one_allocation, &inventory);
+    assert!(matches!(
+        compose_bounded(
+            pure(&surface),
+            parts,
+            CompositionLimits::owner_max(),
+            &mut allocation_resources,
+        ),
+        OperationOutcome::Completed(_)
+    ));
+    assert!(matches!(
+        compose_bounded(
+            pure(&surface),
+            parts,
+            CompositionLimits::owner_max(),
+            &mut allocation_resources,
+        ),
+        OperationOutcome::ResourceIncomplete(value)
+            if value.dimension() == BudgetDimension::AccountedAllocation
+                && value.consumed() == 1
+                && value.requested() == 1
+    ));
     assert_eq!(surface.business_calls.get(), 0);
     assert_eq!(surface.compensation_calls.get(), 0);
 }

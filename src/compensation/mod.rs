@@ -63,6 +63,12 @@ pub(crate) const RECOVERY_RESULT_SOURCE: SourceSite = SourceSite::new(
     BudgetDimension::ResultItem,
     SiteKind::Retention,
 );
+pub(crate) const ALLOCATION_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("compensation/snapshot/allocate"),
+    "compensation::compose",
+    BudgetDimension::AccountedAllocation,
+    SiteKind::Allocation,
+);
 
 /// Immutable composition maxima.
 pub const OWNER_MAX: Limits = Limits {
@@ -242,38 +248,39 @@ pub fn compose_bounded(
 ) -> OperationOutcome<Snapshot, ResourceRefusal> {
     let effective = limits.effective();
     let charges = [
+        (ALLOCATION_SOURCE.id(), 1, None),
         (
             ACTIVATION_RESULT_SOURCE.id(),
             usize::from(parts.activation.is_some()),
-            1,
+            Some(1),
         ),
         (
             REGISTRATION_RESULT_SOURCE.id(),
             usize::from(parts.registration.is_some()),
-            1,
+            Some(1),
         ),
         (
             ORDERING_RESULT_SOURCE.id(),
             usize::from(parts.ordering.is_some()),
-            1,
+            Some(1),
         ),
         (
             ATTEMPT_RESULT_SOURCE.id(),
             parts.attempts.len(),
-            effective.max_attempts,
+            Some(effective.max_attempts),
         ),
         (
             RETRY_RESULT_SOURCE.id(),
             parts.retry_outcomes.len(),
-            effective.max_retry_outcomes,
+            Some(effective.max_retry_outcomes),
         ),
         (
             RECOVERY_RESULT_SOURCE.id(),
             parts.recoveries.len(),
-            effective.max_recovery_decisions,
+            Some(effective.max_recovery_decisions),
         ),
     ];
-    if let Err(error) = resources.charge_all_with_limits(&charges) {
+    if let Err(error) = resources.charge_all_mixed(&charges) {
         return OperationOutcome::from_charge(error);
     }
     OperationOutcome::from_domain(compose(pure, parts, effective))

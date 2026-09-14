@@ -1281,6 +1281,12 @@ const COMPENSATION_RECOVERY_RESULT: SourceSite = SourceSite::new(
     BudgetDimension::ResultItem,
     SiteKind::Retention,
 );
+const COMPENSATION_ALLOCATION: SourceSite = SourceSite::new(
+    SiteId::new("compensation/snapshot/allocate"),
+    "compensation::compose",
+    BudgetDimension::AccountedAllocation,
+    SiteKind::Allocation,
+);
 const RESULT_INPUT: SourceSite = SourceSite::new(
     SiteId::new("result/input/decode"),
     "result::reader::read",
@@ -1366,6 +1372,7 @@ pub const PRODUCTION_SOURCES: &[SourceSite] = &[
     crate::compensation::ATTEMPT_RESULT_SOURCE,
     crate::compensation::RETRY_RESULT_SOURCE,
     crate::compensation::RECOVERY_RESULT_SOURCE,
+    crate::compensation::ALLOCATION_SOURCE,
     crate::result::reader::INPUT_SOURCE,
     crate::result::reader::STRING_SOURCE,
     crate::result::reader::DEPTH_SOURCE,
@@ -1678,6 +1685,12 @@ pub const PRODUCTION_ENTRIES: &[InventoryEntry] = &[
         LimitAuthority::ConsumerOwner,
         ChargePoint::BeforeRetain,
         Termination::CollectionLength,
+    ),
+    entry(
+        COMPENSATION_ALLOCATION,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeAllocate,
+        Termination::SingleUnit,
     ),
     entry(
         RESULT_INPUT,
