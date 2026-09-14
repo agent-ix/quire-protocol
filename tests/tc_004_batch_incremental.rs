@@ -604,6 +604,43 @@ fn tc_009_batch_charges_observations_before_assessment() {
         retained_bytes
     );
 
+    let adverse_short = Budget::nothing_granted()
+        .grant(BudgetDimension::ResultItem, 2)
+        .expect("positive one-short adverse grant");
+    let mut adverse_resources = ResourceAccountant::new(adverse_short, &inventory);
+    assert!(matches!(
+        assess_bounded(request(), Limits::default(), &mut adverse_resources),
+        OperationOutcome::ResourceIncomplete(value)
+            if value.dimension() == BudgetDimension::ResultItem
+                && value.consumed() == 2
+                && value.requested() == 1
+    ));
+
+    let adverse_exact = Budget::nothing_granted()
+        .grant(BudgetDimension::ResultItem, 3)
+        .expect("positive exact adverse grant");
+    let mut adverse_resources = ResourceAccountant::new(adverse_exact, &inventory);
+    let OperationOutcome::Completed(adverse_report) =
+        assess_bounded(request(), Limits::default(), &mut adverse_resources)
+    else {
+        panic!("exact adverse budget must complete");
+    };
+    assert_eq!(adverse_report.adverse.len(), 3);
+
+    let adverse_owner_short = Limits {
+        max_adverse: 2,
+        ..Limits::default()
+    };
+    let mut owner_resources = ResourceAccountant::new(Budget::nothing_granted(), &inventory);
+    assert!(matches!(
+        assess_bounded(request(), adverse_owner_short, &mut owner_resources),
+        OperationOutcome::ResourceIncomplete(value)
+            if value.dimension() == BudgetDimension::ResultItem
+                && value.granted() == 2
+                && value.consumed() == 2
+                && value.requested() == 1
+    ));
+
     let predecessor_owner_short = Limits {
         max_predecessors: 0,
         ..Limits::default()

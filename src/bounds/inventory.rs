@@ -1043,6 +1043,12 @@ const CONFORMANCE_RETAINED_BYTE: SourceSite = SourceSite::new(
     BudgetDimension::InputByte,
     SiteKind::Retention,
 );
+const CONFORMANCE_ADVERSE: SourceSite = SourceSite::new(
+    SiteId::new("conformance/adverse/retain"),
+    "conformance::batch::assess",
+    BudgetDimension::ResultItem,
+    SiteKind::Retention,
+);
 const RESULT_LINEAGE: SourceSite = SourceSite::new(
     SiteId::new("result/lineage/traverse"),
     "result::lineage::validate",
@@ -1272,6 +1278,7 @@ pub const PRODUCTION_SOURCES: &[SourceSite] = &[
     crate::conformance::batch::OBSERVATION_SOURCE,
     crate::conformance::batch::PREDECESSOR_SOURCE,
     crate::conformance::batch::RETAINED_BYTE_SOURCE,
+    crate::conformance::batch::ADVERSE_SOURCE,
     crate::result::lineage::LINEAGE_SOURCE,
     crate::result::record::ITEM_SOURCE,
     crate::result::record::PREMISE_ITEM_SOURCE,
@@ -1398,6 +1405,12 @@ pub const PRODUCTION_ENTRIES: &[InventoryEntry] = &[
         LimitAuthority::ConsumerOwner,
         ChargePoint::BeforeRetain,
         Termination::InputLength,
+    ),
+    entry(
+        CONFORMANCE_ADVERSE,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeRetain,
+        Termination::CollectionLength,
     ),
     entry(
         RESULT_LINEAGE,

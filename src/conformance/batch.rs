@@ -40,6 +40,12 @@ pub(crate) const RETAINED_BYTE_SOURCE: SourceSite = SourceSite::new(
     BudgetDimension::InputByte,
     SiteKind::Retention,
 );
+pub(crate) const ADVERSE_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("conformance/adverse/retain"),
+    "conformance::batch::assess",
+    BudgetDimension::ResultItem,
+    SiteKind::Retention,
+);
 
 /// Immutable owner maxima. Callers may lower but never raise them.
 pub const OWNER_MAX: Limits = Limits {
@@ -540,7 +546,11 @@ pub fn assess_bounded(
     if let Err(error) = resources.charge_all_with_limits(&charges) {
         return OperationOutcome::from_charge(error);
     }
-    OperationOutcome::from_domain(assess(request, effective))
+    match assess_inner(request, effective, Some(resources)) {
+        Ok(report) => OperationOutcome::Completed(report),
+        Err(AssessError::Domain(error)) => OperationOutcome::DomainError(error),
+        Err(AssessError::Charge(error)) => OperationOutcome::from_charge(error),
+    }
 }
 
 fn predecessor_count(request: &Request<'_>) -> core::result::Result<usize, ChargeError> {
@@ -588,6 +598,39 @@ fn checked_sum(
 
 /// Assess one exact admitted history without repairing or reordering it.
 pub fn assess(request: Request<'_>, limits: Limits) -> Result<Report> {
+    match assess_inner(request, limits.effective(), None) {
+        Ok(report) => Ok(report),
+        Err(AssessError::Domain(error)) => Err(error),
+        Err(AssessError::Charge(_)) => Err(resource_refusal(
+            "bounded accounting failed on an unbounded assessment path",
+            Usage::default(),
+            &[],
+        )),
+    }
+}
+
+enum AssessError {
+    Domain(Refusal),
+    Charge(ChargeError),
+}
+
+impl From<Refusal> for AssessError {
+    fn from(error: Refusal) -> Self {
+        Self::Domain(error)
+    }
+}
+
+impl From<ChargeError> for AssessError {
+    fn from(error: ChargeError) -> Self {
+        Self::Charge(error)
+    }
+}
+
+fn assess_inner(
+    request: Request<'_>,
+    limits: Limits,
+    mut resources: Option<&mut ResourceAccountant<'_>>,
+) -> core::result::Result<Report, AssessError> {
     let effective = limits.effective();
     let mut usage = Usage {
         obligations: request.model.obligations.len(),
@@ -603,7 +646,8 @@ pub fn assess(request: Request<'_>, limits: Limits) -> Result<Report> {
             "conformance request exceeds an effective population ceiling",
             usage,
             request.model.protocol_identity.as_bytes(),
-        ));
+        )
+        .into());
     }
     validate_owner_axes_and_required_premises(&request, usage)?;
     usage.retained_bytes = retained_byte_count(&request).unwrap_or(usize::MAX);
@@ -612,7 +656,8 @@ pub fn assess(request: Request<'_>, limits: Limits) -> Result<Report> {
             "retained owner bytes exceed an effective ceiling",
             usage,
             request.model.protocol_identity.as_bytes(),
-        ));
+        )
+        .into());
     }
 
     let by_id: BTreeMap<_, _> = request
@@ -633,7 +678,8 @@ pub fn assess(request: Request<'_>, limits: Limits) -> Result<Report> {
             Some(&binding.obligation),
             usage,
             binding.observation.identity().as_str().as_bytes(),
-        ));
+        )
+        .into());
     }
 
     let mut positions: BTreeMap<&ObligationId, usize> = BTreeMap::new();
@@ -659,11 +705,16 @@ pub fn assess(request: Request<'_>, limits: Limits) -> Result<Report> {
             .collect();
         if bindings.is_empty() {
             if boundary_complete {
-                adverse.push(AdverseObservation {
-                    obligation: obligation.identity.clone(),
-                    kind: AdverseKind::Missing,
-                    observation_identity: None,
-                });
+                retain_adverse(
+                    &mut adverse,
+                    AdverseObservation {
+                        obligation: obligation.identity.clone(),
+                        kind: AdverseKind::Missing,
+                        observation_identity: None,
+                    },
+                    &mut resources,
+                    effective.max_adverse,
+                )?;
                 obligations.push(ObligationResult {
                     obligation: obligation.identity.clone(),
                     disposition: match request.execution {
@@ -697,38 +748,58 @@ pub fn assess(request: Request<'_>, limits: Limits) -> Result<Report> {
                 || view.subject_identity() != obligation.subject_identity.as_ref()
             {
                 has_adverse = true;
-                adverse.push(AdverseObservation {
-                    obligation: obligation.identity.clone(),
-                    kind: AdverseKind::Unexpected,
-                    observation_identity: Some(observation_identity),
-                });
+                retain_adverse(
+                    &mut adverse,
+                    AdverseObservation {
+                        obligation: obligation.identity.clone(),
+                        kind: AdverseKind::Unexpected,
+                        observation_identity: Some(observation_identity),
+                    },
+                    &mut resources,
+                    effective.max_adverse,
+                )?;
             }
             if binding.workflow_identity != obligation.workflow_identity {
                 has_adverse = true;
-                adverse.push(AdverseObservation {
-                    obligation: obligation.identity.clone(),
-                    kind: AdverseKind::CrossWorkflow,
-                    observation_identity: Some(view.observation_identity().into()),
-                });
+                retain_adverse(
+                    &mut adverse,
+                    AdverseObservation {
+                        obligation: obligation.identity.clone(),
+                        kind: AdverseKind::CrossWorkflow,
+                        observation_identity: Some(view.observation_identity().into()),
+                    },
+                    &mut resources,
+                    effective.max_adverse,
+                )?;
             }
             if binding.effect_identity != obligation.effect_identity {
                 has_adverse = true;
-                adverse.push(AdverseObservation {
-                    obligation: obligation.identity.clone(),
-                    kind: AdverseKind::Unexpected,
-                    observation_identity: Some(view.observation_identity().into()),
-                });
+                retain_adverse(
+                    &mut adverse,
+                    AdverseObservation {
+                        obligation: obligation.identity.clone(),
+                        kind: AdverseKind::Unexpected,
+                        observation_identity: Some(view.observation_identity().into()),
+                    },
+                    &mut resources,
+                    effective.max_adverse,
+                )?;
             } else if binding
                 .effect_identity
                 .as_deref()
                 .is_some_and(|effect| effect_counts.get(effect).copied().unwrap_or(0) > 1)
             {
                 has_adverse = true;
-                adverse.push(AdverseObservation {
-                    obligation: obligation.identity.clone(),
-                    kind: AdverseKind::DuplicateEffect,
-                    observation_identity: Some(view.observation_identity().into()),
-                });
+                retain_adverse(
+                    &mut adverse,
+                    AdverseObservation {
+                        obligation: obligation.identity.clone(),
+                        kind: AdverseKind::DuplicateEffect,
+                        observation_identity: Some(view.observation_identity().into()),
+                    },
+                    &mut resources,
+                    effective.max_adverse,
+                )?;
             }
             if obligation.predecessors.iter().any(|predecessor| {
                 positions
@@ -736,11 +807,16 @@ pub fn assess(request: Request<'_>, limits: Limits) -> Result<Report> {
                     .is_some_and(|predecessor| *predecessor > *position)
             }) {
                 has_adverse = true;
-                adverse.push(AdverseObservation {
-                    obligation: obligation.identity.clone(),
-                    kind: AdverseKind::CausallyMisordered,
-                    observation_identity: Some(view.observation_identity().into()),
-                });
+                retain_adverse(
+                    &mut adverse,
+                    AdverseObservation {
+                        obligation: obligation.identity.clone(),
+                        kind: AdverseKind::CausallyMisordered,
+                        observation_identity: Some(view.observation_identity().into()),
+                    },
+                    &mut resources,
+                    effective.max_adverse,
+                )?;
             }
             if obligation.valuation_required
                 && matches!(view.value(), observation::ValueRef::Missing)
@@ -777,7 +853,8 @@ pub fn assess(request: Request<'_>, limits: Limits) -> Result<Report> {
             "adverse report population exceeds an effective ceiling",
             usage,
             request.model.protocol_identity.as_bytes(),
-        ));
+        )
+        .into());
     }
     let observations = retain_observations(request.observations);
     let premises = retain_premises(&request);
@@ -800,6 +877,19 @@ pub fn assess(request: Request<'_>, limits: Limits) -> Result<Report> {
         premises,
         usage,
     })
+}
+
+fn retain_adverse(
+    adverse: &mut Vec<AdverseObservation>,
+    item: AdverseObservation,
+    resources: &mut Option<&mut ResourceAccountant<'_>>,
+    owner_limit: usize,
+) -> core::result::Result<(), ChargeError> {
+    if let Some(resources) = resources.as_deref_mut() {
+        resources.charge_with_limit(ADVERSE_SOURCE.id(), 1, owner_limit)?;
+    }
+    adverse.push(item);
+    Ok(())
 }
 
 fn validate_owner_axes_and_required_premises(request: &Request<'_>, usage: Usage) -> Result<()> {
