@@ -749,72 +749,178 @@ fn tc_009_reproduction_provenance_obeys_result_string_bounds() {
     "FR-042-AC-4",
     "FR-042-AC-5"
 )]
-fn tc_015_boolean_rows_and_typed_nonvalues_are_exact() {
+fn tc_015_every_result_combination_maps_without_boolean_coercion() {
     let fixture = fixture();
-    let satisfied = validated(base_input(&fixture));
-    let mapped = contract_ir::map(
-        &satisfied,
-        contract_ir::MappingSelection::current(),
-        Limits::owner_max(),
-    )
-    .expect("satisfied mapping");
-    assert_eq!(mapped.value(), Some(true));
-    assert!(mapped.non_value().is_none());
-    let reread = contract_ir::read(
-        mapped.bytes(),
-        &satisfied,
-        contract_ir::MappingSelection::current(),
-        Limits::owner_max(),
-    )
-    .expect("strict mapping");
-    assert_eq!(reread.bytes(), mapped.bytes());
+    let executions = AssessmentExecution::ALL;
+    let truths = [
+        Truth::Satisfied,
+        Truth::Violated,
+        Truth::Pending,
+        Truth::Unavailable,
+    ];
+    let settlements = [
+        SettlementBasis::ClosedScope,
+        SettlementBasis::DecisiveWitness,
+        SettlementBasis::DecisiveCounterexample,
+        SettlementBasis::Unsettled,
+        SettlementBasis::Unavailable,
+    ];
+    let activations = [
+        Activation::Triggered,
+        Activation::Inactive,
+        Activation::ActivationUnknown,
+    ];
+    let scope_states = [OpenClosed::Open, OpenClosed::Closed];
+    let mut admitted = 0usize;
+    let mut refused = 0usize;
 
-    let mut violated_input = base_input(&fixture);
-    violated_input.truth = Truth::Violated;
-    violated_input.settlement.basis = SettlementBasis::DecisiveCounterexample;
-    let violated = validated(violated_input);
-    assert_eq!(
-        contract_ir::map(
-            &violated,
-            contract_ir::MappingSelection::current(),
-            Limits::owner_max()
-        )
-        .expect("violated mapping")
-        .value(),
-        Some(false)
-    );
+    for execution in executions {
+        for truth in truths {
+            for settlement in settlements {
+                for activation in activations {
+                    for progress in scope_states {
+                        for closure in scope_states {
+                            for has_support in [false, true] {
+                                let expected = expected_result_combination(
+                                    execution,
+                                    truth,
+                                    settlement,
+                                    activation,
+                                    progress,
+                                    closure,
+                                    has_support,
+                                );
+                                let mut input = base_input(&fixture);
+                                input.execution = execution;
+                                input.truth = truth;
+                                input.settlement.basis = settlement;
+                                input.activation = activation;
+                                input.axes.decision_scope_progress = match progress {
+                                    OpenClosed::Open => &fixture.decision.progress_open,
+                                    OpenClosed::Closed => &fixture.decision.progress_closed,
+                                };
+                                input.axes.decision_scope_closure = match closure {
+                                    OpenClosed::Open => &fixture.decision.closure_open,
+                                    OpenClosed::Closed => &fixture.decision.closure_closed,
+                                };
+                                input.settlement.supporting_progress_identities = vec![input
+                                    .axes
+                                    .decision_scope_progress
+                                    .identity()
+                                    .as_str()
+                                    .to_owned()];
+                                if !has_support {
+                                    input.decision_support.clear();
+                                    input.settlement.supporting_fact_identities.clear();
+                                }
 
-    let mut pending_input = base_input(&fixture);
-    pending_input.axes.decision_scope_progress = &fixture.decision.progress_open;
-    pending_input.truth = Truth::Pending;
-    pending_input.settlement.basis = SettlementBasis::Unsettled;
-    let pending = validated(pending_input);
-    let mapped = contract_ir::map(
-        &pending,
-        contract_ir::MappingSelection::current(),
-        Limits::owner_max(),
-    )
-    .expect("pending mapping");
-    assert_eq!(mapped.value(), None);
-    let non_value = mapped.non_value().expect("typed nonvalue");
-    assert_eq!(non_value.truth(), Truth::Pending);
-    assert_eq!(non_value.execution(), AssessmentExecution::Completed);
+                                match result::produce(input.clone(), Limits::owner_max()) {
+                                    Ok(document) => {
+                                        assert!(expected, "unexpectedly admitted {input:?}");
+                                        let source = result::read(
+                                            document.bytes(),
+                                            result::Expected {
+                                                input,
+                                                enclosing_digest: document.digest(),
+                                            },
+                                            Limits::owner_max(),
+                                        )
+                                        .expect("every admitted row strict-reads");
+                                        let mapped = contract_ir::map(
+                                            &source,
+                                            contract_ir::MappingSelection::current(),
+                                            Limits::owner_max(),
+                                        )
+                                        .expect("every admitted row maps");
+                                        let expected_value = match (execution, truth) {
+                                            (AssessmentExecution::Completed, Truth::Satisfied) => {
+                                                Some(true)
+                                            }
+                                            (AssessmentExecution::Completed, Truth::Violated) => {
+                                                Some(false)
+                                            }
+                                            _ => None,
+                                        };
+                                        assert_eq!(mapped.value(), expected_value);
+                                        match (mapped.non_value(), expected_value) {
+                                            (Some(non_value), None) => {
+                                                assert_eq!(non_value.execution(), execution);
+                                                assert_eq!(non_value.truth(), truth);
+                                                assert_eq!(non_value.settlement(), settlement);
+                                                assert_eq!(
+                                                    non_value.completeness(),
+                                                    source.completeness_state()
+                                                );
+                                            }
+                                            (None, Some(_)) => {}
+                                            _ => panic!("value/non-value discriminator diverged"),
+                                        }
+                                        let reread = contract_ir::read(
+                                            mapped.bytes(),
+                                            &source,
+                                            contract_ir::MappingSelection::current(),
+                                            Limits::owner_max(),
+                                        )
+                                        .expect("every admitted mapping strict-reads");
+                                        assert_eq!(reread.bytes(), mapped.bytes());
+                                        admitted += 1;
+                                    }
+                                    Err(error) => {
+                                        assert!(!expected, "unexpected refusal: {error:?}");
+                                        assert_eq!(error.code(), ErrorCode::InvalidCombination);
+                                        refused += 1;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    assert_eq!(admitted, 126);
+    assert_eq!(refused, 2_274);
+}
 
-    let mut unsupported_input = base_input(&fixture);
-    unsupported_input.execution = AssessmentExecution::Unsupported;
-    unsupported_input.truth = Truth::Unavailable;
-    unsupported_input.settlement.basis = SettlementBasis::Unavailable;
-    let unsupported = validated(unsupported_input);
-    assert_eq!(
-        contract_ir::map(
-            &unsupported,
-            contract_ir::MappingSelection::current(),
-            Limits::owner_max()
-        )
-        .expect("unsupported mapping")
-        .value(),
-        None
-    );
+fn expected_result_combination(
+    execution: AssessmentExecution,
+    truth: Truth,
+    settlement: SettlementBasis,
+    activation: Activation,
+    progress: OpenClosed,
+    closure: OpenClosed,
+    has_support: bool,
+) -> bool {
+    use AssessmentExecution as E;
+    use SettlementBasis as S;
+    use Truth as T;
+
+    match (execution, truth, settlement, activation) {
+        (E::Completed, T::Satisfied | T::Violated, S::ClosedScope, Activation::Triggered) => {
+            progress == OpenClosed::Closed && closure == OpenClosed::Closed && has_support
+        }
+        (E::Completed, T::Satisfied, S::DecisiveWitness, Activation::Triggered)
+        | (E::Completed, T::Violated, S::DecisiveCounterexample, Activation::Triggered) => {
+            closure == OpenClosed::Open && has_support
+        }
+        (E::Completed, T::Pending, S::Unsettled, Activation::Triggered) => {
+            progress == OpenClosed::Open
+        }
+        (
+            E::Completed,
+            T::Unavailable,
+            S::Unavailable,
+            Activation::Inactive | Activation::ActivationUnknown,
+        ) => true,
+        (E::Completed, T::Unavailable, S::Unavailable, Activation::Triggered) => !has_support,
+        (
+            E::Refused | E::Unsupported | E::ResourceIncomplete | E::Failed,
+            T::Unavailable,
+            S::Unavailable,
+            _,
+        ) => true,
+        _ => false,
+    }
 }
 
 #[test]
@@ -954,6 +1060,8 @@ fn tc_015_four_axes_and_fr_295_completeness_are_independent() {
                             surrounding_execution_progress: execution_progress,
                             surrounding_execution_closure: execution_closure,
                         };
+                        input.settlement.supporting_progress_identities =
+                            vec![decision_progress.identity().as_str().to_owned()];
                         input.completeness = complete;
                         input.execution = AssessmentExecution::Unsupported;
                         input.truth = Truth::Unavailable;
@@ -1093,6 +1201,61 @@ fn tc_015_strict_mutations_lineage_and_limits_fail_closed() {
             .expect_err("missing premise")
             .code(),
         ErrorCode::GlobalPremiseMismatch
+    );
+
+    let mut mismatched_settlement_fact = input.clone();
+    mismatched_settlement_fact
+        .settlement
+        .supporting_fact_identities[0] = "observation:other".into();
+    assert_eq!(
+        result::produce(mismatched_settlement_fact, Limits::owner_max())
+            .expect_err("settlement fact outside exact decision support")
+            .code(),
+        ErrorCode::InvalidCombination
+    );
+
+    let mut mismatched_progress = input.clone();
+    mismatched_progress
+        .settlement
+        .supporting_progress_identities[0] = "progress:other".into();
+    assert_eq!(
+        result::produce(mismatched_progress, Limits::owner_max())
+            .expect_err("settlement progress outside selected owner assertions")
+            .code(),
+        ErrorCode::InvalidCombination
+    );
+
+    let mut open_closed_scope = input.clone();
+    open_closed_scope.axes.decision_scope_progress = &fixture.decision.progress_open;
+    open_closed_scope.settlement.supporting_progress_identities = vec![fixture
+        .decision
+        .progress_open
+        .identity()
+        .as_str()
+        .to_owned()];
+    assert_eq!(
+        result::produce(open_closed_scope, Limits::owner_max())
+            .expect_err("closed-scope settlement on open progress")
+            .code(),
+        ErrorCode::InvalidCombination
+    );
+
+    let mut closed_decisive_witness = input.clone();
+    closed_decisive_witness.settlement.basis = SettlementBasis::DecisiveWitness;
+    assert_eq!(
+        result::produce(closed_decisive_witness, Limits::owner_max())
+            .expect_err("decisive witness on a closed decision scope")
+            .code(),
+        ErrorCode::InvalidCombination
+    );
+
+    let mut incomplete_closed_scope = input.clone();
+    incomplete_closed_scope.completeness = &fixture.decision.completeness_incomplete;
+    assert_eq!(
+        result::produce(incomplete_closed_scope, Limits::owner_max())
+            .expect_err("closed-scope settlement over incomplete input")
+            .code(),
+        ErrorCode::InvalidCombination
     );
 
     let mut missing_predecessor = input.clone();

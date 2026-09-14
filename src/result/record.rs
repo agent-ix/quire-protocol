@@ -1117,17 +1117,24 @@ fn validate_combination(input: &Input<'_>) -> Result<()> {
     use SettlementBasis as S;
     use Truth as T;
     let progress = input.axes.decision_scope_progress.payload().state();
+    let closure = input.axes.decision_scope_closure.payload().state();
+    let completeness = input.completeness.payload().state();
     let valid = match (
         input.execution,
         input.truth,
         input.settlement.basis,
         input.activation,
     ) {
-        (E::Completed, T::Satisfied, S::ClosedScope, Activation::Triggered)
-        | (E::Completed, T::Satisfied, S::DecisiveWitness, Activation::Triggered)
-        | (E::Completed, T::Violated, S::ClosedScope, Activation::Triggered)
+        (E::Completed, T::Satisfied | T::Violated, S::ClosedScope, Activation::Triggered) => {
+            progress == quire_observation::authority::OpenClosed::Closed
+                && closure == quire_observation::authority::OpenClosed::Closed
+                && completeness == completeness::State::Complete
+                && !input.decision_support.is_empty()
+        }
+        (E::Completed, T::Satisfied, S::DecisiveWitness, Activation::Triggered)
         | (E::Completed, T::Violated, S::DecisiveCounterexample, Activation::Triggered) => {
-            !input.decision_support.is_empty()
+            closure == quire_observation::authority::OpenClosed::Open
+                && !input.decision_support.is_empty()
         }
         (E::Completed, T::Pending, S::Unsettled, Activation::Triggered) => {
             progress == quire_observation::authority::OpenClosed::Open
@@ -1165,6 +1172,52 @@ fn validate_combination(input: &Input<'_>) -> Result<()> {
         return Err(refusal(
             ErrorCode::InvalidCombination,
             "settled truth has incomplete decision support",
+            Usage::default(),
+            None,
+        ));
+    }
+    validate_settlement_support(input)?;
+    Ok(())
+}
+
+fn validate_settlement_support(input: &Input<'_>) -> Result<()> {
+    let decision_facts: std::collections::BTreeSet<_> = input
+        .decision_support
+        .iter()
+        .map(|support| support.observation_identity.as_str())
+        .collect();
+    let settlement_facts: std::collections::BTreeSet<_> = input
+        .settlement
+        .supporting_fact_identities
+        .iter()
+        .map(String::as_str)
+        .collect();
+    if decision_facts != settlement_facts {
+        return Err(refusal(
+            ErrorCode::InvalidCombination,
+            "settlement facts differ from the exact decision-support population",
+            Usage::default(),
+            None,
+        ));
+    }
+
+    let decision_progress = input.axes.decision_scope_progress.identity().as_str();
+    let surrounding_progress = input
+        .axes
+        .surrounding_execution_progress
+        .identity()
+        .as_str();
+    let progress = &input.settlement.supporting_progress_identities;
+    if !progress
+        .iter()
+        .any(|identity| identity == decision_progress)
+        || progress
+            .iter()
+            .any(|identity| identity != decision_progress && identity != surrounding_progress)
+    {
+        return Err(refusal(
+            ErrorCode::InvalidCombination,
+            "settlement progress does not name the exact selected progress assertions",
             Usage::default(),
             None,
         ));
