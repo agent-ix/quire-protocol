@@ -799,6 +799,73 @@ fn tc_009_result_output_budget_precedes_canonical_allocation() {
         required
     );
 
+    let usage = control.usage();
+    let result_items = usage
+        .claims
+        .checked_add(usage.premises)
+        .and_then(|value| value.checked_add(usage.support_records))
+        .and_then(|value| value.checked_add(usage.limitations))
+        .expect("bounded result items");
+    let item_short = Budget::nothing_granted()
+        .grant(BudgetDimension::ResultItem, result_items - 1)
+        .expect("positive one-short result-item grant");
+    let mut item_resources = ResourceAccountant::new(item_short, &inventory);
+    assert!(matches!(
+        result::produce_bounded(input.clone(), Limits::owner_max(), &mut item_resources),
+        OperationOutcome::ResourceIncomplete(value)
+            if value.dimension() == BudgetDimension::ResultItem
+    ));
+    assert_eq!(
+        item_resources.usage().consumed(BudgetDimension::ResultItem),
+        0
+    );
+
+    let item_exact = Budget::nothing_granted()
+        .grant(BudgetDimension::ResultItem, result_items)
+        .expect("positive exact result-item grant");
+    let mut item_resources = ResourceAccountant::new(item_exact, &inventory);
+    assert!(matches!(
+        result::produce_bounded(input.clone(), Limits::owner_max(), &mut item_resources),
+        OperationOutcome::Completed(_)
+    ));
+    assert_eq!(
+        item_resources.usage().consumed(BudgetDimension::ResultItem),
+        result_items
+    );
+
+    let one_lineage = Budget::nothing_granted()
+        .grant(BudgetDimension::Lineage, usage.lineage_nodes)
+        .expect("positive one-result lineage grant");
+    let mut lineage_resources = ResourceAccountant::new(one_lineage, &inventory);
+    assert!(matches!(
+        result::produce_bounded(input.clone(), Limits::owner_max(), &mut lineage_resources),
+        OperationOutcome::Completed(_)
+    ));
+    assert!(matches!(
+        result::produce_bounded(
+            input.clone(),
+            Limits::owner_max(),
+            &mut lineage_resources
+        ),
+        OperationOutcome::ResourceIncomplete(value)
+            if value.dimension() == BudgetDimension::Lineage
+                && value.consumed() == usage.lineage_nodes
+                && value.requested() == usage.lineage_nodes
+    ));
+
+    let owner_support_short = Limits {
+        max_support_records: usage.support_records - 1,
+        ..Limits::owner_max()
+    };
+    let mut owner_resources = ResourceAccountant::new(Budget::nothing_granted(), &inventory);
+    assert!(matches!(
+        result::produce_bounded(input.clone(), owner_support_short, &mut owner_resources),
+        OperationOutcome::ResourceIncomplete(value)
+            if value.dimension() == BudgetDimension::ResultItem
+                && value.granted() == usage.support_records - 1
+                && value.requested() == usage.support_records
+    ));
+
     let short = Budget::nothing_granted()
         .grant(BudgetDimension::InputByte, required - 1)
         .expect("positive one-short grant");

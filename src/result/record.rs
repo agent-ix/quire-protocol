@@ -20,6 +20,24 @@ pub(crate) const ITEM_SOURCE: SourceSite = SourceSite::new(
     BudgetDimension::ResultItem,
     SiteKind::Retention,
 );
+pub(crate) const PREMISE_ITEM_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("result/premise/retain"),
+    "result::record::produce",
+    BudgetDimension::ResultItem,
+    SiteKind::Retention,
+);
+pub(crate) const SUPPORT_ITEM_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("result/support/retain"),
+    "result::record::produce",
+    BudgetDimension::ResultItem,
+    SiteKind::Retention,
+);
+pub(crate) const LIMITATION_ITEM_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("result/limitation/retain"),
+    "result::record::produce",
+    BudgetDimension::ResultItem,
+    SiteKind::Retention,
+);
 pub(crate) const OUTPUT_SOURCE: SourceSite = SourceSite::new(
     SiteId::new("result/output/allocate"),
     "result::record::produce",
@@ -580,6 +598,33 @@ pub fn produce_bounded(
     resources: &mut ResourceAccountant<'_>,
 ) -> OperationOutcome<Document, Refusal> {
     let effective = limits.effective();
+    let semantic = semantic_usage(&input);
+    let charges = [
+        (ITEM_SOURCE.id(), semantic.claims, effective.max_claims),
+        (
+            PREMISE_ITEM_SOURCE.id(),
+            semantic.premises,
+            effective.max_premises,
+        ),
+        (
+            SUPPORT_ITEM_SOURCE.id(),
+            semantic.support_records,
+            effective.max_support_records,
+        ),
+        (
+            LIMITATION_ITEM_SOURCE.id(),
+            semantic.limitations,
+            effective.max_limitations,
+        ),
+        (
+            super::lineage::LINEAGE_SOURCE.id(),
+            semantic.lineage_nodes,
+            effective.max_lineage_nodes,
+        ),
+    ];
+    if let Err(error) = resources.charge_all_with_limits(&charges) {
+        return OperationOutcome::from_charge(error);
+    }
     let prepared = match prepare(input, effective) {
         Ok(prepared) => prepared,
         Err(error) => return OperationOutcome::DomainError(error),

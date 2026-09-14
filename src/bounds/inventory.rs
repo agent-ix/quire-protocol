@@ -1043,6 +1043,24 @@ const RESULT_ITEM: SourceSite = SourceSite::new(
     BudgetDimension::ResultItem,
     SiteKind::Retention,
 );
+const RESULT_PREMISE_ITEM: SourceSite = SourceSite::new(
+    SiteId::new("result/premise/retain"),
+    "result::record::produce",
+    BudgetDimension::ResultItem,
+    SiteKind::Retention,
+);
+const RESULT_SUPPORT_ITEM: SourceSite = SourceSite::new(
+    SiteId::new("result/support/retain"),
+    "result::record::produce",
+    BudgetDimension::ResultItem,
+    SiteKind::Retention,
+);
+const RESULT_LIMITATION_ITEM: SourceSite = SourceSite::new(
+    SiteId::new("result/limitation/retain"),
+    "result::record::produce",
+    BudgetDimension::ResultItem,
+    SiteKind::Retention,
+);
 const CONTRACT_IR_DERIVED: SourceSite = SourceSite::new(
     SiteId::new("result/contract-ir/derive"),
     "result::contract_ir::map",
@@ -1236,6 +1254,9 @@ pub const PRODUCTION_SOURCES: &[SourceSite] = &[
     crate::conformance::batch::OBSERVATION_SOURCE,
     crate::result::lineage::LINEAGE_SOURCE,
     crate::result::record::ITEM_SOURCE,
+    crate::result::record::PREMISE_ITEM_SOURCE,
+    crate::result::record::SUPPORT_ITEM_SOURCE,
+    crate::result::record::LIMITATION_ITEM_SOURCE,
     crate::result::contract_ir::DERIVED_SOURCE,
     crate::result::contract_ir::OUTPUT_SOURCE,
     crate::result::contract_ir::INPUT_SOURCE,
@@ -1353,6 +1374,24 @@ pub const PRODUCTION_ENTRIES: &[InventoryEntry] = &[
     ),
     entry(
         RESULT_ITEM,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeRetain,
+        Termination::CollectionLength,
+    ),
+    entry(
+        RESULT_PREMISE_ITEM,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeRetain,
+        Termination::CollectionLength,
+    ),
+    entry(
+        RESULT_SUPPORT_ITEM,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeRetain,
+        Termination::CollectionLength,
+    ),
+    entry(
+        RESULT_LIMITATION_ITEM,
         LimitAuthority::ConsumerOwner,
         ChargePoint::BeforeRetain,
         Termination::CollectionLength,
