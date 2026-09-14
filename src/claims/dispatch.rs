@@ -11,7 +11,9 @@ use crate::refusal::{
 };
 use crate::ByteDigest;
 
-use crate::bounds::inventory::{BudgetDimension, OperationOutcome, ResourceAccountant, SourceSite};
+use crate::bounds::inventory::{
+    BudgetDimension, ChargeError, OperationOutcome, ResourceAccountant, SourceSite,
+};
 use crate::bounds::{SiteId, SiteKind};
 
 use super::premises::{self, CorrespondenceAuthority, PremiseDefect, PremiseSet};
@@ -490,7 +492,10 @@ pub fn dispatch_bounded(
     resources: &mut ResourceAccountant<'_>,
 ) -> OperationOutcome<Report, Refusal> {
     let effective = limits.effective();
-    let preflight = preflight(requests, backends.len());
+    let preflight = match preflight_checked(requests, backends.len()) {
+        Ok(preflight) => preflight,
+        Err(error) => return OperationOutcome::from_charge(error),
+    };
     let derived = requests
         .iter()
         .filter(|request| request.premises.derived_artifact.is_some())
@@ -572,28 +577,49 @@ fn unavailable(request: &ClaimRequest<'_>, execution: AssessmentExecution) -> Di
 }
 
 fn preflight(requests: &[ClaimRequest<'_>], backends: usize) -> Usage {
+    preflight_checked(requests, backends).unwrap_or(Usage {
+        requests: requests.len(),
+        backends,
+        components: usize::MAX,
+        bytes: usize::MAX,
+        ..Usage::default()
+    })
+}
+
+fn preflight_checked(
+    requests: &[ClaimRequest<'_>],
+    backends: usize,
+) -> core::result::Result<Usage, ChargeError> {
     let mut usage = Usage {
         requests: requests.len(),
         backends,
         ..Usage::default()
     };
     for request in requests {
-        usage.components = usage.components.saturating_add(2);
-        usage.bytes = usage
-            .bytes
-            .saturating_add(request.identity.len())
-            .saturating_add(request.strength.len())
-            .saturating_add(request.premises.admitted_fragment.identity.len())
-            .saturating_add(request.premises.admitted_fragment.bytes.len())
-            .saturating_add(request.premises.backend.identity.len())
-            .saturating_add(request.premises.backend.version.len());
+        checked_increment(&mut usage.components, 2, COMPONENT_SOURCE.id())?;
+        for bytes in [
+            request.identity.len(),
+            request.strength.len(),
+            request.premises.admitted_fragment.identity.len(),
+            request.premises.admitted_fragment.bytes.len(),
+            request.premises.backend.identity.len(),
+            request.premises.backend.version.len(),
+        ] {
+            checked_increment(&mut usage.bytes, bytes, super::premises::INPUT_SOURCE.id())?;
+        }
         for assumption in &request.premises.assumptions {
-            visit_component(&assumption.component, &mut usage);
-            usage.components = usage
-                .components
-                .saturating_add(assumption.dependencies.len());
+            visit_component(&assumption.component, &mut usage)?;
+            checked_increment(
+                &mut usage.components,
+                assumption.dependencies.len(),
+                COMPONENT_SOURCE.id(),
+            )?;
             for dependency in &assumption.dependencies {
-                usage.bytes = usage.bytes.saturating_add(dependency.len());
+                checked_increment(
+                    &mut usage.bytes,
+                    dependency.len(),
+                    super::premises::INPUT_SOURCE.id(),
+                )?;
             }
         }
         for component in request
@@ -604,24 +630,49 @@ fn preflight(requests: &[ClaimRequest<'_>], backends: usize) -> Usage {
             .chain(&request.premises.environment)
             .chain(&request.premises.sources)
         {
-            visit_component(component, &mut usage);
+            visit_component(component, &mut usage)?;
         }
         if let Some(derived) = &request.premises.derived_artifact {
-            visit_component(&derived.artifact, &mut usage);
+            visit_component(&derived.artifact, &mut usage)?;
             for component in &derived.source_tuple {
-                visit_component(component, &mut usage);
+                visit_component(component, &mut usage)?;
             }
         }
     }
-    usage
+    Ok(usage)
 }
 
-fn visit_component(component: &premises::Component, usage: &mut Usage) {
-    usage.components = usage.components.saturating_add(1);
-    usage.bytes = usage
-        .bytes
-        .saturating_add(component.identity.len())
-        .saturating_add(component.bytes.len());
+fn visit_component(
+    component: &premises::Component,
+    usage: &mut Usage,
+) -> core::result::Result<(), ChargeError> {
+    checked_increment(&mut usage.components, 1, COMPONENT_SOURCE.id())?;
+    checked_increment(
+        &mut usage.bytes,
+        component.identity.len(),
+        super::premises::INPUT_SOURCE.id(),
+    )?;
+    checked_increment(
+        &mut usage.bytes,
+        component.bytes.len(),
+        super::premises::INPUT_SOURCE.id(),
+    )
+}
+
+fn checked_increment(
+    consumed: &mut usize,
+    requested: usize,
+    site: SiteId,
+) -> core::result::Result<(), ChargeError> {
+    let next = consumed
+        .checked_add(requested)
+        .ok_or(ChargeError::CounterOverflow {
+            site,
+            consumed: *consumed,
+            requested,
+        })?;
+    *consumed = next;
+    Ok(())
 }
 
 fn resource_refusal(usage: Usage) -> Refusal {
