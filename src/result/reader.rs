@@ -4,7 +4,9 @@
 use serde_json::{Map, Value};
 use std::sync::OnceLock;
 
-use crate::bounds::inventory::{BudgetDimension, OperationOutcome, ResourceAccountant, SourceSite};
+use crate::bounds::inventory::{
+    BudgetDimension, ChargeError, OperationOutcome, ResourceAccountant, SourceSite,
+};
 use crate::bounds::{SiteId, SiteKind};
 use crate::digest::jcs::{canonicalize, ResultDigest};
 
@@ -47,6 +49,33 @@ pub struct Expected<'a> {
     pub enclosing_digest: &'a str,
 }
 
+#[derive(Clone, Copy)]
+pub(crate) struct StructuralSources {
+    input: SourceSite,
+    string: SourceSite,
+    depth: SourceSite,
+    operation: SourceSite,
+}
+
+impl StructuralSources {
+    pub(crate) const fn new(
+        input: SourceSite,
+        string: SourceSite,
+        depth: SourceSite,
+        operation: SourceSite,
+    ) -> Self {
+        Self {
+            input,
+            string,
+            depth,
+            operation,
+        }
+    }
+}
+
+const RESULT_SOURCES: StructuralSources =
+    StructuralSources::new(INPUT_SOURCE, STRING_SOURCE, DEPTH_SOURCE, OPERATION_SOURCE);
+
 /// Strict-read canonical result bytes against independent selections.
 pub fn read_bounded(
     bytes: &[u8],
@@ -55,32 +84,32 @@ pub fn read_bounded(
     resources: &mut ResourceAccountant<'_>,
 ) -> OperationOutcome<ValidatedResult, Refusal> {
     let effective = limits.effective();
-    if let Err(error) =
-        resources.charge_with_limit(INPUT_SOURCE.id(), bytes.len(), effective.max_input_bytes)
-    {
-        return OperationOutcome::from_charge(error);
-    }
-    let observed = structural_usage(bytes);
-    if let Err(error) = resources.charge_with_limit(
-        STRING_SOURCE.id(),
-        observed.string_bytes,
-        effective.max_string_bytes,
-    ) {
-        return OperationOutcome::from_charge(error);
-    }
-    if let Err(error) =
-        resources.charge_with_limit(DEPTH_SOURCE.id(), observed.depth, effective.max_depth)
-    {
-        return OperationOutcome::from_charge(error);
-    }
-    if let Err(error) = resources.charge_with_limit(
-        OPERATION_SOURCE.id(),
-        observed.fields,
-        effective.max_visited_fields,
-    ) {
+    if let Err(error) = charge_structural(bytes, effective, resources, RESULT_SOURCES) {
         return OperationOutcome::from_charge(error);
     }
     OperationOutcome::from_domain(read(bytes, expected, effective))
+}
+
+pub(crate) fn charge_structural(
+    bytes: &[u8],
+    limits: Limits,
+    resources: &mut ResourceAccountant<'_>,
+    sources: StructuralSources,
+) -> core::result::Result<StructuralUsage, ChargeError> {
+    resources.charge_with_limit(sources.input.id(), bytes.len(), limits.max_input_bytes)?;
+    let observed = structural_usage(bytes);
+    resources.charge_with_limit(
+        sources.string.id(),
+        observed.string_bytes,
+        limits.max_string_bytes,
+    )?;
+    resources.charge_with_limit(sources.depth.id(), observed.depth, limits.max_depth)?;
+    resources.charge_with_limit(
+        sources.operation.id(),
+        observed.fields,
+        limits.max_visited_fields,
+    )?;
+    Ok(observed)
 }
 
 #[derive(Clone, Copy)]

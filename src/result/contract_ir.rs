@@ -4,10 +4,10 @@
 use serde_json::{json, Value};
 use std::sync::OnceLock;
 
-use crate::bounds::inventory::{BudgetDimension, SourceSite};
+use crate::bounds::inventory::{BudgetDimension, OperationOutcome, ResourceAccountant, SourceSite};
 use crate::bounds::{SiteId, SiteKind};
 use crate::closure::AssessmentExecution;
-use crate::digest::jcs::canonicalize;
+use crate::digest::jcs::{canonical_len, canonicalize};
 use crate::refusal::catalog::{CodeEntry, CodeModule, Provenance};
 use crate::refusal::{RefusalDomain, RetryDecision};
 use crate::ByteDigest;
@@ -23,6 +23,43 @@ pub(crate) const DERIVED_SOURCE: SourceSite = SourceSite::new(
     "result::contract_ir::map",
     BudgetDimension::DerivedArtifact,
     SiteKind::Retention,
+);
+pub(crate) const OUTPUT_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("result/contract-ir/output/allocate"),
+    "result::contract_ir::map",
+    BudgetDimension::OutputByte,
+    SiteKind::Allocation,
+);
+pub(crate) const INPUT_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("result/contract-ir/input/decode"),
+    "result::contract_ir::read",
+    BudgetDimension::InputByte,
+    SiteKind::Iteration,
+);
+pub(crate) const STRING_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("result/contract-ir/string/retain"),
+    "result::contract_ir::read",
+    BudgetDimension::InputByte,
+    SiteKind::Retention,
+);
+pub(crate) const DEPTH_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("result/contract-ir/container/depth"),
+    "result::contract_ir::read",
+    BudgetDimension::Operation,
+    SiteKind::Traversal,
+);
+pub(crate) const OPERATION_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("result/contract-ir/field/visit"),
+    "result::contract_ir::read",
+    BudgetDimension::Operation,
+    SiteKind::Traversal,
+);
+
+const READ_SOURCES: super::reader::StructuralSources = super::reader::StructuralSources::new(
+    INPUT_SOURCE,
+    STRING_SOURCE,
+    DEPTH_SOURCE,
+    OPERATION_SOURCE,
 );
 
 /// Selected mapping contract.
@@ -134,6 +171,15 @@ pub struct MappedResultView {
     usage: Usage,
 }
 
+struct PreparedMapping {
+    value: Value,
+    identity: String,
+    source_result_id: String,
+    source_result_digest: String,
+    outcome: Outcome,
+    semantic_usage: Usage,
+}
+
 impl MappedResultView {
     #[must_use]
     pub fn bytes(&self) -> &[u8] {
@@ -179,6 +225,50 @@ pub fn map(
     limits: Limits,
 ) -> Result<MappedResultView> {
     validate_selection(selection)?;
+    finish_mapping(prepare_mapping(source)?, limits.effective())
+}
+
+/// Derive the selected mapping under the shared QProtocol caller budget.
+///
+/// The derived-artifact unit is charged before constructing the view. Its
+/// exact canonical byte length is then charged before allocating output bytes.
+pub fn map_bounded(
+    source: &ValidatedResult,
+    selection: MappingSelection<'_>,
+    limits: Limits,
+    resources: &mut ResourceAccountant<'_>,
+) -> OperationOutcome<MappedResultView, Refusal> {
+    if let Err(error) = validate_selection(selection) {
+        return OperationOutcome::DomainError(error);
+    }
+    if let Err(error) = resources.charge_with_limit(DERIVED_SOURCE.id(), 1, 1) {
+        return OperationOutcome::from_charge(error);
+    }
+    let prepared = match prepare_mapping(source) {
+        Ok(prepared) => prepared,
+        Err(error) => return OperationOutcome::DomainError(error),
+    };
+    let required = match canonical_len(&prepared.value) {
+        Ok(required) => required,
+        Err(_) => {
+            return OperationOutcome::DomainError(Refusal::new(
+                ErrorCode::MappingMismatch,
+                "mapping cannot determine its canonical output length",
+                Usage::default(),
+                Some(source.result_id()),
+            ));
+        }
+    };
+    let effective = limits.effective();
+    if let Err(error) =
+        resources.charge_with_limit(OUTPUT_SOURCE.id(), required, effective.max_output_bytes)
+    {
+        return OperationOutcome::from_charge(error);
+    }
+    OperationOutcome::from_domain(finish_mapping(prepared, effective))
+}
+
+fn prepare_mapping(source: &ValidatedResult) -> Result<PreparedMapping> {
     let snapshot = &source.document.snapshot;
     let outcome = match (snapshot.execution, snapshot.truth) {
         (AssessmentExecution::Completed, Truth::Satisfied) => Outcome::Value(true),
@@ -206,31 +296,46 @@ pub fn map(
     identity_preimage.extend_from_slice(canonical_without_identity.as_bytes());
     let identity = format!("sha256:{:x}", ByteDigest::of(&identity_preimage));
     let value = mapping_value(source, snapshot, &outcome, Some(&identity));
+    Ok(PreparedMapping {
+        value,
+        identity,
+        source_result_id: source.result_id().to_owned(),
+        source_result_digest: source.digest().to_owned(),
+        outcome,
+        semantic_usage: Usage {
+            claims: 1,
+            support_records: snapshot.decision_support.len(),
+            lineage_nodes: usize::from(snapshot.correction.is_some()),
+            ..Usage::default()
+        },
+    })
+}
+
+fn finish_mapping(prepared: PreparedMapping, limits: Limits) -> Result<MappedResultView> {
+    let PreparedMapping {
+        value,
+        identity,
+        source_result_id,
+        source_result_digest,
+        outcome,
+        semantic_usage,
+    } = prepared;
     let bytes = canonicalize(&value)
         .map_err(|_| {
             Refusal::new(
                 ErrorCode::MappingMismatch,
                 "mapping cannot be canonicalized",
                 Usage::default(),
-                Some(source.result_id()),
+                Some(&source_result_id),
             )
         })?
         .into_bytes();
-    let usage = super::reader::preflight_output(
-        &bytes,
-        limits.effective(),
-        Usage {
-            claims: 1,
-            support_records: snapshot.decision_support.len(),
-            lineage_nodes: usize::from(snapshot.correction.is_some()),
-            ..Usage::default()
-        },
-    )?;
+    let usage = super::reader::preflight_output(&bytes, limits, semantic_usage)?;
     Ok(MappedResultView {
         bytes,
         identity,
-        source_result_id: source.result_id().to_owned(),
-        source_result_digest: source.digest().to_owned(),
+        source_result_id,
+        source_result_digest,
         outcome,
         usage,
     })
@@ -243,7 +348,52 @@ pub fn read(
     selection: MappingSelection<'_>,
     limits: Limits,
 ) -> Result<MappedResultView> {
-    let observed = super::reader::preflight_external(bytes, limits.effective())?;
+    validate_selection(selection)?;
+    let effective = limits.effective();
+    let observed = validate_offered(bytes, source, effective)?;
+    let derived = map(source, selection, effective)?;
+    compare_offered(bytes, source, observed, derived)
+}
+
+/// Strict-read mapping bytes under the shared QProtocol caller budget.
+///
+/// Hostile input structure is charged before JSON allocation. Re-deriving the
+/// selected mapping then charges the same derived-artifact and output sites as
+/// [`map_bounded`].
+pub fn read_bounded(
+    bytes: &[u8],
+    source: &ValidatedResult,
+    selection: MappingSelection<'_>,
+    limits: Limits,
+    resources: &mut ResourceAccountant<'_>,
+) -> OperationOutcome<MappedResultView, Refusal> {
+    if let Err(error) = validate_selection(selection) {
+        return OperationOutcome::DomainError(error);
+    }
+    let effective = limits.effective();
+    if let Err(error) = super::reader::charge_structural(bytes, effective, resources, READ_SOURCES)
+    {
+        return OperationOutcome::from_charge(error);
+    }
+    let observed = match validate_offered(bytes, source, effective) {
+        Ok(observed) => observed,
+        Err(error) => return OperationOutcome::DomainError(error),
+    };
+    let derived = match map_bounded(source, selection, effective, resources) {
+        OperationOutcome::Completed(derived) => derived,
+        OperationOutcome::DomainError(error) => return OperationOutcome::DomainError(error),
+        OperationOutcome::ResourceIncomplete(value) => {
+            return OperationOutcome::ResourceIncomplete(value)
+        }
+        OperationOutcome::AccountingFault(fault) => {
+            return OperationOutcome::AccountingFault(fault)
+        }
+    };
+    OperationOutcome::from_domain(compare_offered(bytes, source, observed, derived))
+}
+
+fn validate_offered(bytes: &[u8], source: &ValidatedResult, limits: Limits) -> Result<Usage> {
+    let observed = super::reader::preflight_external(bytes, limits)?;
     let value: Value = serde_json::from_slice(bytes).map_err(|_| {
         Refusal::new(
             ErrorCode::MappingMismatch,
@@ -260,7 +410,15 @@ pub fn read(
             Some(source.result_id()),
         ));
     }
-    let mut derived = map(source, selection, limits)?;
+    Ok(observed)
+}
+
+fn compare_offered(
+    bytes: &[u8],
+    source: &ValidatedResult,
+    observed: Usage,
+    mut derived: MappedResultView,
+) -> Result<MappedResultView> {
     if bytes != derived.bytes {
         return Err(Refusal::new(
             ErrorCode::MappingMismatch,

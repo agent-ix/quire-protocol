@@ -1049,6 +1049,36 @@ const CONTRACT_IR_DERIVED: SourceSite = SourceSite::new(
     BudgetDimension::DerivedArtifact,
     SiteKind::Retention,
 );
+const CONTRACT_IR_OUTPUT: SourceSite = SourceSite::new(
+    SiteId::new("result/contract-ir/output/allocate"),
+    "result::contract_ir::map",
+    BudgetDimension::OutputByte,
+    SiteKind::Allocation,
+);
+const CONTRACT_IR_INPUT: SourceSite = SourceSite::new(
+    SiteId::new("result/contract-ir/input/decode"),
+    "result::contract_ir::read",
+    BudgetDimension::InputByte,
+    SiteKind::Iteration,
+);
+const CONTRACT_IR_STRING: SourceSite = SourceSite::new(
+    SiteId::new("result/contract-ir/string/retain"),
+    "result::contract_ir::read",
+    BudgetDimension::InputByte,
+    SiteKind::Retention,
+);
+const CONTRACT_IR_DEPTH: SourceSite = SourceSite::new(
+    SiteId::new("result/contract-ir/container/depth"),
+    "result::contract_ir::read",
+    BudgetDimension::Operation,
+    SiteKind::Traversal,
+);
+const CONTRACT_IR_OPERATION: SourceSite = SourceSite::new(
+    SiteId::new("result/contract-ir/field/visit"),
+    "result::contract_ir::read",
+    BudgetDimension::Operation,
+    SiteKind::Traversal,
+);
 const RESULT_OUTPUT: SourceSite = SourceSite::new(
     SiteId::new("result/output/allocate"),
     "result::record::produce",
@@ -1207,6 +1237,11 @@ pub const PRODUCTION_SOURCES: &[SourceSite] = &[
     crate::result::lineage::LINEAGE_SOURCE,
     crate::result::record::ITEM_SOURCE,
     crate::result::contract_ir::DERIVED_SOURCE,
+    crate::result::contract_ir::OUTPUT_SOURCE,
+    crate::result::contract_ir::INPUT_SOURCE,
+    crate::result::contract_ir::STRING_SOURCE,
+    crate::result::contract_ir::DEPTH_SOURCE,
+    crate::result::contract_ir::OPERATION_SOURCE,
     crate::result::record::OUTPUT_SOURCE,
     crate::conformance::batch::OPERATION_SOURCE,
     crate::ids::ALLOCATION_SOURCE,
@@ -1327,6 +1362,36 @@ pub const PRODUCTION_ENTRIES: &[InventoryEntry] = &[
         LimitAuthority::ConsumerOwner,
         ChargePoint::BeforeRetain,
         Termination::SingleUnit,
+    ),
+    entry(
+        CONTRACT_IR_OUTPUT,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeAllocate,
+        Termination::InputLength,
+    ),
+    entry(
+        CONTRACT_IR_INPUT,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeDecode,
+        Termination::InputLength,
+    ),
+    entry(
+        CONTRACT_IR_STRING,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeRetain,
+        Termination::InputLength,
+    ),
+    entry(
+        CONTRACT_IR_DEPTH,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeTraverse,
+        Termination::FiniteGraph,
+    ),
+    entry(
+        CONTRACT_IR_OPERATION,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeTraverse,
+        Termination::FiniteGraph,
     ),
     entry(
         RESULT_OUTPUT,

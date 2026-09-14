@@ -1017,6 +1017,169 @@ fn tc_009_result_output_budget_precedes_canonical_allocation() {
 }
 
 #[test]
+#[trace("TC-009", "TC-015", "NFR-002-AC-1", "FR-016-AC-2", "FR-042-AC-6")]
+fn tc_009_contract_ir_mapping_charges_derived_artifacts_and_output() {
+    let fixture = fixture();
+    let source = validated(base_input(&fixture));
+    let selection = contract_ir::MappingSelection::current();
+    let control = contract_ir::map(&source, selection, Limits::owner_max()).expect("control map");
+    let required = control.bytes().len();
+    let inventory = production_inventory().expect("production inventory");
+
+    let short = Budget::nothing_granted()
+        .grant(BudgetDimension::OutputByte, required - 1)
+        .expect("positive one-short output grant");
+    let mut resources = ResourceAccountant::new(short, &inventory);
+    assert!(matches!(
+        contract_ir::map_bounded(&source, selection, Limits::owner_max(), &mut resources),
+        OperationOutcome::ResourceIncomplete(value)
+            if value.dimension() == BudgetDimension::OutputByte
+                && value.requested() == required
+    ));
+    assert_eq!(resources.usage().consumed(BudgetDimension::OutputByte), 0);
+
+    let exact = Budget::nothing_granted()
+        .grant(BudgetDimension::OutputByte, required)
+        .expect("positive exact output grant");
+    let mut resources = ResourceAccountant::new(exact, &inventory);
+    let OperationOutcome::Completed(mapped) =
+        contract_ir::map_bounded(&source, selection, Limits::owner_max(), &mut resources)
+    else {
+        panic!("exact output budget must complete mapping");
+    };
+    assert_eq!(mapped.bytes(), control.bytes());
+
+    let one_artifact = Budget::nothing_granted()
+        .grant(BudgetDimension::DerivedArtifact, 1)
+        .expect("positive one-artifact grant");
+    let mut resources = ResourceAccountant::new(one_artifact, &inventory);
+    assert!(matches!(
+        contract_ir::map_bounded(&source, selection, Limits::owner_max(), &mut resources),
+        OperationOutcome::Completed(_)
+    ));
+    assert!(matches!(
+        contract_ir::map_bounded(&source, selection, Limits::owner_max(), &mut resources),
+        OperationOutcome::ResourceIncomplete(value)
+            if value.dimension() == BudgetDimension::DerivedArtifact
+                && value.consumed() == 1
+                && value.requested() == 1
+    ));
+
+    let mut fresh_resources = ResourceAccountant::new(
+        Budget::nothing_granted()
+            .grant(BudgetDimension::DerivedArtifact, 1)
+            .expect("positive fresh grant"),
+        &inventory,
+    );
+    assert!(matches!(
+        contract_ir::map_bounded(
+            &source,
+            selection,
+            Limits::owner_max(),
+            &mut fresh_resources,
+        ),
+        OperationOutcome::Completed(_)
+    ));
+
+    let owner_short = Limits {
+        max_output_bytes: required - 1,
+        ..Limits::owner_max()
+    };
+    let mut resources = ResourceAccountant::new(Budget::nothing_granted(), &inventory);
+    assert!(matches!(
+        contract_ir::map_bounded(&source, selection, owner_short, &mut resources),
+        OperationOutcome::ResourceIncomplete(value)
+            if value.dimension() == BudgetDimension::OutputByte
+                && value.granted() == required - 1
+                && value.requested() == required
+    ));
+
+    let retained_string = control.usage().string_bytes;
+    let total_input = required
+        .checked_add(retained_string)
+        .expect("bounded mapping input");
+    let operations = control
+        .usage()
+        .depth
+        .checked_add(control.usage().visited_fields)
+        .expect("bounded mapping traversal");
+    let input_short = Budget::nothing_granted()
+        .grant(BudgetDimension::InputByte, required - 1)
+        .expect("positive one-short mapping input grant");
+    let mut resources = ResourceAccountant::new(input_short, &inventory);
+    assert!(matches!(
+        contract_ir::read_bounded(
+            control.bytes(),
+            &source,
+            selection,
+            Limits::owner_max(),
+            &mut resources,
+        ),
+        OperationOutcome::ResourceIncomplete(value)
+            if value.dimension() == BudgetDimension::InputByte
+                && value.consumed() == 0
+                && value.requested() == required
+    ));
+
+    let retained_short = Budget::nothing_granted()
+        .grant(BudgetDimension::InputByte, total_input - 1)
+        .expect("positive one-short mapping retention grant");
+    let mut resources = ResourceAccountant::new(retained_short, &inventory);
+    assert!(matches!(
+        contract_ir::read_bounded(
+            control.bytes(),
+            &source,
+            selection,
+            Limits::owner_max(),
+            &mut resources,
+        ),
+        OperationOutcome::ResourceIncomplete(value)
+            if value.dimension() == BudgetDimension::InputByte
+                && value.consumed() == required
+                && value.requested() == retained_string
+    ));
+
+    let exact_read = Budget::nothing_granted()
+        .grant(BudgetDimension::InputByte, total_input)
+        .expect("positive mapping input grant")
+        .grant(BudgetDimension::Operation, operations)
+        .expect("positive mapping operation grant")
+        .grant(BudgetDimension::DerivedArtifact, 1)
+        .expect("positive mapping artifact grant")
+        .grant(BudgetDimension::OutputByte, required)
+        .expect("positive mapping output grant");
+    let mut resources = ResourceAccountant::new(exact_read, &inventory);
+    assert!(matches!(
+        contract_ir::read_bounded(
+            control.bytes(),
+            &source,
+            selection,
+            Limits::owner_max(),
+            &mut resources,
+        ),
+        OperationOutcome::Completed(_)
+    ));
+
+    let operation_short = Budget::nothing_granted()
+        .grant(BudgetDimension::Operation, operations - 1)
+        .expect("positive one-short operation grant");
+    let mut resources = ResourceAccountant::new(operation_short, &inventory);
+    assert!(matches!(
+        contract_ir::read_bounded(
+            control.bytes(),
+            &source,
+            selection,
+            Limits::owner_max(),
+            &mut resources,
+        ),
+        OperationOutcome::ResourceIncomplete(value)
+            if value.dimension() == BudgetDimension::Operation
+                && value.consumed() == control.usage().depth
+                && value.requested() == control.usage().visited_fields
+    ));
+}
+
+#[test]
 #[trace(
     "TC-006",
     "TC-015",
