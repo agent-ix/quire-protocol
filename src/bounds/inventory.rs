@@ -1115,6 +1115,12 @@ const IDENTITY_ALLOCATION: SourceSite = SourceSite::new(
     BudgetDimension::AccountedAllocation,
     SiteKind::Allocation,
 );
+const IDENTITY_INPUT: SourceSite = SourceSite::new(
+    SiteId::new("identity/storage/retain"),
+    "ids::*::new",
+    BudgetDimension::InputByte,
+    SiteKind::Retention,
+);
 const REQUEST_DEADLINE: SourceSite = SourceSite::new(
     SiteId::new("request/unit/deadline"),
     "bounds::DeadlineGuard::begin_unit",
@@ -1266,6 +1272,7 @@ pub const PRODUCTION_SOURCES: &[SourceSite] = &[
     crate::result::record::OUTPUT_SOURCE,
     crate::conformance::batch::OPERATION_SOURCE,
     crate::ids::ALLOCATION_SOURCE,
+    crate::ids::INPUT_SOURCE,
     super::REQUEST_DEADLINE_SOURCE,
     crate::repro::INPUT_SOURCE,
     crate::repro::ALLOCATION_SOURCE,
@@ -1449,6 +1456,12 @@ pub const PRODUCTION_ENTRIES: &[InventoryEntry] = &[
         LimitAuthority::ConsumerOwner,
         ChargePoint::BeforeAllocate,
         Termination::SingleUnit,
+    ),
+    entry(
+        IDENTITY_INPUT,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeRetain,
+        Termination::InputLength,
     ),
     entry(
         REQUEST_DEADLINE,

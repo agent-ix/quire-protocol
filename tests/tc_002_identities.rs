@@ -11,6 +11,9 @@ use std::any::TypeId;
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use ix_trace_rs::trace;
+use quire_protocol::bounds::inventory::{
+    production_inventory, Budget, BudgetDimension, OperationOutcome, ResourceAccountant,
+};
 use quire_protocol::ids::{
     AttemptId, ChannelId, CommitId, ComponentId, DefinitionId, DeliveryId, EffectId, EndpointId,
     IdentityKind, MessageId, ParticipantId, ReceiveId, RecoveryId, RegistrationId, RoleInstanceId,
@@ -267,4 +270,55 @@ fn tc_002_compile_fail_proof_is_present() {
             "{name} is never the expected type in a compile-fail case"
         );
     }
+}
+
+#[trace("TC-002", "TC-009", "NFR-002-AC-1", "NFR-002-AC-3", "Task-008")]
+#[test]
+fn tc_009_linked_identities_charge_before_retention() {
+    let inventory = production_inventory().expect("production inventory");
+    let identity = b"definition:orders";
+    let display = "Orders protocol";
+    let retained = identity.len() + display.len();
+
+    let short = Budget::nothing_granted()
+        .grant(BudgetDimension::InputByte, retained - 1)
+        .expect("positive one-short identity grant")
+        .grant(BudgetDimension::AccountedAllocation, 1)
+        .expect("positive allocation grant");
+    let mut resources = ResourceAccountant::new(short, &inventory);
+    assert!(matches!(
+        DefinitionId::new_bounded(identity, display, &mut resources),
+        OperationOutcome::ResourceIncomplete(value)
+            if value.dimension() == BudgetDimension::InputByte
+                && value.requested() == retained
+    ));
+    assert_eq!(
+        resources
+            .usage()
+            .consumed(BudgetDimension::AccountedAllocation),
+        0
+    );
+
+    let exact = Budget::nothing_granted()
+        .grant(BudgetDimension::InputByte, retained)
+        .expect("positive exact identity grant")
+        .grant(BudgetDimension::AccountedAllocation, 1)
+        .expect("positive exact allocation grant");
+    let mut fresh = ResourceAccountant::new(exact, &inventory);
+    let OperationOutcome::Completed(retained_identity) =
+        DefinitionId::new_bounded(identity, display, &mut fresh)
+    else {
+        panic!("fresh exact identity budget must complete");
+    };
+    assert_eq!(retained_identity.identity_bytes(), identity);
+
+    let role = RoleInstanceId::new_bounded(b"role:buyer", "buyer", &mut fresh);
+    assert!(matches!(
+        role,
+        OperationOutcome::ResourceIncomplete(value)
+            if matches!(
+                value.dimension(),
+                BudgetDimension::InputByte | BudgetDimension::AccountedAllocation
+            )
+    ));
 }

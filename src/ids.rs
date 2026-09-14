@@ -215,9 +215,17 @@ use core::cmp::Ordering;
 use core::fmt;
 use core::hash::{Hash, Hasher};
 
-use crate::bounds::inventory::{BudgetDimension, SourceSite};
+use crate::bounds::inventory::{
+    BudgetDimension, ChargeError, OperationOutcome, ResourceAccountant, SourceSite,
+};
 use crate::bounds::{SiteId, SiteKind};
 
+pub(crate) const INPUT_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("identity/storage/retain"),
+    "ids::*::new",
+    BudgetDimension::InputByte,
+    SiteKind::Retention,
+);
 pub(crate) const ALLOCATION_SOURCE: SourceSite = SourceSite::new(
     SiteId::new("identity/storage/allocate"),
     "ids::*::new",
@@ -285,6 +293,36 @@ macro_rules! identities {
                 /// to select, repair or establish this identity.
                 pub fn new(identity: &[u8], display: &str) -> Self {
                     Self { identity: identity.to_vec(), display: display.to_owned() }
+                }
+
+                /// Retain this identity under the shared QProtocol caller budget.
+                ///
+                /// Exact producer and display bytes, plus the single abstract
+                /// identity-storage allocation, are charged transactionally
+                /// before either owned buffer is constructed.
+                pub fn new_bounded(
+                    identity: &[u8],
+                    display: &str,
+                    resources: &mut ResourceAccountant<'_>,
+                ) -> OperationOutcome<Self, core::convert::Infallible> {
+                    let retained = match identity.len().checked_add(display.len()) {
+                        Some(retained) => retained,
+                        None => {
+                            return OperationOutcome::from_charge(ChargeError::CounterOverflow {
+                                site: INPUT_SOURCE.id(),
+                                consumed: identity.len(),
+                                requested: display.len(),
+                            })
+                        }
+                    };
+                    let charges = [
+                        (INPUT_SOURCE.id(), retained),
+                        (ALLOCATION_SOURCE.id(), 1),
+                    ];
+                    if let Err(error) = resources.charge_all(&charges) {
+                        return OperationOutcome::from_charge(error);
+                    }
+                    OperationOutcome::Completed(Self::new(identity, display))
                 }
 
                 /// The producer's exact identity bytes.
