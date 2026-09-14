@@ -188,6 +188,12 @@ pub(crate) const ACTIVE_INSTANCE_SOURCE: SourceSite = SourceSite::new(
     BudgetDimension::ActiveInstance,
     SiteKind::Retention,
 );
+pub(crate) const GRAPH_ALLOCATION_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("link/graph/allocate"),
+    "link::link",
+    BudgetDimension::AccountedAllocation,
+    SiteKind::Allocation,
+);
 
 // ---------------------------------------------------------------------------
 // Refusals
@@ -1119,6 +1125,7 @@ fn link_declarations_bounded(
         Err(error) => return OperationOutcome::from_charge(error),
     };
     let charges = [
+        (GRAPH_ALLOCATION_SOURCE.id(), 1),
         (DEFINITION_SOURCE.id(), work.definitions),
         (NODE_SOURCE.id(), work.nodes),
         (EDGE_SOURCE.id(), work.edges),
@@ -3140,6 +3147,23 @@ mod tests {
     fn tc_009_link_charges_each_identity_allocation_on_the_real_mapping_path() {
         let declarations = budget_fixture();
         let inventory = production_inventory().expect("production inventory");
+
+        let one_allocation = Budget::nothing_granted()
+            .grant(BudgetDimension::AccountedAllocation, 1)
+            .expect("one preconsumed allocation");
+        let mut graph_resources = ResourceAccountant::new(one_allocation, &inventory);
+        assert!(matches!(
+            DefinitionId::new_bounded(b"already-used", "already used", &mut graph_resources),
+            OperationOutcome::Completed(_)
+        ));
+        assert!(matches!(
+            link_declarations_bounded(&declarations, 0, &mut graph_resources),
+            OperationOutcome::ResourceIncomplete(value)
+                if value.dimension() == BudgetDimension::AccountedAllocation
+                    && value.site() == GRAPH_ALLOCATION_SOURCE.id()
+                    && value.consumed() == 1
+                    && value.requested() == 1
+        ));
 
         let mut measured = ResourceAccountant::new(Budget::nothing_granted(), &inventory);
         assert!(matches!(

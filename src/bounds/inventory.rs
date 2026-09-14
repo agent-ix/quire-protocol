@@ -1053,6 +1053,12 @@ const LINK_ACTIVE_INSTANCE: SourceSite = SourceSite::new(
     BudgetDimension::ActiveInstance,
     SiteKind::Retention,
 );
+const LINK_GRAPH_ALLOCATION: SourceSite = SourceSite::new(
+    SiteId::new("link/graph/allocate"),
+    "link::link",
+    BudgetDimension::AccountedAllocation,
+    SiteKind::Allocation,
+);
 const CONFORMANCE_OBSERVATION: SourceSite = SourceSite::new(
     SiteId::new("conformance/observation/consume"),
     "conformance::batch::assess",
@@ -1352,6 +1358,7 @@ pub const PRODUCTION_SOURCES: &[SourceSite] = &[
     crate::link::BRANCH_SOURCE,
     crate::link::ITERATION_SOURCE,
     crate::link::ACTIVE_INSTANCE_SOURCE,
+    crate::link::GRAPH_ALLOCATION_SOURCE,
     crate::conformance::batch::OBSERVATION_SOURCE,
     crate::conformance::batch::PREDECESSOR_SOURCE,
     crate::conformance::batch::RETAINED_BYTE_SOURCE,
@@ -1478,6 +1485,12 @@ pub const PRODUCTION_ENTRIES: &[InventoryEntry] = &[
         LimitAuthority::ProducerOwner,
         ChargePoint::BeforeRetain,
         Termination::CollectionLength,
+    ),
+    entry(
+        LINK_GRAPH_ALLOCATION,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeAllocate,
+        Termination::SingleUnit,
     ),
     entry(
         CONFORMANCE_OBSERVATION,
