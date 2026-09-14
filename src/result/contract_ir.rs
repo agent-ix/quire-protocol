@@ -54,6 +54,18 @@ pub(crate) const OPERATION_SOURCE: SourceSite = SourceSite::new(
     BudgetDimension::Operation,
     SiteKind::Traversal,
 );
+pub(crate) const ALLOCATION_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("result/contract-ir/view/allocate"),
+    "result::contract_ir::map",
+    BudgetDimension::AccountedAllocation,
+    SiteKind::Allocation,
+);
+pub(crate) const READ_ALLOCATION_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("result/contract-ir/input/allocate"),
+    "result::contract_ir::read",
+    BudgetDimension::AccountedAllocation,
+    SiteKind::Allocation,
+);
 
 const READ_SOURCES: super::reader::StructuralSources = super::reader::StructuralSources::new(
     INPUT_SOURCE,
@@ -241,7 +253,9 @@ pub fn map_bounded(
     if let Err(error) = validate_selection(selection) {
         return OperationOutcome::DomainError(error);
     }
-    if let Err(error) = resources.charge_with_limit(DERIVED_SOURCE.id(), 1, 1) {
+    if let Err(error) =
+        resources.charge_all(&[(DERIVED_SOURCE.id(), 1), (ALLOCATION_SOURCE.id(), 1)])
+    {
         return OperationOutcome::from_charge(error);
     }
     let prepared = match prepare_mapping(source) {
@@ -373,6 +387,9 @@ pub fn read_bounded(
     let effective = limits.effective();
     if let Err(error) = super::reader::charge_structural(bytes, effective, resources, READ_SOURCES)
     {
+        return OperationOutcome::from_charge(error);
+    }
+    if let Err(error) = resources.charge(READ_ALLOCATION_SOURCE.id(), 1) {
         return OperationOutcome::from_charge(error);
     }
     let observed = match validate_offered(bytes, source, effective) {

@@ -962,6 +962,38 @@ fn tc_009_result_output_budget_precedes_canonical_allocation() {
         ),
         OperationOutcome::Completed(_)
     ));
+
+    let one_read_allocation = Budget::nothing_granted()
+        .grant(BudgetDimension::AccountedAllocation, 1)
+        .expect("one logical result-read allocation");
+    let mut read_resources = ResourceAccountant::new(one_read_allocation, &inventory);
+    assert!(matches!(
+        result::read_bounded(
+            control.bytes(),
+            result::Expected {
+                input: input.clone(),
+                enclosing_digest: control.digest(),
+            },
+            Limits::owner_max(),
+            &mut read_resources,
+        ),
+        OperationOutcome::Completed(_)
+    ));
+    assert!(matches!(
+        result::read_bounded(
+            control.bytes(),
+            result::Expected {
+                input: input.clone(),
+                enclosing_digest: control.digest(),
+            },
+            Limits::owner_max(),
+            &mut read_resources,
+        ),
+        OperationOutcome::ResourceIncomplete(value)
+            if value.dimension() == BudgetDimension::AccountedAllocation
+                && value.consumed() == 1
+                && value.requested() == 1
+    ));
     assert_eq!(
         exact_resources.usage().consumed(BudgetDimension::InputByte),
         total_input
@@ -1177,6 +1209,65 @@ fn tc_009_contract_ir_mapping_charges_derived_artifacts_and_output() {
             selection,
             Limits::owner_max(),
             &mut fresh_resources,
+        ),
+        OperationOutcome::Completed(_)
+    ));
+
+    let one_map_allocation = Budget::nothing_granted()
+        .grant(BudgetDimension::AccountedAllocation, 1)
+        .expect("one logical mapping allocation");
+    let mut allocation_resources = ResourceAccountant::new(one_map_allocation, &inventory);
+    assert!(matches!(
+        contract_ir::map_bounded(
+            &source,
+            selection,
+            Limits::owner_max(),
+            &mut allocation_resources,
+        ),
+        OperationOutcome::Completed(_)
+    ));
+    assert!(matches!(
+        contract_ir::map_bounded(
+            &source,
+            selection,
+            Limits::owner_max(),
+            &mut allocation_resources,
+        ),
+        OperationOutcome::ResourceIncomplete(value)
+            if value.dimension() == BudgetDimension::AccountedAllocation
+                && value.consumed() == 1
+                && value.requested() == 1
+    ));
+
+    let one_read_allocation = Budget::nothing_granted()
+        .grant(BudgetDimension::AccountedAllocation, 1)
+        .expect("one mapping-read allocation");
+    let mut read_resources = ResourceAccountant::new(one_read_allocation, &inventory);
+    assert!(matches!(
+        contract_ir::read_bounded(
+            control.bytes(),
+            &source,
+            selection,
+            Limits::owner_max(),
+            &mut read_resources,
+        ),
+        OperationOutcome::ResourceIncomplete(value)
+            if value.dimension() == BudgetDimension::AccountedAllocation
+                && value.consumed() == 1
+                && value.requested() == 1
+    ));
+
+    let two_read_allocations = Budget::nothing_granted()
+        .grant(BudgetDimension::AccountedAllocation, 2)
+        .expect("decode plus rederivation allocations");
+    let mut read_resources = ResourceAccountant::new(two_read_allocations, &inventory);
+    assert!(matches!(
+        contract_ir::read_bounded(
+            control.bytes(),
+            &source,
+            selection,
+            Limits::owner_max(),
+            &mut read_resources,
         ),
         OperationOutcome::Completed(_)
     ));

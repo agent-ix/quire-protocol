@@ -1137,6 +1137,18 @@ const CONTRACT_IR_OPERATION: SourceSite = SourceSite::new(
     BudgetDimension::Operation,
     SiteKind::Traversal,
 );
+const CONTRACT_IR_ALLOCATION: SourceSite = SourceSite::new(
+    SiteId::new("result/contract-ir/view/allocate"),
+    "result::contract_ir::map",
+    BudgetDimension::AccountedAllocation,
+    SiteKind::Allocation,
+);
+const CONTRACT_IR_READ_ALLOCATION: SourceSite = SourceSite::new(
+    SiteId::new("result/contract-ir/input/allocate"),
+    "result::contract_ir::read",
+    BudgetDimension::AccountedAllocation,
+    SiteKind::Allocation,
+);
 const RESULT_OUTPUT: SourceSite = SourceSite::new(
     SiteId::new("result/output/allocate"),
     "result::record::produce",
@@ -1281,6 +1293,12 @@ const RESULT_OPERATION: SourceSite = SourceSite::new(
     BudgetDimension::Operation,
     SiteKind::Traversal,
 );
+const RESULT_READ_ALLOCATION: SourceSite = SourceSite::new(
+    SiteId::new("result/document/read-allocate"),
+    "result::reader::read",
+    BudgetDimension::AccountedAllocation,
+    SiteKind::Allocation,
+);
 const RESULT_DEPTH: SourceSite = SourceSite::new(
     SiteId::new("result/container/depth"),
     "result::reader::read",
@@ -1318,6 +1336,8 @@ pub const PRODUCTION_SOURCES: &[SourceSite] = &[
     crate::result::contract_ir::STRING_SOURCE,
     crate::result::contract_ir::DEPTH_SOURCE,
     crate::result::contract_ir::OPERATION_SOURCE,
+    crate::result::contract_ir::ALLOCATION_SOURCE,
+    crate::result::contract_ir::READ_ALLOCATION_SOURCE,
     crate::result::record::OUTPUT_SOURCE,
     crate::result::record::ALLOCATION_SOURCE,
     crate::conformance::batch::OPERATION_SOURCE,
@@ -1343,6 +1363,7 @@ pub const PRODUCTION_SOURCES: &[SourceSite] = &[
     crate::result::reader::STRING_SOURCE,
     crate::result::reader::DEPTH_SOURCE,
     crate::result::reader::OPERATION_SOURCE,
+    crate::result::reader::ALLOCATION_SOURCE,
 ];
 
 const fn entry(
@@ -1508,6 +1529,18 @@ pub const PRODUCTION_ENTRIES: &[InventoryEntry] = &[
         Termination::FiniteGraph,
     ),
     entry(
+        CONTRACT_IR_ALLOCATION,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeAllocate,
+        Termination::SingleUnit,
+    ),
+    entry(
+        CONTRACT_IR_READ_ALLOCATION,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeAllocate,
+        Termination::SingleUnit,
+    ),
+    entry(
         RESULT_OUTPUT,
         LimitAuthority::ConsumerOwner,
         ChargePoint::BeforeAllocate,
@@ -1656,6 +1689,12 @@ pub const PRODUCTION_ENTRIES: &[InventoryEntry] = &[
         LimitAuthority::ConsumerOwner,
         ChargePoint::BeforeTraverse,
         Termination::FiniteGraph,
+    ),
+    entry(
+        RESULT_READ_ALLOCATION,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeAllocate,
+        Termination::SingleUnit,
     ),
 ];
 

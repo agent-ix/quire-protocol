@@ -37,6 +37,12 @@ pub(crate) const DEPTH_SOURCE: SourceSite = SourceSite::new(
     BudgetDimension::Operation,
     SiteKind::Traversal,
 );
+pub(crate) const ALLOCATION_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("result/document/read-allocate"),
+    "result::reader::read",
+    BudgetDimension::AccountedAllocation,
+    SiteKind::Allocation,
+);
 
 static RESULT_SCHEMA_VALIDATOR: OnceLock<Option<jsonschema::JSONSchema>> = OnceLock::new();
 
@@ -85,6 +91,9 @@ pub fn read_bounded(
 ) -> OperationOutcome<ValidatedResult, Refusal> {
     let effective = limits.effective();
     if let Err(error) = charge_structural(bytes, effective, resources, RESULT_SOURCES) {
+        return OperationOutcome::from_charge(error);
+    }
+    if let Err(error) = resources.charge(ALLOCATION_SOURCE.id(), 1) {
         return OperationOutcome::from_charge(error);
     }
     OperationOutcome::from_domain(read(bytes, expected, effective))
