@@ -170,7 +170,12 @@ impl GatePolicy {
                 && cargo.contains("unsafe_code = \"forbid\""),
             clippy_lints: cargo.contains("[lints.clippy]") && cargo.contains("all = \"deny\""),
             declared_features: manifest_features(cargo),
-            optional_dependency: cargo.lines().any(|line| line.contains("optional = true")),
+            optional_dependency: cargo.lines().any(|line| {
+                line.chars()
+                    .filter(|character| !character.is_whitespace())
+                    .collect::<String>()
+                    .contains("optional=true")
+            }),
             feature_lanes: vec![BTreeSet::new()],
             conditions: conditional_inventory(Path::new(env!("CARGO_MANIFEST_DIR"))),
             admitted_target: ADMITTED_TARGET.to_owned(),
@@ -238,6 +243,12 @@ impl GatePolicy {
                 Condition::Test { .. } | Condition::Target { .. } => None,
             })
             .collect();
+        if referenced_features
+            .iter()
+            .any(|feature| !self.declared_features.contains(*feature))
+        {
+            defects.insert(GateDefect::UndeclaredFeature);
+        }
         if self
             .declared_features
             .iter()
@@ -251,6 +262,7 @@ impl GatePolicy {
             || !referenced_features.is_empty();
         let has_minimal_lane = self.feature_lanes.iter().any(BTreeSet::is_empty);
         let has_opposing_lane = self.feature_lanes.len() >= 2
+            && self.feature_lanes.iter().any(|lane| !lane.is_empty())
             && self
                 .declared_features
                 .iter()
@@ -494,6 +506,19 @@ fn tc_012_a_new_feature_surface_requires_opposing_lanes() {
         .feature_lanes
         .push(["fast-path".to_owned()].into_iter().collect());
     assert!(policy.defects().is_empty());
+
+    let mut optional = GatePolicy::repository();
+    optional.optional_dependency = true;
+    optional.feature_lanes.push(BTreeSet::new());
+    assert_eq!(
+        optional.defects(),
+        [GateDefect::MissingFeatureLane].into(),
+        "two empty lanes do not exercise an optional dependency"
+    );
+    optional
+        .feature_lanes
+        .push(["implicit-dependency".to_owned()].into_iter().collect());
+    assert!(optional.defects().is_empty());
 }
 
 #[test]
@@ -542,6 +567,19 @@ fn tc_012_every_conditional_site_is_selected_and_phantom_features_refuse() {
         .feature_lanes
         .push(["phantom".to_owned()].into_iter().collect());
     assert_eq!(phantom.defects(), [GateDefect::PhantomFeature].into());
+
+    let mut undeclared_condition = GatePolicy::repository();
+    undeclared_condition.conditions.push(Condition::Feature {
+        path: "src/lib.rs".to_owned(),
+        name: "ghost".to_owned(),
+    });
+    undeclared_condition
+        .feature_lanes
+        .push(["ghost".to_owned()].into_iter().collect());
+    assert_eq!(
+        undeclared_condition.defects(),
+        [GateDefect::UndeclaredFeature].into()
+    );
 }
 
 #[test]
