@@ -1181,6 +1181,55 @@ fn tc_009_contract_ir_mapping_charges_derived_artifacts_and_output() {
     };
     assert_eq!(mapped.bytes(), control.bytes());
 
+    let result_items = control.usage().claims + control.usage().support_records;
+    let one_short_items = Budget::nothing_granted()
+        .grant(BudgetDimension::ResultItem, result_items - 1)
+        .expect("positive one-short mapping result-item grant");
+    let mut item_resources = ResourceAccountant::new(one_short_items, &inventory);
+    assert!(matches!(
+        contract_ir::map_bounded(
+            &source,
+            selection,
+            Limits::owner_max(),
+            &mut item_resources,
+        ),
+        OperationOutcome::ResourceIncomplete(value)
+            if value.dimension() == BudgetDimension::ResultItem
+                && value.consumed() == 1
+                && value.requested() == 1
+    ));
+    assert_eq!(
+        item_resources.usage().consumed(BudgetDimension::ResultItem),
+        0,
+        "the mapping result-item preflight is transactional"
+    );
+
+    let exact_items = Budget::nothing_granted()
+        .grant(BudgetDimension::ResultItem, result_items)
+        .expect("exact mapping result-item grant");
+    let mut item_resources = ResourceAccountant::new(exact_items, &inventory);
+    assert!(matches!(
+        contract_ir::map_bounded(&source, selection, Limits::owner_max(), &mut item_resources,),
+        OperationOutcome::Completed(_)
+    ));
+    assert_eq!(
+        item_resources.usage().consumed(BudgetDimension::ResultItem),
+        result_items
+    );
+
+    let support_owner_short = Limits {
+        max_support_records: 0,
+        ..Limits::owner_max()
+    };
+    let mut item_resources = ResourceAccountant::new(Budget::nothing_granted(), &inventory);
+    assert!(matches!(
+        contract_ir::map_bounded(&source, selection, support_owner_short, &mut item_resources),
+        OperationOutcome::ResourceIncomplete(value)
+            if value.dimension() == BudgetDimension::ResultItem
+                && value.granted() == 0
+                && value.requested() == 1
+    ));
+
     let one_artifact = Budget::nothing_granted()
         .grant(BudgetDimension::DerivedArtifact, 1)
         .expect("positive one-artifact grant");

@@ -24,6 +24,24 @@ pub(crate) const DERIVED_SOURCE: SourceSite = SourceSite::new(
     BudgetDimension::DerivedArtifact,
     SiteKind::Retention,
 );
+pub(crate) const ITEM_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("result/contract-ir/claim/retain"),
+    "result::contract_ir::map",
+    BudgetDimension::ResultItem,
+    SiteKind::Retention,
+);
+pub(crate) const SUPPORT_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("result/contract-ir/support/retain"),
+    "result::contract_ir::map",
+    BudgetDimension::ResultItem,
+    SiteKind::Retention,
+);
+pub(crate) const LINEAGE_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("result/contract-ir/lineage/traverse"),
+    "result::contract_ir::map",
+    BudgetDimension::Lineage,
+    SiteKind::Traversal,
+);
 pub(crate) const OUTPUT_SOURCE: SourceSite = SourceSite::new(
     SiteId::new("result/contract-ir/output/allocate"),
     "result::contract_ir::map",
@@ -265,9 +283,27 @@ fn map_bounded_unit(
     if let Err(error) = validate_selection(selection) {
         return OperationOutcome::DomainError(error);
     }
-    if let Err(error) =
-        resources.charge_all(&[(DERIVED_SOURCE.id(), 1), (ALLOCATION_SOURCE.id(), 1)])
-    {
+    let effective = limits.effective();
+    let semantic = mapping_usage(source);
+    if let Err(error) = resources.charge_all_mixed(&[
+        (DERIVED_SOURCE.id(), 1, None),
+        (
+            ITEM_SOURCE.id(),
+            semantic.claims,
+            Some(effective.max_claims),
+        ),
+        (
+            SUPPORT_SOURCE.id(),
+            semantic.support_records,
+            Some(effective.max_support_records),
+        ),
+        (
+            LINEAGE_SOURCE.id(),
+            semantic.lineage_nodes,
+            Some(effective.max_lineage_nodes),
+        ),
+        (ALLOCATION_SOURCE.id(), 1, None),
+    ]) {
         return OperationOutcome::from_charge(error);
     }
     let prepared = match prepare_mapping(source) {
@@ -285,7 +321,6 @@ fn map_bounded_unit(
             ));
         }
     };
-    let effective = limits.effective();
     if let Err(error) =
         resources.charge_with_limit(OUTPUT_SOURCE.id(), required, effective.max_output_bytes)
     {
@@ -328,13 +363,18 @@ fn prepare_mapping(source: &ValidatedResult) -> Result<PreparedMapping> {
         source_result_id: source.result_id().to_owned(),
         source_result_digest: source.digest().to_owned(),
         outcome,
-        semantic_usage: Usage {
-            claims: 1,
-            support_records: snapshot.decision_support.len(),
-            lineage_nodes: usize::from(snapshot.correction.is_some()),
-            ..Usage::default()
-        },
+        semantic_usage: mapping_usage(source),
     })
+}
+
+fn mapping_usage(source: &ValidatedResult) -> Usage {
+    let snapshot = &source.document.snapshot;
+    Usage {
+        claims: 1,
+        support_records: snapshot.decision_support.len(),
+        lineage_nodes: usize::from(snapshot.correction.is_some()),
+        ..Usage::default()
+    }
 }
 
 fn finish_mapping(prepared: PreparedMapping, limits: Limits) -> Result<MappedResultView> {

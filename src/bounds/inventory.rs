@@ -1536,6 +1536,24 @@ const CONTRACT_IR_DERIVED: SourceSite = SourceSite::new(
     BudgetDimension::DerivedArtifact,
     SiteKind::Retention,
 );
+const CONTRACT_IR_ITEM: SourceSite = SourceSite::new(
+    SiteId::new("result/contract-ir/claim/retain"),
+    "result::contract_ir::map",
+    BudgetDimension::ResultItem,
+    SiteKind::Retention,
+);
+const CONTRACT_IR_SUPPORT: SourceSite = SourceSite::new(
+    SiteId::new("result/contract-ir/support/retain"),
+    "result::contract_ir::map",
+    BudgetDimension::ResultItem,
+    SiteKind::Retention,
+);
+const CONTRACT_IR_LINEAGE: SourceSite = SourceSite::new(
+    SiteId::new("result/contract-ir/lineage/traverse"),
+    "result::contract_ir::map",
+    BudgetDimension::Lineage,
+    SiteKind::Traversal,
+);
 const CONTRACT_IR_OUTPUT: SourceSite = SourceSite::new(
     SiteId::new("result/contract-ir/output/allocate"),
     "result::contract_ir::map",
@@ -1776,6 +1794,9 @@ pub const PRODUCTION_SOURCES: &[SourceSite] = &[
     crate::result::record::SUPPORT_ITEM_SOURCE,
     crate::result::record::LIMITATION_ITEM_SOURCE,
     crate::result::contract_ir::DERIVED_SOURCE,
+    crate::result::contract_ir::ITEM_SOURCE,
+    crate::result::contract_ir::SUPPORT_SOURCE,
+    crate::result::contract_ir::LINEAGE_SOURCE,
     crate::result::contract_ir::OUTPUT_SOURCE,
     crate::result::contract_ir::INPUT_SOURCE,
     crate::result::contract_ir::STRING_SOURCE,
@@ -1968,6 +1989,24 @@ pub const PRODUCTION_ENTRIES: &[InventoryEntry] = &[
         LimitAuthority::ConsumerOwner,
         ChargePoint::BeforeRetain,
         Termination::SingleUnit,
+    ),
+    entry(
+        CONTRACT_IR_ITEM,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeRetain,
+        Termination::SingleUnit,
+    ),
+    entry(
+        CONTRACT_IR_SUPPORT,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeRetain,
+        Termination::CollectionLength,
+    ),
+    entry(
+        CONTRACT_IR_LINEAGE,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeTraverse,
+        Termination::FiniteGraph,
     ),
     entry(
         CONTRACT_IR_OUTPUT,
