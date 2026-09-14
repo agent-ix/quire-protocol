@@ -223,27 +223,16 @@ review and semantic QUOIN `/gap-analysis` over one unchanged head.
 
 ## 14. Lifecycle Status
 
-The repository is partially implemented. Ten test binaries exist
-(`it001_dependency_inventory`, `it001_native_handoff`, `it001_v2_handoff`,
-`tc_002_identities`, `tc_004_closure_axes`, `tc_005_claim_dispositions`, `tc_006_digest_domains`,
-`tc_008_reproduction_record`, `tc_009_bounds`, `tc_011_typed_refusals`) and the
-local gate under `NFR-004` reports 153 passing, 0 failing and 23 ignored across
-them and the in-crate unit tests, plus 37 passing doc-tests, on this head.
-An earlier revision of this paragraph said ten binaries and 149 passing: it
-omitted `it001_dependency_inventory` and its three tests from both figures. The
-remaining five of that eight-test difference are C-13's, in `src/link/mod.rs`.
-The twelve tests above 157 are C-14's, and they are in two files: eight in
-`src/link/mod.rs` and four in `src/link/interleaving.rs`. A revision of this
-paragraph put all twelve in `src/link/mod.rs`. At that revision the two files
-held 25 and 3, and the 28 it reported was their sum, not the one file it
-named. No binary was added — C-14 is a
-unit-test chunk. The 23 ignored tests are all in the generated version 1 lane.
-The version 2 handoff's 15 tests execute by default from the pinned dependency
-source. Its superseded 24-test pre-delivery corpus was retired rather than
-retained as a second protocol vocabulary. An earlier revision of this section said "The repository is
-specification-only. Every test is planned", which was true when written and has
-not been true since the first test binary landed. `TM-001` recorded the executed
-slices while this section denied them; the matrix was right.
+The repository is partially implemented. Fifteen integration-test binaries plus
+the in-crate unit-test binary list 242 regular tests on this candidate: 219 run
+in the default gate and 23 generated version 1 fixture tests remain explicitly
+ignored. The same gate lists and runs 37 doc-tests. `tc_012_local_gate` contributes
+ten default-running tests that bind all ten NFR-004 criteria and independently
+exercise thirteen stable gate-defect identities. The version 2 handoff's 15
+tests execute by default from the pinned dependency source; its superseded
+24-test pre-delivery corpus was retired rather than retained as a second
+protocol vocabulary. Historical smaller totals described earlier implementation
+checkpoints and are not the current inventory.
 
 What remains unimplemented is the larger part. `admit_and_link_v2` is now
 written against A's published `quire.compiled-protocol/2` reader at the pinned
@@ -252,8 +241,11 @@ owner-exported `PUBLISHED_HANDOFF`: the base admits, all 28 published mutations
 return their declared typed identities, both cross-version submissions refuse,
 and every declared resource dimension admits at exact usage, refuses one-short,
 and admits again under a fresh exact budget. The broader version 1 SC-01 through
-SC-05 regression lane remains generated and ignored. The canonical result and refusal surfaces are still module stubs, and
-47 acceptance criteria reach no test case at all. `TM-001` is the authority on which criteria
+SC-05 regression lane remains generated and ignored. Canonical result ownership
+and its exact Contract-IR mapping landed on main in PR #51; the wider
+refusal-catalog, cause, projection, observation and external qualification work
+remains open. Forty-seven acceptance criteria reach no test case at all.
+`TM-001` is the authority on which criteria
 are backed, unbacked, blocked or planned; this section states only that the
 repository is no longer specification-only.
 

@@ -82,8 +82,12 @@ The local verification gate — which commands run, in which configurations, and
 what risk each one detects — is defined by
 [NFR-004](spec/non-functional/NFR-004-define-local-verification-gate.md) and
 listed in [AGENTS.md](AGENTS.md). The crate is single-lane: it declares no Cargo
-feature and contains no conditional compilation, so there is no second
-configuration for a second lane to cover.
+feature, optional dependency, or feature-selected conditional compilation, so
+there is no second Cargo-feature configuration for another lane to cover. That
+is separate from its three test-only conditional sites and the Unix-only v2
+handoff test selected on the admitted `x86_64-unknown-linux-gnu` target. Every
+compiling gate command uses the worktree-local `target-codex-backends`
+directory.
 
 See [the specification](spec/spec.md), [contributor instructions](AGENTS.md),
 [license decision](LICENSE-DECISION.md), and [artifact and rights policy](ARTIFACTS.md).
