@@ -14,7 +14,7 @@ use crate::ByteDigest;
 use crate::bounds::inventory::{
     BudgetDimension, ChargeError, OperationOutcome, ResourceAccountant, SourceSite,
 };
-use crate::bounds::{SiteId, SiteKind};
+use crate::bounds::{SiteId, SiteKind, UnitLabel};
 
 use super::premises::{self, CorrespondenceAuthority, PremiseDefect, PremiseSet};
 use super::Claim;
@@ -492,6 +492,17 @@ pub fn dispatch(
 /// [`dispatch`]; caller grants can lower work admitted at this boundary but
 /// cannot raise those maxima.
 pub fn dispatch_bounded(
+    requests: &[ClaimRequest<'_>],
+    backends: &mut [&mut dyn Backend],
+    limits: Limits,
+    resources: &mut ResourceAccountant<'_>,
+) -> OperationOutcome<Report, Refusal> {
+    resources.run_unit(UnitLabel::new("claims::dispatch_bounded"), |resources| {
+        dispatch_bounded_unit(requests, backends, limits, resources)
+    })
+}
+
+fn dispatch_bounded_unit(
     requests: &[ClaimRequest<'_>],
     backends: &mut [&mut dyn Backend],
     limits: Limits,

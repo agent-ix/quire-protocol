@@ -20,7 +20,7 @@ pub mod purity;
 pub mod recovery;
 
 use crate::bounds::inventory::{BudgetDimension, OperationOutcome, ResourceAccountant, SourceSite};
-use crate::bounds::{SiteId, SiteKind};
+use crate::bounds::{SiteId, SiteKind, UnitLabel};
 
 use activate::{Activation, Record as ActivationRecord};
 use algebra::{AttemptAdmission, AttemptFact, OrderingAssessment, OrderingViolation, Registration};
@@ -241,6 +241,18 @@ pub enum Resource {
 /// availability assessment or cloning begins. The module's immutable owner
 /// maxima remain independently enforced by [`compose`].
 pub fn compose_bounded(
+    pure: PureAssessment,
+    parts: Parts<'_>,
+    limits: Limits,
+    resources: &mut ResourceAccountant<'_>,
+) -> OperationOutcome<Snapshot, ResourceRefusal> {
+    resources.run_unit(
+        UnitLabel::new("compensation::compose_bounded"),
+        |resources| compose_bounded_unit(pure, parts, limits, resources),
+    )
+}
+
+fn compose_bounded_unit(
     pure: PureAssessment,
     parts: Parts<'_>,
     limits: Limits,

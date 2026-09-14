@@ -11,7 +11,7 @@ use crate::assessment::{AxisInputs, GlobalConformanceInput};
 use crate::bounds::inventory::{
     BudgetDimension, ChargeError, OperationOutcome, ResourceAccountant, SourceSite,
 };
-use crate::bounds::{SiteId, SiteKind};
+use crate::bounds::{SiteId, SiteKind, UnitLabel};
 use crate::closure::{AssessmentExecution, GlobalConformanceClosure};
 
 use super::{ErrorCode, Refusal, Result};
@@ -514,6 +514,17 @@ pub struct Report {
 /// The conformance owner's immutable maxima remain independently enforced by
 /// [`assess`].
 pub fn assess_bounded(
+    request: Request<'_>,
+    limits: Limits,
+    resources: &mut ResourceAccountant<'_>,
+) -> OperationOutcome<Report, Refusal> {
+    resources.run_unit(
+        UnitLabel::new("conformance::batch::assess_bounded"),
+        |resources| assess_bounded_unit(request, limits, resources),
+    )
+}
+
+fn assess_bounded_unit(
     request: Request<'_>,
     limits: Limits,
     resources: &mut ResourceAccountant<'_>,

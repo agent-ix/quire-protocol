@@ -960,7 +960,7 @@ pub const ALL_PHASES: [Phase; 2] = [Phase::BeforeUnit, Phase::AfterUnit];
 
 pub(crate) const REQUEST_DEADLINE_SOURCE: inventory::SourceSite = inventory::SourceSite::new(
     SiteId::new("request/unit/deadline"),
-    "bounds::DeadlineGuard::begin_unit",
+    "bounds::inventory::ResourceAccountant::run_unit",
     inventory::BudgetDimension::ElapsedTime,
     SiteKind::Iteration,
 );
@@ -1104,7 +1104,7 @@ impl std::error::Error for DeadlineRefusal {}
 /// }
 /// let _ = DeadlineGuard::start(&WallClock, Duration::from_secs(1));
 /// ```
-pub trait Clock {
+pub trait Clock: Send {
     /// A reading that never moves backwards.
     fn monotonic(&self) -> Instant;
 }

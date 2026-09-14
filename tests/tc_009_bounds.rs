@@ -15,9 +15,10 @@ use std::time::{Duration, Instant, SystemTime};
 
 use ix_trace_rs::trace;
 use quire_protocol::bounds::inventory::{
-    production_entries, production_inventory, production_sources, BoundaryCase, Budget,
-    BudgetDimension, BudgetError, ChargeError, ChargePoint, IncompleteCode, Inventory,
-    InventoryEntry, InventoryError, LimitAuthority, ResourceAccountant, SourceSite, Termination,
+    production_entries, production_inventory, production_sources, AccountingFault, BoundaryCase,
+    Budget, BudgetDimension, BudgetError, ChargeError, ChargePoint, IncompleteCode, Inventory,
+    InventoryEntry, InventoryError, LimitAuthority, OperationOutcome, ResourceAccountant,
+    SourceSite, Termination,
 };
 use quire_protocol::bounds::{
     accumulation, limit_for, usage_for, Accumulation, BoundedRun, BoundedSite, Clock, CountGuard,
@@ -25,6 +26,7 @@ use quire_protocol::bounds::{
     PrecheckRefusal, RegistryError, Reservation, RunStop, SiteId, SiteKind, SiteRegistry,
     UnitLabel, ALL_DIMENSIONS, ALL_PHASES, ALL_SITE_KINDS,
 };
+use quire_protocol::repro::ToolchainIdentity;
 use quire_spec_language::protocol_artifact::{Dimension, Limits};
 
 // ---------------------------------------------------------------------------
@@ -1510,4 +1512,156 @@ fn tc_009_a_reading_that_regresses_within_the_budget_is_a_fault() {
         "a backwards reading is a fault, never an expiry"
     );
     assert_ne!(refusal.code(), DeadlineCode::Expired);
+}
+
+#[trace("TC-009", "NFR-002-AC-2", "FR-016-AC-6", "Task-008")]
+#[test]
+fn tc_009_production_bounded_unit_reports_measured_deadline_overshoot() {
+    let origin = Instant::now();
+    let clock = ScriptedClock::new(
+        origin,
+        &[
+            Duration::ZERO,
+            Duration::from_millis(90),
+            Duration::from_millis(110),
+        ],
+        wall_forward(SystemTime::now(), 3),
+    );
+    let inventory = production_inventory().expect("production inventory");
+    let budget = Budget::nothing_granted()
+        .grant(BudgetDimension::ElapsedTime, 100_000_000)
+        .expect("100ms deadline");
+    let mut resources = ResourceAccountant::with_clock(budget, &inventory, clock);
+
+    let OperationOutcome::ResourceIncomplete(incomplete) =
+        ToolchainIdentity::new_bounded(b"toolchain", "toolchain", &mut resources)
+    else {
+        panic!("the real bounded identity unit must surface deadline expiry");
+    };
+    let observation = incomplete
+        .deadline()
+        .expect("elapsed-time exhaustion carries its observation");
+
+    assert_eq!(incomplete.dimension(), BudgetDimension::ElapsedTime);
+    assert_eq!(observation.phase(), Phase::AfterUnit);
+    assert_eq!(observation.observed(), Duration::from_millis(110));
+    assert_eq!(observation.overshoot(), Duration::from_millis(10));
+    assert_eq!(
+        resources.usage().consumed(BudgetDimension::ElapsedTime),
+        110_000_000
+    );
+}
+
+#[trace("TC-009", "NFR-002-AC-2", "Task-008")]
+#[test]
+fn tc_009_production_deadline_stops_before_work_and_clock_regression_is_a_fault() {
+    let origin = Instant::now();
+    let inventory = production_inventory().expect("production inventory");
+    let make_budget = || {
+        Budget::nothing_granted()
+            .grant(BudgetDimension::ElapsedTime, 100_000_000)
+            .expect("100ms deadline")
+    };
+
+    let expired = ScriptedClock::new(
+        origin,
+        &[Duration::ZERO, Duration::from_millis(101)],
+        wall_forward(SystemTime::now(), 2),
+    );
+    let mut expired_resources = ResourceAccountant::with_clock(make_budget(), &inventory, expired);
+    let OperationOutcome::ResourceIncomplete(incomplete) =
+        ToolchainIdentity::new_bounded(b"not-retained", "not retained", &mut expired_resources)
+    else {
+        panic!("an expired before-unit observation must stop the operation");
+    };
+    assert_eq!(
+        incomplete.deadline().expect("deadline detail").phase(),
+        Phase::BeforeUnit
+    );
+    assert_eq!(
+        expired_resources
+            .usage()
+            .consumed(BudgetDimension::InputByte),
+        0,
+        "no identity bytes were retained after before-unit expiry"
+    );
+    assert_eq!(
+        expired_resources
+            .usage()
+            .consumed(BudgetDimension::AccountedAllocation),
+        0,
+        "no identity allocation was charged after before-unit expiry"
+    );
+
+    let regressed = ScriptedClock::new(
+        origin,
+        &[
+            Duration::ZERO,
+            Duration::from_millis(90),
+            Duration::from_millis(50),
+        ],
+        wall_forward(SystemTime::now(), 3),
+    );
+    let mut regressed_resources =
+        ResourceAccountant::with_clock(make_budget(), &inventory, regressed);
+    assert!(matches!(
+        ToolchainIdentity::new_bounded(b"toolchain", "toolchain", &mut regressed_resources),
+        OperationOutcome::AccountingFault(AccountingFault::ClockRegressed {
+            phase: Phase::AfterUnit,
+            previous,
+            ..
+        }) if previous == Duration::from_millis(90)
+    ));
+}
+
+#[trace("TC-009", "NFR-002-AC-2", "NFR-002-AC-3", "Task-008")]
+#[test]
+fn tc_009_production_deadline_requires_its_exact_reconciled_site() {
+    let origin = Instant::now();
+    let make_clock = || {
+        ScriptedClock::new(
+            origin,
+            &[Duration::ZERO, Duration::ZERO, Duration::ZERO],
+            wall_forward(SystemTime::now(), 3),
+        )
+    };
+    let make_budget = || {
+        Budget::nothing_granted()
+            .grant(BudgetDimension::ElapsedTime, 1)
+            .expect("one nanosecond deadline")
+    };
+
+    let caller_only = caller_inventory();
+    let mut missing = ResourceAccountant::with_clock(make_budget(), &caller_only, make_clock());
+    assert!(matches!(
+        ToolchainIdentity::new_bounded(b"toolchain", "toolchain", &mut missing),
+        OperationOutcome::AccountingFault(AccountingFault::UnregisteredSite { site })
+            if site == SiteId::new("request/unit/deadline")
+    ));
+
+    let wrong_source = SourceSite::new(
+        SiteId::new("request/unit/deadline"),
+        "fixture::wrong_deadline",
+        BudgetDimension::Operation,
+        SiteKind::Iteration,
+    );
+    let wrong_entry = InventoryEntry::new(
+        wrong_source,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeUnit,
+        Termination::SingleUnit,
+        IncompleteCode::BudgetExceeded,
+        CALLER_BOUNDARY,
+    );
+    let wrong_inventory =
+        Inventory::reconcile(&[wrong_source], &[wrong_entry]).expect("fixture reconciles itself");
+    let mut wrong = ResourceAccountant::with_clock(make_budget(), &wrong_inventory, make_clock());
+    assert!(matches!(
+        ToolchainIdentity::new_bounded(b"toolchain", "toolchain", &mut wrong),
+        OperationOutcome::AccountingFault(AccountingFault::SiteDimensionMismatch {
+            site,
+            declared: BudgetDimension::Operation,
+            required: BudgetDimension::ElapsedTime,
+        }) if site == SiteId::new("request/unit/deadline")
+    ));
 }

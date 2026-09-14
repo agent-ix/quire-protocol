@@ -7,7 +7,7 @@ use crate::assessment::{AxisInputs, GlobalConformanceInput};
 use crate::bounds::inventory::{
     BudgetDimension, ChargeError, OperationOutcome, ResourceAccountant, SourceSite,
 };
-use crate::bounds::{SiteId, SiteKind};
+use crate::bounds::{SiteId, SiteKind, UnitLabel};
 use crate::closure::AssessmentExecution;
 
 use super::batch::{
@@ -109,6 +109,18 @@ impl<'a> Incremental<'a> {
         context: IncrementalContext<'a>,
         resources: &mut ResourceAccountant<'_>,
     ) -> OperationOutcome<&'request Report, Refusal> {
+        resources.run_unit(
+            UnitLabel::new("conformance::incremental::push_bounded"),
+            |resources| self.push_bounded_unit(observation, context, resources),
+        )
+    }
+
+    fn push_bounded_unit<'request>(
+        &'request mut self,
+        observation: BoundObservation<'a>,
+        context: IncrementalContext<'a>,
+        resources: &mut ResourceAccountant<'_>,
+    ) -> OperationOutcome<&'request Report, Refusal> {
         let effective = context.limits.effective();
         let Some(candidate_len) = self.observations.len().checked_add(1) else {
             return OperationOutcome::from_charge(ChargeError::CounterOverflow {
@@ -185,6 +197,17 @@ impl<'a> Incremental<'a> {
     /// The complete retained prefix and model operation population are charged
     /// transactionally before assessment constructs a replacement report.
     pub fn finish_bounded<'request>(
+        &'request mut self,
+        context: IncrementalContext<'a>,
+        resources: &mut ResourceAccountant<'_>,
+    ) -> OperationOutcome<&'request Report, Refusal> {
+        resources.run_unit(
+            UnitLabel::new("conformance::incremental::finish_bounded"),
+            |resources| self.finish_bounded_unit(context, resources),
+        )
+    }
+
+    fn finish_bounded_unit<'request>(
         &'request mut self,
         context: IncrementalContext<'a>,
         resources: &mut ResourceAccountant<'_>,

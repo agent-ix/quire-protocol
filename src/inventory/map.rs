@@ -15,7 +15,7 @@
 use serde_json::Value;
 
 use crate::bounds::inventory::{BudgetDimension, OperationOutcome, ResourceAccountant, SourceSite};
-use crate::bounds::{SiteId, SiteKind};
+use crate::bounds::{SiteId, SiteKind, UnitLabel};
 use crate::digest::producer::{CrossDomainDigest, DigestSlot};
 use crate::inventory::axis::DivergedSelection;
 use crate::inventory::{DigestClassification, InventoryError, SelectedInventory};
@@ -123,6 +123,18 @@ pub fn admit_discriminating(
 /// JSON decoding, or the producer-owned reader begins. The producer reader's
 /// immutable limits remain independently enforced by [`admit_discriminating`].
 pub fn admit_discriminating_bounded(
+    bytes: &[u8],
+    expected: &Expected<'_>,
+    limits: Limits,
+    resources: &mut ResourceAccountant<'_>,
+) -> OperationOutcome<AdmittedPackage, AdmissionRefusal> {
+    resources.run_unit(
+        UnitLabel::new("inventory::map::admit_discriminating_bounded"),
+        |resources| admit_discriminating_bounded_unit(bytes, expected, limits, resources),
+    )
+}
+
+fn admit_discriminating_bounded_unit(
     bytes: &[u8],
     expected: &Expected<'_>,
     limits: Limits,

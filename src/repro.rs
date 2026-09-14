@@ -154,7 +154,7 @@ use std::hash::{Hash, Hasher};
 use crate::bounds::inventory::{
     BudgetDimension, ChargeError, OperationOutcome, ResourceAccountant, SourceSite,
 };
-use crate::bounds::{SiteId, SiteKind};
+use crate::bounds::{SiteId, SiteKind, UnitLabel};
 
 pub(crate) const INPUT_SOURCE: SourceSite = SourceSite::new(
     SiteId::new("reproduction/identity/retain"),
@@ -208,24 +208,31 @@ macro_rules! run_identity {
                 display: &str,
                 resources: &mut ResourceAccountant<'_>,
             ) -> OperationOutcome<Self, core::convert::Infallible> {
-                let retained = match bytes.len().checked_add(display.len()) {
-                    Some(retained) => retained,
-                    None => {
-                        return OperationOutcome::from_charge(ChargeError::CounterOverflow {
-                            site: INPUT_SOURCE.id(),
-                            consumed: bytes.len(),
-                            requested: display.len(),
-                        })
+                resources.run_unit(
+                    UnitLabel::new(concat!("repro::", stringify!($name), "::new_bounded")),
+                    |resources| {
+                        let retained = match bytes.len().checked_add(display.len()) {
+                            Some(retained) => retained,
+                            None => {
+                                return OperationOutcome::from_charge(
+                                    ChargeError::CounterOverflow {
+                                        site: INPUT_SOURCE.id(),
+                                        consumed: bytes.len(),
+                                        requested: display.len(),
+                                    },
+                                )
+                            }
+                        };
+                        let charges = [
+                            (INPUT_SOURCE.id(), retained),
+                            (ALLOCATION_SOURCE.id(), 1),
+                        ];
+                        if let Err(error) = resources.charge_all(&charges) {
+                            return OperationOutcome::from_charge(error);
+                        }
+                        OperationOutcome::Completed(Self::new(bytes, display))
                     }
-                };
-                let charges = [
-                    (INPUT_SOURCE.id(), retained),
-                    (ALLOCATION_SOURCE.id(), 1),
-                ];
-                if let Err(error) = resources.charge_all(&charges) {
-                    return OperationOutcome::from_charge(error);
-                }
-                OperationOutcome::Completed(Self::new(bytes, display))
+                )
             }
 
             /// The producer's exact identity bytes.

@@ -5,7 +5,7 @@ use serde_json::{json, Value};
 use std::sync::OnceLock;
 
 use crate::bounds::inventory::{BudgetDimension, OperationOutcome, ResourceAccountant, SourceSite};
-use crate::bounds::{SiteId, SiteKind};
+use crate::bounds::{SiteId, SiteKind, UnitLabel};
 use crate::closure::AssessmentExecution;
 use crate::digest::jcs::{canonical_len, canonicalize};
 use crate::refusal::catalog::{CodeEntry, CodeModule, Provenance};
@@ -250,6 +250,18 @@ pub fn map_bounded(
     limits: Limits,
     resources: &mut ResourceAccountant<'_>,
 ) -> OperationOutcome<MappedResultView, Refusal> {
+    resources.run_unit(
+        UnitLabel::new("result::contract_ir::map_bounded"),
+        |resources| map_bounded_unit(source, selection, limits, resources),
+    )
+}
+
+fn map_bounded_unit(
+    source: &ValidatedResult,
+    selection: MappingSelection<'_>,
+    limits: Limits,
+    resources: &mut ResourceAccountant<'_>,
+) -> OperationOutcome<MappedResultView, Refusal> {
     if let Err(error) = validate_selection(selection) {
         return OperationOutcome::DomainError(error);
     }
@@ -375,6 +387,19 @@ pub fn read(
 /// selected mapping then charges the same derived-artifact and output sites as
 /// [`map_bounded`].
 pub fn read_bounded(
+    bytes: &[u8],
+    source: &ValidatedResult,
+    selection: MappingSelection<'_>,
+    limits: Limits,
+    resources: &mut ResourceAccountant<'_>,
+) -> OperationOutcome<MappedResultView, Refusal> {
+    resources.run_unit(
+        UnitLabel::new("result::contract_ir::read_bounded"),
+        |resources| read_bounded_unit(bytes, source, selection, limits, resources),
+    )
+}
+
+fn read_bounded_unit(
     bytes: &[u8],
     source: &ValidatedResult,
     selection: MappingSelection<'_>,

@@ -7,7 +7,7 @@ use std::sync::OnceLock;
 use crate::bounds::inventory::{
     BudgetDimension, ChargeError, OperationOutcome, ResourceAccountant, SourceSite,
 };
-use crate::bounds::{SiteId, SiteKind};
+use crate::bounds::{SiteId, SiteKind, UnitLabel};
 use crate::digest::jcs::{canonicalize, ResultDigest};
 
 use super::record::{produce, Input, Limits, Usage, ValidatedResult, CONTRACT, SCHEMA_BYTES};
@@ -84,6 +84,18 @@ const RESULT_SOURCES: StructuralSources =
 
 /// Strict-read canonical result bytes against independent selections.
 pub fn read_bounded(
+    bytes: &[u8],
+    expected: Expected<'_>,
+    limits: Limits,
+    resources: &mut ResourceAccountant<'_>,
+) -> OperationOutcome<ValidatedResult, Refusal> {
+    resources.run_unit(
+        UnitLabel::new("result::reader::read_bounded"),
+        |resources| read_bounded_unit(bytes, expected, limits, resources),
+    )
+}
+
+fn read_bounded_unit(
     bytes: &[u8],
     expected: Expected<'_>,
     limits: Limits,

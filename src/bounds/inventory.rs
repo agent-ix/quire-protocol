@@ -16,8 +16,11 @@
 //! cross-wired, or boundary-unassigned entry.
 
 use core::fmt;
+use std::time::Duration;
 
-use super::{SiteId, SiteKind};
+use super::{
+    Clock, DeadlineRefusal, Phase, SiteId, SiteKind, SystemMonotonicClock, UnitLabel, UnitToken,
+};
 
 /// QProtocol's complete caller-facing resource-budget vocabulary.
 ///
@@ -186,6 +189,13 @@ pub enum BudgetError {
         /// Dimension selected more than once.
         dimension: BudgetDimension,
     },
+    /// A nanosecond deadline does not fit [`Duration`]'s `u64` input.
+    UnrepresentableDuration {
+        /// Deadline dimension whose grant cannot be represented.
+        dimension: BudgetDimension,
+        /// Offered nanosecond count.
+        granted: usize,
+    },
 }
 
 impl fmt::Display for BudgetError {
@@ -200,6 +210,10 @@ impl fmt::Display for BudgetError {
                     "resource grant for {dimension} was selected twice"
                 )
             }
+            Self::UnrepresentableDuration { dimension, granted } => write!(
+                formatter,
+                "resource grant {granted} for {dimension} does not fit a nanosecond duration"
+            ),
         }
     }
 }
@@ -214,6 +228,7 @@ impl std::error::Error for BudgetError {}
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Budget {
     grants: [Option<usize>; BudgetDimension::ALL.len()],
+    elapsed_time: Option<(Duration, usize)>,
 }
 
 impl Budget {
@@ -222,10 +237,13 @@ impl Budget {
     pub const fn nothing_granted() -> Self {
         Self {
             grants: [None; BudgetDimension::ALL.len()],
+            elapsed_time: None,
         }
     }
 
     /// Add one positive grant without replacing an earlier selection.
+    /// `elapsed-time` is expressed as an exact nanosecond count and is retained
+    /// as a checked [`Duration`] for monotonic observation.
     ///
     /// # Errors
     ///
@@ -243,6 +261,11 @@ impl Budget {
         if slot.is_some() {
             return Err(BudgetError::DuplicateGrant { dimension });
         }
+        if dimension == BudgetDimension::ElapsedTime {
+            let nanos = u64::try_from(granted)
+                .map_err(|_| BudgetError::UnrepresentableDuration { dimension, granted })?;
+            self.elapsed_time = Some((Duration::from_nanos(nanos), granted));
+        }
         *slot = Some(granted);
         Ok(self)
     }
@@ -251,6 +274,10 @@ impl Budget {
     #[must_use]
     pub const fn grant_for(&self, dimension: BudgetDimension) -> Option<usize> {
         self.grants[dimension.index()]
+    }
+
+    const fn elapsed_time(&self) -> Option<(Duration, usize)> {
+        self.elapsed_time
     }
 }
 
@@ -632,6 +659,38 @@ pub enum ChargeError {
         /// Requested increment.
         requested: usize,
     },
+    /// Transactional rollback found less usage than its successful charge.
+    CounterUnderflow {
+        /// Site being rolled back.
+        site: SiteId,
+        /// Usage present when rollback was attempted.
+        consumed: usize,
+        /// Previously charged increment being removed.
+        requested: usize,
+    },
+    /// A supplied clock moved backwards within this request.
+    ClockRegressed {
+        /// Unit whose boundary observed the regression.
+        unit: UnitLabel,
+        /// Boundary at which the regression was observed.
+        phase: Phase,
+        /// Greatest earlier elapsed observation.
+        previous: Duration,
+    },
+    /// An elapsed observation cannot be retained in the caller usage domain.
+    ElapsedTimeOverflow {
+        /// Exact duration that did not fit `usize` nanoseconds.
+        observed: Duration,
+    },
+    /// A reconciled site was wired to the wrong budget dimension.
+    SiteDimensionMismatch {
+        /// Site whose production use disagrees with the inventory row.
+        site: SiteId,
+        /// Dimension found in the inventory.
+        declared: BudgetDimension,
+        /// Dimension required by this production mechanism.
+        required: BudgetDimension,
+    },
 }
 
 /// Internal accounting fault, structurally separate from budget exhaustion.
@@ -648,6 +707,38 @@ pub enum AccountingFault {
         /// Requested increment.
         requested: usize,
     },
+    /// Transactional rollback found less usage than its successful charge.
+    CounterUnderflow {
+        /// Site being rolled back.
+        site: SiteId,
+        /// Usage present when rollback was attempted.
+        consumed: usize,
+        /// Previously charged increment being removed.
+        requested: usize,
+    },
+    /// A supplied clock moved backwards within this request.
+    ClockRegressed {
+        /// Unit whose boundary observed the regression.
+        unit: UnitLabel,
+        /// Boundary at which the regression was observed.
+        phase: Phase,
+        /// Greatest earlier elapsed observation.
+        previous: Duration,
+    },
+    /// An elapsed observation cannot be retained in the caller usage domain.
+    ElapsedTimeOverflow {
+        /// Exact duration that did not fit `usize` nanoseconds.
+        observed: Duration,
+    },
+    /// A reconciled site was wired to the wrong budget dimension.
+    SiteDimensionMismatch {
+        /// Site whose production use disagrees with the inventory row.
+        site: SiteId,
+        /// Dimension found in the inventory.
+        declared: BudgetDimension,
+        /// Dimension required by this production mechanism.
+        required: BudgetDimension,
+    },
 }
 
 /// One bounded operation's typed outcome.
@@ -661,7 +752,8 @@ pub enum OperationOutcome<T, E> {
     Completed(T),
     /// The operation reached its own typed domain error or refusal.
     DomainError(E),
-    /// A caller grant stopped the operation before its excess unit began.
+    /// A caller grant stopped excess static work or an elapsed deadline ended
+    /// the request around an indivisible unit.
     ResourceIncomplete(ResourceIncomplete),
     /// The inventory or accounting mechanism itself is inconsistent.
     AccountingFault(AccountingFault),
@@ -690,6 +782,36 @@ impl<T, E> OperationOutcome<T, E> {
                 consumed,
                 requested,
             }),
+            ChargeError::CounterUnderflow {
+                site,
+                consumed,
+                requested,
+            } => Self::AccountingFault(AccountingFault::CounterUnderflow {
+                site,
+                consumed,
+                requested,
+            }),
+            ChargeError::ClockRegressed {
+                unit,
+                phase,
+                previous,
+            } => Self::AccountingFault(AccountingFault::ClockRegressed {
+                unit,
+                phase,
+                previous,
+            }),
+            ChargeError::ElapsedTimeOverflow { observed } => {
+                Self::AccountingFault(AccountingFault::ElapsedTimeOverflow { observed })
+            }
+            ChargeError::SiteDimensionMismatch {
+                site,
+                declared,
+                required,
+            } => Self::AccountingFault(AccountingFault::SiteDimensionMismatch {
+                site,
+                declared,
+                required,
+            }),
         }
     }
 }
@@ -709,13 +831,41 @@ impl fmt::Display for ChargeError {
                 formatter,
                 "resource counter overflow at {site}: {consumed} + {requested}"
             ),
+            Self::CounterUnderflow {
+                site,
+                consumed,
+                requested,
+            } => write!(
+                formatter,
+                "resource counter underflow at {site}: {consumed} - {requested}"
+            ),
+            Self::ClockRegressed {
+                unit,
+                phase,
+                previous,
+            } => write!(
+                formatter,
+                "clock regressed around unit {unit} at {phase:?} after {previous:?}"
+            ),
+            Self::ElapsedTimeOverflow { observed } => write!(
+                formatter,
+                "elapsed observation {observed:?} does not fit usize nanoseconds"
+            ),
+            Self::SiteDimensionMismatch {
+                site,
+                declared,
+                required,
+            } => write!(
+                formatter,
+                "resource site {site} declares {declared} but production requires {required}"
+            ),
         }
     }
 }
 
 impl std::error::Error for ChargeError {}
 
-/// A budget-exhausted outcome, distinct from every input refusal.
+/// A static or elapsed-time budget outcome, distinct from every input refusal.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ResourceIncomplete {
     code: IncompleteCode,
@@ -724,6 +874,49 @@ pub struct ResourceIncomplete {
     granted: usize,
     consumed: usize,
     requested: usize,
+    deadline: Option<DeadlineObservation>,
+}
+
+/// Exact monotonic observation carried by elapsed-time resource exhaustion.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct DeadlineObservation {
+    unit: UnitLabel,
+    phase: Phase,
+    budget: Duration,
+    observed: Duration,
+    overshoot: Duration,
+}
+
+impl DeadlineObservation {
+    /// Indivisible unit whose boundary exhausted the deadline.
+    #[must_use]
+    pub const fn unit(self) -> UnitLabel {
+        self.unit
+    }
+
+    /// Boundary observed before or after the indivisible unit.
+    #[must_use]
+    pub const fn phase(self) -> Phase {
+        self.phase
+    }
+
+    /// Inclusive caller deadline.
+    #[must_use]
+    pub const fn budget(self) -> Duration {
+        self.budget
+    }
+
+    /// Exact monotonic elapsed observation, never clamped.
+    #[must_use]
+    pub const fn observed(self) -> Duration {
+        self.observed
+    }
+
+    /// Exact indivisible-unit overshoot.
+    #[must_use]
+    pub const fn overshoot(self) -> Duration {
+        self.overshoot
+    }
 }
 
 impl ResourceIncomplete {
@@ -761,21 +954,43 @@ impl ResourceIncomplete {
         self.granted
     }
 
-    /// Successfully charged usage before this request.
+    /// Successfully charged static usage, or the exact elapsed observation
+    /// including overshoot for deadline exhaustion.
     #[must_use]
     pub const fn consumed(self) -> usize {
         self.consumed
     }
 
-    /// Refused increment.
+    /// Refused static increment. This is zero for elapsed-time exhaustion,
+    /// whose exact overshoot is carried by [`Self::deadline`].
     #[must_use]
     pub const fn requested(self) -> usize {
         self.requested
+    }
+
+    /// Deadline detail for elapsed-time exhaustion; absent for static limits.
+    #[must_use]
+    pub const fn deadline(self) -> Option<DeadlineObservation> {
+        self.deadline
     }
 }
 
 impl fmt::Display for ResourceIncomplete {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let Some(deadline) = self.deadline {
+            return write!(
+                formatter,
+                "{}: {} at {} unit {} {:?} observed {:?} of {:?}, overshoot {:?}",
+                self.code.as_str(),
+                self.dimension,
+                self.site,
+                deadline.unit,
+                deadline.phase,
+                deadline.observed,
+                deadline.budget,
+                deadline.overshoot
+            );
+        }
         write!(
             formatter,
             "{}: {} at {} consumed {} of {}, next unit {} did not start",
@@ -789,23 +1004,54 @@ impl fmt::Display for ResourceIncomplete {
     }
 }
 
+struct RequestDeadline {
+    clock: Box<dyn Clock + Send>,
+    guard: super::DeadlineGuard,
+    granted: usize,
+}
+
 /// Per-request caller-budget accounting over a reconciled inventory.
 pub struct ResourceAccountant<'inventory> {
     budget: Budget,
     usage: Usage,
     site_consumed: Box<[usize]>,
     inventory: &'inventory Inventory,
+    deadline: Option<RequestDeadline>,
 }
 
 impl<'inventory> ResourceAccountant<'inventory> {
     /// Begin a fresh request with zero consumption.
     #[must_use]
     pub fn new(budget: Budget, inventory: &'inventory Inventory) -> Self {
+        Self::with_clock(budget, inventory, SystemMonotonicClock)
+    }
+
+    /// Begin a fresh request with an injected monotonic clock.
+    ///
+    /// This constructor exists so deadline behaviour is exactly testable. The
+    /// production constructor uses [`SystemMonotonicClock`]. When no
+    /// `elapsed-time` grant is selected, the clock is retained by no runtime
+    /// guard and no deadline observation is performed.
+    #[must_use]
+    pub fn with_clock<C>(budget: Budget, inventory: &'inventory Inventory, clock: C) -> Self
+    where
+        C: Clock + 'static,
+    {
+        let deadline = budget.elapsed_time().map(|(duration, granted)| {
+            let clock: Box<dyn Clock + Send> = Box::new(clock);
+            let guard = super::DeadlineGuard::start(clock.as_ref(), duration);
+            RequestDeadline {
+                clock,
+                guard,
+                granted,
+            }
+        });
         Self {
             budget,
             usage: Usage::ZERO,
             site_consumed: vec![0; inventory.entries.len()].into_boxed_slice(),
             inventory,
+            deadline,
         }
     }
 
@@ -880,6 +1126,7 @@ impl<'inventory> ResourceAccountant<'inventory> {
                     granted,
                     consumed,
                     requested,
+                    deadline: None,
                 }));
             }
         }
@@ -900,6 +1147,7 @@ impl<'inventory> ResourceAccountant<'inventory> {
                     granted,
                     consumed: site_consumed,
                     requested,
+                    deadline: None,
                 }));
             }
         }
@@ -908,14 +1156,139 @@ impl<'inventory> ResourceAccountant<'inventory> {
         Ok(())
     }
 
-    fn rollback_charge(&mut self, site: SiteId, requested: usize) {
-        let (entry_index, entry) = self
-            .inventory
-            .entry(site)
-            .expect("only a successfully charged registered site is rolled back");
+    fn observe_deadline(
+        &mut self,
+        unit: UnitLabel,
+        phase: Phase,
+        token: Option<UnitToken>,
+    ) -> Result<Option<UnitToken>, ChargeError> {
+        let Some(runtime) = self.deadline.as_mut() else {
+            return Ok(None);
+        };
+        let deadline_site = super::REQUEST_DEADLINE_SOURCE.id();
+        let Some((_, entry)) = self.inventory.entry(deadline_site) else {
+            return Err(ChargeError::UnregisteredSite {
+                site: deadline_site,
+            });
+        };
+        if entry.source.dimension != BudgetDimension::ElapsedTime {
+            return Err(ChargeError::SiteDimensionMismatch {
+                site: deadline_site,
+                declared: entry.source.dimension,
+                required: BudgetDimension::ElapsedTime,
+            });
+        }
+        let observation = match (phase, token) {
+            (Phase::BeforeUnit, None) => runtime
+                .guard
+                .begin_unit(runtime.clock.as_ref(), unit)
+                .map(Some),
+            (Phase::AfterUnit, Some(token)) => runtime
+                .guard
+                .end_unit(runtime.clock.as_ref(), token)
+                .map(|_| None),
+            (Phase::BeforeUnit, Some(_)) | (Phase::AfterUnit, None) => {
+                return Err(ChargeError::ClockRegressed {
+                    unit,
+                    phase,
+                    previous: runtime.guard.observed(),
+                })
+            }
+        };
+        let observed = runtime.guard.observed();
+        let consumed = usize::try_from(observed.as_nanos())
+            .map_err(|_| ChargeError::ElapsedTimeOverflow { observed })?;
+        self.usage.consumed[BudgetDimension::ElapsedTime.index()] = consumed;
+        match observation {
+            Ok(token) => Ok(token),
+            Err(DeadlineRefusal::Expired {
+                unit,
+                phase,
+                budget,
+                observed,
+                overshoot,
+            }) => Err(ChargeError::ResourceIncomplete(ResourceIncomplete {
+                code: IncompleteCode::BudgetExceeded,
+                dimension: BudgetDimension::ElapsedTime,
+                site: super::REQUEST_DEADLINE_SOURCE.id(),
+                granted: runtime.granted,
+                consumed,
+                requested: 0,
+                deadline: Some(DeadlineObservation {
+                    unit,
+                    phase,
+                    budget,
+                    observed,
+                    overshoot,
+                }),
+            })),
+            Err(DeadlineRefusal::ClockRegressed {
+                unit,
+                phase,
+                previous,
+            }) => Err(ChargeError::ClockRegressed {
+                unit,
+                phase,
+                previous,
+            }),
+        }
+    }
+
+    /// Execute one declared indivisible owner unit under the request deadline.
+    ///
+    /// The before observation occurs before `operation`. A successful or
+    /// domain-complete operation is replaced by resource-incomplete when the
+    /// after observation detects overshoot. A static resource or accounting
+    /// stop remains the primary outcome, while the opened deadline token is
+    /// still closed to preserve observation discipline.
+    pub(crate) fn run_unit<T, E>(
+        &mut self,
+        unit: UnitLabel,
+        operation: impl FnOnce(&mut Self) -> OperationOutcome<T, E>,
+    ) -> OperationOutcome<T, E> {
+        let token = match self.observe_deadline(unit, Phase::BeforeUnit, None) {
+            Ok(token) => token,
+            Err(error) => return OperationOutcome::from_charge(error),
+        };
+        let outcome = operation(self);
+        let stopped = matches!(
+            &outcome,
+            OperationOutcome::ResourceIncomplete(_) | OperationOutcome::AccountingFault(_)
+        );
+        let finished = self.observe_deadline(unit, Phase::AfterUnit, token);
+        if stopped {
+            return outcome;
+        }
+        match finished {
+            Ok(_) => outcome,
+            Err(error) => OperationOutcome::from_charge(error),
+        }
+    }
+
+    fn rollback_charge(&mut self, site: SiteId, requested: usize) -> Result<(), ChargeError> {
+        let Some((entry_index, entry)) = self.inventory.entry(site) else {
+            return Err(ChargeError::UnregisteredSite { site });
+        };
         let dimension = entry.source.dimension;
-        self.usage.consumed[dimension.index()] -= requested;
-        self.site_consumed[entry_index] -= requested;
+        let consumed = self.usage.consumed[dimension.index()];
+        let Some(next) = consumed.checked_sub(requested) else {
+            return Err(ChargeError::CounterUnderflow {
+                site,
+                consumed,
+                requested,
+            });
+        };
+        let site_consumed = self.site_consumed[entry_index];
+        let Some(site_next) = site_consumed.checked_sub(requested) else {
+            return Err(ChargeError::CounterUnderflow {
+                site,
+                consumed: site_consumed,
+                requested,
+            });
+        };
+        self.usage.consumed[dimension.index()] = next;
+        self.site_consumed[entry_index] = site_next;
+        Ok(())
     }
 
     /// Transactionally charge all pre-work increments for one operation.
@@ -931,7 +1304,7 @@ impl<'inventory> ResourceAccountant<'inventory> {
         for (index, (site, requested)) in charges.iter().enumerate() {
             if let Err(error) = self.charge(*site, *requested) {
                 for (charged_site, charged_request) in charges[..index].iter().rev() {
-                    self.rollback_charge(*charged_site, *charged_request);
+                    self.rollback_charge(*charged_site, *charged_request)?;
                 }
                 return Err(error);
             }
@@ -952,7 +1325,7 @@ impl<'inventory> ResourceAccountant<'inventory> {
         for (index, (site, requested, authored_limit)) in charges.iter().enumerate() {
             if let Err(error) = self.charge_with_limit(*site, *requested, *authored_limit) {
                 for (charged_site, charged_request, _) in charges[..index].iter().rev() {
-                    self.rollback_charge(*charged_site, *charged_request);
+                    self.rollback_charge(*charged_site, *charged_request)?;
                 }
                 return Err(error);
             }
@@ -974,7 +1347,7 @@ impl<'inventory> ResourceAccountant<'inventory> {
         for (index, (site, requested, authored_limit)) in charges.iter().enumerate() {
             if let Err(error) = self.charge_effective(*site, *requested, *authored_limit) {
                 for (charged_site, charged_request, _) in charges[..index].iter().rev() {
-                    self.rollback_charge(*charged_site, *charged_request);
+                    self.rollback_charge(*charged_site, *charged_request)?;
                 }
                 return Err(error);
             }
@@ -1205,7 +1578,7 @@ const IDENTITY_INPUT: SourceSite = SourceSite::new(
 );
 const REQUEST_DEADLINE: SourceSite = SourceSite::new(
     SiteId::new("request/unit/deadline"),
-    "bounds::DeadlineGuard::begin_unit",
+    "bounds::inventory::ResourceAccountant::run_unit",
     BudgetDimension::ElapsedTime,
     SiteKind::Iteration,
 );

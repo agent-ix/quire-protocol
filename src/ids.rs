@@ -218,7 +218,7 @@ use core::hash::{Hash, Hasher};
 use crate::bounds::inventory::{
     BudgetDimension, ChargeError, OperationOutcome, ResourceAccountant, SourceSite,
 };
-use crate::bounds::{SiteId, SiteKind};
+use crate::bounds::{SiteId, SiteKind, UnitLabel};
 
 pub(crate) const INPUT_SOURCE: SourceSite = SourceSite::new(
     SiteId::new("identity/storage/retain"),
@@ -328,10 +328,15 @@ macro_rules! identities {
                     display: &str,
                     resources: &mut ResourceAccountant<'_>,
                 ) -> OperationOutcome<Self, core::convert::Infallible> {
-                    if let Err(error) = charge_storage(identity, display, resources) {
-                        return OperationOutcome::from_charge(error);
-                    }
-                    OperationOutcome::Completed(Self::new(identity, display))
+                    resources.run_unit(
+                        UnitLabel::new(concat!("ids::", stringify!($name), "::new_bounded")),
+                        |resources| {
+                            if let Err(error) = charge_storage(identity, display, resources) {
+                                return OperationOutcome::from_charge(error);
+                            }
+                            OperationOutcome::Completed(Self::new(identity, display))
+                        },
+                    )
                 }
 
                 /// The producer's exact identity bytes.

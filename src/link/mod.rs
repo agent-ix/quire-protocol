@@ -134,7 +134,7 @@ use quire_spec_language::protocol_artifact::{
 use crate::bounds::inventory::{
     BudgetDimension, ChargeError, OperationOutcome, ResourceAccountant, SourceSite,
 };
-use crate::bounds::{SiteId, SiteKind};
+use crate::bounds::{SiteId, SiteKind, UnitLabel};
 use crate::ids::{
     AttemptId, ChannelId, ComponentId, DefinitionId, DeliveryId, EffectId, EndpointId,
     IdentityKind, MessageId, ParticipantId, ReceiveId, RoleInstanceId, SendId, WorkflowInstanceId,
@@ -1173,7 +1173,9 @@ pub fn link_bounded(
     declaration: u32,
     resources: &mut ResourceAccountant<'_>,
 ) -> OperationOutcome<LinkedProtocol, Diagnostics> {
-    link_declarations_bounded(&package.package().declarations, declaration, resources)
+    resources.run_unit(UnitLabel::new("link::link_bounded"), |resources| {
+        link_declarations_bounded(&package.package().declarations, declaration, resources)
+    })
 }
 
 /// The mapping itself, over the declaration table of an already admitted

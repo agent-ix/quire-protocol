@@ -7,7 +7,7 @@ use serde_json::{json, Value};
 
 use crate::assessment::{AxisInputs, GlobalConformanceInput, GlobalPremise};
 use crate::bounds::inventory::{BudgetDimension, OperationOutcome, ResourceAccountant, SourceSite};
-use crate::bounds::{SiteId, SiteKind};
+use crate::bounds::{SiteId, SiteKind, UnitLabel};
 use crate::closure::{AssessmentExecution, ScopeState};
 use crate::digest::jcs::{canonical_len, canonicalize, ResultDigest};
 use crate::ByteDigest;
@@ -599,6 +599,17 @@ pub fn produce(input: Input<'_>, limits: Limits) -> Result<Document> {
 /// The exact canonical byte length is computed without an output buffer, then
 /// checked against both owner and caller ceilings before canonical allocation.
 pub fn produce_bounded(
+    input: Input<'_>,
+    limits: Limits,
+    resources: &mut ResourceAccountant<'_>,
+) -> OperationOutcome<Document, Refusal> {
+    resources.run_unit(
+        UnitLabel::new("result::record::produce_bounded"),
+        |resources| produce_bounded_unit(input, limits, resources),
+    )
+}
+
+fn produce_bounded_unit(
     input: Input<'_>,
     limits: Limits,
     resources: &mut ResourceAccountant<'_>,
