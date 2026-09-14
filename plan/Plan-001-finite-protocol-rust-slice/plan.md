@@ -13,6 +13,7 @@ relationships:
   - { target: ix://agent-ix/quire-protocol/FR-006, type: references }
   - { target: ix://agent-ix/quire-protocol/FR-007, type: references }
   - { target: ix://agent-ix/quire-protocol/FR-008, type: references }
+  - { target: ix://agent-ix/quire-protocol/FR-042, type: references }
   - { target: ix://agent-ix/quire-protocol/NFR-001, type: references }
   - { target: ix://agent-ix/quire-protocol/NFR-002, type: references }
   - { target: ix://agent-ix/quire-protocol/NFR-003, type: references }
@@ -36,6 +37,8 @@ relationships:
 - [ ] **FR-006**: Produce and strictly read canonical protocol results.
 - [ ] **FR-007**: Project canonical results to the selected E02 contract.
 - [ ] **FR-008**: Return typed refusals through every public failure path.
+- [x] **FR-042**: Publish a complete strict canonical-result reader and exact
+  constructor-private Contract-IR mapping view.
 
 ### Non-Functional Requirements
 
@@ -95,6 +98,9 @@ by downstream integrations; no adapter may introduce another semantic model.
 - [ ] **TC-008** (NFR-001-AC-1..AC-3): prove byte identity and ordered-outcome identity across admitted-equivalent presentations while independently discriminating every named semantic identity and preserving authored/causal order.
 - [ ] **TC-009** (NFR-002-AC-1..AC-4): bidirectionally reconcile the complete source-bound resource inventory, probe below/at/above every authored maximum and caller limit, kill inventory and guard mutants, and prove zero business/compensation calls.
 - [ ] **TC-011** (FR-008-AC-1..AC-8): enumerate typed refusal fields, exact diagnostic catalogs, source codes/stages/prerequisites, paired and simultaneous causes, unknown versions, location absence, rendering independence, and partial-output rules.
+- [x] **TC-015** (FR-042-AC-1..AC-6): produce, strict-read and map canonical
+  results while exposing every retained owner-reference field through typed
+  borrowed accessors and refusing identity/schema/lineage/resource mutations.
 
 ### Static and Assurance Test
 
@@ -138,6 +144,12 @@ by downstream integrations; no adapter may introduce another semantic model.
   repository and every one-axis invalid gate policy are classified without a
   subprocess runner, stdout parser, fake feature or unsupported-target claim.
 
+### Track A Enablement: Complete result owner view (independent)
+
+- **AE1 = Task-015** Complete the structural Contract-IR result-map view —
+  Small; exit: downstream joins can compare every retained progress/closure
+  owner field through borrowed typed accessors without parsing JSON.
+
 ## Parallel Execution Summary
 
 ```text
@@ -145,6 +157,7 @@ A1 -> A2 -> A3 -> A4 -> A5 -> A6 -> A7 -> A8
              \-> B1 -------------------------\
                               \-> B2 ----------+-> Gate
 GE1 ------------------------------------------------^
+AE1 ------------------------------------------------> downstream Contract-IR FR-026
 ```
 
 Task-009 may start after Task-002 and the compiler contract are accepted.
@@ -169,6 +182,7 @@ All Cargo work remains serialized on the shared workstation even when source own
 | Task-012 | B | FR-001, FR-002, NFR-002 | IT-001 | done |
 | Task-013 | B | FR-009, NFR-005 | TC-013, IT-002, IT-003 | in_progress |
 | Task-014 | Gate-Enablement | NFR-004 | TC-012 | done |
+| Task-015 | A-Enablement | FR-042 | TC-015 | done |
 
 ## Coordination Rules
 

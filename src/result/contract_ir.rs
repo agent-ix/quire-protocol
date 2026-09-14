@@ -194,6 +194,16 @@ pub struct MappedAxisView<'a> {
 }
 
 impl MappedAxisView<'_> {
+    /// Selected owner contract.
+    #[must_use]
+    pub const fn contract(&self) -> &str {
+        self.source.contract()
+    }
+    /// Selected owner schema digest.
+    #[must_use]
+    pub const fn schema_sha256(&self) -> &str {
+        self.source.schema_sha256()
+    }
     /// Definition authority identity.
     #[must_use]
     pub fn authority_identity(&self) -> &str {
@@ -203,6 +213,11 @@ impl MappedAxisView<'_> {
     #[must_use]
     pub fn authority_revision(&self) -> &str {
         self.source.authority_revision()
+    }
+    /// Definition authority digest bytes rendered as lowercase hex.
+    #[must_use]
+    pub fn authority_digest(&self) -> &str {
+        self.source.authority_digest()
     }
     /// Digest of the canonical owner assertion bytes.
     #[must_use]
@@ -218,6 +233,11 @@ impl MappedAxisView<'_> {
     #[must_use]
     pub fn scope_identity(&self) -> &str {
         self.source.scope_identity()
+    }
+    /// Exact population identity.
+    #[must_use]
+    pub fn population_identity(&self) -> &str {
+        self.source.population_identity()
     }
     /// Independent open/closed state.
     #[must_use]
