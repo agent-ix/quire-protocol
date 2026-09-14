@@ -1813,5 +1813,5 @@ fn digest_hex(bytes: &[u8]) -> String {
     out
 }
 fn refusal(code: ErrorCode, detail: &'static str, usage: Usage, identity: Option<&str>) -> Refusal {
-    Refusal::new(code, detail, usage, identity)
+    Refusal::assembly(code, detail, usage, identity)
 }

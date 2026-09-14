@@ -144,9 +144,10 @@ shared result-domain values. Each has one Protocol owner and no adapter-local co
 
 ### Core Pipeline
 
-- **Foundation = Task-017** Shared outcomes/refusals — exit: every subsystem uses
-  the same operation outcome, resource-incomplete value and exact stage/domain
-  refusal types.
+- **Foundation = Task-017** Shared outcomes/refusals — exit: the one composed
+  operation/claim outcome algebra, resource-incomplete value, exact stage/domain
+  map and constructor-private refusal/source-cause foundation exist; Tasks
+  002–006 consume them while replacing their standalone kernel transports.
 - **Core-1 = Task-013** Version-lock enablement — exit: exact manifest
   resolution mints only bounded request-bound private capabilities.
 - **Core-2 = Task-002** Exact finite linker — exit: `/2` produces one complete
@@ -214,7 +215,7 @@ track names are subsystems and are not agent assignments; Agent B remains on TL.
 | Task-014 | Qualification | NFR-004 | TC-012 | done |
 | Task-015 | Producer Integration | FR-042 | TC-015 | done |
 | Task-016 | Architecture Gate | AD-001, FR-001..FR-009 | TC-002..TC-013 | done; SR-089..SR-100 pass under #61 |
-| Task-017 | Cross-cutting Foundation | FR-008, FR-014, FR-016 | TC-011 | planned |
+| Task-017 | Cross-cutting Foundation | FR-008, FR-014, FR-016 | TC-011 | done; 30 focused tests and SR-101/SR-102 pass under #62 |
 | Task-018 | Qualification | FR-017, NFR-005 | TC-016 | planned |
 
 ## Coordination Rules

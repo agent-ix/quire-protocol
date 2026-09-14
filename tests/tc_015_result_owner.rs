@@ -16,6 +16,7 @@ use quire_protocol::bounds::inventory::{
     production_inventory, Budget, BudgetDimension, OperationOutcome, ResourceAccountant,
 };
 use quire_protocol::closure::{AssessmentExecution, GlobalConformanceClosure, ScopeState};
+use quire_protocol::refusal::ProtocolStage;
 use quire_protocol::repro::{CorpusIdentity, ReproductionInputs, Seed, ToolchainIdentity};
 use quire_protocol::result::{
     self, contract_ir, Activation, Adequacy, Assumption, AssumptionState, AxisInputs, Claim,
@@ -547,6 +548,11 @@ fn assert_result_mutation(label: &str, baseline: &result::Document, input: Input
                 refusal.envelope().partial_output(),
                 quire_protocol::refusal::PartialOutput::NoneEmitted,
                 "{label} exposed partial output beside its refusal"
+            );
+            assert_eq!(
+                refusal.envelope().stage(),
+                ProtocolStage::ResultAssembly,
+                "{label} was not raised by result assembly"
             );
         }
     }
@@ -1157,6 +1163,7 @@ fn tc_015_strict_mutations_lineage_and_limits_fail_closed() {
     )
     .expect_err("unknown field");
     assert_eq!(error.code(), ErrorCode::InvalidJson);
+    assert_eq!(error.envelope().stage(), ProtocolStage::ResultRead);
 
     let mut missing_reproduction: Value =
         serde_json::from_slice(document.bytes()).expect("result JSON");

@@ -537,6 +537,9 @@ fn tc_012_every_conditional_site_is_selected_and_phantom_features_refuse() {
             Condition::Test {
                 path: "src/link/mod.rs".to_owned(),
             },
+            Condition::Test {
+                path: "src/refusal/mod.rs".to_owned(),
+            },
             Condition::Target {
                 path: "tests/it001_v2_handoff.rs".to_owned(),
                 predicate: "unix".to_owned(),

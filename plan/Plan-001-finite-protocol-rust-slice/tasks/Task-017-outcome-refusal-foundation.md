@@ -2,7 +2,7 @@
 id: Task-017
 title: "Establish the shared operation outcome and refusal foundation"
 type: Task
-status: planned
+status: done
 track: Cross-cutting Foundation
 priority: P0
 relationships:
@@ -17,32 +17,41 @@ relationships:
 ## Scope
 
 Create the one cross-cutting type foundation every later public subsystem uses:
-`OperationOutcome<T>`, `ResourceIncomplete`, `ProtocolRefusal`, the seven closed
-domains, ten closed stages, their exact stage/domain map, local/source cause
-separation and private construction. This task owns no subsystem-specific
+`OperationOutcome<T>`, `ClaimOutcome<Row>`, `ResourceIncomplete`,
+`ProtocolRefusal`, the seven closed domains, ten closed stages, their exact
+stage/domain map, local/source cause separation and private construction. This
+task owns no subsystem-specific
 failure routing and no canonical result assembly; Task-006 closes those after
 the semantic core exists.
 
 ## Subtasks
 
-- [ ] Add TC-011 red tests for the three operation outcomes, pairwise
+- [x] Add TC-011 red tests for the three operation outcomes, pairwise
   non-substitution, all valid stage/domain pairs and every invalid pair.
-- [ ] Implement `Completed(T)`, `Refused(ProtocolRefusal)` and
+- [x] Implement `Completed(T)`, `Refused(ProtocolRefusal)` and
   `ResourceIncomplete(ResourceIncomplete)` without representing resource
   exhaustion as a refusal cause.
-- [ ] Implement the Protocol-local `quire.protocol/refusal/1` domains, stages
+- [x] Implement `ClaimOutcome<Row>` so one claim retains either one canonical
+  row or one claim-local refusal without suppressing sibling outcomes.
+- [x] Implement the Protocol-local `quire.protocol/refusal/1` domains, stages
   and causes plus exact retained source causes and
   `unsupported-source-contract`.
-- [ ] Make all constructors crate-private or validating; no caller-built
+- [x] Make all refusal, source-cause and resource constructors crate-private;
+  validate their inputs before a value can cross the public boundary. No caller-built
   envelope, source cause or resource usage can cross the public boundary.
-- [ ] Move existing refusal catalog users onto the foundation without changing
-  subsystem semantics; Task-006 later removes the residual per-module routes.
-- [ ] Record resource inventory entries and trace bindings for every new site.
+- [x] Move existing refusal catalog users onto the foundation without changing
+  subsystem semantics. A crate-private adapter retains their typed local code
+  as the non-empty legacy axis; Task-006 replaces those residual per-module
+  routes with composed scenario axes and exact cause routing.
+- [x] Record trace bindings for every new test; this type-only task adds no
+  allocation, retention, traversal, operation, or output site and therefore no
+  resource-inventory row.
 
 ## Deliverables
 
 - One shared public outcome surface and private refusal/resource construction
-  foundation, with TC-011 coverage and no competing non-success type.
+  foundation, with TC-011 coverage and no competing non-success type in the
+  composed Protocol API.
 
 ## Boundary
 

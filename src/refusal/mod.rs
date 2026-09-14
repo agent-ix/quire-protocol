@@ -18,14 +18,14 @@
 //! Three separate namespaces are in play here and they get three different
 //! answers.
 //!
-//! **[`RefusalDomain`] is CLOSED.** FR-008 names exactly five domains. A sixth
+//! **[`RefusalDomain`] is CLOSED.** FR-008 names exactly seven domains. An eighth
 //! is a specification amendment, not a library change, and every consumer that
 //! switches on the domain should stop compiling until its author has classified
 //! the new one. `#[non_exhaustive]` here would force a wildcard arm on every
 //! downstream `match`, and a wildcard arm silently absorbs a variant added
 //! later — the exact failure the independently-assertable-refusal directive
 //! forbids. Same reasoning, same answer, as chunk C-07 reached for
-//! `IdentityKind`. [`OriginatingStage`], [`RetryDecision`], [`PartialOutput`]
+//! `IdentityKind`. [`ProtocolStage`], [`RetryDecision`], [`PartialOutput`]
 //! and [`Unavailability`] are closed for the same reason: each is a small set
 //! fixed by FR-008's own text.
 //!
@@ -75,6 +75,9 @@
 //! canonicalizer: a refusal is consumed after admission, never produced by
 //! reading native source.
 
+/// Versioned contract for Protocol-owned refusal domains, stages, and causes.
+pub const CONTRACT: &str = "quire.protocol/refusal/1";
+
 /// Diagnostic-catalog selection and the B-owned refusal-code catalog. Owner
 /// chunks: **C-01** (the code catalog and the carried selection) and **C-02**
 /// (validating a source code against the selection, and
@@ -87,6 +90,14 @@ pub mod catalog;
 /// fatal refusal emits no success value. The ordered chain those causes hang
 /// from is [`CauseChain`], landed here by C-01.
 pub mod cause;
+
+#[cfg(test)]
+mod tests;
+
+pub use cause::{
+    ProtocolCause, ProtocolCauseKind, RefusalCause, SourceCause, SourceContract, SourceField,
+    UnsupportedSourceContract,
+};
 
 use core::fmt;
 use core::hash::{Hash, Hasher};
@@ -110,6 +121,8 @@ use catalog::{CatalogSelection, RefusalCode, RetainedBytes};
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum RefusalDomain {
+    /// Resolving the exact external contract manifest for one request.
+    Resolution,
     /// Admitting offered bytes under an independently selected inventory.
     Admission,
     /// Building or reading a representation of an already admitted artifact.
@@ -120,16 +133,20 @@ pub enum RefusalDomain {
     Result,
     /// Projecting a result onto a downstream target.
     Projection,
+    /// Handing a complete scenario record to the accepted evidence owner.
+    Evidence,
 }
 
 impl RefusalDomain {
     /// Every domain, in declared order.
-    pub const ALL: [Self; 5] = [
+    pub const ALL: [Self; 7] = [
+        Self::Resolution,
         Self::Admission,
         Self::Representation,
         Self::Assessment,
         Self::Result,
         Self::Projection,
+        Self::Evidence,
     ];
 
     /// The stable spelling of this domain.
@@ -138,11 +155,13 @@ impl RefusalDomain {
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
+            Self::Resolution => "resolution",
             Self::Admission => "admission",
             Self::Representation => "representation",
             Self::Assessment => "assessment",
             Self::Result => "result",
             Self::Projection => "projection",
+            Self::Evidence => "evidence",
         }
     }
 }
@@ -175,50 +194,132 @@ pub enum RetryDecision {
 
 /// The originating stage FR-008 requires a refusal to retain.
 ///
-/// Closed: the six stages are named by FR-008's own behaviour clause. A
+/// Closed: the ten stages are named by FR-008's owned vocabulary. A
 /// wrapper cannot erase or replace the stage because [`ProtocolRefusal`] has no
 /// setter for it — the only way to obtain a refusal is to build one with a
 /// stage, and the field is private.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-pub enum OriginatingStage {
-    /// Recognising the source at all.
-    SourceRecognition,
-    /// Resolving identities and linking references.
-    IdentityLinking,
-    /// Checking types and profile conformance.
-    TypeProfile,
-    /// Binding inputs to declared parameters.
-    InputBinding,
-    /// Selecting a capability or backend.
-    CapabilitySelection,
-    /// Executing under a resource bound.
-    ResourceExecution,
+pub enum ProtocolStage {
+    /// Resolve the exact request manifest and owner capabilities.
+    ContractResolution,
+    /// Admit an offered artifact through its selected strict reader.
+    Admission,
+    /// Build the complete typed linked representation.
+    Representation,
+    /// Assess compensation semantics.
+    Compensation,
+    /// Assess finite global conformance.
+    Conformance,
+    /// Dispatch independent requested claims.
+    ClaimDispatch,
+    /// Assemble one canonical result.
+    ResultAssembly,
+    /// Read and validate an offered canonical result.
+    ResultRead,
+    /// Project a validated result to a downstream contract.
+    Projection,
+    /// Hand a complete scenario record to the accepted evidence owner.
+    EvidenceHandoff,
 }
 
-impl OriginatingStage {
+impl ProtocolStage {
     /// Every stage, in declared order.
-    pub const ALL: [Self; 6] = [
-        Self::SourceRecognition,
-        Self::IdentityLinking,
-        Self::TypeProfile,
-        Self::InputBinding,
-        Self::CapabilitySelection,
-        Self::ResourceExecution,
+    pub const ALL: [Self; 10] = [
+        Self::ContractResolution,
+        Self::Admission,
+        Self::Representation,
+        Self::Compensation,
+        Self::Conformance,
+        Self::ClaimDispatch,
+        Self::ResultAssembly,
+        Self::ResultRead,
+        Self::Projection,
+        Self::EvidenceHandoff,
     ];
 
     /// The stable spelling of this stage.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
-            Self::SourceRecognition => "source-recognition",
-            Self::IdentityLinking => "identity-linking",
-            Self::TypeProfile => "type-profile",
-            Self::InputBinding => "input-binding",
-            Self::CapabilitySelection => "capability-selection",
-            Self::ResourceExecution => "resource-execution",
+            Self::ContractResolution => "contract-resolution",
+            Self::Admission => "admission",
+            Self::Representation => "representation",
+            Self::Compensation => "compensation",
+            Self::Conformance => "conformance",
+            Self::ClaimDispatch => "claim-dispatch",
+            Self::ResultAssembly => "result-assembly",
+            Self::ResultRead => "result-read",
+            Self::Projection => "projection",
+            Self::EvidenceHandoff => "evidence-handoff",
+        }
+    }
+
+    /// The only refusal domain this stage may inhabit.
+    #[must_use]
+    pub const fn domain(self) -> RefusalDomain {
+        match self {
+            Self::ContractResolution => RefusalDomain::Resolution,
+            Self::Admission => RefusalDomain::Admission,
+            Self::Representation => RefusalDomain::Representation,
+            Self::Compensation | Self::Conformance | Self::ClaimDispatch => {
+                RefusalDomain::Assessment
+            }
+            Self::ResultAssembly | Self::ResultRead => RefusalDomain::Result,
+            Self::Projection => RefusalDomain::Projection,
+            Self::EvidenceHandoff => RefusalDomain::Evidence,
+        }
+    }
+
+    /// Validate an offered domain against the closed stage/domain map.
+    ///
+    /// # Errors
+    ///
+    /// Returns the exact mismatch; no textual fallback or nearest stage is
+    /// consulted.
+    pub fn validate_domain(self, offered: RefusalDomain) -> Result<(), StageDomainMismatch> {
+        let expected = self.domain();
+        if expected == offered {
+            Ok(())
+        } else {
+            Err(StageDomainMismatch {
+                stage: self,
+                expected,
+                offered,
+            })
         }
     }
 }
+
+impl fmt::Display for ProtocolStage {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
+/// A domain offered for a stage other than the stage's one closed mapping.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub struct StageDomainMismatch {
+    /// Stage being classified.
+    pub stage: ProtocolStage,
+    /// Domain fixed by the protocol contract.
+    pub expected: RefusalDomain,
+    /// Conflicting domain offered by the caller.
+    pub offered: RefusalDomain,
+}
+
+impl fmt::Display for StageDomainMismatch {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            formatter,
+            "stage {} belongs to {}, not {}",
+            self.stage.as_str(),
+            self.expected,
+            self.offered
+        )
+    }
+}
+
+impl std::error::Error for StageDomainMismatch {}
 
 /// Whether a prerequisite of the originating stage was established.
 ///
@@ -237,20 +338,20 @@ pub enum PrerequisiteState {
 /// One prerequisite of the originating stage, with its state.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct Prerequisite {
-    stage: OriginatingStage,
+    stage: ProtocolStage,
     state: PrerequisiteState,
 }
 
 impl Prerequisite {
     /// Record a prerequisite stage and its state.
     #[must_use]
-    pub const fn new(stage: OriginatingStage, state: PrerequisiteState) -> Self {
+    pub const fn new(stage: ProtocolStage, state: PrerequisiteState) -> Self {
         Self { stage, state }
     }
 
     /// The prerequisite stage.
     #[must_use]
-    pub const fn stage(self) -> OriginatingStage {
+    pub const fn stage(self) -> ProtocolStage {
         self.stage
     }
 
@@ -264,6 +365,61 @@ impl Prerequisite {
 // ---------------------------------------------------------------------------
 // Affected identity
 // ---------------------------------------------------------------------------
+
+/// The exact negative-scenario axis this refusal realizes.
+///
+/// An empty axis is rejected rather than folded into a catch-all identity.
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub struct RefusalAxis(RetainedBytes);
+
+impl RefusalAxis {
+    /// Retain one non-empty refusal-axis identity byte-exactly.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`EmptyRefusalAxis`] when no axis was supplied.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "Task-013 and Tasks 002-006 construct exact composed scenario axes"
+        )
+    )]
+    pub(crate) fn new(axis: &[u8]) -> Result<Self, EmptyRefusalAxis> {
+        if axis.is_empty() {
+            Err(EmptyRefusalAxis)
+        } else {
+            Ok(Self(RetainedBytes::new(axis)))
+        }
+    }
+
+    /// Use one audited registered local code as the temporary axis for a
+    /// pre-composition subsystem route.
+    ///
+    /// Task-006 replaces these code-level legacy axes with the exact composed
+    /// scenario axes. Registered code grammar makes the spelling non-empty.
+    pub(crate) fn from_registered_code(code: RefusalCode) -> Self {
+        Self(RetainedBytes::new(code.as_str().as_bytes()))
+    }
+
+    /// Exact axis bytes.
+    #[must_use]
+    pub fn as_bytes(&self) -> &[u8] {
+        self.0.as_bytes()
+    }
+}
+
+/// A refusal envelope was offered without its required refusal axis.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub(crate) struct EmptyRefusalAxis;
+
+impl fmt::Display for EmptyRefusalAxis {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("refusal axis is empty")
+    }
+}
+
+impl std::error::Error for EmptyRefusalAxis {}
 
 /// The identity a refusal is about.
 ///
@@ -431,72 +587,38 @@ pub enum CauseDetail {
     WithheldByDetailBudget,
 }
 
-/// One cause of a refusal: a registered code and whatever detail survived.
-///
-/// The taxonomy that decides *which* code a given cause gets — the five
-/// structurally distinct cause pairs of FR-008-AC-5 — is chunk C-03's, in
-/// [`cause`]. Each of its variants resolves to its own registered code, so a
-/// cause is independently assertable without reading this struct's detail.
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub struct Cause {
-    code: RefusalCode,
-    detail: CauseDetail,
-}
-
-impl Cause {
-    /// A cause identified by its registered code, with no detail offered.
-    #[must_use]
-    pub const fn new(code: RefusalCode) -> Self {
-        Self {
-            code,
-            detail: CauseDetail::NoneOffered,
-        }
-    }
-
-    /// A cause with the source's own detail retained uninterpreted.
-    #[must_use]
-    pub fn with_detail(code: RefusalCode, detail: CauseDetail) -> Self {
-        Self { code, detail }
-    }
-
-    /// The registered code of this cause.
-    #[must_use]
-    pub const fn code(&self) -> RefusalCode {
-        self.code
-    }
-
-    /// The retained detail, or the explicit reason there is none.
-    #[must_use]
-    pub const fn detail(&self) -> &CauseDetail {
-        &self.detail
-    }
-}
-
 /// The causes of a refusal, in the order the source declared them.
 ///
 /// The order is **declared, never sorted**: FR-008 requires independent causes
 /// to be retained in their declared semantic order, so this type exposes no
 /// sort, no dedup and no reorder. Appending is the only way to build one.
-#[derive(Clone, Debug, Default, Eq, PartialEq, Hash)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct CauseChain {
-    causes: Vec<Cause>,
+    causes: Vec<RefusalCause>,
 }
 
 impl CauseChain {
     /// An empty chain.
     #[must_use]
-    pub const fn new() -> Self {
+    pub(crate) const fn new() -> Self {
         Self { causes: Vec::new() }
     }
 
     /// Append a cause at the end of the declared order.
-    pub fn push(&mut self, cause: Cause) {
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "Task-013 and Tasks 002-006 consume the private typed-cause constructor"
+        )
+    )]
+    pub(crate) fn push(&mut self, cause: RefusalCause) {
         self.causes.push(cause);
     }
 
     /// The causes, in declared order.
     #[must_use]
-    pub fn declared_order(&self) -> &[Cause] {
+    pub fn declared_order(&self) -> &[RefusalCause] {
         &self.causes
     }
 
@@ -510,12 +632,6 @@ impl CauseChain {
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.causes.is_empty()
-    }
-
-    /// The declared position of the first cause with this code.
-    #[must_use]
-    pub fn position_of(&self, code: RefusalCode) -> Option<usize> {
-        self.causes.iter().position(|cause| cause.code() == code)
     }
 }
 
@@ -546,7 +662,7 @@ pub enum PartialOutput {
 /// requires at least one retained value, so the declared state and the
 /// retained values can never disagree.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct RefusedWithIndependent<T> {
+pub(crate) struct RefusedWithIndependent<T> {
     refusal: ProtocolRefusal,
     retained: Vec<T>,
 }
@@ -554,13 +670,20 @@ pub struct RefusedWithIndependent<T> {
 impl<T> RefusedWithIndependent<T> {
     /// The refusal itself.
     #[must_use]
-    pub const fn refusal(&self) -> &ProtocolRefusal {
+    pub(crate) const fn refusal(&self) -> &ProtocolRefusal {
         &self.refusal
     }
 
     /// The independent results that survived, in declared order.
     #[must_use]
-    pub fn independent_results(&self) -> &[T] {
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "Task-006 consumes retained claim outcomes when it composes AssessmentBundle"
+        )
+    )]
+    pub(crate) fn independent_results(&self) -> &[T] {
         &self.retained
     }
 }
@@ -600,10 +723,14 @@ pub struct Rendering {
 /// text. The domain is not stored separately from the code: it is the domain
 /// the code is registered under, so the two can never disagree.
 #[derive(Clone, Debug)]
-pub struct ProtocolRefusal {
+pub struct ProtocolRefusal(Box<ProtocolRefusalInner>);
+
+#[derive(Clone, Debug)]
+struct ProtocolRefusalInner {
     code: RefusalCode,
     catalog: CatalogSelection,
-    stage: OriginatingStage,
+    stage: ProtocolStage,
+    axis: RefusalAxis,
     prerequisites: Vec<Prerequisite>,
     identity: AffectedIdentity,
     location: Location,
@@ -615,91 +742,136 @@ pub struct ProtocolRefusal {
 impl ProtocolRefusal {
     /// Start building a refusal.
     ///
-    /// The three arguments are the three things a refusal cannot exist
-    /// without: what refused, against which catalog, and at which stage.
-    #[must_use]
-    pub fn builder(
+    /// The arguments make code/catalog selection, local stage, refusal axis,
+    /// and first typed cause mandatory. The stage/domain pair is validated
+    /// before a builder is returned.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "Task-013 and Tasks 002-006 consume this constructor-private foundation"
+        )
+    )]
+    pub(crate) fn builder(
         code: RefusalCode,
         catalog: CatalogSelection,
-        stage: OriginatingStage,
-    ) -> RefusalBuilder {
-        RefusalBuilder {
+        stage: ProtocolStage,
+        axis: RefusalAxis,
+        first_cause: RefusalCause,
+    ) -> Result<RefusalBuilder, StageDomainMismatch> {
+        stage.validate_domain(code.domain())?;
+        let mut causes = CauseChain::new();
+        causes.push(first_cause);
+        Ok(RefusalBuilder {
             code,
             catalog,
             stage,
+            axis,
+            prerequisites: Vec::new(),
+            identity: AffectedIdentity::NotApplicable,
+            location: Location::Unavailable(Unavailability::NotReportedBySource),
+            causes,
+            rendering: Rendering::default(),
+        })
+    }
+
+    /// Build an envelope for an existing subsystem route that has not yet
+    /// completed its Task-006 cause mapping.
+    ///
+    /// Crate-private on purpose: new public callers must use [`Self::builder`]
+    /// and supply a typed cause. Keeping this temporary adapter empty avoids
+    /// approximating a subsystem-specific cause before its owning ticket.
+    pub(crate) fn legacy_builder(
+        code: RefusalCode,
+        catalog: CatalogSelection,
+        stage: ProtocolStage,
+        axis: RefusalAxis,
+    ) -> Result<RefusalBuilder, StageDomainMismatch> {
+        stage.validate_domain(code.domain())?;
+        Ok(RefusalBuilder {
+            code,
+            catalog,
+            stage,
+            axis,
             prerequisites: Vec::new(),
             identity: AffectedIdentity::NotApplicable,
             location: Location::Unavailable(Unavailability::NotReportedBySource),
             causes: CauseChain::new(),
             rendering: Rendering::default(),
-        }
+        })
     }
 
     /// The FR-008 domain, taken from the code's catalog registration.
     #[must_use]
-    pub const fn domain(&self) -> RefusalDomain {
-        self.code.domain()
+    pub fn domain(&self) -> RefusalDomain {
+        self.0.stage.domain()
     }
 
     /// The stable registered code.
     #[must_use]
-    pub const fn code(&self) -> RefusalCode {
-        self.code
+    pub fn code(&self) -> RefusalCode {
+        self.0.code
     }
 
     /// The exact selected diagnostic catalog, retained uninterpreted.
     #[must_use]
-    pub const fn catalog(&self) -> &CatalogSelection {
-        &self.catalog
+    pub fn catalog(&self) -> &CatalogSelection {
+        &self.0.catalog
     }
 
     /// The originating stage. There is no setter: a wrapper cannot replace it.
     #[must_use]
-    pub const fn stage(&self) -> OriginatingStage {
-        self.stage
+    pub fn stage(&self) -> ProtocolStage {
+        self.0.stage
+    }
+
+    /// Exact refusal axis used by outcome-identity comparison.
+    #[must_use]
+    pub fn axis(&self) -> &RefusalAxis {
+        &self.0.axis
     }
 
     /// The prerequisites of the originating stage, in declared order.
     #[must_use]
     pub fn prerequisites(&self) -> &[Prerequisite] {
-        &self.prerequisites
+        &self.0.prerequisites
     }
 
     /// The identity the refusal is about.
     #[must_use]
-    pub const fn identity(&self) -> &AffectedIdentity {
-        &self.identity
+    pub fn identity(&self) -> &AffectedIdentity {
+        &self.0.identity
     }
 
     /// The location, present or explicitly absent.
     #[must_use]
-    pub const fn location(&self) -> &Location {
-        &self.location
+    pub fn location(&self) -> &Location {
+        &self.0.location
     }
 
     /// The causes, in declared order.
     #[must_use]
-    pub const fn causes(&self) -> &CauseChain {
-        &self.causes
+    pub fn causes(&self) -> &CauseChain {
+        &self.0.causes
     }
 
     /// What, if anything, survived the refusal.
     #[must_use]
-    pub const fn partial_output(&self) -> PartialOutput {
-        self.partial_output
+    pub fn partial_output(&self) -> PartialOutput {
+        self.0.partial_output
     }
 
     /// What a caller may do about it, decided from the registered code alone
     /// and never from display text.
     #[must_use]
-    pub const fn retry(&self) -> RetryDecision {
-        self.code.retry()
+    pub fn retry(&self) -> RetryDecision {
+        self.0.code.retry()
     }
 
     /// The display material. Never part of identity.
     #[must_use]
-    pub const fn rendering(&self) -> &Rendering {
-        &self.rendering
+    pub fn rendering(&self) -> &Rendering {
+        &self.0.rendering
     }
 
     /// The same refusal rendered differently.
@@ -709,8 +881,36 @@ impl ProtocolRefusal {
     #[must_use]
     pub fn rendered_as(&self, rendering: Rendering) -> Self {
         let mut rendered = self.clone();
-        rendered.rendering = rendering;
+        rendered.0.rendering = rendering;
         rendered
+    }
+
+    /// Whether two refusals carry the same producer-supplied interior.
+    ///
+    /// The refusal axis and rendering are deliberately excluded. Integrations
+    /// use this comparison to detect two distinct axes collapsed onto one code
+    /// and cause rather than letting the axis key make injectivity tautological.
+    #[must_use]
+    pub fn has_same_interior_as(&self, other: &Self) -> bool {
+        (
+            self.0.code,
+            &self.0.catalog,
+            self.0.stage,
+            &self.0.prerequisites,
+            &self.0.identity,
+            &self.0.location,
+            &self.0.causes,
+            self.0.partial_output,
+        ) == (
+            other.0.code,
+            &other.0.catalog,
+            other.0.stage,
+            &other.0.prerequisites,
+            &other.0.identity,
+            &other.0.location,
+            &other.0.causes,
+            other.0.partial_output,
+        )
     }
 
     /// The typed fields that constitute refusal identity.
@@ -722,7 +922,8 @@ impl ProtocolRefusal {
     ) -> (
         RefusalCode,
         &CatalogSelection,
-        OriginatingStage,
+        ProtocolStage,
+        &RefusalAxis,
         &[Prerequisite],
         &AffectedIdentity,
         &Location,
@@ -730,14 +931,15 @@ impl ProtocolRefusal {
         PartialOutput,
     ) {
         (
-            self.code,
-            &self.catalog,
-            self.stage,
-            &self.prerequisites,
-            &self.identity,
-            &self.location,
-            &self.causes,
-            self.partial_output,
+            self.0.code,
+            &self.0.catalog,
+            self.0.stage,
+            &self.0.axis,
+            &self.0.prerequisites,
+            &self.0.identity,
+            &self.0.location,
+            &self.0.causes,
+            self.0.partial_output,
         )
     }
 }
@@ -763,11 +965,11 @@ impl fmt::Display for ProtocolRefusal {
             formatter,
             "{} refusal {} at stage {}",
             self.domain(),
-            self.code,
-            self.stage.as_str()
+            self.0.code,
+            self.0.stage.as_str()
         )?;
-        if !self.rendering.message.is_empty() {
-            write!(formatter, ": {}", self.rendering.message)?;
+        if !self.0.rendering.message.is_empty() {
+            write!(formatter, ": {}", self.0.rendering.message)?;
         }
         Ok(())
     }
@@ -782,10 +984,11 @@ impl std::error::Error for ProtocolRefusal {}
 /// nothing can never claim to have retained results and a refusal that retained
 /// results can never claim to have emitted nothing.
 #[derive(Clone, Debug)]
-pub struct RefusalBuilder {
+pub(crate) struct RefusalBuilder {
     code: RefusalCode,
     catalog: CatalogSelection,
-    stage: OriginatingStage,
+    stage: ProtocolStage,
+    axis: RefusalAxis,
     prerequisites: Vec<Prerequisite>,
     identity: AffectedIdentity,
     location: Location,
@@ -796,14 +999,21 @@ pub struct RefusalBuilder {
 impl RefusalBuilder {
     /// Record a prerequisite of the originating stage.
     #[must_use]
-    pub fn prerequisite(mut self, prerequisite: Prerequisite) -> Self {
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "Task-013 and Tasks 002-006 populate prerequisites through this private builder"
+        )
+    )]
+    pub(crate) fn prerequisite(mut self, prerequisite: Prerequisite) -> Self {
         self.prerequisites.push(prerequisite);
         self
     }
 
     /// Record the identity the refusal is about.
     #[must_use]
-    pub fn identity(mut self, identity: AffectedIdentity) -> Self {
+    pub(crate) fn identity(mut self, identity: AffectedIdentity) -> Self {
         self.identity = identity;
         self
     }
@@ -813,35 +1023,56 @@ impl RefusalBuilder {
     /// Takes a [`SourceLocation`], never text: there is no path through this
     /// builder by which a display name, a path or a message becomes a span.
     #[must_use]
-    pub fn located_at(mut self, location: SourceLocation) -> Self {
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "Tasks 002-006 populate source loci through this private builder"
+        )
+    )]
+    pub(crate) fn located_at(mut self, location: SourceLocation) -> Self {
         self.location = Location::Available(location);
         self
     }
 
     /// Record why there is no location.
     #[must_use]
-    pub fn unavailable_location(mut self, reason: Unavailability) -> Self {
+    pub(crate) fn unavailable_location(mut self, reason: Unavailability) -> Self {
         self.location = Location::Unavailable(reason);
         self
     }
 
     /// Append a cause at the end of the declared order.
     #[must_use]
-    pub fn cause(mut self, cause: Cause) -> Self {
-        self.causes.push(cause);
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "Task-013 and Tasks 002-006 populate typed causes through this private builder"
+        )
+    )]
+    pub(crate) fn cause(mut self, cause: impl Into<RefusalCause>) -> Self {
+        self.causes.push(cause.into());
         self
     }
 
     /// Attach display material. It never becomes identity or location.
     #[must_use]
-    pub fn rendering(mut self, rendering: Rendering) -> Self {
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "Tasks 002-006 may attach display-only detail through this private builder"
+        )
+    )]
+    pub(crate) fn rendering(mut self, rendering: Rendering) -> Self {
         self.rendering = rendering;
         self
     }
 
     /// Finish a refusal that emitted no success value at all.
     #[must_use]
-    pub fn emitting_nothing(self) -> ProtocolRefusal {
+    pub(crate) fn emitting_nothing(self) -> ProtocolRefusal {
         self.finish(PartialOutput::NoneEmitted)
     }
 
@@ -852,7 +1083,11 @@ impl RefusalBuilder {
     /// [`PartialOutput::IndependentResultsRetained`] can never be declared over
     /// an empty set.
     #[must_use]
-    pub fn retaining_independent<T>(self, first: T, rest: Vec<T>) -> RefusedWithIndependent<T> {
+    pub(crate) fn retaining_independent<T>(
+        self,
+        first: T,
+        rest: Vec<T>,
+    ) -> RefusedWithIndependent<T> {
         let refusal = self.finish(PartialOutput::IndependentResultsRetained);
         let mut retained = Vec::with_capacity(1 + rest.len());
         retained.push(first);
@@ -861,16 +1096,17 @@ impl RefusalBuilder {
     }
 
     fn finish(self, partial_output: PartialOutput) -> ProtocolRefusal {
-        ProtocolRefusal {
+        ProtocolRefusal(Box::new(ProtocolRefusalInner {
             code: self.code,
             catalog: self.catalog,
             stage: self.stage,
+            axis: self.axis,
             prerequisites: self.prerequisites,
             identity: self.identity,
             location: self.location,
             causes: self.causes,
             partial_output,
             rendering: self.rendering,
-        }
+        }))
     }
 }

@@ -41,12 +41,16 @@ pub mod ids;
 pub mod inventory;
 /// Finite linked-protocol graph and its located diagnostics. Owner chunks: C-12, C-13.
 pub mod link;
+/// Closed public operation and claim outcome algebras.
+pub mod outcome;
 /// B-owned typed refusal envelope. Owner chunk: C-01 (submodules: C-02, C-03).
 pub mod refusal;
 /// Seed, toolchain and corpus reproduction record. Owner chunk: C-31.
 pub mod repro;
 /// Canonical protocol result record. Owner chunk: C-26 (submodules: C-27, C-28).
 pub mod result;
+
+pub use outcome::{ClaimOutcome, OperationOutcome};
 
 pub use quire_spec_language::protocol_artifact::v2;
 pub use quire_spec_language::protocol_artifact::wire;

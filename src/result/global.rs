@@ -19,7 +19,7 @@ pub(crate) fn validate(
         ..Usage::default()
     };
     if usage.premises > limits.max_premises {
-        return Err(Refusal::new(
+        return Err(Refusal::assembly(
             ErrorCode::ResourceIncomplete,
             "global premise population exceeds its effective ceiling",
             usage,
@@ -34,7 +34,7 @@ pub(crate) fn validate(
             return Ok(())
         }
         (false, GlobalConformanceClosure::NotRequired) => {
-            return Err(Refusal::new(
+            return Err(Refusal::assembly(
                 ErrorCode::GlobalPremiseMismatch,
                 "not-required cannot carry a global premise",
                 usage,
@@ -42,7 +42,7 @@ pub(crate) fn validate(
             ));
         }
         (false, _) => {
-            return Err(Refusal::new(
+            return Err(Refusal::assembly(
                 ErrorCode::GlobalPremiseMismatch,
                 "a non-global claim must carry not-required",
                 usage,
@@ -50,7 +50,7 @@ pub(crate) fn validate(
             ));
         }
         (true, GlobalConformanceClosure::NotRequired) => {
-            return Err(Refusal::new(
+            return Err(Refusal::assembly(
                 ErrorCode::GlobalPremiseMismatch,
                 "a global claim cannot carry not-required",
                 usage,
@@ -63,7 +63,7 @@ pub(crate) fn validate(
         || global.required_premises != global.premises
         || !unique(&global.required_premises)
     {
-        return Err(Refusal::new(
+        return Err(Refusal::assembly(
             ErrorCode::GlobalPremiseMismatch,
             "global closure premises are missing, duplicated, reordered, or cross-wired",
             usage,
@@ -72,7 +72,7 @@ pub(crate) fn validate(
     }
     let kinds: BTreeSet<_> = global.premises.iter().map(|premise| premise.kind).collect();
     if kinds.len() != 3 {
-        return Err(Refusal::new(
+        return Err(Refusal::assembly(
             ErrorCode::GlobalPremiseMismatch,
             "global closure requires execution, branch, and workflow premises",
             usage,
