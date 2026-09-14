@@ -56,8 +56,8 @@ relationships:
 ---
 ## Overview
 
-This matrix plans the first Rust implementation slice. No row claims executed
-coverage. The accepted frozen source baseline, F consumer correction, Engineering
+This matrix tracks the first Rust implementation slice, including executed owner
+paths and work that remains planned or blocked. The accepted frozen source baseline, F consumer correction, Engineering
 Assurance producer, license, implementation plan, and retained corpus remain
 explicit gates.
 
@@ -98,10 +98,10 @@ The five words below are not interchangeable, and no total mixes them.
 
   ```
   $ quire coverage --scope /home/peter/dev/quire-protocol-temporal-result-owner
-  Coverage: 96/329 rows backed (29%)
+  Coverage: 97/329 rows backed (29%)
   ```
 
-  At the 2026-09-14 implementation checkpoint, 96 rows are engine-backed.
+  At the 2026-09-14 implementation checkpoint, 97 rows are engine-backed.
   NFR-001 is 3 of 3, NFR-002 is 4 of 4, and 10 of the 15 test-case rows have at
   least one bound symbol. The remaining row-level gaps are enumerated by the
   same machine output and remain implementation work; this figure is not a
@@ -324,7 +324,7 @@ in Domain Object Coverage instead.
 | FR-039 | FR-039-AC-1..AC-6 | TC-011 (AC-1..AC-5); IT-003 (AC-5); none for FR-039-AC-6 | 🚧 Planned — 5 of 6 criteria test-backed. Unbacked: FR-039-AC-6 (Inspection). No criterion rests on IT-003 alone |
 | FR-040 | FR-040-AC-1..AC-4 | TC-011 (AC-1..AC-4); IT-003 (AC-3) | 🚧 Planned — 4 of 4 criteria test-backed, 0 unbacked, 0 unexecutable |
 | FR-041 | FR-041-AC-1..AC-4 | TC-004 (AC-1..AC-3); none for FR-041-AC-4 | 🚧 Planned — 3 of 4 criteria test-backed. Unbacked: FR-041-AC-4 (Analysis) |
-| FR-042 | FR-042-AC-1..AC-6 | TC-015 (AC-1..AC-6) | 🚧 Planned — complete canonical result owner and selected mapping implementation |
+| FR-042 | FR-042-AC-1..AC-6 | TC-015 (AC-1..AC-6) | ✅ Implemented — all six criteria carry direct traced tests; the current engine reports 3 of 6 criterion rows bound and no FR-042 unbacked or untracked record, so the direct trace inventory and engine rollup remain stated separately |
 
 Behavioural totals across these 33 rows: 183 acceptance criteria, of which 168
 are backed by a test case, 2 are backed only by an integration scenario
@@ -420,15 +420,15 @@ a coverage claim in this matrix.
 | TC-012 | Run the local verification gate and refuse an undefined lane | Static | P0 | NFR-004 | 🚧 Planned |
 | TC-013 | Resolve the version-lock manifest | Property | P0 | FR-009, FR-012, FR-016, FR-017, FR-018, NFR-006 | 🚧 Planned — B-owned fixtures only; runnable without any external producer delivery |
 | TC-014 | Apply the consumer identity discipline | Property | P0 | FR-011, FR-015, FR-017 | 🚧 Planned — B-owned fixtures only; runnable without any external producer delivery |
-| TC-015 | Produce, read and map canonical protocol results | Integration | P0 | FR-042-AC-1..FR-042-AC-6 | 🚧 Planned |
+| TC-015 | Produce, read and map canonical protocol results | Integration | P0 | FR-042-AC-1..FR-042-AC-6 | ✅ Implemented — 12 executable tests cover canonical production/strict reading, complete typed views, all four independent axes, Boolean/non-value mapping, identity/lineage mutations, schema pins, reproduction and exact/one-short resource limits |
 
 ## Test Execution Summary
 
 Row counts, recomputed from the tree. Every matrix row above is counted exactly
 once, and `Blocked` means unexecutable — neither passing nor failing.
 
-Engine-measured binding before FR-042 implementation, which is the figure to read for coverage, is 37 of 328
-rows (11%) — see **Engine-bound** above. The table below counts matrix rows and
+Engine-measured binding at the current implementation checkpoint is 97 of 329
+rows (29%) — see **Engine-bound** above. The table below counts matrix rows and
 their planned state; it does not measure binding.
 
 | Category | Total | Passed | Failed | Blocked | Planned |
@@ -453,8 +453,8 @@ fully blocked integration cannot score 100%. These totals follow that rule: the
 denominator is every authored acceptance criterion, and an unexecutable
 criterion is a zero inside it rather than a row removed from it.
 
-Engine-measured binding before FR-042 implementation, which is the figure to read for coverage, is 37 of 328
-rows (11%) — see **Engine-bound** above. The table below counts matrix rows and
+Engine-measured binding at the current implementation checkpoint is 97 of 329
+rows (29%) — see **Engine-bound** above. The table below counts matrix rows and
 their planned state; it does not measure binding.
 
 | Category | Total | Passed | Failed | Blocked | Planned |
