@@ -69,6 +69,27 @@ pub enum BudgetDimension {
 }
 
 impl BudgetDimension {
+    /// The seventeen request dimensions declared directly by NFR-002.
+    pub const NFR_002: [Self; 17] = [
+        Self::InputByte,
+        Self::Definition,
+        Self::Node,
+        Self::Edge,
+        Self::Role,
+        Self::Message,
+        Self::Branch,
+        Self::Iteration,
+        Self::ActiveInstance,
+        Self::Observation,
+        Self::Lineage,
+        Self::ResultItem,
+        Self::DerivedArtifact,
+        Self::OutputByte,
+        Self::Operation,
+        Self::AccountedAllocation,
+        Self::ElapsedTime,
+    ];
+
     /// Every dimension in specification order.
     pub const ALL: [Self; 20] = [
         Self::InputByte,
@@ -769,4 +790,415 @@ impl<'inventory> ResourceAccountant<'inventory> {
         self.usage.consumed[dimension.index()] = next;
         Ok(())
     }
+}
+
+// ---------------------------------------------------------------------------
+// Production source population and independent inventory population
+// ---------------------------------------------------------------------------
+
+const PRODUCTION_BOUNDARY: BoundaryCase =
+    BoundaryCase::new("tc_009_every_production_site_has_below_at_above_boundary");
+
+// Inventory-side bindings are spelled independently from the source-side
+// declarations in their owning modules. Reusing the source constants here
+// would let a cross-wire mutate both populations at once and evade comparison.
+const ADMISSION_INPUT: SourceSite = SourceSite::new(
+    SiteId::new("admission/offer/decode"),
+    "inventory::map::admit_discriminating",
+    BudgetDimension::InputByte,
+    SiteKind::Iteration,
+);
+const LINK_DEFINITION: SourceSite = SourceSite::new(
+    SiteId::new("link/definition/select"),
+    "link::link",
+    BudgetDimension::Definition,
+    SiteKind::Iteration,
+);
+const LINK_NODE: SourceSite = SourceSite::new(
+    SiteId::new("link/node/retain"),
+    "link::link",
+    BudgetDimension::Node,
+    SiteKind::Retention,
+);
+const LINK_EDGE: SourceSite = SourceSite::new(
+    SiteId::new("link/edge/traverse"),
+    "link::link",
+    BudgetDimension::Edge,
+    SiteKind::Traversal,
+);
+const LINK_ROLE: SourceSite = SourceSite::new(
+    SiteId::new("link/role/retain"),
+    "link::link",
+    BudgetDimension::Role,
+    SiteKind::Retention,
+);
+const LINK_MESSAGE: SourceSite = SourceSite::new(
+    SiteId::new("link/message/retain"),
+    "link::link",
+    BudgetDimension::Message,
+    SiteKind::Retention,
+);
+const LINK_BRANCH: SourceSite = SourceSite::new(
+    SiteId::new("link/interleaving/branch/queue"),
+    "link::interleaving",
+    BudgetDimension::Branch,
+    SiteKind::Queue,
+);
+const LINK_ITERATION: SourceSite = SourceSite::new(
+    SiteId::new("link/repeat/iterate"),
+    "link::control_shape",
+    BudgetDimension::Iteration,
+    SiteKind::Iteration,
+);
+const LINK_ACTIVE_INSTANCE: SourceSite = SourceSite::new(
+    SiteId::new("link/active-instance/retain"),
+    "link::link",
+    BudgetDimension::ActiveInstance,
+    SiteKind::Retention,
+);
+const CONFORMANCE_OBSERVATION: SourceSite = SourceSite::new(
+    SiteId::new("conformance/observation/consume"),
+    "conformance::batch::assess",
+    BudgetDimension::Observation,
+    SiteKind::Iteration,
+);
+const RESULT_LINEAGE: SourceSite = SourceSite::new(
+    SiteId::new("result/lineage/traverse"),
+    "result::lineage::validate",
+    BudgetDimension::Lineage,
+    SiteKind::Traversal,
+);
+const RESULT_ITEM: SourceSite = SourceSite::new(
+    SiteId::new("result/item/retain"),
+    "result::record::produce",
+    BudgetDimension::ResultItem,
+    SiteKind::Retention,
+);
+const CONTRACT_IR_DERIVED: SourceSite = SourceSite::new(
+    SiteId::new("result/contract-ir/derive"),
+    "result::contract_ir::map",
+    BudgetDimension::DerivedArtifact,
+    SiteKind::Retention,
+);
+const RESULT_OUTPUT: SourceSite = SourceSite::new(
+    SiteId::new("result/output/allocate"),
+    "result::record::produce",
+    BudgetDimension::OutputByte,
+    SiteKind::Allocation,
+);
+const CONFORMANCE_OPERATION: SourceSite = SourceSite::new(
+    SiteId::new("conformance/obligation/assess"),
+    "conformance::batch::assess",
+    BudgetDimension::Operation,
+    SiteKind::Iteration,
+);
+const IDENTITY_ALLOCATION: SourceSite = SourceSite::new(
+    SiteId::new("identity/storage/allocate"),
+    "ids::*::new",
+    BudgetDimension::AccountedAllocation,
+    SiteKind::Allocation,
+);
+const REQUEST_DEADLINE: SourceSite = SourceSite::new(
+    SiteId::new("request/unit/deadline"),
+    "bounds::DeadlineGuard::begin_unit",
+    BudgetDimension::ElapsedTime,
+    SiteKind::Iteration,
+);
+const REPRO_INPUT: SourceSite = SourceSite::new(
+    SiteId::new("reproduction/identity/retain"),
+    "repro::ToolchainIdentity::new/repro::CorpusIdentity::new",
+    BudgetDimension::InputByte,
+    SiteKind::Retention,
+);
+const REPRO_ALLOCATION: SourceSite = SourceSite::new(
+    SiteId::new("reproduction/identity/allocate"),
+    "repro::ToolchainIdentity::new/repro::CorpusIdentity::new",
+    BudgetDimension::AccountedAllocation,
+    SiteKind::Allocation,
+);
+const CLAIM_INPUT: SourceSite = SourceSite::new(
+    SiteId::new("claims/premise/retain"),
+    "claims::premises::PremiseSet",
+    BudgetDimension::InputByte,
+    SiteKind::Retention,
+);
+const CLAIM_RESULT: SourceSite = SourceSite::new(
+    SiteId::new("claims/disposition/retain"),
+    "claims::dispatch::dispatch",
+    BudgetDimension::ResultItem,
+    SiteKind::Retention,
+);
+const CLAIM_DERIVED: SourceSite = SourceSite::new(
+    SiteId::new("claims/correspondence/derive"),
+    "claims::dispatch::dispatch",
+    BudgetDimension::DerivedArtifact,
+    SiteKind::Retention,
+);
+const CLAIM_OPERATION: SourceSite = SourceSite::new(
+    SiteId::new("claims/backend/invoke"),
+    "claims::dispatch::dispatch",
+    BudgetDimension::Operation,
+    SiteKind::Iteration,
+);
+const COMPENSATION_OBSERVATION: SourceSite = SourceSite::new(
+    SiteId::new("compensation/observation/consume"),
+    "compensation::recovery::assess",
+    BudgetDimension::Observation,
+    SiteKind::Iteration,
+);
+const COMPENSATION_RESULT: SourceSite = SourceSite::new(
+    SiteId::new("compensation/result/retain"),
+    "compensation::compose",
+    BudgetDimension::ResultItem,
+    SiteKind::Retention,
+);
+const RESULT_INPUT: SourceSite = SourceSite::new(
+    SiteId::new("result/input/decode"),
+    "result::reader::read",
+    BudgetDimension::InputByte,
+    SiteKind::Iteration,
+);
+const RESULT_OPERATION: SourceSite = SourceSite::new(
+    SiteId::new("result/field/visit"),
+    "result::reader::read",
+    BudgetDimension::Operation,
+    SiteKind::Traversal,
+);
+
+/// Production work sites derived from reviewed Rust interfaces and paths.
+///
+/// This population is intentionally separate from [`PRODUCTION_ENTRIES`]. A
+/// deletion or addition on either side therefore fails bidirectional
+/// reconciliation rather than changing both populations by construction.
+pub const PRODUCTION_SOURCES: &[SourceSite] = &[
+    crate::inventory::map::ADMISSION_INPUT_SOURCE,
+    crate::link::DEFINITION_SOURCE,
+    crate::link::NODE_SOURCE,
+    crate::link::EDGE_SOURCE,
+    crate::link::ROLE_SOURCE,
+    crate::link::MESSAGE_SOURCE,
+    crate::link::BRANCH_SOURCE,
+    crate::link::ITERATION_SOURCE,
+    crate::link::ACTIVE_INSTANCE_SOURCE,
+    crate::conformance::batch::OBSERVATION_SOURCE,
+    crate::result::lineage::LINEAGE_SOURCE,
+    crate::result::record::ITEM_SOURCE,
+    crate::result::contract_ir::DERIVED_SOURCE,
+    crate::result::record::OUTPUT_SOURCE,
+    crate::conformance::batch::OPERATION_SOURCE,
+    crate::ids::ALLOCATION_SOURCE,
+    super::REQUEST_DEADLINE_SOURCE,
+    crate::repro::INPUT_SOURCE,
+    crate::repro::ALLOCATION_SOURCE,
+    crate::claims::premises::INPUT_SOURCE,
+    crate::claims::dispatch::RESULT_SOURCE,
+    crate::claims::dispatch::DERIVED_SOURCE,
+    crate::claims::dispatch::OPERATION_SOURCE,
+    crate::compensation::recovery::OBSERVATION_SOURCE,
+    crate::compensation::RESULT_SOURCE,
+    crate::result::reader::INPUT_SOURCE,
+    crate::result::reader::OPERATION_SOURCE,
+];
+
+const fn entry(
+    source: SourceSite,
+    authority: LimitAuthority,
+    charge_point: ChargePoint,
+    termination: Termination,
+) -> InventoryEntry {
+    InventoryEntry::new(
+        source,
+        authority,
+        charge_point,
+        termination,
+        IncompleteCode::BudgetExceeded,
+        PRODUCTION_BOUNDARY,
+    )
+}
+
+/// Independently authored production inventory rows.
+pub const PRODUCTION_ENTRIES: &[InventoryEntry] = &[
+    entry(
+        ADMISSION_INPUT,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeDecode,
+        Termination::InputLength,
+    ),
+    entry(
+        LINK_DEFINITION,
+        LimitAuthority::ProducerOwner,
+        ChargePoint::BeforeIterate,
+        Termination::CollectionLength,
+    ),
+    entry(
+        LINK_NODE,
+        LimitAuthority::ProducerOwner,
+        ChargePoint::BeforeRetain,
+        Termination::CollectionLength,
+    ),
+    entry(
+        LINK_EDGE,
+        LimitAuthority::ProducerOwner,
+        ChargePoint::BeforeTraverse,
+        Termination::FiniteGraph,
+    ),
+    entry(
+        LINK_ROLE,
+        LimitAuthority::ProducerOwner,
+        ChargePoint::BeforeRetain,
+        Termination::CollectionLength,
+    ),
+    entry(
+        LINK_MESSAGE,
+        LimitAuthority::ProducerOwner,
+        ChargePoint::BeforeRetain,
+        Termination::CollectionLength,
+    ),
+    entry(
+        LINK_BRANCH,
+        LimitAuthority::ProtocolAuthor,
+        ChargePoint::BeforeQueue,
+        Termination::FiniteGraph,
+    ),
+    entry(
+        LINK_ITERATION,
+        LimitAuthority::ProtocolAuthor,
+        ChargePoint::BeforeIterate,
+        Termination::AuthoredBound,
+    ),
+    entry(
+        LINK_ACTIVE_INSTANCE,
+        LimitAuthority::ProducerOwner,
+        ChargePoint::BeforeRetain,
+        Termination::CollectionLength,
+    ),
+    entry(
+        CONFORMANCE_OBSERVATION,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeIterate,
+        Termination::CollectionLength,
+    ),
+    entry(
+        RESULT_LINEAGE,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeTraverse,
+        Termination::FiniteGraph,
+    ),
+    entry(
+        RESULT_ITEM,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeRetain,
+        Termination::CollectionLength,
+    ),
+    entry(
+        CONTRACT_IR_DERIVED,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeRetain,
+        Termination::SingleUnit,
+    ),
+    entry(
+        RESULT_OUTPUT,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeAllocate,
+        Termination::InputLength,
+    ),
+    entry(
+        CONFORMANCE_OPERATION,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeUnit,
+        Termination::CollectionLength,
+    ),
+    entry(
+        IDENTITY_ALLOCATION,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeAllocate,
+        Termination::SingleUnit,
+    ),
+    entry(
+        REQUEST_DEADLINE,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeUnit,
+        Termination::SingleUnit,
+    ),
+    entry(
+        REPRO_INPUT,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeRetain,
+        Termination::InputLength,
+    ),
+    entry(
+        REPRO_ALLOCATION,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeAllocate,
+        Termination::SingleUnit,
+    ),
+    entry(
+        CLAIM_INPUT,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeRetain,
+        Termination::CollectionLength,
+    ),
+    entry(
+        CLAIM_RESULT,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeRetain,
+        Termination::CollectionLength,
+    ),
+    entry(
+        CLAIM_DERIVED,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeRetain,
+        Termination::SingleUnit,
+    ),
+    entry(
+        CLAIM_OPERATION,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeUnit,
+        Termination::CollectionLength,
+    ),
+    entry(
+        COMPENSATION_OBSERVATION,
+        LimitAuthority::ProducerOwner,
+        ChargePoint::BeforeIterate,
+        Termination::CollectionLength,
+    ),
+    entry(
+        COMPENSATION_RESULT,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeRetain,
+        Termination::CollectionLength,
+    ),
+    entry(
+        RESULT_INPUT,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeDecode,
+        Termination::InputLength,
+    ),
+    entry(
+        RESULT_OPERATION,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeTraverse,
+        Termination::FiniteGraph,
+    ),
+];
+
+/// Reviewed production source sites.
+#[must_use]
+pub const fn production_sources() -> &'static [SourceSite] {
+    PRODUCTION_SOURCES
+}
+
+/// Reviewed production inventory entries.
+#[must_use]
+pub const fn production_entries() -> &'static [InventoryEntry] {
+    PRODUCTION_ENTRIES
+}
+
+/// Reconcile the complete production populations.
+///
+/// # Errors
+///
+/// Returns the exact inventory mutation found before any request work begins.
+pub fn production_inventory() -> Result<Inventory, InventoryError> {
+    Inventory::reconcile(PRODUCTION_SOURCES, PRODUCTION_ENTRIES)
 }

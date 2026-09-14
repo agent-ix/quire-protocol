@@ -4,10 +4,25 @@
 use serde_json::{Map, Value};
 use std::sync::OnceLock;
 
+use crate::bounds::inventory::{BudgetDimension, SourceSite};
+use crate::bounds::{SiteId, SiteKind};
 use crate::digest::jcs::{canonicalize, ResultDigest};
 
 use super::record::{produce, Input, Limits, Usage, ValidatedResult, CONTRACT, SCHEMA_BYTES};
 use super::{ErrorCode, Refusal, Result};
+
+pub(crate) const INPUT_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("result/input/decode"),
+    "result::reader::read",
+    BudgetDimension::InputByte,
+    SiteKind::Iteration,
+);
+pub(crate) const OPERATION_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("result/field/visit"),
+    "result::reader::read",
+    BudgetDimension::Operation,
+    SiteKind::Traversal,
+);
 
 static RESULT_SCHEMA_VALIDATOR: OnceLock<Option<jsonschema::JSONSchema>> = OnceLock::new();
 

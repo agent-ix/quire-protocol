@@ -131,10 +131,61 @@ use quire_spec_language::protocol_artifact::{
     AdmittedPackage, NumberWire,
 };
 
+use crate::bounds::inventory::{BudgetDimension, SourceSite};
+use crate::bounds::{SiteId, SiteKind};
 use crate::ids::{
     AttemptId, ChannelId, ComponentId, DefinitionId, DeliveryId, EffectId, EndpointId,
     IdentityKind, MessageId, ParticipantId, ReceiveId, RoleInstanceId, SendId, WorkflowInstanceId,
 };
+
+pub(crate) const DEFINITION_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("link/definition/select"),
+    "link::link",
+    BudgetDimension::Definition,
+    SiteKind::Iteration,
+);
+pub(crate) const NODE_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("link/node/retain"),
+    "link::link",
+    BudgetDimension::Node,
+    SiteKind::Retention,
+);
+pub(crate) const EDGE_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("link/edge/traverse"),
+    "link::link",
+    BudgetDimension::Edge,
+    SiteKind::Traversal,
+);
+pub(crate) const ROLE_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("link/role/retain"),
+    "link::link",
+    BudgetDimension::Role,
+    SiteKind::Retention,
+);
+pub(crate) const MESSAGE_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("link/message/retain"),
+    "link::link",
+    BudgetDimension::Message,
+    SiteKind::Retention,
+);
+pub(crate) const BRANCH_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("link/interleaving/branch/queue"),
+    "link::interleaving",
+    BudgetDimension::Branch,
+    SiteKind::Queue,
+);
+pub(crate) const ITERATION_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("link/repeat/iterate"),
+    "link::control_shape",
+    BudgetDimension::Iteration,
+    SiteKind::Iteration,
+);
+pub(crate) const ACTIVE_INSTANCE_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("link/active-instance/retain"),
+    "link::link",
+    BudgetDimension::ActiveInstance,
+    SiteKind::Retention,
+);
 
 // ---------------------------------------------------------------------------
 // Refusals

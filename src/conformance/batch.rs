@@ -8,9 +8,24 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use quire_observation::authority::{completeness, observation, OpenClosed};
 
 use crate::assessment::{AxisInputs, GlobalConformanceInput};
+use crate::bounds::inventory::{BudgetDimension, SourceSite};
+use crate::bounds::{SiteId, SiteKind};
 use crate::closure::{AssessmentExecution, GlobalConformanceClosure};
 
 use super::{ErrorCode, Refusal, Result};
+
+pub(crate) const OBSERVATION_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("conformance/observation/consume"),
+    "conformance::batch::assess",
+    BudgetDimension::Observation,
+    SiteKind::Iteration,
+);
+pub(crate) const OPERATION_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("conformance/obligation/assess"),
+    "conformance::batch::assess",
+    BudgetDimension::Operation,
+    SiteKind::Iteration,
+);
 
 /// Immutable owner maxima. Callers may lower but never raise them.
 pub const OWNER_MAX: Limits = Limits {

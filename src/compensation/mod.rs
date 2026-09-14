@@ -19,10 +19,20 @@ pub mod purity;
 /// Full and partial recovery through exact authored relation owners.
 pub mod recovery;
 
+use crate::bounds::inventory::{BudgetDimension, SourceSite};
+use crate::bounds::{SiteId, SiteKind};
+
 use activate::{Activation, Record as ActivationRecord};
 use algebra::{AttemptAdmission, AttemptFact, OrderingAssessment, OrderingViolation, Registration};
 use purity::PureAssessment;
 use recovery::Decision as RecoveryDecision;
+
+pub(crate) const RESULT_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("compensation/result/retain"),
+    "compensation::compose",
+    BudgetDimension::ResultItem,
+    SiteKind::Retention,
+);
 
 /// Immutable composition maxima.
 pub const OWNER_MAX: Limits = Limits {

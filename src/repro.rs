@@ -151,6 +151,22 @@
 use std::fmt;
 use std::hash::{Hash, Hasher};
 
+use crate::bounds::inventory::{BudgetDimension, SourceSite};
+use crate::bounds::{SiteId, SiteKind};
+
+pub(crate) const INPUT_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("reproduction/identity/retain"),
+    "repro::ToolchainIdentity::new/repro::CorpusIdentity::new",
+    BudgetDimension::InputByte,
+    SiteKind::Retention,
+);
+pub(crate) const ALLOCATION_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("reproduction/identity/allocate"),
+    "repro::ToolchainIdentity::new/repro::CorpusIdentity::new",
+    BudgetDimension::AccountedAllocation,
+    SiteKind::Allocation,
+);
+
 /// A run identity: the producer's exact bytes, plus display text that takes no
 /// part in equality, ordering or hashing.
 macro_rules! run_identity {

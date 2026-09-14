@@ -15,9 +15,9 @@ use std::time::{Duration, Instant, SystemTime};
 
 use ix_trace_rs::trace;
 use quire_protocol::bounds::inventory::{
-    BoundaryCase, Budget, BudgetDimension, BudgetError, ChargeError, ChargePoint, IncompleteCode,
-    Inventory, InventoryEntry, InventoryError, LimitAuthority, ResourceAccountant, SourceSite,
-    Termination,
+    production_entries, production_inventory, production_sources, BoundaryCase, Budget,
+    BudgetDimension, BudgetError, ChargeError, ChargePoint, IncompleteCode, Inventory,
+    InventoryEntry, InventoryError, LimitAuthority, ResourceAccountant, SourceSite, Termination,
 };
 use quire_protocol::bounds::{
     accumulation, limit_for, usage_for, Accumulation, BoundedRun, BoundedSite, Clock, CountGuard,
@@ -1281,6 +1281,99 @@ fn tc_009_inventory_reconciliation_kills_delete_duplicate_orphan_and_unbound_mut
     assert_eq!(
         Inventory::reconcile(&[source], &[mismatched]),
         Err(InventoryError::BindingMismatch { site: CALLER_SITE })
+    );
+}
+
+#[trace("TC-009", "NFR-002-AC-1", "NFR-002-AC-3", "FR-016-AC-2")]
+#[test]
+fn tc_009_every_production_site_has_below_at_above_boundary() {
+    let inventory = production_inventory().expect("the production inventory reconciles");
+    assert_eq!(inventory.entries(), production_entries());
+
+    let covered: BTreeSet<_> = production_sources()
+        .iter()
+        .map(|site| site.dimension())
+        .collect();
+    let required: BTreeSet<_> = BudgetDimension::NFR_002.into_iter().collect();
+    assert_eq!(
+        covered, required,
+        "every NFR-002 caller dimension has a real production charge point"
+    );
+
+    for source in production_sources() {
+        let budget = Budget::nothing_granted()
+            .grant(source.dimension(), 2)
+            .expect("positive grant");
+        let mut accountant = ResourceAccountant::new(budget, &inventory);
+        accountant
+            .charge(source.id(), 1)
+            .expect("below the site's inclusive boundary");
+        accountant
+            .charge(source.id(), 1)
+            .expect("at the site's inclusive boundary");
+        let before = accountant.usage();
+        let ChargeError::ResourceIncomplete(incomplete) = accountant
+            .charge(source.id(), 1)
+            .expect_err("one unit over the site's boundary")
+        else {
+            panic!("{} returned an accounting fault", source.id());
+        };
+        assert_eq!(incomplete.site(), source.id());
+        assert_eq!(incomplete.dimension(), source.dimension());
+        assert_eq!(incomplete.granted(), 2);
+        assert_eq!(incomplete.consumed(), 2);
+        assert_eq!(incomplete.requested(), 1);
+        assert_eq!(
+            accountant.usage(),
+            before,
+            "{} charged excess work",
+            source.id()
+        );
+    }
+}
+
+#[trace("TC-009", "NFR-002-AC-3")]
+#[test]
+fn tc_009_production_inventory_mutants_fail_bidirectional_reconciliation() {
+    let sources = production_sources();
+    let entries = production_entries();
+    assert!(sources.len() > BudgetDimension::NFR_002.len());
+    assert_eq!(sources.len(), entries.len());
+
+    for index in 0..sources.len() {
+        let mut missing_entry = entries.to_vec();
+        let removed = missing_entry.remove(index);
+        assert_eq!(
+            Inventory::reconcile(sources, &missing_entry),
+            Err(InventoryError::MissingEntry {
+                site: removed.source().id(),
+            })
+        );
+
+        let mut missing_source = sources.to_vec();
+        let removed = missing_source.remove(index);
+        assert_eq!(
+            Inventory::reconcile(&missing_source, entries),
+            Err(InventoryError::OrphanEntry { site: removed.id() })
+        );
+    }
+
+    let mut duplicate_entries = entries.to_vec();
+    duplicate_entries.push(entries[0]);
+    assert_eq!(
+        Inventory::reconcile(sources, &duplicate_entries),
+        Err(InventoryError::DuplicateEntry {
+            site: entries[0].source().id(),
+        })
+    );
+
+    let mut duplicate_sources = sources.to_vec();
+    duplicate_sources.push(sources[0]);
+    assert_eq!(
+        Inventory::reconcile(&duplicate_sources, entries),
+        Err(InventoryError::DuplicateSource {
+            site: sources[0].id(),
+        })
     );
 }
 

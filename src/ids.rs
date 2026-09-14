@@ -215,6 +215,16 @@ use core::cmp::Ordering;
 use core::fmt;
 use core::hash::{Hash, Hasher};
 
+use crate::bounds::inventory::{BudgetDimension, SourceSite};
+use crate::bounds::{SiteId, SiteKind};
+
+pub(crate) const ALLOCATION_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("identity/storage/allocate"),
+    "ids::*::new",
+    BudgetDimension::AccountedAllocation,
+    SiteKind::Allocation,
+);
+
 /// Faithful `Debug` rendering of identity bytes that are not required to be
 /// UTF-8. Debug output is for humans and takes no part in identity.
 struct Escaped<'bytes>(&'bytes [u8]);

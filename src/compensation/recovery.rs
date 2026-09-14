@@ -7,10 +7,19 @@ use std::collections::BTreeSet;
 
 use quire_observation::authority::{completeness, population};
 
+use crate::bounds::inventory::{BudgetDimension, SourceSite};
+use crate::bounds::{SiteId, SiteKind};
 use crate::ids::{CommitId, EffectId, RecoveryId, RegistrationId};
 
 use super::algebra::Registration;
 use super::purity::PureAssessment;
+
+pub(crate) const OBSERVATION_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("compensation/observation/consume"),
+    "compensation::recovery::assess",
+    BudgetDimension::Observation,
+    SiteKind::Iteration,
+);
 
 /// Immutable recovery-assessment owner maxima.
 pub const OWNER_MAX: Limits = Limits {

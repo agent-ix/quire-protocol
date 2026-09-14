@@ -11,8 +11,30 @@ use crate::refusal::{
 };
 use crate::ByteDigest;
 
+use crate::bounds::inventory::{BudgetDimension, SourceSite};
+use crate::bounds::{SiteId, SiteKind};
+
 use super::premises::{self, CorrespondenceAuthority, PremiseDefect, PremiseSet};
 use super::Claim;
+
+pub(crate) const RESULT_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("claims/disposition/retain"),
+    "claims::dispatch::dispatch",
+    BudgetDimension::ResultItem,
+    SiteKind::Retention,
+);
+pub(crate) const DERIVED_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("claims/correspondence/derive"),
+    "claims::dispatch::dispatch",
+    BudgetDimension::DerivedArtifact,
+    SiteKind::Retention,
+);
+pub(crate) const OPERATION_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("claims/backend/invoke"),
+    "claims::dispatch::dispatch",
+    BudgetDimension::Operation,
+    SiteKind::Iteration,
+);
 
 /// Immutable dispatch owner maxima.
 pub const OWNER_MAX: Limits = Limits {

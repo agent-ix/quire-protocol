@@ -6,11 +6,26 @@ use quire_spec_language::protocol_artifact::{checked_predicate, temporal_subject
 use serde_json::{json, Value};
 
 use crate::assessment::{AxisInputs, GlobalConformanceInput, GlobalPremise};
+use crate::bounds::inventory::{BudgetDimension, SourceSite};
+use crate::bounds::{SiteId, SiteKind};
 use crate::closure::{AssessmentExecution, ScopeState};
 use crate::digest::jcs::{canonicalize, ResultDigest};
 use crate::ByteDigest;
 
 use super::{global, lineage, ErrorCode, Refusal, Result};
+
+pub(crate) const ITEM_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("result/item/retain"),
+    "result::record::produce",
+    BudgetDimension::ResultItem,
+    SiteKind::Retention,
+);
+pub(crate) const OUTPUT_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("result/output/allocate"),
+    "result::record::produce",
+    BudgetDimension::OutputByte,
+    SiteKind::Allocation,
+);
 
 /// Canonical result contract label.
 pub const CONTRACT: &str = "quire.protocol.result/v1-draft.1";

@@ -4,6 +4,8 @@
 use serde_json::{json, Value};
 use std::sync::OnceLock;
 
+use crate::bounds::inventory::{BudgetDimension, SourceSite};
+use crate::bounds::{SiteId, SiteKind};
 use crate::closure::AssessmentExecution;
 use crate::digest::jcs::canonicalize;
 use crate::refusal::catalog::{CodeEntry, CodeModule, Provenance};
@@ -15,6 +17,13 @@ use super::record::{
     Usage, ValidatedResult, CONTRACT as RESULT_CONTRACT, SCHEMA_SHA256 as RESULT_SCHEMA_SHA256,
 };
 use super::{ErrorCode, Refusal, Result};
+
+pub(crate) const DERIVED_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("result/contract-ir/derive"),
+    "result::contract_ir::map",
+    BudgetDimension::DerivedArtifact,
+    SiteKind::Retention,
+);
 
 /// Selected mapping contract.
 pub const CONTRACT: &str = "quire.protocol.contract-ir-result-map/v1";

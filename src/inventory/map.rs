@@ -14,10 +14,19 @@
 
 use serde_json::Value;
 
+use crate::bounds::inventory::{BudgetDimension, SourceSite};
+use crate::bounds::{SiteId, SiteKind};
 use crate::digest::producer::{CrossDomainDigest, DigestSlot};
 use crate::inventory::axis::DivergedSelection;
 use crate::inventory::{DigestClassification, InventoryError, SelectedInventory};
 use crate::{admit_and_link, wire, AdmittedPackage, Error, Expected, Invalid, Limits};
+
+pub(crate) const ADMISSION_INPUT_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("admission/offer/decode"),
+    "inventory::map::admit_discriminating",
+    BudgetDimension::InputByte,
+    SiteKind::Iteration,
+);
 
 /// A B-owned admission refusal. Each variant is independently assertable.
 #[derive(Clone, Debug, Eq, PartialEq)]

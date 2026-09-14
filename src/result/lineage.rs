@@ -3,8 +3,18 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use crate::bounds::inventory::{BudgetDimension, SourceSite};
+use crate::bounds::{SiteId, SiteKind};
+
 use super::record::{CorrectionInput, DecisionSupport, DependenceRelation, Limits, Usage};
 use super::{ErrorCode, Refusal, Result};
+
+pub(crate) const LINEAGE_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("result/lineage/traverse"),
+    "result::lineage::validate",
+    BudgetDimension::Lineage,
+    SiteKind::Traversal,
+);
 
 pub(crate) fn validate_support(records: &[DecisionSupport], limits: Limits) -> Result<()> {
     let usage = Usage {

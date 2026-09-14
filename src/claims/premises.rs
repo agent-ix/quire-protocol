@@ -3,6 +3,16 @@
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
+use crate::bounds::inventory::{BudgetDimension, SourceSite};
+use crate::bounds::{SiteId, SiteKind};
+
+pub(crate) const INPUT_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("claims/premise/retain"),
+    "claims::premises::PremiseSet",
+    BudgetDimension::InputByte,
+    SiteKind::Retention,
+);
+
 /// One producer-authored component, retained byte-for-byte.
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub struct Component {
