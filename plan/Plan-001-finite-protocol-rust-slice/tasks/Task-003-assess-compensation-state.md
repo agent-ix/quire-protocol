@@ -2,8 +2,8 @@
 id: Task-003
 title: "Assess compensation state"
 type: Task
-status: blocked
-track: A
+status: in_progress
+track: Core
 priority: P0
 relationships:
   - { target: ix://agent-ix/quire-protocol/Task-002, type: depends_on }
@@ -17,6 +17,10 @@ relationships:
 Implement pure activation, trigger/capture/anchor binding, effect,
 replay-idempotent registration, retry, commit, and full/partial recovery
 assessment over the linked protocol and accepted producer facts.
+
+The replay, activation, retry, commit and recovery kernels already exist. This
+task closes their missing graph/runtime-input bridge and removes independent
+production construction of compensation identities.
 
 ## Subtasks
 
@@ -32,6 +36,10 @@ assessment over the linked protocol and accepted producer facts.
 - [ ] Evaluate full and partial recovery only through their exact authored
   relation, captured target and achieved state; require exact population,
   membership and completeness authority for aggregate partial recovery.
+- [ ] Remove the public `RecoveryRelation` callback from production. Evaluate
+  only the admitted QSL typed state/temporal expression under its resolved
+  capability and request accountant; unknown/out-of-profile expressions are
+  unsupported, and source refusal/resource incompleteness propagate exactly.
 - [ ] Prove with zero-call action-capable doubles and API/dependency mutations
   that the module admits no network, storage, telemetry, business-operation, or
   compensation-operation I/O and derives no fact from successful transport alone.
@@ -43,3 +51,7 @@ assessment over the linked protocol and accepted producer facts.
 ## Notes
 
 - Unblocks Task-004.
+- QSpec FR-236 does not yet partition its five labels between per-attempt and
+  aggregate recovery facts. Comment the exact blocker on the ticket and leave
+  only those mapping cases unexecuted; implement every independent subtask and
+  never guess the partition. Owner ticket: `agent-ix/quire-specification#57`.

@@ -70,6 +70,15 @@ JSON number conversion nor a lossy text decode can alter the run identity.
 Display text is excluded. An omitted, empty, over-limit or malformed member is
 refused rather than inferred.
 
+Where the string-only canonical result must carry an opaque runtime identity,
+the Protocol-owned `quire.protocol.runtime-reference/1` encoding is a fixed
+`quire-runtime-v1:` prefix followed by lowercase hexadecimal of the RFC 8785
+canonical object containing the complete authority key, producer-local kind
+bytes and identity bytes. The decoder verifies the prefix, even-length lowercase
+hexadecimal, canonical object bytes and byte-exact round trip. This encoding is
+only a reversible carrier for a Protocol result field; it neither changes the
+producer identity nor becomes authority at an upstream boundary.
+
 ## Acceptance Criteria
 
 | ID | Criteria | Verification |
@@ -80,6 +89,7 @@ refused rather than inferred.
 | FR-031-AC-4 | The protocol-result digest carries the `quire.verification.jcs` label exactly as `FR-201` publishes it, and no producer-domain value can substitute for it. | Test (TC-006) |
 | FR-031-AC-5 | Every source, profile, model, protocol, request, binding, input, backend and producer identity plus the deterministic seed and exact toolchain and corpus identity bytes on the result is recomputed or strictly matched; changing any one changes the result identity or refuses, and none is inferred from display text or substituted from another identity. | Test (TC-006, TC-008) |
 | FR-031-AC-6 | RFC 8785 canonicalization is applied to the protocol-result digest preimage only; an offered artifact's supplied bytes are copied and digested as delivered under the member FR-015 selects for them. | Test (TC-006) |
+| FR-031-AC-7 | Every opaque runtime identity carried in a string-only result field round-trips byte-exactly through `quire.protocol.runtime-reference/1`; wrong prefix, uppercase/odd/non-hex content, non-canonical object bytes, missing authority/kind/identity bytes or a changed decoded byte refuses. | Test (TC-006) |
 
 ## Adopted vocabulary
 
@@ -93,18 +103,13 @@ The member selection is local and is
 `FR-201`'s. `FR-201` states of itself: "This artifact *is* the vocabulary of
 digest domains." Nothing here extends it.
 
-### Where the upstream vocabulary does not yet reach
+### Accepted owner ruling
 
-- **Result-identity derivation kind.** `FR-240` records under Open gap that
-  FR-061 requires "a result identity" and FR-061-AC-4 refuses a "stale
-  identity", but "no requirement states whether the identity is authored by the
-  producer or derived from named components." This requirement therefore obliges
-  the identity to be carried and strictly matched, and declares neither kind.
-  The identity kind is `quire-specification`'s to state, in FR-061 or FR-240.
-- **Identity versus bytes.** `FR-240` records: "No requirement states whether
-  two results bearing the same result identity and different canonical bytes are
-  admissible." This requirement does not settle it, and so states no admissibility
-  rule for that pair. Owner: `quire-specification`.
+Quire Specification #29 / PR #38 defines the FR-240 result identity as derived
+from the complete canonical fact set and exact producer/profile/request tuple.
+Same identity with different canonical bytes is refused. Protocol consumes that
+accepted rule and owns only the reversible runtime-reference carrier used by its
+own string-only result contract.
 
 ## Dependencies
 

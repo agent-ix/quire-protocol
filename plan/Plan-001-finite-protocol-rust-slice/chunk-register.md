@@ -24,10 +24,10 @@ Status meanings:
 | --- | --- | --- | --- | --- |
 | C-00 | Rust facade reservation | landed | PR #29 | #1, epic #14 |
 | C-01 | B-owned refusal envelope and local code registry | landed | PR #40 | #8, epic #14 |
-| C-02 | Selected source diagnostic-catalog validation | blocked | `quire-specification` FR-270 still says the offered catalog is proposed, not adopted or implemented; no local catalog may substitute | #8, epic #14 |
-| C-03 | Typed source-cause taxonomy and ordering | blocked | `quire-specification` FR-272 publishes no stable field names, total order, or spelling convention; `src/refusal/cause.rs` stays empty | #8, epic #14 |
+| C-02 | Selected source-contract validation | partial | Local refusal execution needs no external catalog. Task-017/006 retain a known source cause under its exact contract and keep an unknown contract opaque under `unsupported-source-contract`. | #8, epic #14 |
+| C-03 | Typed local/source cause taxonomy and ordering | partial | Protocol-local causes are closed; source causes retain their selected contract order or explicit source-wire order. Final common routing remains Task-006. | #8, epic #14 |
 | C-04 | Independently selected inventory and selection-axis discriminator | partial | PR #36 landed the top-level inventory; per-source, per-dependency, and per-model selection inventory remains absent | #1, #34, epic #14 |
-| C-05 | Preserve A-owned admission errors through B's discriminating layer | partial | PR #36 landed the first mapper; the current increment retains every published A error family and its stable code without text conversion. Conversion into `ProtocolRefusal` still waits on C-02/C-03 | #1, #8, #34, epic #14 |
+| C-05 | Preserve A-owned admission errors through B's discriminating layer | partial | PR #36 landed the first mapper; the current increment retains every published A error family and stable code without text conversion. Task-017/006 add the shared envelope without an external catalog blocker. | #1, #8, #34, epic #14 |
 | C-06 | Repair IT-001 refusal-axis assertions | landed | PR #36 | #1, #34, epic #14 |
 | C-07 | Closed protocol identity newtypes | landed | PR #37 | #4, epic #14 |
 | C-10 | Opaque producer-domain digests and cross-domain guard | landed | PR #36 | #1, #8, #34, epic #14 |
@@ -36,19 +36,22 @@ Status meanings:
 | C-13 | Accumulated located link diagnostics | landed | PR #44 | #4, epic #14 |
 | C-14 | Permitted-interleaving proof and FR-050..FR-054 mutation sweep | landed | PR #45 | #4, epic #14 |
 | C-15 | Five-axis closure and assessment-outcome lattice | landed | PR #33 | #6, #8, #12, epic #14 |
-| C-16..C-19 | Compensation algebra, purity, activation, and recovery | planned | Reserved stubs under `src/compensation/` | #5, epic #14 |
-| C-20..C-21 | Batch and incremental conformance | planned | Reserved stubs under `src/conformance/` | #6, epic #14 |
+| C-16..C-19 | Compensation algebra, purity, activation, and recovery | partial | Standalone registration/retry/commit/recovery kernels and tests exist; Task-003 derives them from the linked graph, removes the public recovery callback, and closes transactionality. FR-236 partition cases remain owner-blocked. | #5, epic #14 |
+| C-20..C-21 | Batch and incremental conformance | partial | Both kernels execute independently; Task-004 derives one production `ConformanceKernel` from graph/compensation values and proves frontend agreement. | #6, epic #14 |
 | C-22 | Six independent claim dispositions | landed | PR #41 | #7, epic #14 |
-| C-23..C-24 | Claim premise retention and dispatch | planned | Reserved stubs under `src/claims/` | #7, epic #14 |
-| C-26..C-28 | Canonical result, global premises, and lineage | planned | Reserved stubs under `src/result/` | #8, epic #14 |
+| C-23..C-24 | Claim premise retention and dispatch | partial | Premise validation/dispatch execute; Task-005 consumes only conformance output and removes the public arbitrary backend callback/fallback path. | #7, epic #14 |
+| C-26..C-28 | Canonical result, global premises, and lineage | partial | Canonical production, strict reading, lineage and mapped views execute; Task-006 owns Engine/bundle orchestration, shared domains and private result assembly. | #8, epic #14 |
 | C-29 | Count, allocation, and deadline guards | landed | PR #42 | #10, epic #14 |
-| C-30 | Source-bound resource-site inventory | planned | `src/bounds/inventory.rs` is an intentional stub | #10, epic #14 |
+| C-30 | Source-bound resource-site inventory | partial | The current-site inventory/accountant exists. Task-008 covers all final sites, internalizes parallel guards and consumes QSL's published accumulation accessor. | #10, epic #14 |
 | C-31 | Reproduction record | landed | PR #38 | #10, epic #14 |
 | C-32 | Shared Rust assurance-boundary enforcement | not landed / blocked | PR #32 closed without merge; Task-011 forbids a local replacement and waits for the shared checker tracked by `quire-research#64` | #13, epic #14 |
 
 ## Current executable boundary
 
-C-05 is the last independently executable refusal increment at the current
-owner revisions. C-02 and C-03 cannot proceed until the upstream catalog and
-cause contracts are adopted. The remaining Plan-001 work follows the task
-dependency graph; this register does not authorize work past a blocked owner.
+The standalone kernels above are real but disconnected. The reviewed DAG starts
+with Task-017's shared outcomes/refusals and Task-013's request-bound resolver,
+then connects the serial graph-to-result core. The only current external blocks
+are the FR-236 compensation partition (`quire-specification#57`) for affected
+Task-003 cases, qverify E02 acceptance (`quire-verification#32`) and Quoin
+scenario intake (`quoin#519`); no local refusal path waits on a proposed
+diagnostic catalog.

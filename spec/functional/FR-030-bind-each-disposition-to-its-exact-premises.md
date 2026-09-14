@@ -65,7 +65,7 @@ produced it.
 | FR-030-AC-3 | A failed selected backend invokes no fallback, and no returned disposition is attributed to a backend other than the one selected for its claim. | Test (TC-005) |
 | FR-030-AC-4 | Each retained assumption carries its exact assumption identity and exactly one assumption state, and an assumption retained without a state compares only to absence rather than being defaulted. | Test (TC-005) |
 | FR-030-AC-5 | A derived-artifact identity that disagrees with the identity derived from its exact selected tuple refuses that disposition. | Test (TC-005) |
-| FR-030-AC-6 | A producer-authored component is byte-equal to the bytes it arrived as; normalizing, repairing or recomputing one refuses rather than producing a repaired component. | Analysis |
+| FR-030-AC-6 | A producer-authored component is byte-equal to the bytes it arrived as; normalizing, repairing or recomputing one refuses rather than producing a repaired component. | Test (TC-005) |
 
 ## Adopted vocabulary
 
@@ -75,13 +75,13 @@ The binding rule is this repository's; the components are not.
 | Noun | Upstream object | Identity kind |
 | --- | --- | --- |
 | Assumption state | `FR-280-assumption-state` | value |
-| Channel premise (all six components) | `FR-216-channel-premise` | value |
+| Channel premise (all five components) | `FR-216-channel-premise` | value |
 | Role internality / visibility | `FR-217-role-internality` | value |
 | Protocol subject kind discrimination | `FR-210-protocol-subject-vocabulary` | value |
 | Derived portable projection result | `FR-249-derived-projection-result` | derived, keyed (canonical result identity and digest, target obligation and execution-binding identities, target contract version, adapter identity and version) |
 | Projection refusal code | `FR-283-projection-refusal-code` | value |
 
-`FR-216-AC-4` is the reason FR-030-AC-1 names all six channel-premise
+`FR-216-AC-4` is the reason FR-030-AC-1 names all five channel-premise
 components: FR-054-AC-4 makes "any channel premise" identity-bearing, so a
 disposition that drops one is a disposition of a different request. `FR-249`
 supplies the only derived-artifact correspondence the specification states in
@@ -92,44 +92,15 @@ one of `met`, `not-met`, `unknown` or `not-assessed`, and an absent state "is
 never defaulted to `not-assessed` or to `unknown`; those are two distinct
 assessed outcomes". FR-030-AC-6 is `FR-011`'s authority rule, not a new one.
 
-### Where the upstream vocabulary does not yet reach
+### Accepted owner rulings
 
-- **The admitted fragment and the selected backend are untyped.** FR-005 and
-  upstream `FR-060` both require every advanced result to identify "its admitted
-  fragment, backend, assumptions and source/derived-artifact correspondence"
-  (FR-060-AC-4), and the object set types neither a protocol fragment nor an
-  analysis backend: no `FR-2NN` artifact exists for either. FR-030-AC-1,
-  FR-030-AC-2 and FR-030-AC-3 each compare a fragment or a backend for equality
-  and have no key to compare over. The owner is `agent-ix/quire-specification`.
-  This repository supplies neither identity, because a fragment and a backend
-  are producer subjects, not consumer-to-producer relationships
-  (`FR-010`).
-- **Which refusal code a digest mismatch carries is contradicted upstream, and
-  both readings stand.** `FR-283`, under `invalid-source-result`: "The canonical
-  protocol result did not validate, or its recomputed `sha256-jcs` digest did
-  not match, before mapping was attempted (FR-062)." `FR-249`, under
-  `identity-mismatch`: "An exact context or canonical-result reference is
-  missing or conflicting; substituting any identity or digest refuses the
-  projection (FR-062, FR-062-AC-2)." `FR-249`'s open gap states that "They are
-  not reconcilable by reading: a strict reader receiving a refusal cannot tell
-  from the code whether the source failed its reader or its digest disagreed, and
-  a consumer matching on either code alone will miss the case", and that closing
-  it "requires an owner ruling and a requirement that names the code".
-  FR-030-AC-5 requires the refusal and names no code. The owner is
-  `agent-ix/quire-specification`.
-- **Two code-spelling conventions coexist with no namespace rule.** `FR-283`'s
-  open gap records snake_case literals in FR-003-AC-2, FR-008-AC-4 and
-  FR-009-AC-3 against FR-062's kebab-case literals, and states that "No
-  requirement says which convention belongs to which namespace". This
-  requirement selects no spelling.
-- **Role internality has no normative spelling.** `FR-217` states that "No
-  requirement fixes a spelling for either kind; the labels above name the
-  distinction FR-050 and FR-050-AC-1 draw and are not established wire strings."
-  FR-030-AC-1 retains the visibility premise and asserts no wire form for it.
-- **The protocol subject membership is stated four ways.** `FR-210`'s open gap
-  records four requirements each stating a closed list of distinct subjects and
-  reconciles none. A disposition's source identities are drawn from those
-  subjects, so what exactly must be retained varies with which list is read.
+Quire Specification #29/#31/#40 supplies the exact contracts this requirement
+needs: FR-290 claim kind, FR-291 admitted fragment, FR-292 analysis backend,
+FR-217 role internality/participant binding, FR-210/FR-287 subject membership,
+and the FR-283 projection-refusal namespace. A recomputed invalid source digest
+is `invalid-source-result`; target-context or derived-identity mismatch is
+`identity-mismatch`. Native producer and E02 spellings remain distinct typed
+namespaces and are never normalized across them.
 
 ## Dependencies
 

@@ -105,36 +105,19 @@ The E02 target vocabularies are `quire-verification`'s, carried into this
 repository only through FR-062's mapping table. This requirement spells no E02
 member of its own and defines no E02 finding axis.
 
-### Where the upstream vocabulary does not yet reach
+### Accepted source and target boundaries
 
-- **Which refusal code a recomputed-digest mismatch receives is unresolved, and
-  two upstream artifacts assign it differently.** Both readings stand verbatim.
-  `FR-249-derived-projection-result`, under `identity-mismatch`: "An exact
-  context or canonical-result reference is missing or conflicting; substituting
-  any identity or digest refuses the projection (FR-062, FR-062-AC-2)."
-  `FR-283-projection-refusal-code`, under `invalid-source-result`: "The
-  canonical protocol result did not validate, or its recomputed `sha256-jcs`
-  digest did not match, before mapping was attempted (FR-062)." `FR-249`'s Open
-  gap records that the two "are not reconcilable by reading" and that "No
-  requirement resolves which code a recomputed-digest mismatch receives." This
-  requirement obliges the mismatch to refuse and to emit no `TechniqueResult`
-  ([FR-034](./FR-034-derive-e02-projection-identity.md)-AC-7); it selects no
-  code. Owner: `quire-specification`, by an owner ruling and a requirement that
-  names the code.
-- **FR-062's mapping table is declared total over two source axes nobody
-  enumerates.** FR-062 states the mapping "is total for the selected source and
-  target revisions", while `FR-240-canonical-protocol-result` records that
-  participation is "unenumerated at the source" and that for the four
-  progress/closure axes "no requirement declares a closed vocabulary. No member
-  list is invented here." `FR-249`'s Open gap draws the same conclusion:
-  "Totality over an unenumerated source domain is not established here". This
-  requirement applies every row the table states and asserts no totality.
-  Owner: `quire-specification`.
-- **The portable finding contract itself was not opened in this pass.** FR-062
-  names `ix://agent-ix/quire-verification/FR-007` as the contract whose findings
-  must not be lost. That repository is not available to this pass, so no member
-  of its finding vocabulary is quoted or restated here, and the finding set is
-  adopted only as FR-062 names it. Owner: `quire-verification`.
+Quire Specification's accepted FS02 ruling makes the mapping total for the
+selected source and target revisions: FR-284 closes the four progress/closure
+axes, FR-285 closes source participation, and FR-283 assigns source validation
+and recomputed source-digest failure to `invalid-source-result`. A valid source
+reaching target-context or derived-identity mismatch yields
+`identity-mismatch`.
+
+qverify implements the `quire-verification/e02-draft-2` strict reader and
+finding vocabulary. Protocol consumes those exact types only after qverify
+reconciles its still-provisional cross-repository interface decision; it does
+not reproduce the finding enum locally while that acceptance gate is open.
 
 ## Dependencies
 

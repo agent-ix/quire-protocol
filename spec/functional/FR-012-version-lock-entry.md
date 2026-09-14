@@ -59,9 +59,11 @@ Absence of a digest on such an entry is the specified state, not a defect.
 ### Entry independence
 
 Changing one entry alters the resolved owner, revision, digest or status of no
-other entry. Entries declare no dependency on one another, so resolution needs
-no order and can contain no cycle. This is a property of resolution at run time
-and says nothing about the order in which `FR-009`'s gates close.
+other entry. Entries declare no dependency on one another and can contain no
+cycle. Resolution nevertheless validates required keys in lexicographic key
+order so its first cause and partial state are deterministic. This comparison
+order is not a causal dependency and says nothing about the order in which
+`FR-009`'s gates close.
 
 ## Identity and comparison
 
@@ -77,7 +79,8 @@ and says nothing about the order in which `FR-009`'s gates close.
   same entry, and `FR-204` forbids field equality from standing in for object
   identity. A display name, path, span or message text never participates.
 - **Key order** — lexicographic over (`owner`, `contract_version`), for
-  collection comparison and duplicate detection only. It carries no causal
+  collection comparison, duplicate detection and deterministic validation/
+  first-cause reporting only. It carries no causal
   meaning and expresses no precedence between owners or between contract
   versions of one owner.
 - **Causal order** — none between entries. Entry independence is exactly the
@@ -103,7 +106,7 @@ and says nothing about the order in which `FR-009`'s gates close.
 | FR-012-AC-4 | An entry naming an interface rather than an artifact carries a revision and no digest, and synthesizing a digest for it refuses. | Test (TC-013) |
 | FR-012-AC-5 | A producer-emitted sidecar, display name, path or message text supplies, selects or repairs no entry, and removing the sidecar changes no resolution outcome. | Test (TC-013) |
 | FR-012-AC-6 | An entry carries exactly one status, an `unresolved` entry carries a reason, and an `unresolved` entry is satisfied by no other contract version of the same owner. | Test (TC-013) |
-| FR-012-AC-7 | Entry keys admit a total order and duplicate detection runs over that order, so no duplicate key escapes detection through collection ordering. | Analysis |
+| FR-012-AC-7 | Entry keys admit a total order; duplicate detection and required-entry validation run over that order, so no duplicate escapes and manifest permutation changes neither the resolved set nor the first cause/partial state. | Test (TC-013) |
 | FR-012-AC-8 | The entry's revision and digest are byte-equal to the producer bytes they arrived as, and no resolution path derives, repairs or normalizes either. | Test (TC-013) |
 
 ## Dependencies
@@ -123,7 +126,7 @@ and says nothing about the order in which `FR-009`'s gates close.
 
 ## Status
 
-Draft. This artifact records existing meaning structurally and establishes no new
-obligation. Every entry is `unresolved` today, for the reasons FR-009's "Entry
-status today" table records per owner; that table is the current state of this
-object's population, not a defect of this specification.
+Draft. This artifact records existing meaning structurally and establishes no
+new obligation. FR-009's architecture-baseline table records each current
+contract separately: several are pinnable and only the named rows remain
+`unresolved`.

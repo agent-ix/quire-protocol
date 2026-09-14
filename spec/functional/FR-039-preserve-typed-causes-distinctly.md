@@ -39,7 +39,8 @@ structurally distinct pairs below unmerged.
 
 ## Behavior
 
-The library SHALL keep these cause pairs structurally distinct: missing versus conflicting definitions; wrong anchors versus missing observations; unknown syntax versus prohibited recognized constructs; unproved definedness versus runtime logical violations; resource-incomplete versus unsupported outcomes.
+The library SHALL keep these local cause pairs structurally distinct: missing versus conflicting definitions; wrong anchors versus missing observations; unproved definedness versus logical violations; identity mismatch versus incomplete evidence; and unsupported capability versus projection finding loss.
+The library SHALL keep the independently typed resource-incomplete outcome distinct from every refusal without representing it as a refusal cause.
 The library SHALL retain every independent cause and disposition a response declares in that response's declared semantic order.
 The library SHALL NOT drop, merge or reorder a retained cause to fit a diagnostic-detail budget.
 The library SHALL represent a zero diagnostic-detail budget as a suppressed rendering of causes that exist, never as an absence of causes and never as success.
@@ -48,19 +49,17 @@ The library SHALL represent a zero diagnostic-detail budget as a suppressed rend
 
 | ID | Criteria | Verification |
 | --- | --- | --- |
-| FR-039-AC-1 | The missing/conflicting-definition, wrong-anchor/missing-observation, unknown-syntax/prohibited-construct, unproved-definedness/logical-violation, and resource-incomplete/unsupported cause pairs each remain structurally distinct, and merging either member of any pair into the other fails. | Test (TC-011) |
+| FR-039-AC-1 | The missing/conflicting-definition, wrong-anchor/missing-observation, unproved-definedness/logical-violation, identity-mismatch/incomplete-evidence, and unsupported-capability/projection-finding-loss cause pairs each remain structurally distinct, and merging either member of any pair into the other fails. | Test (TC-011) |
 | FR-039-AC-2 | A response declaring independent causes or dispositions yields an envelope retaining all of them in the response's declared semantic order; dropping one, reordering two, or merging two into one fails. | Test (TC-011) |
 | FR-039-AC-3 | Simultaneous independent invalid-input and missing-input dispositions both remain represented under a zero diagnostic-detail control, and that control cannot produce overall success. | Test (TC-011) |
 | FR-039-AC-4 | Two distinct refusal axes whose retained typed-cause sets are equal fail FR-014-AC-1's pairwise check, so collapsing any pair in FR-039-AC-1 into a single cause also fails the injectivity check rather than reducing detail. | Test (TC-011) |
-| FR-039-AC-5 | A resource-incomplete cause and an unsupported cause are never reported as each other, and neither is reported as a completed assessment whose finding set is empty. | Test (TC-011, IT-003) |
-| FR-039-AC-6 | No local payload field name, total order or spelling convention is authored for a typed cause; the retained order is the response's declared semantic order and this requirement establishes none of its own. | Inspection |
+| FR-039-AC-5 | A resource-incomplete outcome and an unsupported semantic disposition are never reported as each other or as a `ProtocolRefusal`, and neither is reported as a completed assessment whose finding set is empty. | Test (TC-011, IT-003) |
+| FR-039-AC-6 | No local payload field name, total order or spelling convention is authored for a typed cause; the retained order is the response's declared semantic order and this requirement establishes none of its own. | Test (TC-011) |
 
 ## Adopted vocabulary
 
-The typed cause is upstream's `ix://agent-ix/quire-specification/FR-272`, adopted
-by reference and restated here in no form. The order this requirement retains is
-the response's declared semantic order, which upstream calls the catalog's prose
-order rather than a declared one; see the gap below. The resource-incomplete
+Local typed causes are FR-008's closed `quire.protocol/refusal/1` members. Source
+causes are retained from their exact selected contracts. The resource-incomplete
 outcome is [NFR-002](../non-functional/NFR-002-enforce-resource-bounds.md)'s and
 the completed-with-empty-findings outcome is
 [FR-006](./FR-006-produce-canonical-protocol-results.md)'s;
@@ -73,23 +72,10 @@ therefore does not merely lose detail: it removes the signal injectivity is
 computed from, which is why FR-039-AC-4 states the consequence as a failing check
 rather than as a tolerable simplification.
 
-### Where the upstream vocabulary does not yet reach
-
-- **Payload names and order** — `FR-272` records that the catalog "does not give
-  those payload components stable field names, a total order, or a spelling
-  convention of their own", and supplies none. **Gap, owner
-  `agent-ix/quire-specification` (`FR-272`):** there is no canonical payload field
-  vocabulary and no declared total order over payload components. FR-039-AC-2 is
-  therefore stated over the order the response itself declares — retain what
-  arrived, in the sequence it arrived — and not over a key or order this
-  repository supplies.
-- **Catalog adoption** — `FR-270` states of the only catalog so far offered:
-  "**Proposed, not adopted or implemented.**" and calls it source material, not an
-  adopted selection. The cause variants FR-039-AC-1 keeps distinct are described
-  by meaning here because no adopted catalog names them; the
-  [FR-009](./FR-009-lock-external-producer-revisions.md) entry is `unresolved` and
-  this requirement inherits that gate, so its Test criteria are unexecutable until
-  the entry is pinned.
+Local cause order is the order the Protocol operation emits under its owning
+requirement. Source cause order is the response's declared semantic order. If a
+selected source contract defines no order, Protocol retains wire order and marks
+the ordering authority as `source-wire`; it never invents a semantic sort key.
 
 ## Dependencies
 
@@ -104,6 +90,5 @@ rather than as a tolerable simplification.
 
 ## Status
 
-Draft. No execution is claimed. The cause variants are named by meaning because
-the catalog that would name them is not adopted, and the scenarios behind the Test
-criteria are unexecutable while that entry is `unresolved`.
+Draft. The common-envelope implementation is partial; Task-006 completes the
+remaining paths and TC-011.

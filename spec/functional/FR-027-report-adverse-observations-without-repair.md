@@ -76,69 +76,27 @@ owns is the reporting discipline: attribute, never repair.
 | Protocol obligation | `FR-230-protocol-obligation` | derived, keyed (clause subject, semantic trigger-event identity) |
 | Protocol subject kind discrimination | `FR-210-protocol-subject-vocabulary` | value |
 | Authored causal (partial) order | `FR-220-causal-control-graph` | derived |
-| Workflow instance | `FR-213-workflow-instance` | authored; key components not fixed upstream |
-| Delivery | `FR-224-delivery` | not established upstream; see below |
+| Workflow instance | `FR-213-workflow-instance` | runtime subject under FR-287 |
+| Delivery | `FR-224-delivery` | runtime subject under FR-287 |
 | Business effect | `FR-226-business-effect` | derived, keyed (static declaration path, workflow instance identity, iteration identity) |
-| Admitted observation | `FR-260-admitted-observation` | not established upstream; see below |
+| Admitted observation | `FR-260-admitted-observation` | derived under FR-296 |
 | Declared instance relationship | `FR-262-declared-instance-relationship` | value |
 
 FR-027-AC-4 is adopted, not authored: `FR-260` records FR-110's rule that "A
 required absent valuation SHALL be incomplete or refused, never false or an
 implicit option-none."
 
-### Where the upstream vocabulary does not yet reach
+### Accepted owner rulings
 
-`FR-011`'s ordering obligation applies to this requirement directly: an object
-whose collections admit `missing`, `surplus`, `duplicate` or `reordered` as
-defects must declare a unique key and a total order over that key, or name the
-owner that has not declared one. FR-027-AC-1 admits four of those four defects
-over collections this repository does not own, so the owner is named here and no
-key is supplied. The owner is `agent-ix/quire-specification` in every case below.
-
-- **Admitted observation has no key and no order.** `FR-260` states that "the
-  prose does not fix the key components" and that no key order follows, because
-  the components are not fixed. Neither *missing* nor *duplicated* is decidable
-  over a collection with no key.
-- **Delivery has neither.** `FR-224` records under its open gap that "Delivery
-  has neither a uniqueness key nor a total order in the prose, while three
-  requirements each depend on one", and that "Every candidate component a reader
-  might reach for — trace identifier, timestamp, payload, arrival position — is
-  either explicitly excluded or explicitly denied causal force. Nothing is
-  admitted in its place."
-- **"Duplicated" has two readings and they need different comparisons.**
-  `FR-224`'s open gap asks whether "duplicated" in FR-059 "means a second
-  delivery of one send, which FR-054-AC-1 explicitly admits, or a second business
-  effect, which FR-051-AC-2 refuses. The two readings require different
-  comparisons." FR-004-AC-2 and FR-027-AC-1 both spell the local criterion
-  `duplicate-effect`, which selects the second reading at the criterion; the
-  upstream sentence the criterion discharges is unresolved between them, and
-  this requirement does not resolve it on upstream's behalf.
-- **A duplicate business effect is undetectable under the declared key.**
-  `FR-226` states of its key that it "is constant across two effect claims at one
-  static node within one workflow instance, so two duplicate effects compare
-  equal under it and the duplicate the evaluator is required to detect is
-  undetectable". FR-027-AC-1 requires the duplicate-effect case to name its
-  affected obligation; the discriminator that case needs does not exist upstream.
-- **A duplicate effect's disposition is contradicted upstream.** `FR-226` quotes
-  both readings and merges neither: FR-051-AC-2 — "Relabeling a duplicate
-  delivery as a second business effect refuses the binding or yields the authored
-  duplicate-effect violation" — against FR-058-AC-2 — "A timed-out attempt,
-  failed attempt and duplicate effect remain three distinct outcomes." A refusal
-  of the binding and a retained distinct outcome are different results for the
-  same observation. FR-027-AC-5 requires the kinds to stay distinct and states
-  nothing about which of the two dispositions applies.
-- **Cross-workflow correlation rests on an unfixed endpoint key.** `FR-262`
-  states that "**The prose does not state how the endpoints themselves are
-  keyed**", because it does not state a workflow instance's key
-  (`FR-213-workflow-instance`, whose open gap opens "No requirement states what
-  constitutes a workflow instance's identity; it states only what cannot stand in
-  for it"). FR-027-AC-1's cross-workflow case therefore has no equality test for
-  "another workflow".
-- **The non-success correlation outcome vocabulary is named twice and not
-  identically.** `FR-262` records FR-111's Description naming "unknown,
-  conflicting, and ambiguous relationships" against FR-111-AC-2's "Missing,
-  conflicting, and ambiguous required relationships", and states that "Whether
-  *unknown* and *missing* name one outcome or two is not stated."
+QSpec #28/#31/#40 supplies complete FR-287 workflow, delivery and effect keys,
+FR-296 admitted-observation identity, and FR-262's closed `resolved`, `missing`,
+`conflicting`, `ambiguous` relationship outcomes with ordered endpoint keys.
+A repeated delivery of one send, a replay of one observation, a distinct
+delivery and a duplicate business effect are therefore non-interchangeable.
+Missing is incomplete; conflicting or ambiguous relationships refuse; unknown
+producer/declaration input is an admission refusal. Protocol reports those
+typed outcomes and never infers them from provider, trace, timestamp, payload,
+path or arrival position.
 
 ## Dependencies
 

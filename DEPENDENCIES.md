@@ -11,13 +11,15 @@ record discharges.
 | Crate | Pinned revision | Declared license | Role |
 | --- | --- | --- | --- |
 | `quire-spec-language` | `f1700a9264d6d3bcdd07e0f77b70f3dae9ed4c07` | `AGPL-3.0-only` | Supplies the accepted `quire.compiled-protocol/1` and `/2` readers, handoff records, owner-exported constants, the FR-051 checked temporal activation-guard selection, and the source-compatible FR-052 temporal owner authority. Release `v0.2.0` is its ancestor at `6eccb05`. |
+| `quire-observation` | `9ac80e93f4b68a2c7d5a337f9a448ad10de798fc` | `AGPL-3.0-or-later` | Direct observation authority dependency used by the current compensation, conformance and result kernels. Accepted FR-287/FR-262 runtime-reference adoption is later at `93bc5650`; Task-002 owns that exact repin before using those types. |
 | `agent-ix-baseline-producer` | `404288282402d60de007295ccbafa960532b955e` | `AGPL-3.0-only` | Transitive baseline producer reached through `quire-spec-language`; sourced from `agent-ix/filament-core-data`. |
 | `quire-contract-ir` | `53cc03c639e2e26528132d34d96dc56449df78e8` | `MIT OR Apache-2.0` | Direct test type and the exact transitive contract-IR revision selected by `quire-spec-language` `f1700a9`; one identity type is present in the resolved graph. |
 | `ix-trace-rs` | `2ce4ebf47f726b9d76388220545cd0abda8a5cfb` | `AGPL-3.0-or-later` | Test-only trace attributes binding tests to acceptance criteria. |
 
-All four are compatible with this repository's `AGPL-3.0-or-later` decision:
-three are AGPL, and the permissive `MIT OR Apache-2.0` grant may be consumed
-under it.
+All five are compatible with this repository's `AGPL-3.0-or-later` decision:
+four are AGPL, and the permissive `MIT OR Apache-2.0` grant may be consumed
+under it. `publish = false` on the QObs crate is the required delivery policy,
+not a compatibility or availability failure for an exact git dependency.
 
 This crate adds no copied parser, encoder, formal semantics, or fixture corpus.
 
@@ -36,6 +38,10 @@ ever misstated the consumed revision should say so.
 `quire-contract-ir` was pinned in `Cargo.toml` but absent from this record
 entirely. That is the closure gap `NFR-006` names: `FR-009` pins the producers
 and nothing pinned this repository's own consumed set.
+
+`quire-observation` was also a direct `Cargo.toml`/lockfile dependency while
+absent from this record. The row above records the revision the build actually
+consumes; it does not prematurely claim the later accepted FR-287/FR-262 pin.
 
 ## Correction: the record trailed the version 2 pin, and omitted a transitive
 

@@ -73,11 +73,11 @@ channel premises. This requirement defines neither.
 | --- | --- | --- |
 | Authored causal (partial) order | `FR-220-causal-control-graph` | derived, keyed (linked protocol identity, authored branches, join rules, iteration maxima) |
 | Node occurrence | `FR-221-protocol-node-occurrence` | derived, keyed (static declaration path, workflow instance identity, iteration identity) |
-| Channel premise (all six components) | `FR-216-channel-premise` | value |
+| Channel premise (all five components) | `FR-216-channel-premise` | value |
 | Protocol obligation | `FR-230-protocol-obligation` | derived, keyed (clause subject, semantic trigger-event identity) |
 | Temporal semantic profile | `FR-250-temporal-semantic-profile` | value, keyed (label, definition revision, digest) |
 | Temporal clock binding | `FR-252-temporal-clock-binding` | value |
-| Admitted observation | `FR-260-admitted-observation` | not established upstream; see below |
+| Admitted observation | `FR-260-admitted-observation` | derived under FR-296 |
 
 `FR-220-AC-3` is adopted directly as this requirement's FR-026-AC-3: it requires
 that no key order declared by that artifact or by any object it contains is cited
@@ -87,42 +87,15 @@ authored channel premises, and FR-216 records that a FIFO premise "orders
 messages only within its declared channel and key scope" and that FIFO order
 across channels is never inferred.
 
-### Where the upstream vocabulary does not yet reach
+### Accepted owner rulings
 
-- **"The same admitted facts" has no upstream equality.**
-  `FR-260-admitted-observation` records that the prose does not place an
-  observation in the *authored*/*derived*/*value* trichotomy, states of the key
-  that "the prose does not fix the key components", and declares no key order.
-  Every criterion above quantifies over permutations of *one* admitted fact set;
-  without a key, two presentations cannot be shown to be presentations of the
-  same set. The owner is `agent-ix/quire-specification`. This requirement names
-  the gap and supplies no key, as `FR-011`'s ordering obligation requires.
-- **The equal-time tie key exists only as a refusal.** `FR-252` states, of the
-  order-sensitive operators, that "Equal timestamps without an admitted
-  causal/sequence order refuse `until`, `release`, `since` and `triggered`;
-  ingestion order is not substituted." FR-026-AC-2 permutes equal-time arrivals
-  "under the time key the accepted temporal profile declares", and the accepted
-  profile is the only thing that could declare one. `IT-002` records that the
-  temporal producer "has **no Rust interface at any state**" and that its
-  version-lock entry is `unresolved`, so the permutation set FR-026-AC-2
-  quantifies over cannot be constructed yet and this criterion is unexecutable
-  rather than failing. The owner is E, through
-  `agent-ix/quire-specification`.
-- **The channel premise key carries an unresolved scope.** `FR-216`'s open gap
-  records that FR-054-AC-2 scopes a FIFO premise to a "key scope" that no
-  requirement defines, and that the artifact "does not treat that scope as a
-  component of this key". Which presentations a FIFO premise permits therefore
-  depends on a scope the prose does not fix. It also records that FR-054-AC-3
-  names five premises refusing when missing while the FR-054 description binds
-  six, and keeps both readings. The owner is
-  `agent-ix/quire-specification`.
-- **The authored key is not stated to be complete.** `FR-220`'s open gap records
-  that FR-052-AC-4 names a branch, a join rule and an iteration maximum as
-  identity-bearing and that "No requirement states that these three are the
-  complete key", leaving unresolved whether a node's typed payload, guard or
-  channel binding also changes protocol identity. Which permutations are
-  "permitted by the authored partial order" is fixed by the graph; which graphs
-  are one graph is not.
+QSpec #31/#40 fixes the five-component FR-216 premise, its exact FIFO binder and
+typed expression scope, the complete FR-220 graph identity and FR-296 admitted-
+observation identity. QSL's accepted native-temporal contract supplies the
+typed equal-time order key and authority; FR-289 supplies the only admitted
+half-open-to-inclusive boundary conversion. Missing, foreign or unrepresentable
+keys/boundaries refuse. Permutation equivalence is therefore componentwise over
+accepted identities and never inferred from ingestion order or timestamps.
 
 ## Dependencies
 

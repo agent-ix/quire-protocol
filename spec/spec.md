@@ -53,7 +53,9 @@ repository owns its strict implementation and evidence-backed conformance.
 
 ### 2.2 Out of Scope
 
-- Native Quire grammar, parsing, linking, compiler diagnostics, and source editing.
+- Native Quire grammar, parsing, compiler-internal/source linking, compiler
+  diagnostics, and source editing. Protocol's typed artifact-to-runtime graph
+  linking is in scope.
 - Temporal syntax/evaluation and observation collection/correlation authority.
 - Business-operation or compensation execution.
 - Generic producer execution, evidence persistence, method catalogues, sufficiency,
@@ -68,7 +70,8 @@ repository owns its strict implementation and evidence-backed conformance.
 The library accepts exact versioned artifacts from the native compiler and
 observation/temporal producers, validates their identities and selected contracts,
 assesses the admitted finite protocol without performing business actions, emits
-one canonical rich result, and may derive one narrower portable E02 result.
+one canonical result per requested claim in request order, and may derive one
+narrower portable E02 result from each validated source result.
 
 ### 3.2 Intended Users
 
@@ -99,7 +102,7 @@ Local immutable identifiers begin at `StR-001`, `US-001`, `FR-001`, `NFR-001`,
 `IT-001`, `TC-001`, `ADR-001`, `TM-001`, `AP-001`, and `AD-001`.
 Each namespace is allocated sequentially with no gaps and no reuse; the highest
 allocated identifier is currently `StR-005`, `US-007`, `FR-042`, `NFR-008`,
-`IT-003`, `TC-015`, `ADR-009`, `TM-001`, `AP-001`, and `AD-001`.
+`IT-003`, `TC-016`, `ADR-009`, `TM-001`, `AP-001`, and `AD-001`.
 
 ## 7. Requirement Quality Policy
 
@@ -143,8 +146,9 @@ premises. Missing or conflicting premises remain explicit.
 
 ### 10.1 Error Classification
 
-Failure classification is not this repository's vocabulary and is not restated
-here. Three owners publish it, and each is used at its own boundary:
+Failure classification is partitioned by owner and is never inferred across a
+boundary. Three external or semantic owners publish values used at their own
+boundaries:
 
 - Whether a requested evaluator ran:
   `ix://agent-ix/quire-specification/FR-241`, five members.
@@ -158,6 +162,11 @@ here. Three owners publish it, and each is used at its own boundary:
 [FR-014](functional/FR-014-typed-outcome-identity.md) states the identity of an
 outcome this library returns; [FR-008](functional/FR-008-return-typed-refusals.md)
 owns the envelope that carries one.
+
+FR-008 additionally owns the Protocol envelope, its local originating-stage
+vocabulary and its closed local causes. A source-owner cause is retained under
+its exact owner contract and catalog; an unknown source catalog produces
+`unsupported-source-contract` rather than a locally interpreted cause.
 
 An earlier revision of this section listed eight failure classes in prose —
 "invalid or unaccepted input, identity mismatch, unsupported capability/version,
@@ -223,31 +232,25 @@ review and semantic QUOIN `/gap-analysis` over one unchanged head.
 
 ## 14. Lifecycle Status
 
-The repository is partially implemented. Fifteen integration-test binaries plus
-the in-crate unit-test binary list 244 regular tests on this candidate: 221 run
-in the default gate and 23 generated version 1 fixture tests remain explicitly
-ignored. The same gate lists and runs 37 doc-tests. `tc_012_local_gate` contributes
-ten default-running tests that bind all ten NFR-004 criteria and independently
-exercise thirteen stable gate-defect identities. The version 2 handoff's 17
-tests execute by default from the pinned dependency source; its superseded
-24-test pre-delivery corpus was retired rather than retained as a second
-protocol vocabulary. Historical smaller totals described earlier
-implementation checkpoints and are not the current inventory.
+The repository is partially implemented. Strict `/1` and `/2` admission,
+version-1 linking, standalone compensation, batch/incremental conformance,
+independent claim disposition, canonical result reading/production, the complete
+borrowed Contract-IR result view, refusal-envelope components, reproduction
+records and an inventoried resource accountant all exist on `main`.
 
-What remains unimplemented is the larger part. `admit_and_link_v2` is now
-written against A's published `quire.compiled-protocol/2` reader at the pinned
-revision `f1700a9`. The default gate reaches A's committed bundle through the
-owner-exported `PUBLISHED_HANDOFF`: the base admits, all 28 published mutations
-return their declared typed identities, both cross-version submissions refuse,
-and every declared resource dimension admits at exact usage, refuses one-short,
-and admits again under a fresh exact budget. The broader version 1 SC-01 through
-SC-05 regression lane remains generated and ignored. Canonical result ownership
-and its exact Contract-IR mapping landed on main in PR #51; the wider
-refusal-catalog, cause, projection, observation and external qualification work
-remains open. Forty-seven acceptance criteria reach no test case at all.
-`TM-001` is the authority on which criteria
-are backed, unbacked, blocked or planned; this section states only that the
-repository is no longer specification-only.
+Those implementations are not yet one production pipeline. The linker has no
+version-2 linked graph, downstream modules accept independently constructed
+models, canonical result assembly accepts caller-built duplicates of upstream
+states, and version-lock, E02 projection and scenario handoff do not exist on
+`main`. Task status and executable coverage are stated only by TM-001 and
+Plan-001; module presence does not close an aggregate requirement.
+
+The current accepted compiler pin is QSL `f1700a9`. The direct QObs pin remains
+older than its accepted FR-287/FR-262 implementation and is corrected by
+Task-002. E02 has an implemented draft-2 reader whose owner acceptance prose is
+still contradictory, and Quoin has a Rust evidence implementation but no
+Protocol scenario-record intake. These are explicit gates, not permission to
+substitute local contracts.
 
 ## 15. Governance Notes
 
@@ -276,20 +279,29 @@ its entry-status table records why each is currently `unresolved`.
   `quire.compiled-protocol/1` and `/2` plus the exported handoff address; issues
   40, 78 and 98 owned that delivery and have landed. This is the only native
   compiler reader in the admitted path, and this repository adds no second one.
-- `agent-ix/quire-observation` — the F-owned observation producer interface,
-  carrying the scope facts and global closure record IT-002 consumes.
+- `agent-ix/quire-observation` — the F-owned observation producer interface and
+  authority contracts. Accepted FR-287/FR-262 runtime references and topology
+  are on `93bc565`; the current Protocol dependency is older and must be repinned
+  before those values are consumed. Complete-global-conformance closure remains
+  Protocol-owned and is not a QObs artifact.
 - `agent-ix/quire-verification` FR-007 and `quire-verification/e02-draft-2` —
-  the E02 strict reader and its finding vocabulary.
-- `agent-ix/engineering-assurance` issue 34 — the producer-execution boundary.
+  the implemented E02 strict reader and its finding vocabulary. Its owner must
+  reconcile the stale provisional interface decision before cross-repository
+  acceptance.
+- `agent-ix/engineering-assurance` issue 34 — the delivered typed Rust producer-
+  execution request/result boundary, consumed at its exact accepted git pin.
 - The selected diagnostic catalog, whose identity, revision and byte digest
   FR-008 binds. `quire-specification` FR-270 records that the only catalog
   offered is a proposed native diagnostic interpretation that describes itself as
   not adopted or implemented, so this reference names no adopted artifact yet.
-- `agent-ix/quoin` and `agent-ix/quire-research` issue 62 — the evidence
-  retention interface and its containment contract.
-- `agent-ix/quire-research` PT01, PT02, E03, and setup issue 33.
+- `agent-ix/quoin` — the external Rust evidence-retention owner. Its existing
+  experiment and operational records do not accept FR-017; Task-011 waits for a
+  structured Protocol scenario-record operation rather than coercing either.
+- `agent-ix/quire-contract-ir` issue 71 — the downstream consumer of Protocol's
+  complete borrowed result-map view for native/TL correspondence and joining.
+- `agent-ix/quire-research` artifacts are research inputs only; none supplies a
+  runtime Protocol value or version-lock entry.
 
 The complete-global-conformance closure record is **not** an external reference.
-It is B-authored, landed in `quire-specification` through PR 22 from
-`agent-b/global-conformance-closure`, and takes no version-lock entry because no
-external owner can assert anything about it.
+It is Protocol-owned and takes no version-lock entry because no external owner
+can assert anything about it.

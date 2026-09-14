@@ -88,17 +88,11 @@ assessment and human disposition all remain outside.
 
 ## Consequences
 
-**This repository is blocked by construction, and currently is.** FR-001's
-Dependencies say it plainly: "The A-owned native compiler must publish an
-accepted versioned compiled-protocol artifact contract; prose profile
-definitions and native source are not that interface." AD-001 records the same
-as a risk — the current composed proposal defines semantic profiles but no
-accepted versioned compiled-protocol artifact interface, and admission cannot
-parse prose or source. Under FR-009 the version 1 and version 2 entries are both
-`unresolved`. The cost of this decision is therefore not theoretical: it is the
-reason IT-001-SC-06 through SC-09 assert nothing about A's behaviour today.
-Parsing source would have unblocked them, and would have made what they proved
-worthless.
+**The compiled boundary is delivered.** QSL `/1`, `/2` and native-temporal
+contracts are pinned at `f1700a9`; the default `/2` handoff executes its owner
+reader and mutation corpus. Task-009 still owes the complete `/1` regression
+comparison, but no QSL contract publication blocker remains. Parsing source
+would still create a second semantic authority and is still forbidden.
 
 **The positive proof is harder than the prohibition and is not yet delivered.**
 IT-001-SC-05 requires evidence that "positively identifies the A-owned reader as
@@ -109,16 +103,12 @@ obligation, not an absence-of-known bad-dependencies claim." An inventory that
 finds no known-bad dependency is not the same statement, and IT-001 refuses to
 let it stand in.
 
-**Every upstream gap becomes a local gap, and none can be closed locally.**
-Because vocabulary is adopted rather than restated, an upstream absence stops
-this repository rather than being filled in. The specs are full of the
-consequence: FR-006 records that the four progress/closure axes are unenumerated
-upstream and that participation is unenumerated at the source; FR-008 records
-that the diagnostic catalog itself is not adopted, and that FR-271 through
-FR-274 each carry an open gap bearing on its criteria; FR-015 records that
-FR-259, FR-261 and FR-263 select no digest domain. Each of those is a question
-this repository is capable of answering and forbidden to answer. That is the
-decision working as intended, and it is slow.
+**A real upstream gap becomes an explicit unsupported or blocked case.** QSpec
+#28/#29/#31/#40 has since closed the progress, participation, identity, channel,
+relationship, activation, completeness and temporal-boundary gaps this
+repository previously listed. FR-236's per-attempt/aggregate outcome partition
+remains open and blocks only the affected Task-003 mappings. Protocol neither
+reopens accepted rulings nor fills that remaining gap locally.
 
 **One local vocabulary was minted anyway, and had to be withdrawn.** FR-015
 declared a closed four-member digest-domain set before discovering that upstream
@@ -132,13 +122,11 @@ self-enforcing at the vocabulary level, and a review caught this one rather than
 a checker.
 [ADR-003](./ADR-003-compare-digest-domain-before-bytes.md) carries the detail.
 
-**The refusal path inherits producer authority it cannot interpret.** Because
-this repository authors no diagnostic vocabulary, FR-008 owns only the refusal
-*envelope* and treats the interior as upstream's, copied byte-exactly. A
-producer's code, catalog and stage therefore pass through uninterpreted, and
-where upstream contradicts itself the contradiction passes through too —
-FR-273's producer-stage membership is contested between two sources, and
-FR-008-AC-1 and AC-6 both rest on that axis.
+**The refusal path preserves producer authority without guessing.** FR-008 owns
+the local envelope, stages and causes. A known source response stays nested
+under its exact selected source contract; an unknown contract remains opaque
+under `unsupported-source-contract`. Local paths do not depend on a proposed
+shared diagnostic catalog.
 
 ## Alternatives considered
 

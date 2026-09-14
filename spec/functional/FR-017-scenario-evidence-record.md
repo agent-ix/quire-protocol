@@ -21,7 +21,7 @@ relationships:
 
 ## Description
 
-When an integration scenario of IT-002 or IT-003 reaches a typed outcome, the library SHALL compose one scenario evidence record carrying the resolution state it ran against, the owner of each consumed producer value, its typed outcome, the budget granted and consumed on each declared dimension, and its trace binding.
+When an integration scenario of IT-001, IT-002 or IT-003 reaches a typed outcome, the library SHALL compose one scenario evidence record carrying the resolution state it ran against or its declared legacy-compatibility selection, the owner of each consumed producer value, its typed outcome, the budget granted and consumed on each declared dimension, and its trace binding.
 When a scenario cannot retain every one of those components, the library SHALL report that scenario as unexecuted rather than as passing.
 
 ## Properties
@@ -29,9 +29,8 @@ When a scenario cannot retain every one of those components, the library SHALL r
 - **scenario** (identity component) — the integration scenario this record is
   composed for, such as `IT-002-SC-07a`. One scenario composes at most one
   record.
-- **integration** (identity component) — the integration the scenario belongs to,
-  `IT-002` or `IT-003`. `IT-001` composes no record: it "declares neither this
-  requirement nor FR-009 and carries no manifest precondition" (`NFR-005` Scope).
+- **integration** (identity component) — the integration the scenario belongs to:
+  `IT-001`, `IT-002` or `IT-003`.
 - **resolution_state** (state) — the state of `FR-009` resolution this scenario
   ran against, in exactly one of two admitted shapes:
   - the **full resolved manifest**, where resolution completed; or
@@ -43,15 +42,19 @@ When a scenario cannot retain every one of those components, the library SHALL r
   IT-002-SC-07a and IT-003-SC-08a admit both. Requiring a full snapshot would
   disqualify exactly the scenarios that demonstrate resolution refusing, which
   are the scenarios that prove resolution works.
+  IT-001-SC-06a's frozen legacy `/1` facade has no resolver capability; its
+  present compatibility-selection shape carries the exact selected QSL owner,
+  contract and immutable revision instead of pretending to hold one.
 - **value_owners** (state) — the owner of each consumed producer value, recorded
   per value rather than per scenario. The owner is the `owner` component of the
   version-lock entry the value resolved through
   ([FR-012](./FR-012-version-lock-entry.md)); it is producer-authored and copied,
   never inferred from a path, a display name or a file location.
-- **typed_outcome** (state) — the typed outcome identity the scenario reached:
-  one canonical protocol result identity, one typed refusal identity
-  ([FR-008](./FR-008-return-typed-refusals.md)), or one typed resource-incomplete
-  identity ([FR-016](./FR-016-resource-budget-dimension.md)).
+- **typed_outcome** (state) — the exact shared operation outcome and, where an
+  assessment completed, its ordered claim outcomes: canonical FR-241 rows,
+  claim-local typed refusals ([FR-008](./FR-008-return-typed-refusals.md)), or a
+  typed pre-row resource-incomplete identity
+  ([FR-016](./FR-016-resource-budget-dimension.md)).
 - **budget_granted** and **budget_consumed** (state) — the granted and consumed
   figures, retained per declared dimension of
   [FR-016](./FR-016-resource-budget-dimension.md) and never as one scalar total.
@@ -78,9 +81,10 @@ key.
 A record lives only until its scenario hands it to Quoin through the accepted
 structured interface. `NFR-005` fixes the boundary in both directions: it is
 "passed, never stored", and this repository "adds no local evidence store,
-catalogue, sufficiency decision, or disposition path". Retention, storage,
-sufficiency assessment and human disposition are Quoin's and Engineering
-Assurance's, and
+catalogue, sufficiency decision, or disposition path". Retention, storage and
+indexing are Quoin's; Engineering Assurance owns producer execution;
+sufficiency assessment and human disposition remain with their campaign/human
+owners; and
 [NFR-003](../non-functional/NFR-003-preserve-rust-assurance-boundary.md) bounds
 that. This requirement fixes what a scenario must carry to its handoff, never
 where it is kept afterwards or whether it suffices.
@@ -128,21 +132,21 @@ disposition state, and nothing in this repository reads one back.
   of zero.
 - **Digest domain** — the record carries no digest of its own. Every digest
   inside the resolution state it retains keeps the domain it was selected under,
-  [FR-015](./FR-015-digest-domain-membership.md), and a digest from one domain is
+  [FR-015](./FR-015-digest-domain-selection.md), and a digest from one domain is
   unequal to one from another over identical bytes.
 
 ## Acceptance Criteria
 
 | ID | Criteria | Verification |
 | --- | --- | --- |
-| FR-017-AC-1 | Every owed scenario of IT-002 and IT-003 composes exactly one record carrying its resolution state, the owner of every consumed producer value, its typed outcome, its per-dimension granted and consumed budget figures, and its trace binding. | Inspection |
-| FR-017-AC-2 | A scenario that refused during resolution composes a record carrying the partial resolution state reached plus the entry that caused the refusal, and is not disqualified for lacking a full resolved manifest. | Test (TC-013, IT-002, IT-003) |
+| FR-017-AC-1 | Every owed scenario of IT-001, IT-002 and IT-003 composes exactly one record carrying its resolution state or declared legacy-compatibility selection, the owner of every consumed producer value, its typed outcome, its per-dimension granted and consumed budget figures, and its trace binding. | Test (TC-016, IT-001, IT-002, IT-003) |
+| FR-017-AC-2 | A scenario that refused during resolution composes a record carrying the deterministic partial resolution state reached plus the first causing entry, and is not disqualified for lacking a full resolved manifest. | Test (TC-016, IT-001, IT-002, IT-003) |
 | FR-017-AC-3 | A scenario that cannot retain every required component is reported unexecuted rather than passing, and an owed-but-unexecuted scenario is scored as a zero rather than omitted from the denominator. | Inspection |
-| FR-017-AC-4 | Across one integration, no two distinct refusal axes retain the same typed outcome identity, while two scenarios exercising one axis may share one. | Inspection |
-| FR-017-AC-5 | Budget figures are retained per declared dimension and never as one scalar total, and the `elapsed-time` and `resolution-deadline` consumed figures participate in no reproducibility comparison. | Test (TC-008, TC-009) |
-| FR-017-AC-6 | Two records whose integration and scenario are equal compare equal regardless of resolution state, owners, outcome or budget figures, and two records differing in either component compare unequal regardless of identical remaining state. | Analysis |
-| FR-017-AC-7 | No record is written to a local evidence store, catalogue or disposition path, no record is read back after handoff, and no sufficiency decision is taken in this repository. | Test (TC-010) |
-| FR-017-AC-8 | No record appears in a canonical result as a producer reference, and no producer accepts a record or any component this repository authored in it as a selector. | Test (TC-014) |
+| FR-017-AC-4 | Across one integration, no two distinct refusal axes retain the same typed outcome interior, while two scenarios exercising one axis may share one. | Test (TC-016) |
+| FR-017-AC-5 | Budget figures are retained per declared dimension and never as one scalar total, and the `elapsed-time` and `resolution-deadline` consumed figures participate in no reproducibility comparison. | Test (TC-008, TC-009, TC-016) |
+| FR-017-AC-6 | Two records whose integration and scenario are equal compare equal regardless of resolution state, owners, outcome or budget figures, and two records differing in either component compare unequal regardless of identical remaining state. | Test (TC-016) |
+| FR-017-AC-7 | No record is written to a local evidence store, catalogue or disposition path, no record is read back after handoff, and no sufficiency decision is taken in this repository. | Test (TC-010, TC-016) |
+| FR-017-AC-8 | No record appears in a canonical result as a producer reference, and no producer accepts a record or any component this repository authored in it as a selector. | Test (TC-014, TC-016) |
 
 ## Dependencies
 
@@ -157,7 +161,7 @@ disposition state, and nothing in this repository reads one back.
   identities the outcome may take.
 - [FR-016](./FR-016-resource-budget-dimension.md) supplies the declared
   dimensions the budget figures are retained on.
-- [FR-015](./FR-015-digest-domain-membership.md) selects the domain of every
+- [FR-015](./FR-015-digest-domain-selection.md) selects the domain of every
   digest inside a retained resolution state.
 - [FR-006](./FR-006-produce-canonical-protocol-results.md) supplies the canonical
   result a scenario's outcome refers to.
@@ -171,8 +175,7 @@ disposition state, and nothing in this repository reads one back.
 
 ## Status
 
-Draft. This artifact records existing meaning structurally and establishes no new
-obligation. No record can exist today: `FR-009` reports every manifest entry as
-`unresolved`, so stage 3 has produced no resolution state for a record to retain.
-That is the current state of this object's population, not a defect of this
-specification.
+Specified. QSL and Engineering Assurance contracts are pinnable, QObs requires
+the delivered revision repin, and E02/Quoin retain the exact blockers in FR-009.
+Task-018 implements final composition after the shared outcome and resource
+types exist; consuming integration tasks populate their concrete values.

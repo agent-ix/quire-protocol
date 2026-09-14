@@ -13,11 +13,16 @@ relationships:
   - { target: ix://agent-ix/quire-protocol/FR-006, type: references }
   - { target: ix://agent-ix/quire-protocol/FR-007, type: references }
   - { target: ix://agent-ix/quire-protocol/FR-008, type: references }
+  - { target: ix://agent-ix/quire-protocol/FR-009, type: references }
   - { target: ix://agent-ix/quire-protocol/FR-042, type: references }
   - { target: ix://agent-ix/quire-protocol/NFR-001, type: references }
   - { target: ix://agent-ix/quire-protocol/NFR-002, type: references }
   - { target: ix://agent-ix/quire-protocol/NFR-003, type: references }
   - { target: ix://agent-ix/quire-protocol/NFR-004, type: references }
+  - { target: ix://agent-ix/quire-protocol/NFR-005, type: references }
+  - { target: ix://agent-ix/quire-protocol/NFR-006, type: references }
+  - { target: ix://agent-ix/quire-protocol/NFR-007, type: references }
+  - { target: ix://agent-ix/quire-protocol/NFR-008, type: references }
 ---
 # Implementation Plan: Finite Native Quire Protocol Rust Slice
 
@@ -29,166 +34,206 @@ relationships:
 
 ### Functional Requirements
 
-- [ ] **FR-001**: Admit one exact promoted protocol profile.
-- [ ] **FR-002**: Link a finite typed protocol representation.
-- [ ] **FR-003**: Assess compensation, retry, commit, and recovery state.
-- [ ] **FR-004**: Assess bounded finite global conformance.
-- [ ] **FR-005**: Dispatch protocol claims independently.
-- [ ] **FR-006**: Produce and strictly read canonical protocol results.
-- [ ] **FR-007**: Project canonical results to the selected E02 contract.
-- [ ] **FR-008**: Return typed refusals through every public failure path.
-- [x] **FR-042**: Publish a complete strict canonical-result reader and exact
-  constructor-private Contract-IR mapping view.
+- [x] **FR-001**: Strict `/1` and `/2` admission is implemented; its `/1`
+  integration remainder belongs to Task-009.
+- [ ] **FR-002**: Complete the exact version-2 binding and linked graph.
+- [ ] **FR-003**: Connect the implemented compensation kernel to the linked graph.
+- [ ] **FR-004**: Connect one batch/incremental conformance kernel to graph and compensation outputs.
+- [ ] **FR-005**: Consume conformance through closed independent claim dispatch.
+- [ ] **FR-006**: Assemble the implemented canonical result from typed subsystem outputs.
+- [ ] **FR-007**: Project validated results through accepted E02 draft-2.
+- [ ] **FR-008**: Route every public failure through the shared exact-stage envelope.
+- [ ] **FR-009**: Resolve every consumed external contract before its value is read.
+- [x] **FR-042**: Strict canonical-result reader and complete borrowed Contract-IR map are implemented.
 
 ### Non-Functional Requirements
 
-- [ ] **NFR-001**: Reproduce semantic results and canonical bytes.
-- [ ] **NFR-002**: Enforce every authored protocol and caller-supplied resource bound.
-- [ ] **NFR-003**: Preserve the Rust and shared-assurance boundary.
-- [x] **NFR-004**: Execute the local gate over one unchanged worktree state and
-  account for every selectable configuration without inventing a feature lane.
+- [ ] **NFR-001**: Complete whole-pipeline semantic and byte reproduction.
+- [ ] **NFR-002**: Complete one inventoried request accountant over every final path.
+- [ ] **NFR-003**: Complete Rust/shared-assurance qualification without local infrastructure.
+- [x] **NFR-004**: The exact single-lane local gate is executable.
+- [ ] **NFR-005**: Compose and hand off every owed scenario record.
+- [ ] **NFR-006**: Keep manifest, lockfile and rights record exact after every pin.
+- [ ] **NFR-007**: Keep `/1`, `/2` and external contract paths version-explicit.
+- [ ] **NFR-008**: Carry every owed refusal or unexecutable axis in its returned value.
 
 ## Dependency Graph
 
-- `accepted frozen native Quire baseline + accepted compiled-artifact contract -> FR-001`
-  Reason: admission must bind exact promoted semantics and a closed typed meaning
-  for compiler-produced bytes, including a lossless versioned numeric wire
-  profile; specification prose cannot serve as that interface.
-- `FR-001 -> FR-002`
-  Reason: only an admitted profile can be linked into the local representation.
-- `FR-002 -> FR-003, FR-004`
-  Reason: compensation and conformance consume the same identity-preserving finite graph.
-- `FR-003 -> FR-004`
-  Reason: global conformance reports compensation and recovery obligations.
-- `FR-004 -> FR-005`
-  Reason: independent claim dispatch preserves the completed finite-conformance result.
-- `FR-004 + FR-005 -> FR-006`
-  Reason: the canonical result contains both protocol outcome and per-claim dispositions.
-- `FR-006 -> FR-007`
-  Reason: E02 is derived only from a complete strict canonical source result.
-- `FR-001..FR-008 -> NFR-001, NFR-002`
-  Reason: reproduction and resource guards cover every public operation and identity path.
-- `FR-002 + accepted compiler contract -> IT-001`
-  Reason: compiler integration can run only after admission and linking exist.
-- `FR-003 + FR-004 + FR-006 + accepted observation/temporal contracts -> IT-002`
-  Reason: producer facts must reach compensation, conformance, and result construction unchanged.
-- `FR-006 + FR-007 + accepted Engineering Assurance/Quoin contracts -> IT-003`
-  Reason: typed transport, E02 reading, and retained evidence are external owners' boundaries.
-- `IT-001 + IT-002 + IT-003 + NFR-001 + NFR-002 -> NFR-003 gate`
-  Reason: the final unchanged-head review must cover every local and cross-repository path.
-- `NFR-004 -> NFR-003 gate`
-  Reason: final qualification consumes the already-executable local gate; it
-  must not define commands, configurations or evidence binding ad hoc.
+- `Task-016 architecture gate -> every remaining implementation task`
+  Reason: AD-001 fixes the complete type flow, owner direction, public surfaces,
+  resource/refusal rules and external adapters once for the campaign.
+- `Task-016 -> Task-017 -> Task-013 -> Task-002`
+  Reason: the shared outcome/refusal foundation must exist before resolver
+  failures; external values then enter version-explicit adapters only after the
+  resolver mints request-bound constructor-private capabilities.
+- `Task-002 -> Task-003 -> Task-004 -> Task-005 -> Task-006`
+  Reason: linked graph, compensation snapshot, conformance report, claim
+  dispositions and canonical result assembly form the serial semantic core.
+- `Task-002 -> Task-009`
+  Reason: the `/1` integration must execute the real local linker, not admission alone.
+- `Task-006 -> Task-007, Task-010`
+  Reason: both E02 projection and observation/native-temporal integration require
+  validated canonical result assembly; Task-010 consumes QSL/QObs, not QCI.
+- `Task-007 + Task-009 + Task-010 + Task-013 -> Task-008`
+  Reason: the final resource/reproduction sweep can close only after every public
+  path and external-contract site exists.
+- `Task-006 + Task-008 + Task-013 -> Task-018`
+  Reason: scenario evidence is composed only from the final resolution,
+  operation/claim outcome and resource types, never from an early duplicate.
+- `Task-007 + Task-008 + Task-009 + Task-010 + Task-014 + Task-018 -> Task-011`
+  Reason: unchanged-head qualification executes all local and external paths with
+  resolved contracts and complete scenario evidence.
+- `Task-015 -> QCI FR-025` is delivered; QCI #71 / PR #78 (`69ec82b`) is also
+  delivered. QCI builds predicate valuations from Protocol leaf-result views,
+  then joins independent QSL-native and TL formula results. No reverse Protocol
+  dependency exists.
 
-The finite graph, stable identity types, refusal envelope, and canonical JCS layer
-are shared dependencies. Each is authored once on the serial core path and reused
-by downstream integrations; no adapter may introduce another semantic model.
+The shared dependencies are the constructor-private stage capabilities,
+componentwise identity domain, typed refusal envelope, request accountant and
+shared result-domain values. Each has one Protocol owner and no adapter-local copy.
 
 ## Test Plan
 
-### Property and Model Tests
+### Property and model tests
 
-- [x] **TC-001** (FR-001 AC-1..AC-4): accept only exact promoted profile bytes and reject every one-axis identity, state, feature, unsafe-number, non-canonical exact-number, field/signed-64 overflow, invalid-rational, and cross-domain digest mutation.
-- [ ] **TC-002** (FR-002 AC-1..AC-4): link every FR-050..FR-054 typed identity, legal interleaving, join, bounded progress/termination, channel premise, and owned visible choice; reject each invalid source mutation and discriminate semantic from presentation changes.
-- [ ] **TC-003** (FR-003 AC-1..AC-7): discriminate trigger/capture/anchor activation, effects, replay-idempotent registration, commits, retries, full/partial recovery relations, population authority, missing inputs, and zero-call I/O purity through API/dependency mutations.
-- [ ] **TC-004** (FR-004 AC-1..AC-4): compare batch and incremental finite conformance over legal permutations, independently varied decision-scope/surrounding/global-conformance closure, and every adverse execution state.
-- [ ] **TC-005** (FR-005 AC-1..AC-5): keep all requested claim dispositions independent, strictly retain each fragment/backend/assumption/premise/source/derived-artifact tuple, and refuse unsupported or failed backends without fallback.
-- [ ] **TC-006** (FR-006 AC-1..AC-7): enumerate canonical-result rows, strict reads, support topology, independent decision-scope/surrounding-execution progress and closure, complete-global-conformance closure and premise mutations, decisive settlement, and immutable supersession.
-- [ ] **TC-007** (FR-007 AC-1..AC-5): exercise the total FR-062-to-E02 map, finding preservation, derived identities, adequacy separation, and refusals.
-- [ ] **TC-008** (NFR-001-AC-1..AC-3): prove byte identity and ordered-outcome identity across admitted-equivalent presentations while independently discriminating every named semantic identity and preserving authored/causal order.
-- [ ] **TC-009** (NFR-002-AC-1..AC-4): bidirectionally reconcile the complete source-bound resource inventory, probe below/at/above every authored maximum and caller limit, kill inventory and guard mutants, and prove zero business/compensation calls.
-- [ ] **TC-011** (FR-008-AC-1..AC-8): enumerate typed refusal fields, exact diagnostic catalogs, source codes/stages/prerequisites, paired and simultaneous causes, unknown versions, location absence, rendering independence, and partial-output rules.
-- [x] **TC-015** (FR-042-AC-1..AC-6): produce, strict-read and map canonical
-  results while exposing every retained owner-reference field through typed
-  borrowed accessors and refusing identity/schema/lineage/resource mutations.
+- [x] **TC-001**: exact versioned admission and all one-axis admission refusals.
+- [ ] **TC-002**: exact graph/binding identity, exhaustive typed content, FIFO,
+  relationship replay/ambiguity, causal interleavings and fatal refusals.
+- [ ] **TC-003**: graph-derived compensation, activation, commit, retry, recovery,
+  replay, transactionality and zero business calls.
+- [ ] **TC-004**: graph-derived batch/incremental agreement across legal semantic
+  permutations, progress/closure and contradiction states.
+- [ ] **TC-005**: conformance-derived ordered claim dispositions, exact retained
+  premises and no callback fallback.
+- [ ] **TC-006**: subsystem-derived canonical rows, strict reads, exact settlement,
+  support topology and immutable corrections.
+- [ ] **TC-007**: total FR-062 E02 mapping, exact derived identity, strict target
+  reading, finding preservation and no sufficiency promotion.
+- [ ] **TC-008**: whole-path byte/semantic reproduction and one-axis mutation discrimination.
+- [ ] **TC-009**: bidirectional final source inventory, below/at/over bounds,
+  deadline checks, guard mutants and zero action calls.
+- [ ] **TC-010**: shared Rust assurance checker, trace binding, EA execution and
+  Quoin containment.
+- [ ] **TC-011**: exact-stage refusal envelopes, local/source causes, unsupported
+  catalogs, partial-output rules and simultaneous causes.
+- [x] **TC-012**: exact local gate policy and every independent gate defect.
+- [ ] **TC-013**: bounded two-state manifest resolution, private capability
+  construction, interface authenticity and deterministic first-cause reporting.
+- [x] **TC-014**: consumer identity discipline.
+- [x] **TC-015**: canonical reader and complete structural Contract-IR result view.
+- [ ] **TC-016**: final scenario-evidence composition and cross-record refusal-axis distinctness.
 
-### Static and Assurance Test
+### Integration tests
 
-- [ ] **TC-010** (NFR-003-AC-1..AC-6): use the accepted shared Rust checker to enforce every executable/dependency path, manual workflows, forbidden unsafe code, compiler-checked trace bindings, external Quoin containment, and shared assurance ownership without a local scanner.
-- [x] **TC-012** (NFR-004-AC-1..AC-10): validate the exact ordered command set,
-  warning channels, Cargo-feature state, conditional-site coverage, isolated
-  target directory, and unchanged commit/worktree evidence binding; each
-  independent invalid policy state must refuse with its own reason.
-
-### Integration Tests
-
-- [ ] **IT-001 SC-01..SC-09** (FR-001, FR-002, NFR-002, NFR-007): consume the accepted native compiler artifact without a local parser, numeric loss, digest-domain substitution, or identity reinterpretation. Task-009 owns the `/1` contract and SC-01..SC-05; Task-012 owns the `/2` contract and SC-06..SC-09.
-- [ ] **IT-002 SC-01..SC-04** (FR-003, FR-004, FR-006): consume accepted observation and temporal facts without duplicating their producer semantics.
-- [ ] **IT-003 SC-01..SC-05** (FR-006, FR-007, NFR-003): publish typed results through Engineering Assurance, E02, and Quoin without a local runner, transcript parser, or evidence store.
+- [ ] **IT-001 `/1` SC-01..SC-05 and SC-06a**: default-running admission plus
+  local-link regression and before/after compatibility comparison. The `/2`
+  SC-06..SC-09 handoff is already complete under Task-012.
+- [ ] **IT-002**: exact QObs runtime/authority facts and QSL native-temporal
+  results traverse compensation, conformance and canonical results without QCI
+  as an upstream dependency.
+- [ ] **IT-003**: validated Protocol results project to E02, execute through the
+  Engineering Assurance boundary and hand a complete FR-017 value to Quoin.
 
 ## Remaining Work
 
-### Track A: Critical Path (serial)
+### Architecture Gate
 
-- **A1 = Task-001** Admit the selected profile and establish the crate — Hard; exit: exact promoted bytes and lossless numeric values admit through a Rust API while every identity or representation near-match refuses before evaluation.
-- **A2 = Task-002** Link the finite representation — Hard; exit: all legal finite graphs link with exact identities and every construction-fatal defect returns no graph.
-- **A3 = Task-003** Assess compensation state — Hard; exit: registration, retries, commits, and recovery follow only authored facts with no business execution.
-- **A4 = Task-004** Assess finite conformance — Hard; exit: batch and settled incremental evaluation agree across every legal interleaving.
-- **A5 = Task-005** Dispatch independent claims — Medium; exit: unsupported or failed claims cannot change any independently established result.
-- **A6 = Task-006** Produce canonical results and refusals — Hard; exit: strict readers round-trip every valid row and reject every forbidden state or lineage.
-- **A7 = Task-007** Project results to E02 — Hard; exit: the selected total map preserves all findings and admits no adequacy or sufficiency promotion.
-- **A8 = Task-008** Enforce reproduction and resource bounds — Hard; exit: semantic permutations reproduce byte-for-byte and every resource guard discriminates.
+- **Architecture = Task-016** Freeze the complete implementation architecture —
+  exit: AD-001, affected requirements, matrix, tasks and live tickets agree with
+  current code and every selected review has no unresolved finding.
 
-### Track B: Accepted Producer Integrations
+### Core Pipeline
 
-- **B1 = Task-009** Integrate the native compiler artifact — Medium; exit: the accepted producer artifact enters the public API with exact source identities and no alternate frontend.
-- **B2 = Task-010** Integrate observation and temporal facts — Hard; exit: accepted facts reach compensation, conformance, and result fields unchanged.
+- **Foundation = Task-017** Shared outcomes/refusals — exit: every subsystem uses
+  the same operation outcome, resource-incomplete value and exact stage/domain
+  refusal types.
+- **Core-1 = Task-013** Version-lock enablement — exit: exact manifest
+  resolution mints only bounded request-bound private capabilities.
+- **Core-2 = Task-002** Exact finite linker — exit: `/2` produces one complete
+  typed graph or an exact fatal refusal with no approximate identity/content.
+- **Core-3 = Task-003** Compensation bridge — exit: compensation consumes only
+  linked/runtime values and commits replay-safe state transactionally.
+- **Core-4 = Task-004** Conformance bridge — exit: batch and incremental frontends
+  agree through one kernel derived from graph and compensation output.
+- **Core-5 = Task-005** Claim bridge — exit: ordered independent dispositions
+  consume conformance and unsupported claims invoke no fallback.
+- **Core-6 = Task-006** Result/refusal composition — exit: canonical results and
+  exact-stage refusals are constructible only from typed upstream outputs.
 
-### Track Gate: Shared Assurance and Qualification
+### Producer Integration
 
-- **Gate = Task-011** Integrate Engineering Assurance/E02/Quoin and run the unchanged-head gate — Hard; measures complete typed transport, traceability, language containment, Rust review, and semantic coverage; pass: every planned row is backed, all local gates pass, and every in-scope finding is closed.
+- **Native = Task-009** `/1` compatibility lane — may run after Task-002; exit:
+  the complete owner corpus runs by default through admission and linking.
+- **Facts = Task-010** QObs/QSL native-temporal lane — may run after Task-006;
+  exit: all selected facts and adverse mutations reach results unchanged.
+- **E02 = Task-007** Portable projection — may run after Task-006 and accepted
+  qverify promotion; exit: every FR-062 row passes the target strict reader.
 
-### Track Gate Enablement: Local policy (independent)
+### Qualification and Cross-cutting Closure
 
-- **GE1 = Task-014** Make NFR-004/TC-012 executable — Medium; exit: the current
-  repository and every one-axis invalid gate policy are classified without a
-  subprocess runner, stdout parser, fake feature or unsupported-target claim.
-
-### Track A Enablement: Complete result owner view (independent)
-
-- **AE1 = Task-015** Complete the structural Contract-IR result-map view —
-  Small; exit: downstream joins can compare every retained progress/closure
-  owner field through borrowed typed accessors without parsing JSON.
+- **Bounds = Task-008** Final resource/reproduction sweep — exit: every final
+  public site has exactly one guard/inventory/test and every equivalent run reproduces.
+- **Evidence = Task-018** Final scenario composition — exit: complete/partial
+  FR-017 values and integration-level outcome distinctness use the final shared
+  types and no local store.
+- **Qualification = Task-011** EA/E02/Quoin unchanged-head gate — exit: every owed
+  scenario is executed or counted unexecuted with complete typed evidence.
 
 ## Parallel Execution Summary
 
 ```text
-A1 -> A2 -> A3 -> A4 -> A5 -> A6 -> A7 -> A8
-             \-> B1 -------------------------\
-                              \-> B2 ----------+-> Gate
-GE1 ------------------------------------------------^
-AE1 ------------------------------------------------> downstream Contract-IR FR-026
+Task-016 -> Task-017 -> Task-013 -> Task-002 -> Task-003 -> Task-004 -> Task-005 -> Task-006
+                            |                                  |          |
+                            `-> Task-009                       |          +-> Task-007
+                                                               `-> Task-010
+Task-007 + Task-009 + Task-010 + Task-013 -> Task-008 -> Task-018 -> Task-011
+Task-015 (done) -> QCI FR-025; QCI #71/PR #78 done (external)
 ```
 
-Task-009 may start after Task-002 and the compiler contract are accepted.
-Task-010 may start after Task-006 and its external producer contracts are accepted.
-All Cargo work remains serialized on the shared workstation even when source ownership permits parallel progress.
+Source ownership allows the integration lanes to overlap after their gates, but
+all heavy Cargo work is serialized with one job and the workstation lock. Plan
+track names are subsystems and are not agent assignments; Agent B remains on TL.
 
 ## Task File Mapping
 
-| Task | Track | Owns (references) | Verified by (verifies) | Status |
+| Task | Track | Owns | Verified by | Status |
 | --- | --- | --- | --- | --- |
-| Task-001 | A | FR-001 | TC-001 | done |
-| Task-002 | A | FR-002 | TC-002 | in_progress |
-| Task-003 | A | FR-003 | TC-003 | blocked |
-| Task-004 | A | FR-004 | TC-004 | blocked |
-| Task-005 | A | FR-005 | TC-005 | blocked |
-| Task-006 | A | FR-006, FR-008 | TC-006, TC-011 | blocked |
-| Task-007 | A | FR-007 | TC-007 | blocked |
-| Task-008 | A | NFR-001, NFR-002 | TC-008, TC-009 | in_progress |
-| Task-009 | B | FR-001, FR-002 | IT-001 | in_progress; candidate evidence only, external promotion gate blocked |
-| Task-010 | B | FR-003, FR-004, FR-006 | IT-002 | blocked |
-| Task-011 | Gate | StR-001, FR-006, FR-007, NFR-003 | IT-003, TC-010 | blocked |
-| Task-012 | B | FR-001, FR-002, NFR-002 | IT-001 | done |
-| Task-013 | B | FR-009, NFR-005 | TC-013, IT-002, IT-003 | in_progress |
-| Task-014 | Gate-Enablement | NFR-004 | TC-012 | done |
-| Task-015 | A-Enablement | FR-042 | TC-015 | done |
+| Task-001 | Core | FR-001 | TC-001 | done |
+| Task-002 | Core | FR-002 | TC-002 | in_progress |
+| Task-003 | Core | FR-003 | TC-003 | in_progress; standalone kernel exists |
+| Task-004 | Core | FR-004 | TC-004 | in_progress; standalone kernel exists |
+| Task-005 | Core | FR-005 | TC-005 | in_progress; standalone kernel exists |
+| Task-006 | Core | FR-006, FR-008 | TC-006, TC-011 | in_progress; result/map slice landed |
+| Task-007 | Producer Integration | FR-007 | TC-007 | blocked on E02 owner acceptance reconciliation |
+| Task-008 | Cross-cutting Closure | NFR-001, NFR-002 | TC-008, TC-009 | in_progress; current-site inventory exists |
+| Task-009 | Producer Integration | FR-001, FR-002 | IT-001 | in_progress; QSL gate delivered |
+| Task-010 | Producer Integration | FR-003, FR-004, FR-006 | IT-002 | in_progress; QObs delivered, core bridge remains |
+| Task-011 | Qualification | StR-001, FR-006, FR-007, NFR-003 | IT-003, TC-010 | blocked on E02/Quoin and predecessors |
+| Task-012 | Producer Integration | FR-001, FR-002, NFR-002 | IT-001 | done |
+| Task-013 | Core | FR-009 | TC-013 | in_progress; PR #50 must be narrowed/rebased |
+| Task-014 | Qualification | NFR-004 | TC-012 | done |
+| Task-015 | Producer Integration | FR-042 | TC-015 | done |
+| Task-016 | Architecture Gate | AD-001, FR-001..FR-009 | TC-002..TC-013 | done; SR-089..SR-100 pass under #61 |
+| Task-017 | Cross-cutting Foundation | FR-008, FR-014, FR-016 | TC-011 | planned |
+| Task-018 | Qualification | FR-017, NFR-005 | TC-016 | planned |
 
 ## Coordination Rules
 
-- Accept and freeze A's coherent composed baseline through the composed review, then accept the native compiler's versioned compiled-protocol artifact contract, including its lossless numeric wire profile, tracked by [quire-spec-language#40](https://github.com/agent-ix/quire-spec-language/issues/40), before Task-001 writes source or dependency manifests; apply the selected `AGPL-3.0-or-later` policy to all authored implementation and dependencies.
-- Keep native Quire grammar, temporal semantics, observation production, producer execution, evidence retention, and qualification disposition in their owning repositories.
-- Freeze each accepted interface revision before its integration task and refuse unknown versions rather than adding compatibility fallbacks.
-- One writer owns the shared representation, refusal, and canonical-result types; consumers merge after those contracts.
-- Run `CARGO_BUILD_JOBS=1` under `/tmp/quire-heavy-check.lock`; do not trigger hosted CI, and keep every workflow manual-dispatch only.
-- Finish on one unchanged head with the exact Rust review skill and semantic QUOIN `/gap-analysis`; remediation updates affected specs without restarting the full spec cycle unless the design changes materially.
+- AD-001 and its whole-scope review are the architecture authority for all
+  remaining tasks. No later ticket-scoped `/specify` or `/spec-review` is owed
+  for this unchanged scope.
+- Consume only accepted owner types and merged revisions. Missing or incompatible
+  contracts yield an exact blocker/refusal, never a local mirror.
+- QObs facts flow into Protocol; Protocol leaf-result views flow into QCI's
+  accepted FR-025 predicate bridge, which supplies valuations to QCI #71's
+  native/TL join. Protocol does not import that downstream join.
+- Engineering Assurance executes, Protocol composes and passes scenario values,
+  and Quoin retains. Protocol adds no runner or evidence store.
+- Each owning task adds its resource sites; Task-008 performs the final global
+  reconciliation after all public paths land.
+- Use focused tests during red/green work. Run the complete local gate once the
+  ticket candidate is ready, with `CARGO_BUILD_JOBS=1`, the workstation lock and
+  `--target-dir target-codex-backends`; never dispatch hosted CI.
+- At PR readiness run self `/rust-review` and `/gap-analysis`, fix every finding,
+  admin merge, then immediately update the task, ticket, epic, matrix, plan,
+  dependency ledger and exact evidence revision.

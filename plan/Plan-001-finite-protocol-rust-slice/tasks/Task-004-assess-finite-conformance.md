@@ -2,8 +2,8 @@
 id: Task-004
 title: "Assess finite global conformance"
 type: Task
-status: blocked
-track: A
+status: in_progress
+track: Core
 priority: P0
 relationships:
   - { target: ix://agent-ix/quire-protocol/Task-002, type: depends_on }
@@ -19,6 +19,10 @@ Implement bounded batch and settled-incremental conformance over the finite grap
 compensation facts, independent decision-scope and surrounding-execution
 progress/closure, completeness authority, and declared complete-global-conformance
 closure.
+
+The batch and incremental kernels already exist. This task owns the production
+`assessment::ConformanceKernel`, derives its model and obligations from the linked graph, consumes the compensation snapshot and
+uses one shared deterministic kernel for both public frontends.
 
 ## Subtasks
 

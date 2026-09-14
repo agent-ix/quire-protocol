@@ -68,20 +68,10 @@ collision between two axes could be dissolved by rendering them differently, one
 shared producer code would satisfy every negative scenario row while appearing
 distinct. FR-037-AC-4 states the opposite explicitly and can fail.
 
-### Where the upstream vocabulary does not yet reach
-
-- **Location kind** — `FR-274` states "no discriminator tag, identifier spelling
-  or serialized form" for the kinds themselves, and establishes no key or order
-  for a JSON field/index path or a runtime object/value path. FR-037-AC-3 and
-  FR-037-AC-5 are therefore stated over presence versus explicit absence only;
-  no serialized spelling is supplied here, and none is invented.
-- **Diagnostic code** — `FR-271` records that "no requirement states which
-  convention belongs to which namespace", so this requirement forbids matching on
-  text without asserting which spelling is canonical.
-- The selected diagnostic catalog remains an `unresolved`
-  [FR-009](./FR-009-lock-external-producer-revisions.md) version-lock entry, and
-  this requirement inherits that gate: any criterion above exercised against a
-  producer-supplied code is unexecutable until that entry is pinned.
+The local location is either a typed source locus, a typed runtime slot or entry
+ordinal, or explicit unavailability. A source contract that publishes no typed
+locus cannot be repaired with FR-274 prose or display data. A retained source
+code is compared only within its exact selected source contract.
 
 ## Dependencies
 
@@ -94,6 +84,5 @@ distinct. FR-037-AC-4 states the opposite explicitly and can fail.
 
 ## Status
 
-Draft. No execution is claimed. The criteria above are stated against a
-producer-supplied interior whose catalog entry is `unresolved`, so their
-scenarios are unexecutable today.
+Draft. The envelope implementation is partial; Task-006 completes the remaining
+public-path coverage and TC-011.

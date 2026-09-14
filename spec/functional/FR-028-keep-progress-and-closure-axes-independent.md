@@ -85,7 +85,7 @@ typed by `FR-247`. This requirement adopts it and enumerates no axis member.
 | Observation adequacy state | `FR-245-observation-adequacy-state` | value |
 | Protocol adequacy state | `FR-246-protocol-adequacy-state` | value |
 | Progress and late-data authority | `FR-268-progress-and-late-data-authority` | value, keyed (progress/assertion definition identity, revision, byte digest) |
-| Canonical protocol result | `FR-240-canonical-protocol-result` | not established upstream; see below |
+| Canonical protocol result | `FR-240-canonical-protocol-result` | derived under FR-286 |
 
 `FR-247` carries the whole of this requirement's positive rule and this
 requirement restates none of it: its five members are adopted by reference, its
@@ -122,35 +122,15 @@ invented for those axes: "`not-started`, `advanced`, `stalled`, `unobserved` —
 named by no requirement. They are not members here and are not to be
 reintroduced by a consumer." They are withdrawn.
 
-### Where the upstream vocabulary does not yet reach
+### Accepted owner rulings
 
-- **Input completeness has no member list.** `FR-258`'s remaining open gap:
-  "Input completeness is not covered by it. FR-094-AC-3 names the axis
-  'complete/incomplete input' while holding it distinct from 'Open/closed
-  decision scope, open/closed surrounding execution' ... No requirement declares
-  a closed vocabulary for that axis, and none is invented here." The owner is
-  `agent-ix/quire-specification`. This requirement names the axis and enumerates
-  nothing for it.
-- **Canonical result identity is undeclared.** `FR-240`'s open gap records that
-  no requirement states "whether the identity is authored by the producer or
-  derived from named components", that no key order is established, and that no
-  requirement states "whether two results bearing the same result identity and
-  different canonical bytes are admissible". This requirement names the axes a
-  result carries and asserts nothing about the result's own identity.
-- **Settlement-basis membership is not stated uniformly.** `FR-243`'s open gap:
-  "FR-091 lists four members where FR-061, FR-094-AC-7 and FR-115 list five. No
-  requirement states whether FR-091's evaluator may emit `unavailable`. Both
-  lists are quoted above; this artifact does not merge them."
-- **Closure at a deadline crosses an unresolved boundary convention.** `FR-268`
-  carries a section headed "Settlement crosses an unresolved boundary-convention
-  conflict", which records that the observation family states a half-open window
-  and the temporal family an inclusive deadline, that "no requirement states a
-  bridging rule", and that "This artifact adopts neither convention and promotes
-  no proposal text." FR-028-AC-5's scope-mismatch case sits exactly at that
-  point when the mismatched premise is a deadline boundary. The owners are F and
-  E, through `agent-ix/quire-specification`.
-- **Participation is unenumerated at the source** (`FR-240` open gap 4). This
-  requirement keeps the axes it names separate and makes no participation claim.
+Quire Specification #29/#40 closes the previously open axes: FR-240 derives the
+canonical result identity and refuses same identity/different bytes; FR-243
+defines the five settlement bases; FR-284 defines independent `open`/`closed`
+progress and closure; FR-285 defines participation; FR-289 maps half-open QObs
+windows to inclusive native-temporal boundaries; and FR-295 defines
+`complete`/`incomplete`/`contradicted` input completeness. Protocol imports
+these types componentwise and never substitutes one axis for another.
 
 ## Dependencies
 
@@ -162,4 +142,4 @@ reintroduced by a consumer." They are withdrawn.
   global success requires `closed` plus every exact required premise.
 - `IT-002` scenarios SC-03 and SC-04 verify this requirement at the integration
   boundary, where the complete-global-conformance closure record is the
-  B-authored fact that no scoped closure may substitute for.
+  Protocol-authored fact that no scoped closure may substitute for.

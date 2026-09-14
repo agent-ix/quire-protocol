@@ -67,27 +67,19 @@ identity.
 | --- | --- | --- |
 | Decision-support record | `FR-248-decision-support-record` | value, keyed (oracle identity, observation identity, dependence relation, and the predecessor or dependence group that relation requires) |
 | Dependence relation | `FR-282-dependence-relation` | value |
-| Canonical protocol result | `FR-240-canonical-protocol-result` | not declared upstream |
+| Canonical protocol result | `FR-240-canonical-protocol-result` | derived under FR-286 |
 
 `FR-282`'s four members are adopted by reference and not restated. `FR-248`'s
 key is exactly this requirement's lineage rule: the predecessor or dependence
 group is part of the record's key, so a `derived` record without an identified
 predecessor has an incomplete key rather than a defaulted one.
 
-### Where the upstream vocabulary does not yet reach
+### Accepted owner ruling
 
-- **Supersession lineage has no ordering authority.** `FR-240` records under Key
-  order that "No requirement states a total order over result identities", and
-  under Causal order that supersession lineage "is never derived from key order,
-  timestamp or source position." This
-  requirement therefore requires the superseding result to *name* the earlier
-  result identity and supplies no order over results. An order, if one is ever
-  needed, is `quire-specification`'s to state.
-- **Identity versus bytes.** `FR-240` records: "No requirement states whether
-  two results bearing the same result identity and different canonical bytes are
-  admissible." Byte preservation of the earlier result is required here; whether
-  a second result may reuse that identity is not settled, and is
-  `quire-specification`'s to settle.
+QSpec #29 fixes result identity under FR-286 and refuses same identity with
+different canonical bytes. Supersession is an explicit predecessor relation,
+never a total order derived from key order, timestamp or source position. This
+requirement preserves that accepted relation and invents no global result order.
 
 ## Dependencies
 

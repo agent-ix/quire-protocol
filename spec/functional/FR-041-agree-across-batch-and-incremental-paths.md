@@ -70,7 +70,7 @@ divergence itself is the reported outcome.
 | FR-041-AC-1 | Batch replay and settled incremental assessment agree, for each assessed value, on settled-or-pending and, where settled, on the settled value, the decision-scope and surrounding-execution progress/closure, and the complete-global-conformance closure. | Test (TC-004) |
 | FR-041-AC-2 | The incremental path settles at least one value strictly before the final admitted fact arrives, on a history whose earlier prefix already contains every fact that value requires to be decided. | Test (TC-004) |
 | FR-041-AC-3 | Changing one authored premise changes the same assessed values to the same new values on both paths, and a divergence between the paths returns a typed refusal rather than an agreement report. | Test (TC-004) |
-| FR-041-AC-4 | The typed refusal a path divergence returns carries its own outcome identity, distinct from that of every other refusal axis in the same integration. | Analysis |
+| FR-041-AC-4 | The typed refusal a path divergence returns carries its own outcome identity, distinct from that of every other refusal axis in the same integration. | Test (TC-004) |
 
 ## Adopted vocabulary
 
@@ -81,14 +81,14 @@ divergence refusal.
 
 | Noun | Upstream object | Identity kind |
 | --- | --- | --- |
-| Admitted observation | `FR-260-admitted-observation` | not established upstream; see below |
+| Admitted observation | `FR-260-admitted-observation` | derived under FR-296 |
 | Decision scope and surrounding execution | `FR-258-temporal-decision-scope` | value, keyed (scope role, scope identity) |
 | Assessment-execution disposition | `FR-241-assessment-execution-disposition` | value |
 | Truth disposition | `FR-242-truth-disposition` | value |
 | Settlement basis | `FR-243-settlement-basis` | value |
 | Complete-global-conformance closure state | `FR-247-complete-global-conformance-closure-state` | value |
 | Progress and late-data authority | `FR-268-progress-and-late-data-authority` | value, keyed (progress/assertion definition identity, revision, byte digest) |
-| Canonical protocol result | `FR-240-canonical-protocol-result` | not established upstream; see below |
+| Canonical protocol result | `FR-240-canonical-protocol-result` | derived under FR-286 |
 
 `FR-258` supplies the exclusion this whole requirement rests on: progress state,
 closure state, input completeness and the exact decision-support set sit outside
@@ -104,32 +104,13 @@ FR-041-AC-4 adopts `FR-014`'s injectivity obligation, scoped per integration,
 rather than restating it: the path-divergence refusal is one refusal axis among
 this repository's others.
 
-### Where the upstream vocabulary does not yet reach
+### Accepted owner rulings
 
-- **"The same admitted fact set" has no upstream equality.**
-  `FR-260-admitted-observation` states of the key that "the prose does not fix
-  the key components", declares no key order, and does not place an observation
-  in the *authored*/*derived*/*value* trichotomy. Every criterion above compares
-  two assessments of *one* fact set; without a key, the two paths cannot be shown
-  to have been given the same set. The owner is `agent-ix/quire-specification`.
-- **The four progress/closure axes are declared.** `FR-284-scope-progress-and-closure-state`
-  types them: each of decision-scope progress, decision-scope closure,
-  surrounding-execution progress and surrounding-execution closure carries
-  exactly one of `open` or `closed`, and `FR-284` "mints no new spelling".
-  Adopted by reference; FR-041-AC-1 compares the two paths over those member sets. Input
-  completeness remains outside that vocabulary with no member list, and is
-  `agent-ix/quire-specification`'s (`FR-258` open gap).
-- **Settlement-basis membership is not stated uniformly.** `FR-243`'s open gap:
-  "FR-091 lists four members where FR-061, FR-094-AC-7 and FR-115 list five. No
-  requirement states whether FR-091's evaluator may emit `unavailable`. Both
-  lists are quoted above; this artifact does not merge them." This requirement
-  compares the axis across paths and adopts no membership.
-- **Canonical result identity is undeclared.** `FR-240`'s open gap records that
-  no requirement states "whether the identity is authored by the producer or
-  derived from named components", and none states "whether two results bearing
-  the same result identity and different canonical bytes are admissible". This
-  requirement compares the axes two results carry and asserts nothing about
-  either result's own identity.
+QSpec #29/#40 fixes FR-296 observation identity, FR-284 progress/closure,
+FR-295 completeness, FR-243 settlement and FR-286 canonical-result identity.
+Both frontends compare the same accepted identities and values. Same identity
+with different bytes refuses; neither frontend derives readiness or lineage
+from timestamp, map order, source position or result-key order.
 
 ## Dependencies
 

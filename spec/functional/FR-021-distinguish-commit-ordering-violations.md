@@ -70,31 +70,17 @@ permitting commit".
 
 | Noun | Upstream object | Identity kind |
 | --- | --- | --- |
-| Commit boundary | `FR-237-commit-boundary` | authored in ordering only; key not established upstream |
+| Commit boundary | `FR-237-commit-boundary` | derived static boundary, concrete occurrence and exact FR-287 observation key |
 | Compensation registration | `FR-233-compensation-registration` | derived, keyed (source compensation definition identity, established forward effect identity) |
 | Compensation obligation lifecycle | `FR-234-compensation-obligation-lifecycle` | value |
 
-### Where the upstream vocabulary does not yet reach
+### Accepted owner ruling
 
-`FR-237`'s open gap lists, verbatim:
-
-- "**Identity** — whether a commit boundary is a distinct identified subject or
-  only a position in the authored order"
-- "**Key** — which components identify one commit boundary or one commit
-  observation"
-- "**Order** — no key order follows, since the components are unfixed."
-
-Without a commit-observation key, AC-1 can distinguish the three violations by
-their reported kind but cannot name *which* commit forbade a compensation. This
-requirement names that gap and supplies no key. The owner is
-`agent-ix/quire-specification`.
-
-`FR-237`'s open gap also records a contradiction in the forbidding condition:
-FR-057 Behavior reads "registration after a forbidding commit", while
-FR-057-AC-3 reads "Registration after commit". `FR-237` states that "Whether
-every commit forbids registration, or only a commit with a forbidding
-disposition, is not stated." AC-1 above carries FR-003's existing wording
-unchanged and selects neither reading.
+Quire Specification #31 fixes the static boundary key, FR-221 occurrence and
+FR-287 commit-observation key. Only the exact non-`never` commit selected by one
+compensation is forbidding; another commit is irrelevant, while `commit never`
+selects no earlier cutoff and establishes no unbounded closure. Protocol adopts
+that exhaustive rule without another disposition field.
 
 ## Dependencies
 

@@ -110,33 +110,19 @@ exercised over raw bytes.
 
 ## Consequences
 
-**The implementation does not conform, and this ADR does not fix it.**
-`src/digest/producer.rs` declares `DigestDomain` with five members —
-`ProducerArtifactBytes`, `ProducerSource`, `ProducerModel`, `ProducerConfig`,
-`ProtocolResultJcs` — none spelled as `FR-201` publishes them, and the version 2
-lane's test enum names four more. FR-015 records this as an unreconciled
-divergence and declines to rename either side. The rule is specified and the
-code is non-conformant; that gap is real and open, and it is implementation work
-owned by this repository, not a question for upstream.
+**The implementation now conforms to the selected vocabulary.**
+`src/digest/producer.rs` exposes only `RawArtifact` and `VerificationJcs`, with
+the exact `FR-201` labels `raw-artifact-digest` and
+`quire.verification.jcs`. The earlier five-member local enum and version-2 test
+mirror were deleted, and IT-001-SC-07 names only the accepted owner selections.
 
-**IT-001-SC-07 still names the withdrawn vocabulary.** SC-07 and IT-001's Inputs
-describe "digest-domain substitution across the producer-canonical, native-raw,
-compiled-artifact, and protocol-result domains" — the four withdrawn local
-labels. The scenario's substance survives the withdrawal (crossing refuses), but
-its four names no longer correspond to anything specified. IT-001 is owned by
-another agent in this campaign and is not edited here; it is reported as a
-needed correction.
-
-**Selecting only two members means most producer digests have no domain.**
-`raw-artifact-digest` covers offered artifact bytes. A producer's *source*,
-*model* and *configuration* digests are not artifact bytes in that sense, and
-FR-015 selects no member for them. FR-015 records that `FR-259`, `FR-261` and
-`FR-263` each note that no requirement selects a domain member for the digests
-they carry, and routes the question upstream rather than answering it. The
-operational consequence is deliberate and blunt: an unselected domain compares
-only to absence, so a comparison requiring a domain refuses rather than
-guessing. Refusing is correct and it also means those comparisons cannot
-currently be made at all.
+**Owner-side digest selections are explicit.** Accepted QSpec #40 / PR #44
+selects `raw-artifact-digest` for native source, bridge-definition,
+binding-contract definition, Producer-interface, configuration and closure
+definition bytes through FR-259, FR-261 and FR-263. FR-263 selects
+`quire.verification.jcs` for population and membership-rule identities. A
+future genuinely unselected slot still refuses rather than borrowing one of
+these selections.
 
 **Every digest slot now needs a per-slot guard, and they are not all written.**
 SR-027 FND-003 is open: "Per-source, per-dependency and per-model digest slots

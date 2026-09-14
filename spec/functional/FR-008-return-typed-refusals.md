@@ -40,8 +40,10 @@ relationships:
 
 ## Description
 
-When any public operation cannot return its declared success value, the library SHALL return one typed refusal envelope that this requirement owns.
-The library SHALL construct that envelope from exactly the five-member domain, the partial-output state and the local `unsupported-source-contract` disposition this requirement owns.
+When any public operation reaches a typed refusal, the library SHALL return one typed refusal envelope that this requirement owns.
+The library SHALL construct that envelope from exactly the seven-member domain,
+the closed Protocol stage and cause vocabularies, the partial-output state and
+the local `unsupported-source-contract` disposition this requirement owns.
 The library SHALL satisfy this requirement only by satisfying every one of FR-036 through FR-040, each of which states one atomic, independently verifiable obligation of that envelope.
 
 This requirement is the parent of the envelope. It owns the envelope, its domain,
@@ -51,18 +53,18 @@ atomically, and it weakens none of them.
 
 ## Inputs
 
-One admission, representation, compensation, conformance, claim, result-reader,
-or projection failure produced under an exact selected local contract, or one
+One resolution, admission, representation, compensation, conformance, claim,
+result-reader, projection or evidence-handoff refusal produced under an exact
+selected local contract, or one
 accepted typed upstream failure response with its declared source contract and
 diagnostic-catalog selection.
 
 ## Outputs
 
-One `ProtocolRefusal` with a domain from `admission`, `representation`,
-`assessment`, `result`, or `projection`; the stable source-owned code; affected
-identities and locations; selected diagnostic-catalog identity, revision, and
-digest; originating stage and prerequisites; ordered typed causes; an explicit
-partial-output state; and the refusal axis under which it was raised, which
+One `ProtocolRefusal` with a domain from `resolution`, `admission`,
+`representation`, `assessment`, `result`, `projection` or `evidence`; affected identities and locations;
+the exact originating stage and prerequisites; ordered typed causes; resource
+usage; an explicit partial-output state; and the refusal axis under which it was raised, which
 [FR-014](./FR-014-typed-outcome-identity.md) uses as an identity component.
 
 ## Behavior
@@ -74,7 +76,7 @@ decomposition, not an additional obligation:
 | --- | --- |
 | Every declared field is present on exactly one envelope per failing path, and the refusal axis is recorded so injectivity is observable | [FR-036](./FR-036-carry-complete-refusal-envelope.md) |
 | No code, stage, identity, location, equality or retry decision is derived from display text, and unavailable context stays explicitly unavailable | [FR-037](./FR-037-derive-no-refusal-fact-from-text.md) |
-| A code is validated against the exact selected catalog before interpretation; an unknown contract, selection or code is retained under local `unsupported-source-contract` uninterpreted; a changed catalog selection or an erased or replaced stage refuses | [FR-038](./FR-038-retain-unknown-source-contracts.md) |
+| Protocol causes use the closed local vocabulary; a known source response is retained under its exact selected contract without remapping; an unknown contract or code is retained under local `unsupported-source-contract` uninterpreted; an erased or replaced stage refuses | [FR-038](./FR-038-retain-unknown-source-contracts.md) |
 | Typed cause pairs stay structurally distinct, every independent cause and disposition is retained in the response's declared semantic order, and a zero diagnostic-detail budget erases nothing | [FR-039](./FR-039-preserve-typed-causes-distinctly.md) |
 | A fatal refusal emits no success value, and only FR-005-authorized independent assessment results survive another claim's failure | [FR-040](./FR-040-emit-no-success-beside-fatal-refusal.md) |
 
@@ -95,22 +97,45 @@ aggregation.
 
 | ID | Criteria | Verification |
 | --- | --- | --- |
-| FR-008-AC-1 | Every public failure path returns the correct typed domain, selected diagnostic-catalog identity/revision/digest, stable source code, originating stage and prerequisites, affected identity, available or explicitly unavailable location, ordered causes, and partial-output state; stated atomically by FR-036-AC-1, FR-036-AC-4 and FR-036-AC-5. | Test (TC-011) |
+| FR-008-AC-1 | Every public failure path returns the correct typed domain, actual originating stage and prerequisites, affected identity, available or explicitly unavailable location, ordered causes, resource usage, and partial-output state; a source cause additionally retains its selected source contract and stable source code; stated atomically by FR-036-AC-1, FR-036-AC-4 and FR-036-AC-5. | Test (TC-011) |
 | FR-008-AC-2 | Changing display text, locale, or cause rendering cannot change a refusal identity, code, equality comparison, or retry decision; stated atomically by FR-037-AC-1 and FR-037-AC-2. | Test (TC-011) |
-| FR-008-AC-3 | An unknown source revision, catalog selection, or code becomes local `unsupported-source-contract`, retains the original catalog and value uninterpreted, and cannot be interpreted through a nearest known version; stated atomically by FR-038-AC-2. | Test (TC-011) |
-| FR-008-AC-4 | Fatal admission, representation, result, and projection refusals emit no success value; only FR-005-authorized independent assessment results survive another claim's failure; stated atomically by FR-040-AC-1 and FR-040-AC-2. | Test (TC-011) |
-| FR-008-AC-5 | Missing/conflicting definitions, wrong-anchor/missing-observation, unknown-syntax/prohibited-construct, unproved-definedness/logical-violation, and resource-incomplete/unsupported cause pairs remain structurally distinct; stated atomically by FR-039-AC-1. | Test (TC-011) |
-| FR-008-AC-6 | Changing the selected diagnostic-catalog identity/revision/digest or erasing/replacing the originating stage refuses the response; stated atomically by FR-038-AC-3. | Test (TC-011) |
+| FR-008-AC-3 | An unknown source contract, revision, or code becomes local `unsupported-source-contract`, retains the original contract and value uninterpreted, and cannot be interpreted through a nearest known version; stated atomically by FR-038-AC-2. | Test (TC-011) |
+| FR-008-AC-4 | Fatal resolution, admission, representation, whole-assessment, result, projection and evidence refusals emit no success value; only FR-005-authorized independent claim outcomes survive a claim-local construction refusal; stated atomically by FR-040-AC-1 and FR-040-AC-2. | Test (TC-011) |
+| FR-008-AC-5 | Missing/conflicting definitions, wrong-anchor/missing-observation, unproved-definedness/logical-violation, identity-mismatch/incomplete-evidence, and unsupported-capability/projection-finding-loss cause pairs remain structurally distinct; stated atomically by FR-039-AC-1. | Test (TC-011) |
+| FR-008-AC-6 | Changing the selected source-contract identity/revision or erasing/replacing the originating stage refuses the response; stated atomically by FR-038-AC-3. | Test (TC-011) |
 | FR-008-AC-7 | Unavailable source context remains explicit and cannot become an invented location through repeated display names, paths, or message text; stated atomically by FR-037-AC-3 and FR-037-AC-5. | Test (TC-011) |
 | FR-008-AC-8 | Simultaneous independent invalid and missing-input dispositions both remain represented under a zero-detail control and cannot produce overall success; stated atomically by FR-039-AC-3. | Test (TC-011) |
 | FR-008-AC-9 | Every obligation in the Behavior table is carried by exactly one child requirement, every child carries a `part_of` edge to this requirement and this requirement a `contains` edge back, and no obligation listed in FR-008-AC-1 through FR-008-AC-8 is absent from the children's criteria. | Inspection |
 
-## Adopted vocabulary
+## Owned and adopted vocabulary
 
-The refusal **envelope** is B's, and this requirement owns it: the five-member
-domain, the partial-output state, the local `unsupported-source-contract`
-disposition, and the rule that two distinct refusal axes never share one typed
-identity. That distinctness rule is *typed* by
+The refusal **envelope** is Protocol-owned: the seven-member domain, partial-
+output state, local stages and causes, `unsupported-source-contract`
+disposition, and rule that two distinct refusal axes never share one typed
+identity. The local `ProtocolStage` members are exactly `contract-resolution`,
+`admission`, `representation`, `compensation`, `conformance`, `claim-dispatch`,
+`result-assembly`, `result-read`, `projection`, and `evidence-handoff`. The local
+`ProtocolCause` members are exactly `missing-definition`,
+`conflicting-definition`, `wrong-anchor`, `missing-observation`,
+`unproved-definedness`, `logical-violation`, `identity-mismatch`,
+`incomplete-evidence`, `unsupported-capability`, and
+`projection-finding-loss`. Payload fields are typed per member; a generic text
+payload cannot stand in for one. This closed vocabulary is versioned as
+`quire.protocol/refusal/1` and is not an interpretation of an upstream catalog.
+
+The domain/stage map is closed and checked: `contract-resolution` maps to
+`resolution`; `admission` to `admission`; `representation` to
+`representation`; `compensation`, `conformance` and `claim-dispatch` to
+`assessment`; `result-assembly` and `result-read` to `result`; `projection` to
+`projection`; and `evidence-handoff` to `evidence`. No other pairing is valid.
+
+Resource exhaustion is not a refusal and therefore is not a `ProtocolCause`.
+Before a canonical claim row can exist it returns the independently typed
+`ResourceIncomplete` operation outcome from NFR-002; after a claim is admitted
+it is FR-241's canonical `resource-incomplete` disposition. Neither is wrapped
+or relabelled as `ProtocolRefusal`.
+
+That distinctness rule is *typed* by
 [FR-014](./FR-014-typed-outcome-identity.md) — identity kind *value*, authority
 *consumer*, key (`integration`, `refusal_axis`, `outcome_kind`) — and FR-014
 records why the key cannot be its own oracle: `refusal_axis` is a key component,
@@ -118,54 +143,20 @@ so distinctness by key could never fail. Injectivity is therefore checked over
 the producer-supplied interior the envelope carries, which the children oblige it
 to retain.
 
-The envelope's **interior** is upstream's:
+An imported **source cause** remains upstream's:
 
 | Interior field | Upstream object |
 | --- | --- |
-| Diagnostic catalog identity/revision/digest | `FR-270-versioned-diagnostic-catalog` |
-| Diagnostic code | `FR-271-diagnostic-code-vocabulary` |
-| Typed cause | `FR-272-typed-diagnostic-cause` |
-| Originating stage | `FR-273-producer-stage` |
-| Location kind | `FR-274-diagnostic-location-kind` |
+| Source-contract identity and revision | Exact FR-009 resolved capability |
+| Stable source code and typed payload | Selected source contract |
+| Source stage and locus, when supplied | Selected source contract |
 
-### Where the upstream vocabulary does not yet reach
-
-**The catalog itself is not adopted.** `FR-270-versioned-diagnostic-catalog`
-records that "The only catalog so far offered is the **proposed** native
-diagnostic interpretation … which states of itself: '**Proposed, not adopted or
-implemented.**' It is source material here, not an adopted selection." Every
-criterion below that selects a catalog identity, revision or digest therefore
-selects something no adopted artifact supplies. This is a version-lock entry in
-FR-009's terms, and it is `unresolved`. Every child inherits that gate and states
-it: FR-036-AC-6 and FR-038-AC-6 report the dependent scenarios unexecutable
-rather than passing or failing, and `spec.md` section 16 records that this
-reference names no adopted artifact yet.
-
-Four of the five interiors carry further open gaps that bear directly on this
-requirement's criteria:
-
-- **FR-271** records that "no requirement states which convention belongs to
-  which namespace", and places no literal code in a selected catalog.
-- **FR-272** records that the catalog "does not give those payload components
-  stable field names, a total order, or a spelling convention of their own", and
-  supplies none. FR-039 therefore retains the response's own declared semantic
-  order and establishes none.
-- **FR-273** records a contradiction rather than an absence: "Two sources
-  enumerate the same axis and do not agree on its members" — FR-047 names six
-  producer stages, the proposed catalog names eleven, and upstream quotes both
-  verbatim and prefers neither. FR-008-AC-1 requires the originating stage, and
-  FR-008-AC-6 requires erasing or replacing it to refuse; both rest on an axis
-  whose membership is contested upstream. FR-038 states the gap and its owner and
-  supplies no local member list.
-- **FR-274** records that it "states no discriminator tag, identifier spelling or
-  serialized form for the kinds themselves", and establishes no key or order for
-  a JSON field/index path or a runtime object/value path. FR-008-AC-7 requires
-  unavailable source context to stay explicit and never become an invented
-  location; the kinds it would discriminate have no serialized form upstream, so
-  FR-037 states its criteria over presence versus explicit absence only.
-
-These are cited as gaps, not resolved here. Selecting a member list locally would
-author a producer diagnostic vocabulary, which this repository does not own.
+Protocol never merges the local stage axis with a producer stage axis. A known
+source contract is matched exhaustively through its typed Rust API. If that API
+does not publish a field, Protocol records it unavailable; it does not borrow a
+member or spelling from proposed FR-270 through FR-274 material. An adapter may
+use a future accepted versioned diagnostic catalog, but the base envelope and
+local refusal paths do not require that catalog and are executable without it.
 
 ## Dependencies
 
@@ -177,6 +168,7 @@ author a producer diagnostic vocabulary, which this repository does not own.
   the injectivity criterion.
 - [FR-009](./FR-009-lock-external-producer-revisions.md) owns the version-lock
   entry that gates the catalog selection.
-- `ix://agent-ix/quire-specification/FR-047` owns the native typed-cause and
-  diagnostic-catalog semantics.
+- `ix://agent-ix/quire-specification/FR-047` and FR-270 through FR-274 are
+  informative for source-owner diagnostic contracts; they do not own the local
+  Protocol vocabulary or block local envelope execution.
 - Each selected upstream contract owns its stable domain-specific refusal codes.

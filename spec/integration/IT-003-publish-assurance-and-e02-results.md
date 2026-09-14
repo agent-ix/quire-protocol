@@ -51,23 +51,18 @@ handoff (NFR-005), never where it is kept afterwards or whether it suffices.
 
 ## Preconditions
 
-Every external producer consumed by this integration resolves through the FR-009
-version-lock manifest before any request is submitted. The A-owned version 2
-compiled-protocol entry is explicitly unresolved: implemented and under final
-integration, not yet published to a remote, so it cannot be pinned. A canonical
-result derived from a version 2 admission is therefore out of scope here; SC-01
-through SC-09 run on version 1-derived canonical results only, and no scenario may be
-reported as executed by substituting one contract version for the other.
+Every external contract consumed by this integration resolves through the
+FR-009 version-lock manifest before any request is submitted. QSL `/1` and `/2`
+are both pinned at `f1700a9`; neither may substitute for the other.
 
-This integration requires four external acceptances. **None holds today**, so
-every scenario below is unexecutable and the entries are `unresolved`:
+Engineering Assurance's typed boundary is delivered. Two cross-repository
+acceptances remain unresolved, so scenarios requiring either are unexecutable:
 
 | Required acceptance | Actual state |
 | --- | --- |
-| Engineering Assurance #34 publishes an accepted Rust request/result interface | `producer_execution` is merged on `origin/main` but `publish = false`; no release contains it, and the cited acceptance revision is unreachable after its PR was squashed |
-| The exact E02 revision is accepted | `quire-verification` has zero tags and zero releases; its own interface decision declares the E02 interfaces provisional across repositories, and the code sits on a branch |
-| Quoin's evidence interface is pinned | Quoin exposes no Rust-callable boundary — it is TypeScript with no `Cargo.toml` |
-| The Quoin containment contract `agent-ix/quire-research#62` is accepted | Open, with every acceptance box unchecked |
+| Engineering Assurance #34 publishes an accepted Rust request/result interface | Delivered by PR 46, merge `d9d30232f9a5314d664d87a86346294325831c62`; exact Git pinning is valid despite `publish = false` |
+| The exact E02 revision is accepted | `quire-verification/e02-draft-2` is implemented on qverify main, but `docs/interface-decision.md` still calls the cross-repository interface provisional; the owner must reconcile that contradiction |
+| Quoin Protocol scenario-record intake is accepted | Quoin is a Rust workspace with an evidence store, but its existing experiment and operational record operations do not accept FR-017; a typed intake operation is missing |
 
 Stating these as satisfied preconditions would make the integration look ready
 when it is not. They are gates, and FR-009's entry-status table is their record.
@@ -146,27 +141,24 @@ claims nothing.
 
 - Priority: P0
 - Target Integration: protocol library, Engineering Assurance, E02, and Quoin
-- Automation: Automated after Engineering Assurance issue 34 is accepted
+- Automation: Automated after qverify accepts its E02 boundary and Quoin accepts the Protocol scenario-record intake
 
 ## Dependencies
 
-Engineering Assurance issue 34, quire-verification FR-007/E02, Quoin evidence,
-and `agent-ix/quire-research#62` containment interfaces must be accepted at exact
-revisions. A's compiled-protocol contract is a fifth gate: this integration
-consumes canonical results derived from an admitted package, so an unresolved A
-entry leaves those scenarios unexecutable regardless of the other four. FR-009's
-gate order and entry-status table are normative for all five.
+Engineering Assurance `producer_execution` is delivered and must be pinned at
+its exact accepted revision. qverify FR-007/E02 acceptance and the Quoin Protocol
+scenario-record intake must be accepted at exact revisions. QSL `/1` and `/2`
+are already pinnable; FR-009's gate order and entry-status table are normative.
 
 ## Notes
 
-The absent Engineering Assurance producer blocks execution but does not authorize
-a repository-local substitute.
+The unresolved qverify acceptance and absent Quoin scenario intake do not
+authorize a repository-local reader, runner or evidence store.
 
 This integration is the last in the chain and depends on IT-001 and IT-002
-completing. It therefore inherits their unresolved entries: until the version 2
-contract is published and pinned, no scenario here may claim coverage of a
-version 2-derived canonical result. Closing IT-003 establishes no PT02 result, no F
-observation adequacy, no replay agreement and no campaign completion.
+completing. It therefore inherits their unresolved entries. Closing IT-003
+establishes no QObs observation adequacy, QCI native/TL agreement, evidence
+sufficiency or campaign completion.
 
 ## Traceability
 

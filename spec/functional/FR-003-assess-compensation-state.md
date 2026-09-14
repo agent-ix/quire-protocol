@@ -48,18 +48,23 @@ relationships:
 
 When protocol observations establish activation, effect, commit, retry or recovery facts, the evaluator SHALL derive compensation state only through the atomic requirements FR-019 through FR-025 that together discharge source requirements FR-055 through FR-058.
 When any part of compensation state is derived, the evaluator SHALL invoke no business operation and no compensating operation.
-When any single atomic requirement FR-019 through FR-025 is unsatisfied, the evaluator SHALL report compensation state as unavailable rather than as an aggregate success.
+When any atomic requirement FR-019 through FR-025 does not produce its positive fact, the evaluator SHALL preserve that requirement's exact outcome: missing admitted evidence is pending/unavailable, invalid or contradictory identity is a typed refusal, an unimplemented admitted relation is unsupported, budget exhaustion is resource-incomplete, and an established protocol breach is a violation.
+The evaluator SHALL NOT collapse those outcomes into aggregate success or one generic unavailable state.
 
 ## Inputs
 
-A linked protocol, exact trigger and effect observations, immutable captures and
-evaluation anchors, authored retry/commit/recovery relations, and exact
-progress/population/completeness authorities.
+A constructor-private version-2 linked protocol and its validated runtime
+bindings; exact trigger and effect observations; immutable captures and
+evaluation anchors; authored retry/commit/recovery relations; and exact
+progress/population/completeness authorities. Production callers SHALL NOT
+construct compensation definition, workflow, role, attempt or effect identities
+independently of the linked graph and imported FR-287 values.
 
 ## Outputs
 
-Typed activation, registration, attempt, effect, commit, and recovery facts with
-violations, pending dependencies, or refusals.
+Typed activation, registration, attempt, effect, commit and recovery facts with
+exact violations, pending/unavailable dependencies, unsupported dispositions,
+resource-incomplete outcomes or refusals.
 
 ## Behavior
 
@@ -83,6 +88,12 @@ send, receive, delivery, attempt or operation invocation establishes neither a
 successful business effect nor a recovery relation. That separation is the reason
 the parts are separate requirements rather than one.
 
+The evaluator SHALL compute every registry and ledger change into a private
+candidate and commit it only after the complete request succeeds. Exact replay
+is idempotent. A foreign identity, conflicting replay, exceeded retry,
+unsupported construct or resource-incomplete outcome SHALL leave all prior
+state unchanged.
+
 ## Acceptance Criteria
 
 | ID | Criteria | Verification |
@@ -93,7 +104,7 @@ the parts are separate requirements rather than one.
 | FR-003-AC-4 | The attempt, effect and outcome facts of [FR-023](./FR-023-preserve-attempt-and-effect-distinctness.md) reach the aggregate result with their exact attempt, effect and registration identities intact and no fact collapsed into another. | Test (TC-003) |
 | FR-003-AC-5 | Recovery in the aggregate result is exactly what [FR-024](./FR-024-decide-recovery-only-by-authored-relation.md) decides, so a partial success alongside a full-restoration failure is reported as both, and no aggregate path reports recovery success the authored relation did not produce. | Test (TC-003) |
 | FR-003-AC-6 | A missing trigger, state, effect, commit, population, membership or completeness authority anywhere in the assessment leaves activation, registration and recovery without success: [FR-019](./FR-019-derive-obligation-activation-state.md)-AC-4, [FR-020](./FR-020-register-compensation-once-per-effect.md)-AC-4, [FR-022](./FR-022-enforce-finite-compensation-retry-bound.md)-AC-4 and [FR-024](./FR-024-decide-recovery-only-by-authored-relation.md)-AC-4 each hold, and the aggregate reports unavailable rather than composing a success from the parts that did hold. | Test (TC-003) |
-| FR-003-AC-7 | The purity boundary of [FR-025](./FR-025-assess-compensation-without-io.md) holds over the whole assessment: the implementation performs no network, storage, telemetry, business-operation or compensation-operation I/O while assessing compensation. | Test (TC-003, TC-009) |
+| FR-003-AC-7 | The purity boundary of [FR-025](./FR-025-assess-compensation-without-io.md) holds over the whole assessment: the implementation performs no network, storage, telemetry, business-operation or compensation-operation I/O while assessing compensation; production construction requires the linked graph/runtime bindings, and every refused or incomplete candidate leaves prior state unchanged. | Test (TC-003, TC-009) |
 
 ## Adopted vocabulary
 
@@ -117,39 +128,16 @@ shared mapping the decomposition was derived from, not as a second definition.
 replaying one effect identity cannot mint a second registration. The rule is
 adopted, not restated.
 
-### Where the upstream vocabulary does not yet reach
+### Accepted owner rulings and remaining gap
 
-Each gap is now recorded against the part that depends on it, which is where it
-blocks verification. The list is kept here as the aggregate view.
-
-- **Compensation attempt** — `FR-235-compensation-attempt` records under Open
-  gap that the prose establishes an attempt has an identity, is distinct from an
-  effect identity, and several things that cannot serve as it, and then that "It
-  does not establish:" its identity kind, its key components, or an order. Blocks
-  [FR-022](./FR-022-enforce-finite-compensation-retry-bound.md) and
-  [FR-023](./FR-023-preserve-attempt-and-effect-distinctness.md).
-- **Commit boundary** — `FR-237-commit-boundary`'s Open gap lists, verbatim:
-  "**Identity** — whether a commit boundary is a distinct identified subject or
-  only a position in the authored order"; "**Key** — which components identify
-  one commit boundary or one commit observation"; "**Order** — no key order
-  follows, since the components are unfixed." Blocks
-  [FR-021](./FR-021-distinguish-commit-ordering-violations.md).
-- **Recovery relation** — `FR-238-recovery-relation` records that the prose
-  establishes a recovery relation is authored, typed, per compensation and
-  evaluated under selected profiles, and then that "It does not establish:" the
-  components that identify one. Blocks
-  [FR-024](./FR-024-decide-recovery-only-by-authored-relation.md).
-- **Business effect duplication** — `FR-226-business-effect` states that its key
-  cannot detect a duplicate effect, which this requirement's partial-recovery
-  obligations depend on detecting. Blocks
-  [FR-020](./FR-020-register-compensation-once-per-effect.md),
-  [FR-023](./FR-023-preserve-attempt-and-effect-distinctness.md) and
-  [FR-024](./FR-024-decide-recovery-only-by-authored-relation.md).
-- **Activation axis contradiction** — `FR-231-obligation-activation-state`
-  records three requirements that do not agree on whether an unavailable required
-  trigger is an activation value or a completeness value, and states that the
-  selection belongs to an owner ruling. Blocks
-  [FR-019](./FR-019-derive-obligation-activation-state.md)-AC-1.
+QSpec #28/#31/#40 fixes the FR-235 attempt key, FR-237 forbidding-commit
+selection, FR-238 relation key, FR-233 registration key, distinct FR-287 effect
+identity and FR-231 activation rule. Those values are consumed exactly and are
+no longer blockers. FR-236 still leaves one real gap: its five outcome labels
+are not partitioned between per-attempt and aggregate recovery facts. Task-003
+may implement every independent compensation behavior, but SHALL return
+unsupported for a mapping that requires that partition until the owner accepts
+one; it SHALL NOT guess.
 
 ## Dependencies
 

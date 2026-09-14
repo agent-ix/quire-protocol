@@ -86,14 +86,16 @@ This is recorded because the opposite reading was reached independently during
 this campaign, and acting on it would have minted the tenth member -- repeating
 exactly the breach the correction above withdraws.
 
-## What remains genuinely open, and is upstream's to decide
+## Owner selections consumed by this repository
 
-`FR-259`, `FR-261` and `FR-263` each record that no requirement selects a domain
-member for the digests they carry. That is a real gap, and it licenses *asking*
-upstream which member applies — it does not license minting one. Raised on
-`quire-specification`; until it is answered, a digest whose domain is unselected
-is compared only against a digest of a selected domain, which is unequal, so the
-comparison refuses rather than guessing.
+Accepted QSpec #40 / PR #44 closes the earlier owner-side uncertainty. `FR-259`
+selects `raw-artifact-digest` for native source and bridge-definition bytes;
+`FR-261` selects it for binding-contract definition bytes; and `FR-263` selects
+it for Producer-interface, configuration and closure definition bytes while
+using `quire.verification.jcs` for derived population and membership-rule
+identities. Protocol retains those exact labels and does not broaden either
+selection. A future digest slot for which its owner has selected no member still
+compares only to absence and refuses when a comparison requires a domain.
 
 ## Identity and comparison
 
@@ -109,16 +111,14 @@ comparison refuses rather than guessing.
   defaulted to a member, and a comparison requiring a domain refuses.
 - **Digest domain** — the label is the domain; it is not itself digested.
 
-## Unreconciled divergence with the implementation enum
+## Implemented vocabulary
 
-`digest::producer::DigestDomain` names five members — `ProducerArtifactBytes`,
-`ProducerSource`, `ProducerModel`, `ProducerConfig`, `ProtocolResultJcs` — none
-spelled as `FR-201` publishes them, and the version 2 lane's test enum names four
-more. Neither conforms to the selection above.
-
-Reconciling them is implementation work this requirement does not perform and
-must not pre-empt by renaming either side here. What this requirement fixes is
-the specified vocabulary: it is upstream's, selected from, not minted.
+`digest::producer::DigestDomain` now has exactly the two selected variants
+`RawArtifact` and `VerificationJcs`, whose public spellings are
+`raw-artifact-digest` and `quire.verification.jcs`. The earlier five-member
+local vocabulary and the version-2 test mirror were removed. Task-006 carries
+these shared domain values through the final composed result path rather than
+introducing another enum.
 
 ## Acceptance Criteria
 

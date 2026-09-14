@@ -29,6 +29,7 @@ When a compensation operation or a compensation attempt succeeds, the evaluator 
 When a recovery relation aggregates related effects, the evaluator SHALL require the exact declared population scope, membership rule and completeness authority before reporting success.
 When a target state, achieved state, commit, compensation effect, population member, membership authority or completeness authority required by the relation is missing, the evaluator SHALL report incomplete or pending rather than recovery success.
 When an achieved state satisfies an authored partial-recovery relation, the evaluator SHALL report that satisfaction independently of whether full restoration holds.
+The evaluator SHALL accept no caller-provided recovery callback on a production path.
 
 ## Inputs
 
@@ -68,6 +69,11 @@ and attempts beyond the retry bound cannot produce recovery success", and
 `FR-057-AC-4` that "Missing state, commit or compensation-effect inputs yield
 incomplete/pending rather than recovery success".
 
+Production walks only the admitted QSL typed recovery expression under its exact
+resolved state/temporal contract. An unknown or out-of-profile expression is
+unsupported; source refusal and resource incompleteness remain their own
+outcomes. A panic-capable or effectful callback is not a production input.
+
 ## Acceptance Criteria
 
 | ID | Criteria | Verification |
@@ -77,36 +83,26 @@ incomplete/pending rather than recovery success".
 | FR-024-AC-3 | An aggregating recovery relation reports success only under a complete declared population with its exact membership rule, exact arithmetic over the captured amount, and applicable completeness authority. | Test (TC-003) |
 | FR-024-AC-4 | A missing target state, achieved state, commit, compensation effect, population member, membership authority or completeness authority yields incomplete or pending rather than recovery success. | Test (TC-003) |
 | FR-024-AC-5 | A successful compensating-operation invocation and a `successful` attempt outcome each produce no recovery success on their own. | Test (TC-003) |
+| FR-024-AC-6 | Production accepts no recovery callback; every supported relation is evaluated from its admitted typed QSL expression under the selected capability/accountant, and unsupported, source-refused and resource-incomplete outcomes are never coerced to Boolean recovery. | Test (TC-003, TC-009) |
 
 ## Adopted vocabulary
 
 | Noun | Upstream object | Identity kind |
 | --- | --- | --- |
-| Authored recovery relation | `FR-238-recovery-relation` | authored; key not established upstream |
+| Authored recovery relation | `FR-238-recovery-relation` | authored, keyed by qualified definition, compensation handle and typed recovery-expression handle |
 | Declared finite population | `FR-263-declared-population` | entity, retained per FR-112's identity set |
 | Declared membership rule | `FR-264-membership-rule` | value, keyed (rule identity, rule digest) |
 | Progress and late-data authority | `FR-268-progress-and-late-data-authority` | value |
 | Immutable activation capture | `FR-232-activation-capture` | value |
 
-### Where the upstream vocabulary does not yet reach
+### Accepted owner ruling
 
-- **Recovery relation key.** `FR-238`'s open gap states that the prose
-  establishes a recovery relation is authored, typed, per compensation and
-  evaluated under selected profiles, and then that "It does not establish:" the
-  key components that identify one, nor whether the selected state and temporal
-  profile identities participate. AC-2 varies the authored relation
-  without a key that says when two relations are the same relation. The owner is
-  `agent-ix/quire-specification`.
-- **Whether relation types are a closed set.** `FR-238` records that FR-057 names
-  a full-restoration relation and an authored partial-recovery relation inside
-  acceptance criteria, and that "No requirement states that these are a closed
-  set of relation types, so they are not enumerated here." AC-1 exercises those
-  two without asserting they are the only two.
-- **Duplicate effect inside an aggregating population.** `FR-226` states that
-  two duplicate effects compare equal under its declared key, so an aggregating
-  relation summing related effects cannot tell a duplicated effect from a second
-  member. AC-3's exact arithmetic rests on a member identity upstream has not
-  supplied.
+Quire Specification #28 fixes the relation key and distinct FR-287 effect keys.
+The relation type remains open by design: Protocol interprets only the admitted
+typed expression through the selected QSL state/temporal contracts and refuses
+an unsupported expression; it never maps an unknown relation to full or partial
+recovery. Aggregation uses the exact declared effect-key population, so replay
+and a distinct duplicate effect remain distinguishable.
 
 ## Dependencies
 

@@ -115,5 +115,6 @@ embedded assertion views; Contract IR is a downstream mapped-view consumer.
 
 ## Status
 
-Proposed complete result-owner implementation contract for
-`quire-protocol#8`, `quire-contract-ir#70`, and `tl-syntax#52`.
+Implemented by Protocol PR #51 and completed for downstream consumption by
+Protocol #54 / PR #55. QCI FR-025 and #71 consume the resulting borrowed views
+without making QCI an upstream Protocol dependency.

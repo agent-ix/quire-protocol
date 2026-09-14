@@ -68,24 +68,15 @@ policy.
 | Noun | Upstream object | Identity kind |
 | --- | --- | --- |
 | Compensation retry policy | `FR-239-compensation-retry-policy` | value, keyed (authored finite retry bound) |
-| Compensation attempt | `FR-235-compensation-attempt` | identity kind not established upstream |
+| Compensation attempt | `FR-235-compensation-attempt` | authored exact FR-287 `compensation-attempt` key |
 
-### Where the upstream vocabulary does not yet reach
+### Accepted owner ruling
 
-- **What counts against the bound.** `FR-239`'s open gap states that "no
-  requirement states whether a refused over-bound attempt is itself counted
-  against the bound, nor whether a repeated receipt of one attempt counts as one
-  attempt or as many. Neither is supplied here." AC-1 and AC-3 therefore exercise
-  the refusal and the retained set, and do not assert a count for the refused
-  attempt. The owner is `agent-ix/quire-specification`.
-- **Counting attempts requires an attempt key nobody owns.** `FR-235`'s open gap
-  records that the prose "does not establish:" the identity kind, the key
-  components, or an order for a compensation attempt, and records that FR-058
-  requires distinguishing "a repeated receipt, retried attempt and duplicate
-  business effect" without stating the components that separate them. AC-2's count is
-  therefore stated over a sequence of admitted attempts, not over a set of
-  identified ones, because no attempt key exists to deduplicate that set. This
-  requirement invents none.
+Quire Specification #28/#31 defines the attempt as an authored FR-287 key. The
+bound counts distinct admitted keys under one registration, including the
+initial attempt and every admitted outcome. Exact replay counts once. An
+over-bound candidate refuses before retention and leaves the prior count
+unchanged. Only the authored predecessor/successor relation orders retries.
 
 ## Dependencies
 
@@ -94,5 +85,5 @@ policy.
   registration the retry policy is bound to.
 - `ix://agent-ix/quire-specification/FR-058` establishes the bounded retry policy
   and the refusal rule.
-- `ix://agent-ix/quire-specification/FR-239` types the policy and records the
-  unresolved counting questions.
+- `ix://agent-ix/quire-specification/FR-239` types the policy and exact counting
+  rule.

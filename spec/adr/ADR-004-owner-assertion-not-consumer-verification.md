@@ -74,7 +74,7 @@ The boundary sits between an assertion and a verification, and each side of it
 carries exactly one thing:
 
 - **Asserted, not checked**: that the revision is immutable and published. The
-  entry records what B was told.
+  entry records what Protocol was told.
 - **Checked, not asserted**: that the bytes consumed are the bytes the entry
   names. Where an entry supplies bytes, the library recomputes the digest over
   the exact consumed bytes as delivered — no canonicalization, re-encoding or
@@ -94,7 +94,7 @@ repair a manifest entry, because an offer that supplies its own acceptance
 context authorizes itself. An owner-recorded assertion looks superficially like
 the same shape and is not, for two stated reasons.
 
-The assertion sits in a B-authored manifest that a producer cannot write. And it
+The assertion sits in a Protocol-authored manifest that a producer cannot write. And it
 is falsifiable independently: an entry whose digest does not match its bytes
 refuses regardless of what the assertion claims. The assertion cannot make wrong
 bytes acceptable. It can only make the right bytes attributable.
@@ -102,9 +102,9 @@ bytes acceptable. It can only make the right bytes attributable.
 ## Consequences
 
 **A lying or mistaken owner is not detected, and that is accepted.** An owner
-can record an assertion for a revision that was later rewritten. B will resolve
+can record an assertion for a revision that was later rewritten. Protocol will resolve
 the entry, verify the digest over whatever bytes it was handed, and proceed.
-What B then holds is bytes it can attribute to a claim someone made — not proof
+What Protocol then holds is bytes it can attribute to a claim someone made — not proof
 that the claim was true. This is a genuine reduction in assurance relative to
 the requirement that was reverted, and it is the price of staying pure. The
 mitigation is not technical: the assertion is a named party's recorded statement,
@@ -124,14 +124,12 @@ an artifact carries a revision and no digest. For those entries — Engineering
 Assurance, E02, Quoin — the owner's assertion is the only thing standing behind
 the pin. Nothing local falsifies it.
 
-**Every entry is currently `unresolved`, so the assertion path has never been
-exercised.** FR-009's status table names all eight entries and why each cannot
-be pinned. The gate order makes stage 1 — the B-owned manifest schema, the
-two-status model, digest recomputation, per-key refusal, entry independence,
-sidecar non-authority, and the resolution budget — the only stage B owns; stages
-2 through 5 wait on seven external gates. FR-009 also records that no manifest
-artifact exists in the tree today. This ADR records where the boundary sits, not
-that anything has crossed it.
+**Entry status is per contract.** FR-009's architecture-baseline table records
+the QSL and Engineering Assurance contracts as pinnable, the current QObs build
+entry as stale, and the qverify/Quoin entries as unresolved. Stage 1 — the
+Protocol-owned schema, two-status model, digest recomputation, per-key refusal,
+entry independence, sidecar non-authority and resolution budget — is unblocked.
+No resolver artifact exists in the tree yet.
 
 ## Alternatives considered
 
@@ -146,13 +144,10 @@ every other boundary auditable in one sentence.
 result.** Rejected for now, and this is the alternative that stays live. It
 would keep the check outside this boundary while still producing a verified
 rather than asserted answer, and it is the natural home given that EA already
-owns producer invocation. It was not adopted because EA's producer-execution
-seam is itself `unresolved` under FR-009 — SR-047 FND-002 verified that
-`producer_execution` is merged on `origin/main` but `publish = false`, that no
-tag or release contains it, and that the cited acceptance revision is not
-reachable after its PR was squashed. Designing against an interface in that
-state would have replaced a stated gap with a hidden one. Revisit when EA#34
-publishes.
+owns producer invocation. It remains optional because accepted EA
+`producer_execution` owns execution, not repository-governance truth.
+`publish = false` does not prevent pinning an exact Git revision, but no current
+requirement asks EA to attest VCS reachability.
 
 **Drop immutability from the entry and rely on the digest alone.** Rejected. The
 digest establishes that bytes are the bytes; it establishes nothing about *which

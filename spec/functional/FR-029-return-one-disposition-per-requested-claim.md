@@ -19,6 +19,8 @@ relationships:
     type: references
   - target: ix://agent-ix/quire-specification/FR-283
     type: references
+  - target: ix://agent-ix/quire-specification/FR-290
+    type: depends_on
 ---
 # FR-029: Return one disposition per requested claim
 
@@ -58,7 +60,7 @@ assumptions establish neither realizability nor composition.
 | FR-029-AC-3 | Unknown or unimplemented advanced claims return unsupported with exact premises and cannot erase a supported result. | Test (TC-005) |
 | FR-029-AC-4 | A selected backend failure returns failed for only that claim and leaves every other requested claim's disposition unchanged. | Test (TC-005) |
 | FR-029-AC-5 | Requesting n claims returns exactly n dispositions, one per exact requested claim, with no claim answered twice and none answered by another claim's result. | Test (TC-005) |
-| FR-029-AC-6 | No claim strength is promoted to another, and two claims of different strength remain distinct. | Analysis |
+| FR-029-AC-6 | No claim strength is promoted to another, and two claims of different strength remain distinct. | Test (TC-005) |
 
 ## Adopted vocabulary
 
@@ -74,6 +76,7 @@ total and injective.
 | Claim strength | `FR-281-claim-strength` | value |
 | Decision-support dependence relation | `FR-282-dependence-relation` | value |
 | Projection refusal code | `FR-283-projection-refusal-code` | value |
+| Protocol claim kind | `FR-290-protocol-claim-kind` | value |
 
 `FR-241` supplies the two members this requirement's criteria name literally.
 Its `unsupported` member states that "One unsupported request does not remove an
@@ -88,26 +91,16 @@ not be inferred, and FR-282 records FR-061's exclusion that a strict reader
 Independence between two claim dispositions is asserted by this requirement over
 the dispatcher's behaviour, never read off two dispositions' spellings.
 
-### Where the upstream vocabulary does not yet reach
+### Acceptance state of adopted vocabularies
 
-- **The claim kinds are not typed.** FR-005 and upstream `FR-060` both name
-  global conformance, monitorability, local projection, refinement,
-  realizability and composition in prose, and no `FR-2NN` object enumerates
-  them: the protocol object set types claim *strength* (`FR-281`) and no claim
-  *kind*. FR-029-AC-5 counts dispositions per exact requested claim, so it needs
-  an equality over claim kinds that no upstream artifact supplies. The owner is
-  `agent-ix/quire-specification`. This requirement names the gap and enumerates
-  no kind locally, because a locally authored claim-kind vocabulary is precisely
-  the second profile `FR-001` exists to refuse.
-- **Claim strength may or may not be single-valued.** `FR-281`'s open gap:
-  "FR-061 is the only requirement that names these four values. No requirement
-  states whether the set is closed, whether a claim may carry more than one
-  strength, or what relation (if any) holds between them." FR-029-AC-6 forbids
-  promotion between strengths and asserts nothing about cardinality.
-- **A projection refusal's code is contested upstream.** `FR-283`'s open gap
-  opens: "**Which code a recomputed-digest mismatch receives is unresolved.**"
-  FR-029-AC-1 requires an independent projection refusal and does not select the
-  code it carries; `FR-030` records both assignments in full.
+Current Quire Specification defines the six exact claim kinds in FR-290 and the
+single-valued four-member strength in FR-281. Both are proposed QS #1 rulings,
+so Protocol's existing enums remain implementation candidates and cannot be
+promoted as independently authoritative contracts. Task-005 consumes the
+accepted owner types when QS #1 promotes them and otherwise reports the affected
+advanced-claim scenarios unexecutable. FR-283 has already resolved source
+digest mismatch to `invalid-source-result` and derived/target identity mismatch
+to `identity-mismatch`.
 
 ## Dependencies
 

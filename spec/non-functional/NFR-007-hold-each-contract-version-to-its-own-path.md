@@ -23,7 +23,8 @@ relationships:
 
 ## Statement
 
-The library SHALL expose each published producer contract version through its own version-explicit entry point and no shared one.
+The library SHALL expose each published producer contract version through its own version-explicit integration entry point and no shared integration entry point.
+The library SHALL retain the already-published root `admit_and_link` signature as a `/1`-only non-integration compatibility facade.
 The library SHALL refuse bytes of any contract version other than the one an entry point names, without detecting, upgrading or downgrading them.
 The library SHALL leave every already-published version-explicit path's public signature, admitted identities and per-axis refusal set unchanged when a later version's path is added.
 The library SHALL discriminate on a later version's path every selection axis an earlier version's path discriminates.
@@ -31,11 +32,14 @@ The library SHALL discriminate on a later version's path every selection axis an
 ## Scope
 
 Applies to the compiled-protocol contract versions this repository consumes
-through its public Rust boundary: the version 1 path `admit_and_link`, which exists,
-and the version 2 path named `admit_and_link_v2` in
-[IT-001](../integration/IT-001-consume-native-protocol-artifact.md) SC-06, which
-does not. Applies to the public surface of each path — its signature, its
-admitted identity set, and the set of typed refusals it can return.
+through its public Rust boundary: target integration paths
+`intake::v1::admit`/`model::v1::link_static` and
+`intake::v2::admit`/`model::v2::link`, plus the already-published root
+`admit_and_link` `/1` compatibility facade. Normal integration paths require the
+exact FR-009 capability. The legacy facade has no capability parameter, consumes
+no external value beyond its `/1` package/selection, and cannot enter the full
+assessment pipeline. Applies to each path's signature, admitted identity set and
+typed refusal set.
 
 Does not apply to:
 
@@ -136,7 +140,7 @@ mutation cannot be run today is recorded as unexecutable, not as passing.
 
 | ID | Criteria | Verification |
 | --- | --- | --- |
-| NFR-007-AC-1 | Each published contract version is reachable only through an entry point that names that version, and introducing an entry point serving two versions, or re-exporting one version's reader under a version-neutral name, is refused and names the offending item. | Inspection |
+| NFR-007-AC-1 | Each published contract version is reachable through only its own version-explicit integration path; the sole version-neutral root item is the frozen `/1`-only compatibility facade, and introducing another shared/version-neutral path or allowing that facade to serve `/2` is refused and names the offending item. | Inspection |
 | NFR-007-AC-2 | No path selects a contract version from the offered bytes; introducing a dispatcher that reads a media type, schema label or version field out of the offer and chooses a reader from it is refused, and the refusal names that dispatcher. | Inspection |
 | NFR-007-AC-3 | Bytes of one published contract version submitted at another version's entry point return a typed refusal before a linked package is exposed, in both ordered directions, with no upgrade and no downgrade; a reader that admits the other version's bytes fails the criterion for that direction independently of the other. | Test (IT-001) |
 | NFR-007-AC-4 | The two cross-version refusals carry typed outcome identities distinct from each other and from every other refusal axis of the integration; two directions returning one shared code and cause fail this criterion, and the failure is reported against the pair rather than absorbed as a passing row. Identity and injectivity remain [FR-014](../functional/FR-014-typed-outcome-identity.md)'s. | Test (IT-001) |
@@ -159,29 +163,17 @@ mutation cannot be run today is recorded as unexecutable, not as passing.
   scenarios can run at all.
 - **Verified by**: [IT-001](../integration/IT-001-consume-native-protocol-artifact.md)
   SC-06 and SC-06a, and SC-01 through SC-05 as the regression baseline SC-06a
-  re-runs. IT-001 does not yet declare this requirement in its Traceability or
-  its relationships; that is an outstanding back-edge, not evidence.
+  re-runs. IT-001 declares this requirement and FR-009 in its relationships.
 - **Boundary**: [NFR-004](./NFR-004-define-local-verification-gate.md) owns
   configuration lanes, which a contract version is not.
-- **Downstream**: [TM-001](../tests.md) does not yet carry a row for this
-  requirement.
+- **Downstream**: [TM-001](../tests.md) carries this requirement and its current
+  implementation status.
 
 ## Status
 
-Draft, and unexecutable in the part that matters. Nothing here asserts that version 2
-admission works.
-
-- AC-1 and AC-2 are static facts over B's own public surface and are checkable
-  now, but they are nearly vacuous today: the crate exports one contract-version
-  path, `admit_and_link`, and `admit_and_link_v2` does not exist in `src/`.
-- AC-3, AC-4 and AC-7 depend on IT-001 SC-06, which IT-001 Notes records as
-  unexecuted: the version 2 reader is implemented and under final integration but published
-  to no remote, FR-009 reports the A version 2 entry `unresolved`, and B pins no
-  intermediate commit.
-- AC-5 and AC-6 are doubly blocked. They compare the revision that adds the
-  later path against the revision before it, and neither revision exists: B has
-  no version 2 path to add, and no version 2 revision of A to build one against. They are
-  stated now so that the comparison is an obligation before the change rather
-  than a request after it.
-- AC-8 is the honest denominator: every scenario the paragraphs above name is
-  currently counted as zero.
+In progress. QSL `/1` and `/2` are both pinned at `f1700a9`; the default `/2`
+handoff executes both cross-version directions and every inherited selection
+axis. Task-009 still owes the complete two-revision SC-06a `/1` comparison.
+Task-002 introduces the versioned integration modules, removes the transitional
+root `/2` facade, and preserves the root `/1` facade under the explicit
+compatibility exception above.

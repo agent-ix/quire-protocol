@@ -42,11 +42,11 @@ and the two must not be conflated.
 | What it is | A *transport observation*: one delivery of one message on one channel, counted against that send's delivery cardinality. | A *consumer record*: this repository's index of the files one producer shipped at one pinned revision. |
 | Whose subject | The producer's protocol subject. | The consumer's relationship to a producer's shipment. |
 | Who authors it | Upstream, from an observed transport record. | This repository, at pin time. |
-| Identity | Not established upstream; FR-224 records the absence of a key and of a total order as an **open gap** and supplies neither. | Consumer-authored, keyed below. |
+| Identity | Producer-authored FR-287 key of kind `delivery`; FR-224 gives it canonical comparison order and no causal order. | Consumer-authored, keyed below. |
 | Cardinality | Many per send. | One per pinned delivery root. |
 
-Nothing in this artifact supplies, repairs, or stands in for FR-224's missing key
-or order, and no member of this index is a transport observation. The shared word
+Nothing in this artifact supplies, repairs, or stands in for FR-224's key, and
+no member of this index is a transport observation. The shared word
 "delivery" is the only thing the two have in common.
 
 ## Properties
@@ -70,14 +70,14 @@ emitted by the producer.
   `declaration` and a path. The temporal semantics themselves are
   `ix://agent-ix/quire-specification`'s and are referenced, never restated here.
 - **limits** (state) — one entry per resource limit the exactly-sufficient probe
-  of [FR-016](./FR-016-resource-budget-dimension.md) is to be run at, naming the
-  limit and its exact bound. The limit name is carried as an opaque string and is
-  not resolved against any vocabulary here: an entry may name a dimension this
-  repository grants (`FR-016`) or one the producer reports
-  (`protocol_artifact::work::Dimension`), and the index does not decide which.
-  An earlier revision called these "producer-declared" limits, which was wrong in
-  both directions — `FR-016`'s dimensions are caller-supplied, and the producer's
-  are not declared in this index.
+  of [FR-016](./FR-016-resource-budget-dimension.md) is to be run at, carrying
+  an exact typed dimension and bound. The dimension is either
+  `Protocol(FR-016 member)` or
+  `CompiledProtocol(protocol_artifact::work::Dimension member)`; the two owner
+  vocabularies never share a key or substitute for one another. An earlier
+  revision called these "producer-declared" limits and then reduced both
+  vocabularies to opaque strings. Both were wrong: the grant is caller-supplied,
+  and its typed dimension retains the accountant that owns it.
 - **mutations** (state) — one entry per producer-supplied mutation fixture,
   naming the fixture, the scenario it belongs to, and its path. A scenario with
   more than one registered mutation fixture is ambiguous and is reported, not
@@ -166,7 +166,7 @@ supplies no upstream key of its own.
   an outcome.
 - **Digest domain** — the index carries no digest of its own and synthesizes
   none. Where a digest is computed over an indexed member's bytes, its domain is
-  selected under [FR-015](./FR-015-digest-domain-membership.md), and a digest from
+  selected under [FR-015](./FR-015-digest-domain-selection.md), and a digest from
   one domain is unequal to one from another over identical bytes. A digest an
   index carried would still not satisfy a version-lock entry's recorded digest,
   which `FR-009` recomputes over the exact delivered bytes.
@@ -182,7 +182,7 @@ or names the owner that has not:
 | `temporal.bindings` | `declaration` | Ascending `declaration` | The producer's version 2 wire contract, quoted above. |
 | `inputs` | `role` | Not required; the roles are a fixed closed set and the collection admits no duplicate role. | This repository. |
 | `mutations` | `scenario` | Not required; at most one fixture per scenario, and a second is reported as ambiguous. | This repository. |
-| `limits` | **Not declared.** | **Not declared.** | The producer. No requirement and no loader check states whether two entries may name one limit, nor any order over them. This artifact records the unsettled question and supplies neither. |
+| `limits` | (`accountant owner/contract version`, exact typed dimension member) | Lexicographic owner/contract key, then the owning vocabulary's declared member order; comparison only. Duplicate keys refuse. | This repository defines the tagged union and ordering; each owner retains its own dimension members. |
 
 ## Acceptance Criteria
 
@@ -196,7 +196,7 @@ or names the owner that has not:
 | FR-018-AC-6 | An unindexed input role and an unreadable indexed file are distinct outcomes, and neither is collapsed into the other. | Test (TC-013) |
 | FR-018-AC-7 | Two indices whose delivery root and producer revision are equal compare equal regardless of offer, inputs, temporal records, limits or mutations, and two differing in either key component compare unequal regardless of identical remaining state. | Analysis |
 | FR-018-AC-8 | The indexed offer bytes are carried through untouched and are byte-equal to the bytes submitted, and no indexed producer input is recanonicalized. | Test (TC-013) |
-| FR-018-AC-9 | No unique key or total order is declared here over `limits`, and the owner of that unsettled question is named rather than supplied. | Inspection |
+| FR-018-AC-9 | Limit entries are keyed by accountant owner/contract version plus exact typed dimension; duplicate keys refuse, canonical ordering is deterministic and non-causal, and Protocol and compiled-protocol dimensions never substitute despite similar names. | Test (TC-013) |
 
 ## Dependencies
 
@@ -207,15 +207,15 @@ or names the owner that has not:
   key this index does not carry and must not supply.
 - [FR-011](./FR-011-consumer-identity-discipline.md) supplies the kind and
   authority axes and the ordering obligation applied above.
-- [FR-015](./FR-015-digest-domain-membership.md) selects the domain of any digest
+- [FR-015](./FR-015-digest-domain-selection.md) selects the domain of any digest
   computed over an indexed member's bytes.
 - [FR-016](./FR-016-resource-budget-dimension.md) consumes the indexed limit
   bounds as the exact values its probe is run at.
 - [FR-001](./FR-001-admit-selected-protocol-profile.md) admits the offered bytes
   this index points at.
 - `ix://agent-ix/quire-specification/FR-224` is the upstream transport-observation
-  entity this artifact is explicitly not, and whose open gap this artifact does
-  not close.
+  entity this artifact is explicitly not; its accepted FR-287 key remains
+  producer authority and is not reused by this consumer index.
 - `ix://agent-ix/quire-specification/FR-252` types the upstream clock binding
   whose key carries no declaration component.
 

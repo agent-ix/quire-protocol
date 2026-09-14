@@ -2,8 +2,8 @@
 id: Task-005
 title: "Dispatch independent protocol claims"
 type: Task
-status: blocked
-track: A
+status: in_progress
+track: Core
 priority: P0
 relationships:
   - { target: ix://agent-ix/quire-protocol/Task-004, type: depends_on }
@@ -17,6 +17,10 @@ relationships:
 Implement total per-claim dispatch for the selected finite slice while preserving
 unsupported, failed, and independently established outcomes without fallback promotion.
 
+The closed disposition and premise kernels already exist. This task makes the
+conformance report their required production input and removes the arbitrary
+caller backend callback from the supported path.
+
 ## Subtasks
 
 - [ ] Write TC-005 controls for every supported and unsupported claim combination first.
@@ -26,7 +30,9 @@ unsupported, failed, and independently established outcomes without fallback pro
   assumptions, communication/visibility/environment premises, source identities,
   and derived-artifact correspondence.
 - [ ] Preserve finite conformance when another requested claim is unsupported or fails.
-- [ ] Verify no local heuristic or alternate backend converts a missing capability into success.
+- [ ] Seal backend dispatch to accepted local implementations and verify no
+  local heuristic, caller callback or alternate backend converts a missing
+  capability into success.
 
 ## Deliverables
 

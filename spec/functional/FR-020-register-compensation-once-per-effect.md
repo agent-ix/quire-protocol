@@ -75,21 +75,13 @@ lifecycle labels of its own.
 | Compensation obligation lifecycle | `FR-234-compensation-obligation-lifecycle` | value |
 | Business effect | `FR-226-business-effect` | derived, keyed (static declaration path, workflow instance identity, iteration identity) |
 
-### Where the upstream vocabulary does not yet reach
+### Accepted owner ruling
 
-- **Whether the definition identity is a required key component.** `FR-233`'s
-  open gap records that no requirement states whether one effect may pair with
-  more than one compensation definition, so it is not established whether the
-  definition identity participates in the key or whether the effect identity
-  alone is the key. Both readings are recorded upstream and neither is selected
-  here; AC-3's replay rule holds under either, AC-1's "exactly one" does not.
-  The owner is `agent-ix/quire-specification`.
-- **Detecting a duplicate forward effect.** `FR-226` states that its declared
-  key "is constant across two effect claims at one static node within one
-  workflow instance, so two duplicate effects compare equal under it and the
-  duplicate the evaluator is required to detect is undetectable". AC-3
-  distinguishes a replay of one effect identity from a second effect only where
-  such a component exists; upstream has not supplied one.
+QSpec #28/#31 fixes registration to the qualified FR-288 compensation
+definition plus the exact FR-287 effect key. Exact replay is idempotent; a
+distinct effect remains distinct even at the same static node. The
+implementation imports those keys and never detects duplication from payload,
+timestamp, source position or display text.
 
 ## Dependencies
 

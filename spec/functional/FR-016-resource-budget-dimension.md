@@ -159,7 +159,7 @@ excluded one.
   exact request, so an absent grant is not a grant of zero.
 - **Digest domain** — not applicable; no component of this key is a digest. Where
   a budget figure is retained beside a digest in evidence, that digest's domain
-  is selected under [FR-015](./FR-015-digest-domain-membership.md).
+  is selected under [FR-015](./FR-015-digest-domain-selection.md).
 
 ## Acceptance Criteria
 
