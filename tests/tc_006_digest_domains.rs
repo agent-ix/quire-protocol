@@ -7,14 +7,18 @@
 
 use ix_trace_rs::trace;
 use quire_protocol::{
+    bounds::inventory::{
+        production_inventory, Budget, BudgetDimension, OperationOutcome, ResourceAccountant,
+    },
     digest::{
         jcs::{canonicalize, JcsError, ResultDigest},
         producer::{DigestDomain, DigestSlot, OfferedDomain, ProducerDigestRef},
     },
     inventory::{
-        axis::DivergedSelection, DigestClassification, ResultDigestRefusal, SelectedInventory,
+        axis::DivergedSelection, map::admit_discriminating_bounded, DigestClassification,
+        ResultDigestRefusal, SelectedInventory,
     },
-    wire, ByteDigest, Expected,
+    wire, ByteDigest, Expected, Limits,
 };
 use serde_json::json;
 
@@ -100,6 +104,53 @@ impl Selections {
     fn inventory(&self) -> SelectedInventory {
         SelectedInventory::from_expected(&self.expected()).expect("selections canonicalise")
     }
+}
+
+#[test]
+#[trace("TC-009", "NFR-002-AC-1", "FR-016-AC-2", "FR-016-AC-4")]
+fn tc_009_admission_charges_all_input_bytes_before_decode() {
+    let selections = Selections::new();
+    let bytes = b"{}";
+    let inventory = production_inventory().expect("production inventory");
+    let one_short = Budget::nothing_granted()
+        .grant(BudgetDimension::InputByte, bytes.len() - 1)
+        .expect("positive one-short grant");
+    let mut one_short_resources = ResourceAccountant::new(one_short, &inventory);
+    let incomplete = admit_discriminating_bounded(
+        bytes,
+        &selections.expected(),
+        Limits::default(),
+        &mut one_short_resources,
+    );
+    assert!(matches!(
+        incomplete,
+        OperationOutcome::ResourceIncomplete(value)
+            if value.dimension() == BudgetDimension::InputByte
+                && value.consumed() == 0
+                && value.requested() == bytes.len()
+    ));
+    assert_eq!(
+        one_short_resources
+            .usage()
+            .consumed(BudgetDimension::InputByte),
+        0
+    );
+
+    let exact = Budget::nothing_granted()
+        .grant(BudgetDimension::InputByte, bytes.len())
+        .expect("positive exact grant");
+    let mut exact_resources = ResourceAccountant::new(exact, &inventory);
+    let reached_reader = admit_discriminating_bounded(
+        bytes,
+        &selections.expected(),
+        Limits::default(),
+        &mut exact_resources,
+    );
+    assert!(matches!(reached_reader, OperationOutcome::DomainError(_)));
+    assert_eq!(
+        exact_resources.usage().consumed(BudgetDimension::InputByte),
+        bytes.len()
+    );
 }
 
 /// A producer reference offered where the JCS protocol-result digest belongs.

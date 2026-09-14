@@ -14,7 +14,7 @@
 
 use serde_json::Value;
 
-use crate::bounds::inventory::{BudgetDimension, SourceSite};
+use crate::bounds::inventory::{BudgetDimension, OperationOutcome, ResourceAccountant, SourceSite};
 use crate::bounds::{SiteId, SiteKind};
 use crate::digest::producer::{CrossDomainDigest, DigestSlot};
 use crate::inventory::axis::DivergedSelection;
@@ -109,6 +109,23 @@ pub fn admit_discriminating(
             refused => refused,
         }),
     }
+}
+
+/// Admit an offer under the shared QProtocol caller budget.
+///
+/// The complete offered byte population is charged before domain inspection,
+/// JSON decoding, or the producer-owned reader begins. The producer reader's
+/// immutable limits remain independently enforced by [`admit_discriminating`].
+pub fn admit_discriminating_bounded(
+    bytes: &[u8],
+    expected: &Expected<'_>,
+    limits: Limits,
+    resources: &mut ResourceAccountant<'_>,
+) -> OperationOutcome<AdmittedPackage, AdmissionRefusal> {
+    if let Err(error) = resources.charge(ADMISSION_INPUT_SOURCE.id(), bytes.len()) {
+        return OperationOutcome::from_charge(error);
+    }
+    OperationOutcome::from_domain(admit_discriminating(bytes, expected, limits))
 }
 
 /// The first producer-reference slot whose offered digest is cross-domain.
