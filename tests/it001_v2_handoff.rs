@@ -21,7 +21,7 @@ mod handoff;
 
 use handoff::{Absence, Handoff, MutationInput};
 
-/// A's mutation corpus as published at the pinned revision `7931a00`, sorted.
+/// A's mutation corpus as published at the pinned revision `f1700a9`, sorted.
 ///
 /// Frozen so the corpus cannot shrink unnoticed: every assertion over "every
 /// declared case" is only as strong as the number of cases A declares.
@@ -657,7 +657,7 @@ fn the_mutation_expectation_admits_the_unmutated_offer() {
 /// cannot drop out of the corpus unnoticed.
 ///
 /// The corpus cannot be its own witness: an axis list derived from the cases
-/// always covers the cases. `DECLARED_AXES` is what A publishes at `7931a00`,
+/// always covers the cases. `DECLARED_AXES` is what A publishes at `f1700a9`,
 /// frozen here, so a dropped axis fails and an added one is reported rather
 /// than absorbed.
 #[test]

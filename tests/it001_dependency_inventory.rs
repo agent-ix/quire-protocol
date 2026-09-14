@@ -16,7 +16,7 @@ const LIBRARY: &str = include_str!("../src/lib.rs");
 
 /// A's accepted reader, pinned to the exact revision this lane froze.
 const FRONTEND: &str = "quire-spec-language";
-const FRONTEND_REVISION: &str = "7931a0021612d26132ea8bbef3b0cd19b27248e0";
+const FRONTEND_REVISION: &str = "f1700a9264d6d3bcdd07e0f77b70f3dae9ed4c07";
 
 /// F's promoted observation owner supplies typed progress, closure and
 /// completeness views. B consumes those views and does not mirror them.

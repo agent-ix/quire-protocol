@@ -98,7 +98,7 @@ intended answer, and it is inconvenient.
 **Both cross-version refusal directions execute.** IT-001-SC-06 submits version
 1 bytes at `admit_and_link_v2` and version 2 bytes at `admit_and_link`; each
 returns a distinct typed refusal. The version 2 reader, published handoff and
-entry point are pinned through `quire-spec-language` revision `7931a00`.
+entry point are pinned through `quire-spec-language` revision `f1700a9`.
 
 **SC-06a remains a two-revision comparison, which no single run can produce.** It
 requires the same fixture at the revision before version 2 and at the revision that

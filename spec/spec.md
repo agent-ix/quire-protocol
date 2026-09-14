@@ -236,7 +236,7 @@ implementation checkpoints and are not the current inventory.
 
 What remains unimplemented is the larger part. `admit_and_link_v2` is now
 written against A's published `quire.compiled-protocol/2` reader at the pinned
-revision `7931a00`. The default gate reaches A's committed bundle through the
+revision `f1700a9`. The default gate reaches A's committed bundle through the
 owner-exported `PUBLISHED_HANDOFF`: the base admits, all 28 published mutations
 return their declared typed identities, both cross-version submissions refuse,
 and every declared resource dimension admits at exact usage, refuses one-short,
@@ -270,10 +270,11 @@ its entry-status table records why each is currently `unresolved`.
   protocol, temporal and observation noun. Open questions this repository raised
   against that layer are issues 28 and 29.
 - `agent-ix/quire-spec-language` — the A-owned native compiler and its
-  compiled-protocol artifact contracts. The pin is `7931a00`, A's promoted
-  FR-052 compatibility correction after release `v0.2.0`, which supplies both
+  compiled-protocol artifact contracts. The pin is `f1700a9`, A's promoted
+  FR-052 compatibility correction plus FR-051 checked activation-guard
+  selection after release `v0.2.0`, which supplies both
   `quire.compiled-protocol/1` and `/2` plus the exported handoff address; issues
-  40 and 78 owned that delivery and have landed. This is the only native
+  40, 78 and 98 owned that delivery and have landed. This is the only native
   compiler reader in the admitted path, and this repository adds no second one.
 - `agent-ix/quire-observation` — the F-owned observation producer interface,
   carrying the scope facts and global closure record IT-002 consumes.
