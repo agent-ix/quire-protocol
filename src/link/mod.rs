@@ -131,7 +131,9 @@ use quire_spec_language::protocol_artifact::{
     AdmittedPackage, NumberWire,
 };
 
-use crate::bounds::inventory::{BudgetDimension, SourceSite};
+use crate::bounds::inventory::{
+    BudgetDimension, ChargeError, OperationOutcome, ResourceAccountant, SourceSite,
+};
 use crate::bounds::{SiteId, SiteKind};
 use crate::ids::{
     AttemptId, ChannelId, ComponentId, DefinitionId, DeliveryId, EffectId, EndpointId,
@@ -969,6 +971,120 @@ impl LinkedProtocol {
 // The linker
 // ---------------------------------------------------------------------------
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct LinkWork {
+    definitions: usize,
+    nodes: usize,
+    edges: usize,
+    roles: usize,
+    messages: usize,
+    branches: usize,
+    iterations: usize,
+    active_instances: usize,
+}
+
+fn link_work(
+    declarations: &[Declaration],
+    declaration: u32,
+) -> Result<Option<LinkWork>, ChargeError> {
+    let index = usize::try_from(declaration).unwrap_or(usize::MAX);
+    let Some(declared) = declarations.get(index) else {
+        return Ok(None);
+    };
+    let Body::Protocol {
+        roles,
+        channels,
+        controls,
+        causal_edges,
+        ..
+    } = &declared.body
+    else {
+        return Ok(None);
+    };
+
+    let mut branches = 0usize;
+    let mut iterations = 0usize;
+    for control in controls {
+        let increment = match &control.operation {
+            ControlOperation::Choice { cases, .. } => cases.len(),
+            ControlOperation::Parallel { branches, .. } => branches.len(),
+            ControlOperation::Repeat { .. } | ControlOperation::Await { .. } => 2,
+            ControlOperation::Sequence { .. }
+            | ControlOperation::Event { .. }
+            | ControlOperation::Check { .. }
+            | ControlOperation::Commit { .. } => 0,
+        };
+        branches = branches
+            .checked_add(increment)
+            .ok_or(ChargeError::CounterOverflow {
+                site: BRANCH_SOURCE.id(),
+                consumed: branches,
+                requested: increment,
+            })?;
+        if matches!(control.operation, ControlOperation::Repeat { .. }) {
+            iterations = iterations
+                .checked_add(1)
+                .ok_or(ChargeError::CounterOverflow {
+                    site: ITERATION_SOURCE.id(),
+                    consumed: iterations,
+                    requested: 1,
+                })?;
+        }
+    }
+    let workflow_instances = declared
+        .bindings
+        .iter()
+        .filter(|requirement| requirement.kind == BindingKind::WorkflowInstance)
+        .count();
+    let active_instances = roles
+        .len()
+        .checked_add(usize::from(workflow_instances == 1))
+        .ok_or(ChargeError::CounterOverflow {
+            site: ACTIVE_INSTANCE_SOURCE.id(),
+            consumed: roles.len(),
+            requested: usize::from(workflow_instances == 1),
+        })?;
+
+    Ok(Some(LinkWork {
+        definitions: declarations.len(),
+        nodes: controls.len(),
+        edges: causal_edges.len(),
+        roles: roles.len(),
+        messages: channels.len(),
+        branches,
+        iterations,
+        active_instances,
+    }))
+}
+
+fn link_declarations_bounded(
+    declarations: &[Declaration],
+    declaration: u32,
+    resources: &mut ResourceAccountant<'_>,
+) -> OperationOutcome<LinkedProtocol, Diagnostics> {
+    let work = match link_work(declarations, declaration) {
+        Ok(Some(work)) => work,
+        Ok(None) => {
+            return OperationOutcome::from_domain(link_declarations(declarations, declaration));
+        }
+        Err(error) => return OperationOutcome::from_charge(error),
+    };
+    let charges = [
+        (DEFINITION_SOURCE.id(), work.definitions),
+        (NODE_SOURCE.id(), work.nodes),
+        (EDGE_SOURCE.id(), work.edges),
+        (ROLE_SOURCE.id(), work.roles),
+        (MESSAGE_SOURCE.id(), work.messages),
+        (BRANCH_SOURCE.id(), work.branches),
+        (ITERATION_SOURCE.id(), work.iterations),
+        (ACTIVE_INSTANCE_SOURCE.id(), work.active_instances),
+    ];
+    if let Err(error) = resources.charge_all(&charges) {
+        return OperationOutcome::from_charge(error);
+    }
+    OperationOutcome::from_domain(link_declarations(declarations, declaration))
+}
+
 /// Link the protocol declared at `declaration` in an admitted package.
 ///
 /// The package has already been admitted by A, which is where the structural
@@ -984,6 +1100,19 @@ impl LinkedProtocol {
 /// because their input was never established.
 pub fn link(package: &AdmittedPackage, declaration: u32) -> Result<LinkedProtocol, Diagnostics> {
     link_declarations(&package.package().declarations, declaration)
+}
+
+/// Link one admitted protocol under the shared QProtocol caller budget.
+///
+/// Every structural population the linker will retain, traverse, queue, or
+/// iterate is charged transactionally before identity construction or graph
+/// mapping begins.
+pub fn link_bounded(
+    package: &AdmittedPackage,
+    declaration: u32,
+    resources: &mut ResourceAccountant<'_>,
+) -> OperationOutcome<LinkedProtocol, Diagnostics> {
+    link_declarations_bounded(&package.package().declarations, declaration, resources)
 }
 
 /// The mapping itself, over the declaration table of an already admitted
@@ -1425,6 +1554,10 @@ mod tests {
     };
     use quire_spec_language::protocol_artifact::NumberWire;
     use quire_spec_language::ByteDigest;
+
+    use crate::bounds::inventory::{
+        production_inventory, Budget, BudgetDimension, OperationOutcome, ResourceAccountant,
+    };
 
     use super::interleaving::{interleavings, precedence, Endpoint as Step};
     use super::*;
@@ -2808,6 +2941,87 @@ mod tests {
 
         stamp(&mut declarations);
         declarations
+    }
+
+    fn budget_fixture() -> Vec<Declaration> {
+        let mut declarations = sweep_fixture();
+        let declared = &mut declarations[0];
+        let second_role = u32::try_from(declared.bindings.len()).expect("small fixture");
+        declared.bindings.push(requirement(
+            "the-second-role-instance",
+            BindingKind::RoleInstance,
+        ));
+        let Body::Protocol {
+            roles, controls, ..
+        } = &mut declared.body
+        else {
+            unreachable!("the fixture is a protocol")
+        };
+        roles.push(Role {
+            name: "Seller".to_owned(),
+            model: ExportRef {
+                model: 0,
+                export: 1,
+            },
+            instance: second_role,
+            locus: locus(),
+        });
+        let repeat = controls
+            .iter()
+            .find(|control| matches!(control.operation, ControlOperation::Repeat { .. }))
+            .expect("sweep fixture has a repeat")
+            .clone();
+        controls.push(repeat);
+        stamp(&mut declarations);
+        declarations.push(declarations[0].clone());
+        declarations
+    }
+
+    #[trace("TC-002", "TC-009", "NFR-002-AC-1", "FR-016-AC-2", "FR-016-AC-4")]
+    #[test]
+    fn tc_009_link_charges_every_structural_population_before_mapping() {
+        let declarations = budget_fixture();
+        let work = link_work(&declarations, 0)
+            .expect("budget accounting does not overflow")
+            .expect("budget fixture has a selected protocol");
+        let dimensions = [
+            (BudgetDimension::Definition, work.definitions),
+            (BudgetDimension::Node, work.nodes),
+            (BudgetDimension::Edge, work.edges),
+            (BudgetDimension::Role, work.roles),
+            (BudgetDimension::Message, work.messages),
+            (BudgetDimension::Branch, work.branches),
+            (BudgetDimension::Iteration, work.iterations),
+            (BudgetDimension::ActiveInstance, work.active_instances),
+        ];
+        let inventory = production_inventory().expect("production inventory");
+        for (dimension, required) in dimensions {
+            assert!(required > 1, "{dimension} needs a positive one-short case");
+            let short = Budget::nothing_granted()
+                .grant(dimension, required - 1)
+                .expect("positive one-short grant");
+            let mut short_resources = ResourceAccountant::new(short, &inventory);
+            assert!(matches!(
+                link_declarations_bounded(&declarations, 0, &mut short_resources),
+                OperationOutcome::ResourceIncomplete(value)
+                    if value.dimension() == dimension && value.requested() == required
+            ));
+            assert_eq!(
+                short_resources.usage().consumed(dimension),
+                0,
+                "{dimension} preflight is transactional"
+            );
+
+            let exact = Budget::nothing_granted()
+                .grant(dimension, required)
+                .expect("positive exact grant");
+            let mut exact_resources = ResourceAccountant::new(exact, &inventory);
+            assert!(matches!(
+                link_declarations_bounded(&declarations, 0, &mut exact_resources),
+                OperationOutcome::Completed(_)
+            ));
+            assert_eq!(exact_resources.usage().consumed(dimension), required);
+        }
     }
 
     /// The protocol body of a fixture under mutation.
