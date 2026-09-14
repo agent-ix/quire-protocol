@@ -6,6 +6,7 @@ status: blocked
 track: Gate
 priority: P0
 relationships:
+  - { target: ix://agent-ix/quire-protocol/Task-014, type: depends_on }
   - { target: ix://agent-ix/quire-protocol/Task-008, type: depends_on }
   - { target: ix://agent-ix/quire-protocol/Task-009, type: depends_on }
   - { target: ix://agent-ix/quire-protocol/Task-010, type: depends_on }

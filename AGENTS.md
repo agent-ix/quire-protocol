@@ -40,23 +40,37 @@ this repository.
 
   ```console
   CARGO_BUILD_JOBS=1 flock /tmp/quire-heavy-check.lock cargo fmt --all -- --check
-  CARGO_BUILD_JOBS=1 flock /tmp/quire-heavy-check.lock cargo clippy --locked --all-targets -- -D warnings
-  CARGO_BUILD_JOBS=1 flock /tmp/quire-heavy-check.lock cargo test --locked
+  CARGO_BUILD_JOBS=1 flock /tmp/quire-heavy-check.lock cargo clippy --locked --all-targets --target-dir target-codex-backends -- -D warnings
+  CARGO_BUILD_JOBS=1 flock /tmp/quire-heavy-check.lock cargo test --locked --target-dir target-codex-backends
   ```
 
-  This crate is **single-lane**. It declares no `[features]` table and contains no
-  `cfg` attribute, so `--no-default-features` and `--all-features` resolve to a
-  byte-identical unit graph; running both covers no extra configuration. Do not
+  The formatting command detects formatting drift. The Clippy command detects
+  lint violations plus dead code and unused imports in library, test, fixture and
+  example targets. The test command detects behavioural regressions against the
+  bound acceptance obligations. A command without a named risk is not part of
+  the gate.
+
+  This crate has one **Cargo-feature lane**. It declares no `[features]` table,
+  optional dependency or `cfg(feature = ...)` condition, so
+  `--no-default-features`, `--all-features` and the default selection resolve to
+  the same unit graph; running all three covers no extra Cargo-feature
+  configuration. Separately, the current Unix host selects three tracked
+  `#[cfg(test)]` sites through `clippy --all-targets` and `test`, and one tracked
+  `#[cfg(unix)]` integration test through the admitted
+  `x86_64-unknown-linux-gnu` target. This is not a claim about another target.
+  Do not
   pass `--features quire-extraction` here — that feature belongs to
   `quire-spec-language`, and this package does not declare it. If you are told to
   run a second feature lane, that instruction is a gate defect to report, not a
   lane to satisfy, and it is never fixed by declaring a feature with no `cfg`'d
-  code behind it. Introducing any `cfg` attribute, `cfg!` macro, `optional = true`
-  dependency, or `[features]` entry makes a second lane mandatory under
-  NFR-004-AC-7.
+  code behind it. Introducing a `cfg(feature = ...)` condition, an
+  `optional = true` dependency, or a `[features]` entry makes opposing Cargo
+  feature lanes mandatory under NFR-004-AC-7. Any other new condition must name
+  the command or admitted target that selects it.
 - Run each gate command with the worktree's own target directory. A
-  `CARGO_TARGET_DIR` shared across worktrees can serve a stale result and is not
-  accepted as gate evidence.
+  literal `target-codex-backends` directory is required for compiling commands;
+  a shared `CARGO_TARGET_DIR` or another worktree's path can serve a stale result
+  and is not accepted as gate evidence.
 - Every GitHub Actions workflow must use `workflow_dispatch` as its only trigger.
 - License new implementation source and tests as `AGPL-3.0-or-later`; preserve
   all imported grants and complete dependency compatibility review before use.

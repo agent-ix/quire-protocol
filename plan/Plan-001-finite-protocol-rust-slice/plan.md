@@ -16,6 +16,7 @@ relationships:
   - { target: ix://agent-ix/quire-protocol/NFR-001, type: references }
   - { target: ix://agent-ix/quire-protocol/NFR-002, type: references }
   - { target: ix://agent-ix/quire-protocol/NFR-003, type: references }
+  - { target: ix://agent-ix/quire-protocol/NFR-004, type: references }
 ---
 # Implementation Plan: Finite Native Quire Protocol Rust Slice
 
@@ -41,6 +42,8 @@ relationships:
 - [ ] **NFR-001**: Reproduce semantic results and canonical bytes.
 - [ ] **NFR-002**: Enforce every authored protocol and caller-supplied resource bound.
 - [ ] **NFR-003**: Preserve the Rust and shared-assurance boundary.
+- [ ] **NFR-004**: Execute the local gate over one unchanged worktree state and
+  account for every selectable configuration without inventing a feature lane.
 
 ## Dependency Graph
 
@@ -70,6 +73,9 @@ relationships:
   Reason: typed transport, E02 reading, and retained evidence are external owners' boundaries.
 - `IT-001 + IT-002 + IT-003 + NFR-001 + NFR-002 -> NFR-003 gate`
   Reason: the final unchanged-head review must cover every local and cross-repository path.
+- `NFR-004 -> NFR-003 gate`
+  Reason: final qualification consumes the already-executable local gate; it
+  must not define commands, configurations or evidence binding ad hoc.
 
 The finite graph, stable identity types, refusal envelope, and canonical JCS layer
 are shared dependencies. Each is authored once on the serial core path and reused
@@ -93,6 +99,10 @@ by downstream integrations; no adapter may introduce another semantic model.
 ### Static and Assurance Test
 
 - [ ] **TC-010** (NFR-003-AC-1..AC-6): use the accepted shared Rust checker to enforce every executable/dependency path, manual workflows, forbidden unsafe code, compiler-checked trace bindings, external Quoin containment, and shared assurance ownership without a local scanner.
+- [ ] **TC-012** (NFR-004-AC-1..AC-10): validate the exact ordered command set,
+  warning channels, Cargo-feature state, conditional-site coverage, isolated
+  target directory, and unchanged commit/worktree evidence binding; each
+  independent invalid policy state must refuse with its own reason.
 
 ### Integration Tests
 
@@ -122,12 +132,19 @@ by downstream integrations; no adapter may introduce another semantic model.
 
 - **Gate = Task-011** Integrate Engineering Assurance/E02/Quoin and run the unchanged-head gate — Hard; measures complete typed transport, traceability, language containment, Rust review, and semantic coverage; pass: every planned row is backed, all local gates pass, and every in-scope finding is closed.
 
+### Track Gate Enablement: Local policy (independent)
+
+- **GE1 = Task-014** Make NFR-004/TC-012 executable — Medium; exit: the current
+  repository and every one-axis invalid gate policy are classified without a
+  subprocess runner, stdout parser, fake feature or unsupported-target claim.
+
 ## Parallel Execution Summary
 
 ```text
 A1 -> A2 -> A3 -> A4 -> A5 -> A6 -> A7 -> A8
              \-> B1 -------------------------\
                               \-> B2 ----------+-> Gate
+GE1 ------------------------------------------------^
 ```
 
 Task-009 may start after Task-002 and the compiler contract are accepted.
@@ -139,16 +156,19 @@ All Cargo work remains serialized on the shared workstation even when source own
 | Task | Track | Owns (references) | Verified by (verifies) | Status |
 | --- | --- | --- | --- | --- |
 | Task-001 | A | FR-001 | TC-001 | blocked |
-| Task-002 | A | FR-002 | TC-002 | in progress |
+| Task-002 | A | FR-002 | TC-002 | in_progress |
 | Task-003 | A | FR-003 | TC-003 | blocked |
 | Task-004 | A | FR-004 | TC-004 | blocked |
 | Task-005 | A | FR-005 | TC-005 | blocked |
 | Task-006 | A | FR-006, FR-008 | TC-006, TC-011 | blocked |
 | Task-007 | A | FR-007 | TC-007 | blocked |
-| Task-008 | A | NFR-001, NFR-002 | TC-008, TC-009 | in progress |
-| Task-009 | B | FR-001, FR-002 | IT-001 | in progress; candidate evidence only, external promotion gate blocked |
+| Task-008 | A | NFR-001, NFR-002 | TC-008, TC-009 | in_progress |
+| Task-009 | B | FR-001, FR-002 | IT-001 | in_progress; candidate evidence only, external promotion gate blocked |
 | Task-010 | B | FR-003, FR-004, FR-006 | IT-002 | blocked |
 | Task-011 | Gate | StR-001, FR-006, FR-007, NFR-003 | IT-003, TC-010 | blocked |
+| Task-012 | B | FR-001, FR-002, NFR-002 | IT-001 | done |
+| Task-013 | B | FR-009, NFR-005 | TC-013, IT-002, IT-003 | in_progress |
+| Task-014 | Gate-Enablement | NFR-004 | TC-012 | in_progress |
 
 ## Coordination Rules
 

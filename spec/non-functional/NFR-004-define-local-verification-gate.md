@@ -29,17 +29,24 @@ relationships:
 
 ## Statement
 
-The repository SHALL define its local verification gate as an enumerated set of
-Cargo invocations, each bound to the exact build configuration it covers and to
-the stated risk it detects, and SHALL run exactly one configuration lane while
-the crate declares no Cargo feature and contains no conditionally compiled item.
+The repository SHALL execute its enumerated local verification gate over one
+unchanged worktree state, using one Cargo-feature lane while the manifest and
+tracked Rust select no Cargo feature and accounting separately for every
+test-only or target-platform conditional compilation site.
 
 ## Scope
 
 Applies to every local pre-promotion check run over this repository: formatting,
-lints, and tests, in every configuration lane the crate can express. Applies to
-the written gate instructions in `AGENTS.md` and `README.md` as much as to the
-commands themselves.
+lints, and tests, in every configuration lane the crate can express. A Cargo
+feature selection, a Cargo target kind such as `test`, and a target-platform
+predicate such as `unix` are three different axes and are never treated as one
+another. Applies to the written gate instructions in `AGENTS.md` and `README.md`
+as much as to the commands themselves.
+
+The admitted local target for one evidence run is the exact `rustc -vV` host
+triple recorded with that run. This ticket qualifies
+`x86_64-unknown-linux-gnu`; it makes no portability claim for a target whose
+conditions did not execute.
 
 Does not apply to the shared Rust language-boundary checker, the exact Rust
 review, or QUOIN semantic gap analysis, which remain owned by
@@ -47,12 +54,12 @@ review, or QUOIN semantic gap analysis, which remain owned by
 workflow triggers or to whether a hosted run may serve as local evidence, both of
 which remain owned by [NFR-003-AC-1](NFR-003-preserve-rust-assurance-boundary.md).
 
-While the repository remains specification-only under `spec.md` section 14, the
-`cargo test` command detects little, because every acceptance test is planned and
-the one present test file is ignored pending A's producer output. The command is
-nonetheless part of the enumerated gate from the outset, so that its risk
-coverage grows with the suite rather than being introduced later as a new gate
-step. The `fmt` and `clippy` commands are fully effective today.
+On the current admitted local Unix target, three tracked `#[cfg(test)]` sites are
+selected by `cargo clippy --all-targets` and `cargo test`, and one tracked
+`#[cfg(unix)]` integration test is selected by that target. This establishes no
+Windows or other-target support. A future condition that is false in every
+declared gate execution is unexecuted until an opposing target lane is added or
+the target is explicitly excluded from the supported scope.
 
 ## Rationale
 
@@ -67,10 +74,13 @@ catches real defects: items that compile in only one configuration, `cfg`-
 divergent wire and runtime behaviour, and unused-import or dead-code drift in
 whichever lane the author did not build.
 
-This crate declares no `[features]` table and contains no `cfg` attribute, so
-`--no-default-features` and `--all-features` resolve to the identical unit
-graph. Running both covers no additional configuration; it only doubles build
-time and creates the appearance of coverage. Declaring a feature to make
+This crate declares no `[features]` table, no optional dependency and no
+`cfg(feature = ...)` condition, so `--no-default-features`, `--all-features` and
+the default feature selection resolve to the identical unit graph. Running all
+three covers no additional Cargo-feature configuration; it only multiplies
+build time and creates the appearance of coverage. The existing `cfg(test)` and
+`cfg(unix)` sites do not change that fact: one varies target kind and the other
+varies target platform. Declaring a feature to make
 `--features quire-extraction` stop erroring would be worse still: a feature with
 no gated code behind it reports a green second lane while protecting nothing,
 which is an untrue assurance claim under
@@ -85,20 +95,22 @@ protect.
 | Metric | Target | Threshold | Method |
 | --- | --- | --- | --- |
 | Enumerated gate commands executed before promotion | Every command in the Acceptance Criteria table | 100% executed, 0 skipped | Test (TC-012) |
-| Configuration lanes required, while no feature and no `cfg` item exists | 1 | Exactly 1 | Inspection (TC-012) |
+| Cargo-feature lanes required while no feature, optional dependency or `cfg(feature = ...)` site exists | 1 | Exactly 1 | Test (TC-012) |
 | Cargo build jobs during heavy local checks | 1 | 1 | Test (TC-012) |
 | Denied-warning channels active on the lint command | 2 (crate `[lints]` table and `-D warnings`) | Both present | Test (TC-012) |
 | Declared Cargo features with no conditionally compiled item behind them | 0 | 0 | Test (TC-012) |
+| Tracked conditional-compilation sites selected by no gate command or admitted target | None | 0; 4 of 4 selected today | Test (TC-012) |
 | Gate runs served from a build directory shared with another worktree | 0 | 0 | Test (TC-012) |
 
 ## Verification
 
-Static inspection of `Cargo.toml` for a `[features]` table and for
-`optional = true` dependencies; static inspection of tracked Rust sources for
-`cfg` attributes and `cfg!` macros; execution of each enumerated gate command
-over one unchanged head with its recorded configuration; and a negative control
-for each acceptance criterion in which the guarded condition is independently
-introduced and the gate is required to refuse it for its own stated reason.
+Static inspection of `Cargo.toml` for a `[features]` table and `optional = true`
+dependencies; a closed inventory of tracked Rust `cfg` attributes and `cfg!`
+macros with the command or admitted target that selects each; execution of each
+enumerated gate command over one unchanged worktree state; and a negative
+control for each acceptance criterion in which the guarded condition is
+independently introduced and the gate policy is required to refuse it for its
+own stated reason.
 
 Verification consumes the crate's own Cargo metadata and the exit status of the
 enumerated commands. It SHALL NOT introduce a local lint runner, a stdout verdict
@@ -110,16 +122,16 @@ and any future automation of it is Rust under
 
 | ID | Criteria | Verification |
 | --- | --- | --- |
-| NFR-004-AC-1 | The local gate is exactly `cargo fmt --all -- --check`, `cargo clippy --locked --all-targets -- -D warnings`, and `cargo test --locked`, run in that order over one unchanged head, and every one of the three is executed rather than assumed. | Test (TC-012) |
+| NFR-004-AC-1 | The local gate is exactly `cargo fmt --all -- --check`, `cargo clippy --locked --all-targets --target-dir target-codex-backends -- -D warnings`, and `cargo test --locked --target-dir target-codex-backends`, run in that order over one unchanged worktree state, and every command is executed rather than assumed. | Test (TC-012) |
 | NFR-004-AC-2 | Each enumerated command is recorded with the risk it detects: formatting drift for `fmt`; lint violations and, because `--all-targets` covers tests, fixtures and examples as well as the library, dead code and unused imports outside the library target for `clippy`; behavioural regression against the bound acceptance obligations for `test`. A command with no recorded risk is not part of the gate. | Inspection (TC-012) |
 | NFR-004-AC-3 | The gate runs serially with `CARGO_BUILD_JOBS=1` and under `flock /tmp/quire-heavy-check.lock`, so that concurrent sessions on the shared workstation cannot interleave heavy Cargo work. | Test (TC-012) |
 | NFR-004-AC-4 | Warnings are denied on two independent channels — the crate's `[lints.rust]` and `[lints.clippy]` tables and the `-D warnings` command-line argument — and removing either channel alone still causes an introduced warning to fail the gate. | Test (TC-012) |
-| NFR-004-AC-5 | While `Cargo.toml` declares no `[features]` table and no `optional = true` dependency, the gate requires exactly one configuration lane, and `--no-default-features`, `--all-features` and the default selection are asserted to resolve to the identical unit graph. | Test (TC-012) |
+| NFR-004-AC-5 | While `Cargo.toml` declares no `[features]` table, no `optional = true` dependency and no tracked `cfg(feature = ...)` condition, the gate requires exactly one Cargo-feature lane, and `--no-default-features`, `--all-features` and the default selection resolve to the identical unit graph. | Test (TC-012) |
 | NFR-004-AC-6 | A `--features <name>` argument naming a feature this crate does not declare is a gate definition defect, not a lane to be satisfied; the gate refuses such an instruction rather than skipping it silently or declaring the named feature. | Test (TC-012) |
-| NFR-004-AC-7 | Introducing any `cfg` attribute, `cfg!` macro, `optional = true` dependency, or `[features]` entry obligates a second gate lane that builds, lints and tests the opposing configuration before that change may be promoted, and the absence of that second lane fails the gate. | Test (TC-012) |
-| NFR-004-AC-8 | A declared Cargo feature that no conditionally compiled item references is refused, so no lane can report a passing configuration it does not actually select. | Test (TC-012) |
-| NFR-004-AC-9 | Every gate command builds into a target directory owned by the running worktree, and a gate run served from a `CARGO_TARGET_DIR` shared with another worktree is not accepted as evidence. | Test (TC-012) |
-| NFR-004-AC-10 | Every gate result is bound to one unchanged head, and a result aggregated from separate working trees or from a head that moved between commands is not accepted. Whether a hosted run may stand in for a local run is owned by [NFR-003-AC-1](NFR-003-preserve-rust-assurance-boundary.md) and is not restated here. | Test (TC-012) |
+| NFR-004-AC-7 | Introducing a `[features]` entry, an `optional = true` dependency or a tracked `cfg(feature = ...)` condition obligates opposing Cargo-feature lanes that build, lint and test each selectable configuration before promotion, and a missing opposing lane refuses promotion. | Test (TC-012) |
+| NFR-004-AC-8 | Every tracked conditional-compilation site names how the gate selects it: `cfg(test)` is selected by `clippy --all-targets` and `test`; a target-platform predicate is selected by a recorded admitted target or an opposing target lane; and every other condition has an explicit selecting command. A condition selected by no declared execution, or a declared Cargo feature referenced by no condition, refuses promotion. | Test (TC-012) |
+| NFR-004-AC-9 | Every compiling gate command uses the running worktree's literal `target-codex-backends` directory, and a result served through a shared `CARGO_TARGET_DIR` or another worktree's target path is not accepted as evidence. | Test (TC-012) |
+| NFR-004-AC-10 | Every gate result is bound to one unchanged commit and clean tracked worktree state, and a result aggregated from separate worktrees, a moving head or different tracked bytes is not accepted. Whether a hosted run may stand in for a local run is owned by [NFR-003-AC-1](NFR-003-preserve-rust-assurance-boundary.md) and is not restated here. | Test (TC-012) |
 
 ## Dependencies
 
