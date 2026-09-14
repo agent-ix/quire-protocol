@@ -1175,6 +1175,12 @@ const RESULT_OPERATION: SourceSite = SourceSite::new(
     BudgetDimension::Operation,
     SiteKind::Traversal,
 );
+const RESULT_DEPTH: SourceSite = SourceSite::new(
+    SiteId::new("result/container/depth"),
+    "result::reader::read",
+    BudgetDimension::Operation,
+    SiteKind::Traversal,
+);
 
 /// Production work sites derived from reviewed Rust interfaces and paths.
 ///
@@ -1215,6 +1221,7 @@ pub const PRODUCTION_SOURCES: &[SourceSite] = &[
     crate::compensation::RETRY_RESULT_SOURCE,
     crate::compensation::RECOVERY_RESULT_SOURCE,
     crate::result::reader::INPUT_SOURCE,
+    crate::result::reader::DEPTH_SOURCE,
     crate::result::reader::OPERATION_SOURCE,
 ];
 
@@ -1433,6 +1440,12 @@ pub const PRODUCTION_ENTRIES: &[InventoryEntry] = &[
         LimitAuthority::ConsumerOwner,
         ChargePoint::BeforeDecode,
         Termination::InputLength,
+    ),
+    entry(
+        RESULT_DEPTH,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeTraverse,
+        Termination::FiniteGraph,
     ),
     entry(
         RESULT_OPERATION,

@@ -4,7 +4,7 @@
 use serde_json::{Map, Value};
 use std::sync::OnceLock;
 
-use crate::bounds::inventory::{BudgetDimension, SourceSite};
+use crate::bounds::inventory::{BudgetDimension, OperationOutcome, ResourceAccountant, SourceSite};
 use crate::bounds::{SiteId, SiteKind};
 use crate::digest::jcs::{canonicalize, ResultDigest};
 
@@ -23,6 +23,12 @@ pub(crate) const OPERATION_SOURCE: SourceSite = SourceSite::new(
     BudgetDimension::Operation,
     SiteKind::Traversal,
 );
+pub(crate) const DEPTH_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("result/container/depth"),
+    "result::reader::read",
+    BudgetDimension::Operation,
+    SiteKind::Traversal,
+);
 
 static RESULT_SCHEMA_VALIDATOR: OnceLock<Option<jsonschema::JSONSchema>> = OnceLock::new();
 
@@ -33,6 +39,136 @@ pub struct Expected<'a> {
     pub input: Input<'a>,
     /// Enclosing non-self-referential digest carried outside the result bytes.
     pub enclosing_digest: &'a str,
+}
+
+/// Strict-read canonical result bytes against independent selections.
+pub fn read_bounded(
+    bytes: &[u8],
+    expected: Expected<'_>,
+    limits: Limits,
+    resources: &mut ResourceAccountant<'_>,
+) -> OperationOutcome<ValidatedResult, Refusal> {
+    let effective = limits.effective();
+    if let Err(error) =
+        resources.charge_with_limit(INPUT_SOURCE.id(), bytes.len(), effective.max_input_bytes)
+    {
+        return OperationOutcome::from_charge(error);
+    }
+    let (fields, depth) = structural_field_count(bytes);
+    if let Err(error) = resources.charge_with_limit(DEPTH_SOURCE.id(), depth, effective.max_depth) {
+        return OperationOutcome::from_charge(error);
+    }
+    if let Err(error) =
+        resources.charge_with_limit(OPERATION_SOURCE.id(), fields, effective.max_visited_fields)
+    {
+        return OperationOutcome::from_charge(error);
+    }
+    OperationOutcome::from_domain(read(bytes, expected, effective))
+}
+
+#[derive(Clone, Copy)]
+enum ScanFrame {
+    Array { expects_value: bool },
+    Object { expects_key: bool },
+}
+
+/// Count the object-member and array-element visits made by `visited_fields`
+/// without constructing a JSON value or retaining any offered string.
+fn structural_field_count(bytes: &[u8]) -> (usize, usize) {
+    const STACK_CAPACITY: usize = Limits::owner_max().max_depth;
+
+    let mut stack = [ScanFrame::Array {
+        expects_value: false,
+    }; STACK_CAPACITY];
+    let mut stack_len = 0usize;
+    let mut fields = 0usize;
+    let mut max_depth = 0usize;
+    let mut in_string = false;
+    let mut escaped = false;
+    let mut in_primitive = false;
+
+    for byte in bytes.iter().copied() {
+        if in_string {
+            if escaped {
+                escaped = false;
+            } else if byte == b'\\' {
+                escaped = true;
+            } else if byte == b'"' {
+                in_string = false;
+            }
+            continue;
+        }
+        if in_primitive {
+            if matches!(byte, b',' | b']' | b'}' | b' ' | b'\n' | b'\r' | b'\t') {
+                in_primitive = false;
+            } else {
+                continue;
+            }
+        }
+        match byte {
+            b'"' => {
+                count_parent_value(&mut stack[..stack_len], &mut fields);
+                in_string = true;
+            }
+            b'{' => {
+                count_array_value(&mut stack[..stack_len], &mut fields);
+                if stack_len == stack.len() {
+                    return (fields, stack_len.saturating_add(1));
+                }
+                stack[stack_len] = ScanFrame::Object { expects_key: true };
+                stack_len += 1;
+                max_depth = max_depth.max(stack_len);
+            }
+            b'[' => {
+                count_array_value(&mut stack[..stack_len], &mut fields);
+                if stack_len == stack.len() {
+                    return (fields, stack_len.saturating_add(1));
+                }
+                stack[stack_len] = ScanFrame::Array {
+                    expects_value: true,
+                };
+                stack_len += 1;
+                max_depth = max_depth.max(stack_len);
+            }
+            b',' => match stack[..stack_len].last_mut() {
+                Some(ScanFrame::Array { expects_value }) => *expects_value = true,
+                Some(ScanFrame::Object { expects_key }) => *expects_key = true,
+                None => {}
+            },
+            b']' | b'}' => {
+                stack_len = stack_len.saturating_sub(1);
+            }
+            b':' | b' ' | b'\n' | b'\r' | b'\t' => {}
+            _ => {
+                count_array_value(&mut stack[..stack_len], &mut fields);
+                in_primitive = true;
+            }
+        }
+    }
+    (fields, max_depth)
+}
+
+fn count_parent_value(stack: &mut [ScanFrame], fields: &mut usize) {
+    match stack.last_mut() {
+        Some(ScanFrame::Array { expects_value }) if *expects_value => {
+            *fields += 1;
+            *expects_value = false;
+        }
+        Some(ScanFrame::Object { expects_key }) if *expects_key => {
+            *fields += 1;
+            *expects_key = false;
+        }
+        Some(ScanFrame::Array { .. }) | Some(ScanFrame::Object { .. }) | None => {}
+    }
+}
+
+fn count_array_value(stack: &mut [ScanFrame], fields: &mut usize) {
+    if let Some(ScanFrame::Array { expects_value }) = stack.last_mut() {
+        if *expects_value {
+            *fields += 1;
+            *expects_value = false;
+        }
+    }
 }
 
 /// Strict-read canonical result bytes against independent selections.

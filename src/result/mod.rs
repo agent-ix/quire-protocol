@@ -20,7 +20,7 @@ use crate::refusal::{
 };
 
 pub use crate::assessment::{AxisInputs, GlobalConformanceInput, GlobalPremise, PremiseKind};
-pub use reader::{read, Expected};
+pub use reader::{read, read_bounded, Expected};
 pub use record::{
     produce, produce_bounded, Activation, Adequacy, Assumption, AssumptionState, Claim, ClaimKind,
     ClaimStrength, CorrectionInput, CorrectionRelation, DecisionSupport, DependenceRelation,

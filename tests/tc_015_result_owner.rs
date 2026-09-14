@@ -799,6 +799,164 @@ fn tc_009_result_output_budget_precedes_canonical_allocation() {
         required
     );
 
+    let short = Budget::nothing_granted()
+        .grant(BudgetDimension::InputByte, required - 1)
+        .expect("positive one-short grant");
+    let mut short_resources = ResourceAccountant::new(short, &inventory);
+    assert!(matches!(
+        result::read_bounded(
+            control.bytes(),
+            result::Expected {
+                input: input.clone(),
+                enclosing_digest: control.digest(),
+            },
+            Limits::owner_max(),
+            &mut short_resources,
+        ),
+        OperationOutcome::ResourceIncomplete(value)
+            if value.dimension() == BudgetDimension::InputByte
+                && value.requested() == required
+    ));
+    assert_eq!(
+        short_resources.usage().consumed(BudgetDimension::InputByte),
+        0
+    );
+
+    let exact = Budget::nothing_granted()
+        .grant(BudgetDimension::InputByte, required)
+        .expect("positive exact grant");
+    let mut exact_resources = ResourceAccountant::new(exact, &inventory);
+    assert!(matches!(
+        result::read_bounded(
+            control.bytes(),
+            result::Expected {
+                input: input.clone(),
+                enclosing_digest: control.digest(),
+            },
+            Limits::owner_max(),
+            &mut exact_resources,
+        ),
+        OperationOutcome::Completed(_)
+    ));
+    assert_eq!(
+        exact_resources.usage().consumed(BudgetDimension::InputByte),
+        required
+    );
+
+    let visited = control.usage().visited_fields;
+    let depth = control.usage().depth;
+    let operations = visited.checked_add(depth).expect("bounded test document");
+    assert!(operations > 1);
+    let short = Budget::nothing_granted()
+        .grant(BudgetDimension::Operation, operations - 1)
+        .expect("positive one-short grant");
+    let mut short_resources = ResourceAccountant::new(short, &inventory);
+    let short_outcome = result::read_bounded(
+        control.bytes(),
+        result::Expected {
+            input: input.clone(),
+            enclosing_digest: control.digest(),
+        },
+        Limits::owner_max(),
+        &mut short_resources,
+    );
+    let consumed = short_resources.usage().consumed(BudgetDimension::Operation);
+    assert!(
+        matches!(
+            short_outcome,
+            OperationOutcome::ResourceIncomplete(value)
+                if value.dimension() == BudgetDimension::Operation
+                    && value.consumed() == depth
+                    && value.requested() == visited
+        ),
+        "unexpected outcome; depth={depth}; visited={visited}; consumed={consumed}"
+    );
+
+    let exact = Budget::nothing_granted()
+        .grant(BudgetDimension::Operation, operations)
+        .expect("positive exact grant");
+    let mut exact_resources = ResourceAccountant::new(exact, &inventory);
+    assert!(matches!(
+        result::read_bounded(
+            control.bytes(),
+            result::Expected {
+                input: input.clone(),
+                enclosing_digest: control.digest(),
+            },
+            Limits::owner_max(),
+            &mut exact_resources,
+        ),
+        OperationOutcome::Completed(_)
+    ));
+    assert_eq!(
+        exact_resources.usage().consumed(BudgetDimension::Operation),
+        operations
+    );
+
+    let owner_input_short = Limits {
+        max_input_bytes: required - 1,
+        ..Limits::owner_max()
+    };
+    let mut owner_resources = ResourceAccountant::new(Budget::nothing_granted(), &inventory);
+    assert!(matches!(
+        result::read_bounded(
+            control.bytes(),
+            result::Expected {
+                input: input.clone(),
+                enclosing_digest: control.digest(),
+            },
+            owner_input_short,
+            &mut owner_resources,
+        ),
+        OperationOutcome::ResourceIncomplete(value)
+            if value.dimension() == BudgetDimension::InputByte
+                && value.granted() == required - 1
+                && value.requested() == required
+    ));
+
+    let owner_depth_short = Limits {
+        max_depth: depth - 1,
+        ..Limits::owner_max()
+    };
+    let mut owner_resources = ResourceAccountant::new(Budget::nothing_granted(), &inventory);
+    assert!(matches!(
+        result::read_bounded(
+            control.bytes(),
+            result::Expected {
+                input: input.clone(),
+                enclosing_digest: control.digest(),
+            },
+            owner_depth_short,
+            &mut owner_resources,
+        ),
+        OperationOutcome::ResourceIncomplete(value)
+            if value.dimension() == BudgetDimension::Operation
+                && value.granted() == depth - 1
+                && value.requested() == depth
+    ));
+
+    let owner_field_short = Limits {
+        max_visited_fields: visited - 1,
+        ..Limits::owner_max()
+    };
+    let mut owner_resources = ResourceAccountant::new(Budget::nothing_granted(), &inventory);
+    assert!(matches!(
+        result::read_bounded(
+            control.bytes(),
+            result::Expected {
+                input: input.clone(),
+                enclosing_digest: control.digest(),
+            },
+            owner_field_short,
+            &mut owner_resources,
+        ),
+        OperationOutcome::ResourceIncomplete(value)
+            if value.dimension() == BudgetDimension::Operation
+                && value.granted() == visited - 1
+                && value.consumed() == 0
+                && value.requested() == visited
+    ));
+
     let owner_short = Limits {
         max_output_bytes: required - 1,
         ..Limits::owner_max()
