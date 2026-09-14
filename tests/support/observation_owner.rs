@@ -13,6 +13,7 @@ use quire_observation::{
 };
 
 pub struct ScopeViews {
+    pub population: authority::population::View,
     pub observation: authority::observation::View,
     pub progress_open: authority::progress::View,
     pub progress_closed: authority::progress::View,
@@ -47,6 +48,7 @@ pub fn scope_views_with_value(tag: &str, valuation_present: bool) -> ScopeViews 
         population_identity: qualified.scope().population_identity.clone(),
     };
     let context = Context::new(History::batch(&qualified), &owner, &subject, 1, None);
+    let population = population_view(context);
     let observation = observation_view(context, &qualified, tag);
     let progress_open = progress_view(context, OpenClosed::Open, tag);
     let progress_closed = progress_view(context, OpenClosed::Closed, tag);
@@ -74,6 +76,7 @@ pub fn scope_views_with_value(tag: &str, valuation_present: bool) -> ScopeViews 
         tag,
     );
     ScopeViews {
+        population,
         observation,
         progress_open,
         progress_closed,
@@ -83,6 +86,13 @@ pub fn scope_views_with_value(tag: &str, valuation_present: bool) -> ScopeViews 
         completeness_incomplete,
         completeness_contradicted,
     }
+}
+
+fn population_view(context: Context<'_>) -> authority::population::View {
+    let document = authority::population::derive(context, ObservationLimits::owner_max())
+        .expect("population document");
+    authority::population::read(document.bytes(), context, ObservationLimits::owner_max())
+        .expect("population view")
 }
 
 fn qualified(tag: &str, valuation_present: bool) -> Box<QualifiedObservation> {
