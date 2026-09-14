@@ -438,7 +438,7 @@ fn tc_009_batch_charges_observations_before_assessment() {
                 "obligation:two",
                 &decision.observation,
                 "effect:two",
-                vec![],
+                vec![oid("obligation:one")],
             ),
         ],
         Limits::default(),
@@ -542,8 +542,20 @@ fn tc_009_batch_charges_observations_before_assessment() {
         0
     );
 
-    let exact = Budget::nothing_granted()
+    let predecessor_short = Budget::nothing_granted()
         .grant(BudgetDimension::Operation, 2)
+        .expect("positive predecessor one-short grant");
+    let mut predecessor_resources = ResourceAccountant::new(predecessor_short, &inventory);
+    assert!(matches!(
+        assess_bounded(request(), Limits::default(), &mut predecessor_resources),
+        OperationOutcome::ResourceIncomplete(value)
+            if value.dimension() == BudgetDimension::Operation
+                && value.consumed() == 2
+                && value.requested() == 1
+    ));
+
+    let exact = Budget::nothing_granted()
+        .grant(BudgetDimension::Operation, 3)
         .expect("positive exact grant");
     let mut exact_resources = ResourceAccountant::new(exact, &inventory);
     assert!(matches!(
@@ -552,8 +564,58 @@ fn tc_009_batch_charges_observations_before_assessment() {
     ));
     assert_eq!(
         exact_resources.usage().consumed(BudgetDimension::Operation),
-        2
+        3
     );
+
+    let retained_bytes = bindings
+        .iter()
+        .map(|binding| binding.observation.bytes().len())
+        .chain([
+            decision.progress_closed.bytes().len(),
+            decision.closure_closed.bytes().len(),
+            surrounding.progress_closed.bytes().len(),
+            surrounding.closure_closed.bytes().len(),
+            decision.completeness_complete.bytes().len(),
+        ])
+        .sum::<usize>();
+    let retained_short = Budget::nothing_granted()
+        .grant(BudgetDimension::InputByte, retained_bytes - 1)
+        .expect("positive retained-byte one-short grant");
+    let mut retained_resources = ResourceAccountant::new(retained_short, &inventory);
+    assert!(matches!(
+        assess_bounded(request(), Limits::default(), &mut retained_resources),
+        OperationOutcome::ResourceIncomplete(value)
+            if value.dimension() == BudgetDimension::InputByte
+                && value.requested() == retained_bytes
+    ));
+
+    let retained_exact = Budget::nothing_granted()
+        .grant(BudgetDimension::InputByte, retained_bytes)
+        .expect("positive retained-byte exact grant");
+    let mut retained_resources = ResourceAccountant::new(retained_exact, &inventory);
+    assert!(matches!(
+        assess_bounded(request(), Limits::default(), &mut retained_resources),
+        OperationOutcome::Completed(_)
+    ));
+    assert_eq!(
+        retained_resources
+            .usage()
+            .consumed(BudgetDimension::InputByte),
+        retained_bytes
+    );
+
+    let predecessor_owner_short = Limits {
+        max_predecessors: 0,
+        ..Limits::default()
+    };
+    let mut owner_resources = ResourceAccountant::new(Budget::nothing_granted(), &inventory);
+    assert!(matches!(
+        assess_bounded(request(), predecessor_owner_short, &mut owner_resources),
+        OperationOutcome::ResourceIncomplete(value)
+            if value.dimension() == BudgetDimension::Operation
+                && value.granted() == 0
+                && value.requested() == 1
+    ));
 
     let mut incremental = Incremental::new(model.clone());
     incremental

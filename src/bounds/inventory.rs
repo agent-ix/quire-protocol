@@ -1031,6 +1031,18 @@ const CONFORMANCE_OBSERVATION: SourceSite = SourceSite::new(
     BudgetDimension::Observation,
     SiteKind::Iteration,
 );
+const CONFORMANCE_PREDECESSOR: SourceSite = SourceSite::new(
+    SiteId::new("conformance/predecessor/traverse"),
+    "conformance::batch::assess",
+    BudgetDimension::Operation,
+    SiteKind::Traversal,
+);
+const CONFORMANCE_RETAINED_BYTE: SourceSite = SourceSite::new(
+    SiteId::new("conformance/owner-byte/retain"),
+    "conformance::batch::assess",
+    BudgetDimension::InputByte,
+    SiteKind::Retention,
+);
 const RESULT_LINEAGE: SourceSite = SourceSite::new(
     SiteId::new("result/lineage/traverse"),
     "result::lineage::validate",
@@ -1258,6 +1270,8 @@ pub const PRODUCTION_SOURCES: &[SourceSite] = &[
     crate::link::ITERATION_SOURCE,
     crate::link::ACTIVE_INSTANCE_SOURCE,
     crate::conformance::batch::OBSERVATION_SOURCE,
+    crate::conformance::batch::PREDECESSOR_SOURCE,
+    crate::conformance::batch::RETAINED_BYTE_SOURCE,
     crate::result::lineage::LINEAGE_SOURCE,
     crate::result::record::ITEM_SOURCE,
     crate::result::record::PREMISE_ITEM_SOURCE,
@@ -1372,6 +1386,18 @@ pub const PRODUCTION_ENTRIES: &[InventoryEntry] = &[
         LimitAuthority::ConsumerOwner,
         ChargePoint::BeforeIterate,
         Termination::CollectionLength,
+    ),
+    entry(
+        CONFORMANCE_PREDECESSOR,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeTraverse,
+        Termination::FiniteGraph,
+    ),
+    entry(
+        CONFORMANCE_RETAINED_BYTE,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeRetain,
+        Termination::InputLength,
     ),
     entry(
         RESULT_LINEAGE,

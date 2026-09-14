@@ -8,7 +8,9 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use quire_observation::authority::{completeness, observation, OpenClosed};
 
 use crate::assessment::{AxisInputs, GlobalConformanceInput};
-use crate::bounds::inventory::{BudgetDimension, OperationOutcome, ResourceAccountant, SourceSite};
+use crate::bounds::inventory::{
+    BudgetDimension, ChargeError, OperationOutcome, ResourceAccountant, SourceSite,
+};
 use crate::bounds::{SiteId, SiteKind};
 use crate::closure::{AssessmentExecution, GlobalConformanceClosure};
 
@@ -25,6 +27,18 @@ pub(crate) const OPERATION_SOURCE: SourceSite = SourceSite::new(
     "conformance::batch::assess",
     BudgetDimension::Operation,
     SiteKind::Iteration,
+);
+pub(crate) const PREDECESSOR_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("conformance/predecessor/traverse"),
+    "conformance::batch::assess",
+    BudgetDimension::Operation,
+    SiteKind::Traversal,
+);
+pub(crate) const RETAINED_BYTE_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("conformance/owner-byte/retain"),
+    "conformance::batch::assess",
+    BudgetDimension::InputByte,
+    SiteKind::Retention,
 );
 
 /// Immutable owner maxima. Callers may lower but never raise them.
@@ -493,6 +507,14 @@ pub fn assess_bounded(
     resources: &mut ResourceAccountant<'_>,
 ) -> OperationOutcome<Report, Refusal> {
     let effective = limits.effective();
+    let predecessors = match predecessor_count(&request) {
+        Ok(predecessors) => predecessors,
+        Err(error) => return OperationOutcome::from_charge(error),
+    };
+    let retained_bytes = match retained_byte_count(&request) {
+        Ok(retained_bytes) => retained_bytes,
+        Err(error) => return OperationOutcome::from_charge(error),
+    };
     let charges = [
         (
             OBSERVATION_SOURCE.id(),
@@ -504,11 +526,64 @@ pub fn assess_bounded(
             request.model.obligations.len(),
             effective.max_obligations,
         ),
+        (
+            PREDECESSOR_SOURCE.id(),
+            predecessors,
+            effective.max_predecessors,
+        ),
+        (
+            RETAINED_BYTE_SOURCE.id(),
+            retained_bytes,
+            effective.max_retained_bytes,
+        ),
     ];
     if let Err(error) = resources.charge_all_with_limits(&charges) {
         return OperationOutcome::from_charge(error);
     }
     OperationOutcome::from_domain(assess(request, effective))
+}
+
+fn predecessor_count(request: &Request<'_>) -> core::result::Result<usize, ChargeError> {
+    checked_sum(
+        request
+            .model
+            .obligations
+            .iter()
+            .map(|obligation| obligation.predecessors.len()),
+        PREDECESSOR_SOURCE.id(),
+    )
+}
+
+fn retained_byte_count(request: &Request<'_>) -> core::result::Result<usize, ChargeError> {
+    checked_sum(
+        request
+            .observations
+            .iter()
+            .map(|binding| binding.observation.bytes().len())
+            .chain([
+                request.axes.decision_scope_progress.bytes().len(),
+                request.axes.decision_scope_closure.bytes().len(),
+                request.axes.surrounding_execution_progress.bytes().len(),
+                request.axes.surrounding_execution_closure.bytes().len(),
+                request.completeness.bytes().len(),
+            ]),
+        RETAINED_BYTE_SOURCE.id(),
+    )
+}
+
+fn checked_sum(
+    values: impl IntoIterator<Item = usize>,
+    site: SiteId,
+) -> core::result::Result<usize, ChargeError> {
+    values.into_iter().try_fold(0usize, |consumed, requested| {
+        consumed
+            .checked_add(requested)
+            .ok_or(ChargeError::CounterOverflow {
+                site,
+                consumed,
+                requested,
+            })
+    })
 }
 
 /// Assess one exact admitted history without repairing or reordering it.
@@ -517,13 +592,7 @@ pub fn assess(request: Request<'_>, limits: Limits) -> Result<Report> {
     let mut usage = Usage {
         obligations: request.model.obligations.len(),
         bindings: request.observations.len(),
-        predecessors: request
-            .model
-            .obligations
-            .iter()
-            .fold(0usize, |sum, obligation| {
-                sum.saturating_add(obligation.predecessors.len())
-            }),
+        predecessors: predecessor_count(&request).unwrap_or(usize::MAX),
         ..Usage::default()
     };
     if usage.obligations > effective.max_obligations
@@ -537,18 +606,7 @@ pub fn assess(request: Request<'_>, limits: Limits) -> Result<Report> {
         ));
     }
     validate_owner_axes_and_required_premises(&request, usage)?;
-    usage.retained_bytes = request
-        .observations
-        .iter()
-        .map(|binding| binding.observation.bytes().len())
-        .chain([
-            request.axes.decision_scope_progress.bytes().len(),
-            request.axes.decision_scope_closure.bytes().len(),
-            request.axes.surrounding_execution_progress.bytes().len(),
-            request.axes.surrounding_execution_closure.bytes().len(),
-            request.completeness.bytes().len(),
-        ])
-        .fold(0usize, usize::saturating_add);
+    usage.retained_bytes = retained_byte_count(&request).unwrap_or(usize::MAX);
     if usage.retained_bytes > effective.max_retained_bytes {
         return Err(resource_refusal(
             "retained owner bytes exceed an effective ceiling",
