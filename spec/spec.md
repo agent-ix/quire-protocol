@@ -20,6 +20,8 @@ relationships:
     type: depends_on
   - target: ix://agent-ix/quire-verification/FR-007
     type: depends_on
+  - target: ix://agent-ix/quire-protocol/FR-042
+    type: contains
 standards_alignment:
   - iso-iec-ieee-29148
   - iso-iec-ieee-29119
@@ -96,8 +98,8 @@ relationships identify normative owners without copying their clauses.
 Local immutable identifiers begin at `StR-001`, `US-001`, `FR-001`, `NFR-001`,
 `IT-001`, `TC-001`, `ADR-001`, `TM-001`, `AP-001`, and `AD-001`.
 Each namespace is allocated sequentially with no gaps and no reuse; the highest
-allocated identifier is currently `StR-005`, `US-007`, `FR-041`, `NFR-008`,
-`IT-003`, `TC-014`, `ADR-009`, `TM-001`, `AP-001`, and `AD-001`.
+allocated identifier is currently `StR-005`, `US-007`, `FR-042`, `NFR-008`,
+`IT-003`, `TC-015`, `ADR-009`, `TM-001`, `AP-001`, and `AD-001`.
 
 ## 7. Requirement Quality Policy
 
@@ -171,14 +173,14 @@ successful truth, adequacy, conformance, or sufficiency.
 ## 11. Traceability
 
 [TM-001](tests.md) records requirement-to-test status over the repository as it
-stands: 41 functional requirements, 8 non-functional requirements, 5 stakeholder
-requirements, 7 user stories, 9 architecture decisions, 3 integration tests, 14
-test cases, and 288 acceptance criteria across the functional and non-functional
+stands: 42 functional requirements, 8 non-functional requirements, 5 stakeholder
+requirements, 7 user stories, 9 architecture decisions, 3 integration tests, 15
+test cases, and 294 acceptance criteria across the functional and non-functional
 sets.
 
 The functional set is three layers rather than one list: 9 aggregate or
 behavioural parents (`FR-001`..`FR-009`), 9 object requirements
-(`FR-010`..`FR-018`), and 23 atomic behavioural parts (`FR-019`..`FR-041`). A
+(`FR-010`..`FR-018`), and 24 atomic behavioural parts (`FR-019`..`FR-042`). A
 parent states each of its obligations once, through exactly one part, and
 reaches its parts by `contains`; a parent row and its part rows are therefore two
 views of one obligation and are not separate work.
@@ -194,7 +196,7 @@ earlier revision of this paragraph said four states and omitted engine-bound,
 while TM-001 defined it and reported it as the coverage figure. `FR-009-AC-3`,
 `NFR-007-AC-8` and `NFR-008-AC-8` each require an unexecutable obligation to be
 counted as a zero inside its denominator rather than omitted from it, and
-`NFR-005` denominates its metrics on owed scenarios for the same reason. `TC-014`
+`NFR-005` denominates its metrics on owed scenarios for the same reason. `TC-015`
 is the highest authored test case and no matrix row cites a higher identifier.
 
 Rust tests carry bare compiler-checked `ix-trace-rs` bindings to the exact

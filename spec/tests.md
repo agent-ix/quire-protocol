@@ -44,6 +44,7 @@ relationships:
   - { target: ix://agent-ix/quire-protocol/FR-039, type: references }
   - { target: ix://agent-ix/quire-protocol/FR-040, type: references }
   - { target: ix://agent-ix/quire-protocol/FR-041, type: references }
+  - { target: ix://agent-ix/quire-protocol/FR-042, type: references }
   - { target: ix://agent-ix/quire-protocol/NFR-001, type: references }
   - { target: ix://agent-ix/quire-protocol/NFR-002, type: references }
   - { target: ix://agent-ix/quire-protocol/NFR-003, type: references }
@@ -60,11 +61,11 @@ coverage. The accepted frozen source baseline, F consumer correction, Engineerin
 Assurance producer, license, implementation plan, and retained corpus remain
 explicit gates.
 
-The repository carries 41 functional requirements, 8 non-functional
-requirements, 3 integration tests and 14 test cases, and 288 acceptance criteria
+The repository carries 42 functional requirements, 8 non-functional
+requirements, 3 integration tests and 15 test cases, and 294 acceptance criteria
 across the 41 FRs and the 8 NFRs. The functional set divides into 9 aggregate or
 behavioural parents (FR-001..FR-009), 9 object requirements (FR-010..FR-018),
-and 23 atomic behavioural parts (FR-019..FR-041) that the parents aggregate
+and 24 atomic behavioural parts (FR-019..FR-042) that the parents aggregate
 through `contains`. FR-003 through FR-008 now state their obligations once each
 through those parts; the parent row and the part rows are therefore two views of
 one obligation and must not be added together as separate work.
@@ -82,14 +83,14 @@ metrics and no acceptance criteria.
 The five words below are not interchangeable, and no total mixes them.
 
 - **Test-backed** — the criterion's `Verification` cell names at least one
-  authored test case (`TC-0NN`). 229 of 288 criteria.
+  authored test case (`TC-0NN`). 235 of 294 criteria.
 - **Integration-backed** — the cell names only an integration scenario
   (`IT-0NN`) and no test case. 12 of 288 criteria.
 - **Unbacked** — the cell names no test case and no integration scenario: it
-  verifies by `Inspection` or `Analysis` only. 47 of 288 criteria (37
+  verifies by `Inspection` or `Analysis` only. 47 of 294 criteria (37
   Inspection, 10 Analysis). An unbacked criterion is not covered by a test and
   this matrix writes `none` in its Test Cases cell rather than a test-case id
-  that would imply otherwise. TC-014 is the highest authored test case; no row
+  that would imply otherwise. TC-015 is the highest authored test case; no row
   cites a higher id.
 - **Engine-bound** — a compiler-checked trace symbol actually resolves to the
   criterion. This is the only one of the five words that is *measured* rather
@@ -303,7 +304,7 @@ declared gate; A's immutable revision is promoted and pinned at `04254a3`.
 Parent and atomic rows are both listed. FR-010..FR-018 carry `object:` and are
 in Domain Object Coverage instead.
 
-| Functional Req | Acceptance Criteria | Test Cases | Status |
+| Functional Req | Acceptance Criteria | Test Cases | Coverage Status |
 | --- | --- | --- | --- |
 | FR-001 | FR-001-AC-1, FR-001-AC-2, FR-001-AC-3, FR-001-AC-4, FR-001-AC-5 | TC-001 (AC-1..AC-4); IT-001 (AC-4, AC-5) | 🚧 Planned — 5 of 5 criteria backed, 0 unbacked. FR-001-AC-5 is integration-backed only and unexecutable: its sole backing is IT-001 SC-06/SC-06a, gated not on A's revision, which is pinned at `04254a3`, but on a handoff this repository can reach under the declared gate |
 | FR-002 | FR-002-AC-1, FR-002-AC-2, FR-002-AC-3, FR-002-AC-4, FR-002-AC-5 | TC-002 (AC-1..AC-4); IT-001 (AC-5) | 🚧 Planned — 5 of 5 criteria backed, 0 unbacked, and two of the five backed only in part: FR-002-AC-3 by three refusals nobody implements, FR-002-AC-4 by five of FR-216's six premise components. FR-002-AC-5 is integration-backed only and unexecutable: its sole backing is IT-001 SC-08, gated not on A's revision, which is pinned at `04254a3`, but on a handoff this repository can reach under the declared gate. The identity mapping landed as chunk C-12: AC-4 executes in both directions and AC-3 executes partially. AC-2 landed as chunk C-14 and is now engine-bound: `src/link/interleaving.rs` enumerates the linear extensions of the causal order A retained, excluding the `repeat_progress` back edge A documents as its explicit cyclic edge, and TC-002 asserts every one preserves the authored edges and satisfies the declared join. C-14 also closed part of an AC-4 defect: five channel premise axes — sender, receiver, message type, ordering policy and delivery cardinality — were not identity-bearing, and `ChannelPremises` now carries them. AC-4 is therefore **partially backed, not closed**. FR-216 fixes the channel premise key at six components; A's `Channel` at the pin publishes five, and no field carries a duplication premise separate from the delivery interval. Deriving one would be this crate interpreting A's numerals, which FR-216 Absence forbids, so the contradiction is asked rather than absorbed: `agent-ix/quire-spec-language` issue 85 puts it to the producer, and FR-216's own Open gap 1 records the specification half. Until one of them answers, the sixth component has no authored field to mutate and no axis in the sweep. FR-002's refusal list divides three ways — A refuses the causal edge set, joins, cycles and reference resolution inside `read`; this crate refuses zero-progress iteration and duplicate role authorities, which A leaves open; and unreachable termination, overlapping choices and owner-unobservable choices are refused by nobody, because no reachability analysis exists in either repository and choice disjointness is a decision procedure over arbitrary guards that neither has. Those three are AC-3 obligations no code discharges. AC-1 is unresolved by owner ruling on issue #4: it requires distinct runtime instance identities, and A carries binding requirements rather than instances, so no test here can establish it |
@@ -337,12 +338,13 @@ in Domain Object Coverage instead.
 | FR-039 | FR-039-AC-1..AC-6 | TC-011 (AC-1..AC-5); IT-003 (AC-5); none for FR-039-AC-6 | 🚧 Planned — 5 of 6 criteria test-backed. Unbacked: FR-039-AC-6 (Inspection). No criterion rests on IT-003 alone |
 | FR-040 | FR-040-AC-1..AC-4 | TC-011 (AC-1..AC-4); IT-003 (AC-3) | 🚧 Planned — 4 of 4 criteria test-backed, 0 unbacked, 0 unexecutable |
 | FR-041 | FR-041-AC-1..AC-4 | TC-004 (AC-1..AC-3); none for FR-041-AC-4 | 🚧 Planned — 3 of 4 criteria test-backed. Unbacked: FR-041-AC-4 (Analysis) |
+| FR-042 | FR-042-AC-1..AC-6 | TC-015 (AC-1..AC-6) | 🚧 Planned — complete canonical result owner and selected mapping implementation |
 
-Behavioural totals across these 32 rows: 177 acceptance criteria, of which 162
+Behavioural totals across these 33 rows: 183 acceptance criteria, of which 168
 are backed by a test case, 2 are backed only by an integration scenario and both
 of those are unexecutable (FR-001-AC-5 and FR-002-AC-5, each resting on IT-001
 version 2 alone), and 13 are unbacked — 9 by Inspection and 4 by Analysis.
-162 + 2 + 13 = 177.
+168 + 2 + 13 = 183.
 
 ## Domain Object Coverage
 
@@ -430,13 +432,14 @@ a coverage claim in this matrix.
 | TC-012 | Run the local verification gate and refuse an undefined lane | Static | P0 | NFR-004 | 🚧 Planned |
 | TC-013 | Resolve the version-lock manifest | Property | P0 | FR-009, FR-012, FR-016, FR-017, FR-018, NFR-006 | 🚧 Planned — B-owned fixtures only; runnable without any external producer delivery |
 | TC-014 | Apply the consumer identity discipline | Property | P0 | FR-011, FR-015, FR-017 | 🚧 Planned — B-owned fixtures only; runnable without any external producer delivery |
+| TC-015 | Produce, read and map canonical protocol results | Integration | P0 | FR-042-AC-1..FR-042-AC-6 | 🚧 Planned |
 
 ## Test Execution Summary
 
 Row counts, recomputed from the tree. Every matrix row above is counted exactly
 once, and `Blocked` means unexecutable — neither passing nor failing.
 
-Engine-measured binding, which is the figure to read for coverage, is 37 of 322
+Engine-measured binding before FR-042 implementation, which is the figure to read for coverage, is 37 of 328
 rows (11%) — see **Engine-bound** above. The table below counts matrix rows and
 their planned state; it does not measure binding.
 
@@ -460,7 +463,7 @@ fully blocked integration cannot score 100%. These totals follow that rule: the
 denominator is every authored acceptance criterion, and an unexecutable
 criterion is a zero inside it rather than a row removed from it.
 
-Engine-measured binding, which is the figure to read for coverage, is 37 of 322
+Engine-measured binding before FR-042 implementation, which is the figure to read for coverage, is 37 of 328
 rows (11%) — see **Engine-bound** above. The table below counts matrix rows and
 their planned state; it does not measure binding.
 
@@ -489,4 +492,4 @@ FR-041-AC-4, NFR-006-AC-1, NFR-006-AC-2, NFR-006-AC-3, NFR-006-AC-4,
 NFR-006-AC-5, NFR-007-AC-1, NFR-007-AC-2, NFR-007-AC-6, NFR-007-AC-8,
 NFR-008-AC-3, NFR-008-AC-4, NFR-008-AC-5 and NFR-008-AC-8. Each verifies by
 Inspection or Analysis and none is claimed as test coverage. No row cites a
-test-case id above TC-014, and none is invented to close one of these gaps.
+test-case id above TC-015, and none is invented to close one of these gaps.
