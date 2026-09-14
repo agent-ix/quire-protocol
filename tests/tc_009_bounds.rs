@@ -14,6 +14,11 @@ use std::collections::BTreeSet;
 use std::time::{Duration, Instant, SystemTime};
 
 use ix_trace_rs::trace;
+use quire_protocol::bounds::inventory::{
+    BoundaryCase, Budget, BudgetDimension, BudgetError, ChargeError, ChargePoint, IncompleteCode,
+    Inventory, InventoryEntry, InventoryError, LimitAuthority, ResourceAccountant, SourceSite,
+    Termination,
+};
 use quire_protocol::bounds::{
     accumulation, limit_for, usage_for, Accumulation, BoundedRun, BoundedSite, Clock, CountGuard,
     DeadlineCode, DeadlineGuard, DeadlineRefusal, DurationOverflow, Phase, PrecheckCode,
@@ -38,6 +43,29 @@ const UNLISTED: SiteId = SiteId::new("c29.fixture.unlisted");
 const PAYLOAD: SiteId = SiteId::new("c29.fixture.payload-buffer");
 
 const UNIT: UnitLabel = UnitLabel::new("c29.fixture.indivisible-unit");
+
+const CALLER_SITE: SiteId = SiteId::new("c30.fixture.caller-controlled-retention");
+const CALLER_BOUNDARY: BoundaryCase = BoundaryCase::new("tc_009_caller_budget_boundaries");
+
+fn caller_source() -> SourceSite {
+    SourceSite::new(
+        CALLER_SITE,
+        "c30::fixture::retain",
+        BudgetDimension::InputByte,
+        SiteKind::Retention,
+    )
+}
+
+fn caller_entry() -> InventoryEntry {
+    InventoryEntry::new(
+        caller_source(),
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeRetain,
+        Termination::InputLength,
+        IncompleteCode::BudgetExceeded,
+        CALLER_BOUNDARY,
+    )
+}
 
 /// Ceilings low enough to reach in a test. `Limits::bounded()` only clamps
 /// downwards, so every lowered value below survives it unchanged.
@@ -1036,6 +1064,225 @@ const SITE_IDS: [SiteId; 13] = [
     SiteId::new("c29.fixture.d11"),
     SiteId::new("c29.fixture.d12"),
 ];
+
+// ---------------------------------------------------------------------------
+// NFR-002-AC-3 / FR-016 — QProtocol caller-budget vocabulary and inventory
+// ---------------------------------------------------------------------------
+
+#[trace("TC-009", "NFR-002-AC-3", "FR-016-AC-1")]
+#[test]
+fn tc_009_caller_budget_vocabulary_is_closed_and_exact() {
+    let labels = BudgetDimension::ALL.map(BudgetDimension::as_str);
+    assert_eq!(
+        labels,
+        [
+            "input-byte",
+            "definition",
+            "node",
+            "edge",
+            "role",
+            "message",
+            "branch",
+            "iteration",
+            "active-instance",
+            "observation",
+            "lineage",
+            "result-item",
+            "derived-artifact",
+            "output-byte",
+            "operation",
+            "accounted-allocation",
+            "elapsed-time",
+            "resolution-entry-count",
+            "resolution-bytes-digested",
+            "resolution-deadline",
+        ]
+    );
+    let unique: BTreeSet<_> = labels.into_iter().collect();
+    assert_eq!(unique.len(), BudgetDimension::ALL.len());
+}
+
+#[trace("TC-009", "NFR-002-AC-1", "FR-016-AC-2", "FR-016-AC-3")]
+#[test]
+fn tc_009_caller_budget_boundaries_are_inclusive_and_dimension_local() {
+    let inventory = Inventory::reconcile(&[caller_source()], &[caller_entry()])
+        .expect("one exact source and inventory entry reconcile");
+    let budget = Budget::nothing_granted()
+        .grant(BudgetDimension::InputByte, 2)
+        .expect("positive grant");
+    let mut accountant = ResourceAccountant::new(budget, &inventory);
+
+    accountant
+        .charge(CALLER_SITE, 1)
+        .expect("below the inclusive boundary");
+    accountant
+        .charge(CALLER_SITE, 1)
+        .expect("at the inclusive boundary");
+    let before = accountant.usage();
+    let ChargeError::ResourceIncomplete(incomplete) = accountant
+        .charge(CALLER_SITE, 1)
+        .expect_err("the smallest excess unit is resource-incomplete")
+    else {
+        panic!("budget exhaustion must not collapse into an accounting fault");
+    };
+
+    assert_eq!(incomplete.code(), IncompleteCode::BudgetExceeded);
+    assert_eq!(incomplete.identity().code(), IncompleteCode::BudgetExceeded);
+    assert_eq!(
+        incomplete.identity().dimension(),
+        BudgetDimension::InputByte
+    );
+    assert_eq!(incomplete.identity().site(), CALLER_SITE);
+    assert!(
+        !incomplete.code().as_str().starts_with("refusal."),
+        "resource-incomplete does not borrow an input-refusal identity"
+    );
+    assert_eq!(incomplete.dimension(), BudgetDimension::InputByte);
+    assert_eq!(incomplete.site(), CALLER_SITE);
+    assert_eq!(incomplete.granted(), 2);
+    assert_eq!(incomplete.consumed(), 2);
+    assert_eq!(incomplete.requested(), 1);
+    assert_eq!(accountant.usage(), before, "refused work charges nothing");
+    for dimension in BudgetDimension::ALL {
+        assert_eq!(
+            accountant.usage().consumed(dimension),
+            usize::from(dimension == BudgetDimension::InputByte) * 2,
+            "exhausting one dimension changes no other dimension"
+        );
+    }
+}
+
+#[trace("TC-009", "NFR-002-AC-3", "FR-016-AC-5")]
+#[test]
+fn tc_009_inventory_and_counter_faults_are_not_resource_incomplete() {
+    let inventory = Inventory::reconcile(&[caller_source()], &[caller_entry()])
+        .expect("fixture inventory reconciles");
+    let mut unbounded = ResourceAccountant::new(Budget::nothing_granted(), &inventory);
+
+    assert_eq!(
+        unbounded.charge(UNLISTED, 1),
+        Err(ChargeError::UnregisteredSite { site: UNLISTED })
+    );
+    unbounded
+        .charge(CALLER_SITE, 1)
+        .expect("an absent caller grant stays absent; the authored maximum is separate");
+    assert_eq!(
+        unbounded.charge(CALLER_SITE, usize::MAX),
+        Err(ChargeError::CounterOverflow {
+            site: CALLER_SITE,
+            consumed: 1,
+            requested: usize::MAX,
+        })
+    );
+}
+
+#[trace("TC-009", "NFR-002-AC-3", "FR-016-AC-4")]
+#[test]
+fn tc_009_fresh_budget_carries_no_exhausted_state() {
+    let inventory = Inventory::reconcile(&[caller_source()], &[caller_entry()])
+        .expect("fixture inventory reconciles");
+    let make_budget = || {
+        Budget::nothing_granted()
+            .grant(BudgetDimension::InputByte, 2)
+            .expect("positive grant")
+    };
+    let mut exhausted = ResourceAccountant::new(make_budget(), &inventory);
+    exhausted
+        .charge(CALLER_SITE, 2)
+        .expect("exactly sufficient");
+    exhausted
+        .charge(CALLER_SITE, 1)
+        .expect_err("one unit beyond the grant");
+
+    let mut fresh = ResourceAccountant::new(make_budget(), &inventory);
+    fresh
+        .charge(CALLER_SITE, 2)
+        .expect("fresh exact grant admits independently");
+    assert_eq!(
+        fresh.usage().consumed(BudgetDimension::InputByte),
+        2,
+        "no partial state crossed accountant instances"
+    );
+}
+
+#[trace("TC-009", "NFR-002-AC-3", "FR-016-AC-7")]
+#[test]
+fn tc_009_absent_zero_and_duplicate_grants_never_default_or_overwrite() {
+    let absent = Budget::nothing_granted();
+    assert_eq!(absent.grant_for(BudgetDimension::InputByte), None);
+    assert_eq!(
+        absent.clone().grant(BudgetDimension::InputByte, 0),
+        Err(BudgetError::NonPositiveGrant {
+            dimension: BudgetDimension::InputByte,
+        })
+    );
+    let once = absent
+        .grant(BudgetDimension::InputByte, 2)
+        .expect("first positive grant");
+    assert_eq!(
+        once.grant(BudgetDimension::InputByte, 3),
+        Err(BudgetError::DuplicateGrant {
+            dimension: BudgetDimension::InputByte,
+        }),
+        "a second grant cannot silently replace the selected value"
+    );
+}
+
+#[trace("TC-009", "NFR-002-AC-3")]
+#[test]
+fn tc_009_inventory_reconciliation_kills_delete_duplicate_orphan_and_unbound_mutants() {
+    let source = caller_source();
+    let entry = caller_entry();
+    assert!(Inventory::reconcile(&[source], &[entry]).is_ok());
+
+    assert_eq!(
+        Inventory::reconcile(&[source], &[]),
+        Err(InventoryError::MissingEntry { site: CALLER_SITE })
+    );
+    assert_eq!(
+        Inventory::reconcile(&[source], &[entry, entry]),
+        Err(InventoryError::DuplicateEntry { site: CALLER_SITE })
+    );
+    assert_eq!(
+        Inventory::reconcile(&[], &[entry]),
+        Err(InventoryError::OrphanEntry { site: CALLER_SITE })
+    );
+    assert_eq!(
+        Inventory::reconcile(&[source, source], &[entry]),
+        Err(InventoryError::DuplicateSource { site: CALLER_SITE })
+    );
+
+    let unbound = InventoryEntry::new(
+        source,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeRetain,
+        Termination::InputLength,
+        IncompleteCode::BudgetExceeded,
+        BoundaryCase::UNASSIGNED,
+    );
+    assert_eq!(
+        Inventory::reconcile(&[source], &[unbound]),
+        Err(InventoryError::BoundaryUnassigned { site: CALLER_SITE })
+    );
+
+    let mismatched = InventoryEntry::new(
+        SourceSite::new(
+            CALLER_SITE,
+            "c30::fixture::retain",
+            BudgetDimension::OutputByte,
+            SiteKind::Retention,
+        ),
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeRetain,
+        Termination::InputLength,
+        IncompleteCode::BudgetExceeded,
+        CALLER_BOUNDARY,
+    );
+    assert_eq!(
+        Inventory::reconcile(&[source], &[mismatched]),
+        Err(InventoryError::BindingMismatch { site: CALLER_SITE })
+    );
+}
 
 /// A clock that runs backwards *within* a unit is a fault, not an expiry.
 ///
