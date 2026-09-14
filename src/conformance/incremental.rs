@@ -4,7 +4,10 @@
 use quire_observation::authority::completeness;
 
 use crate::assessment::{AxisInputs, GlobalConformanceInput};
-use crate::bounds::inventory::{ChargeError, OperationOutcome, ResourceAccountant};
+use crate::bounds::inventory::{
+    BudgetDimension, ChargeError, OperationOutcome, ResourceAccountant, SourceSite,
+};
+use crate::bounds::{SiteId, SiteKind};
 use crate::closure::AssessmentExecution;
 
 use super::batch::{
@@ -12,6 +15,13 @@ use super::batch::{
     OBSERVATION_SOURCE, OPERATION_SOURCE,
 };
 use super::{ErrorCode, Refusal, Result};
+
+pub(crate) const PREFIX_ALLOCATION_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("conformance/incremental-prefix/allocate"),
+    "conformance::incremental::Incremental::push",
+    BudgetDimension::AccountedAllocation,
+    SiteKind::Allocation,
+);
 
 /// Producer-owned context shared by one bounded incremental assessment step.
 #[derive(Clone, Copy, Debug)]
@@ -108,18 +118,20 @@ impl<'a> Incremental<'a> {
             });
         };
         let charges = [
+            (PREFIX_ALLOCATION_SOURCE.id(), 1, None),
+            (super::batch::ALLOCATION_SOURCE.id(), 1, None),
             (
                 OBSERVATION_SOURCE.id(),
                 candidate_len,
-                effective.max_bindings,
+                Some(effective.max_bindings),
             ),
             (
                 OPERATION_SOURCE.id(),
                 self.model.obligations().len(),
-                effective.max_obligations,
+                Some(effective.max_obligations),
             ),
         ];
-        if let Err(error) = resources.charge_all_with_limits(&charges) {
+        if let Err(error) = resources.charge_all_mixed(&charges) {
             return OperationOutcome::from_charge(error);
         }
         OperationOutcome::from_domain(self.push(
@@ -179,18 +191,19 @@ impl<'a> Incremental<'a> {
     ) -> OperationOutcome<&'request Report, Refusal> {
         let effective = context.limits.effective();
         let charges = [
+            (super::batch::ALLOCATION_SOURCE.id(), 1, None),
             (
                 OBSERVATION_SOURCE.id(),
                 self.observations.len(),
-                effective.max_bindings,
+                Some(effective.max_bindings),
             ),
             (
                 OPERATION_SOURCE.id(),
                 self.model.obligations().len(),
-                effective.max_obligations,
+                Some(effective.max_obligations),
             ),
         ];
-        if let Err(error) = resources.charge_all_with_limits(&charges) {
+        if let Err(error) = resources.charge_all_mixed(&charges) {
             return OperationOutcome::from_charge(error);
         }
         OperationOutcome::from_domain(self.finish(

@@ -1071,6 +1071,18 @@ const CONFORMANCE_ADVERSE: SourceSite = SourceSite::new(
     BudgetDimension::ResultItem,
     SiteKind::Retention,
 );
+const CONFORMANCE_ALLOCATION: SourceSite = SourceSite::new(
+    SiteId::new("conformance/report/allocate"),
+    "conformance::batch::assess",
+    BudgetDimension::AccountedAllocation,
+    SiteKind::Allocation,
+);
+const CONFORMANCE_INCREMENTAL_ALLOCATION: SourceSite = SourceSite::new(
+    SiteId::new("conformance/incremental-prefix/allocate"),
+    "conformance::incremental::Incremental::push",
+    BudgetDimension::AccountedAllocation,
+    SiteKind::Allocation,
+);
 const RESULT_LINEAGE: SourceSite = SourceSite::new(
     SiteId::new("result/lineage/traverse"),
     "result::lineage::validate",
@@ -1337,6 +1349,8 @@ pub const PRODUCTION_SOURCES: &[SourceSite] = &[
     crate::conformance::batch::PREDECESSOR_SOURCE,
     crate::conformance::batch::RETAINED_BYTE_SOURCE,
     crate::conformance::batch::ADVERSE_SOURCE,
+    crate::conformance::batch::ALLOCATION_SOURCE,
+    crate::conformance::incremental::PREFIX_ALLOCATION_SOURCE,
     crate::result::lineage::LINEAGE_SOURCE,
     crate::result::record::ITEM_SOURCE,
     crate::result::record::PREMISE_ITEM_SOURCE,
@@ -1475,6 +1489,18 @@ pub const PRODUCTION_ENTRIES: &[InventoryEntry] = &[
         LimitAuthority::ConsumerOwner,
         ChargePoint::BeforeRetain,
         Termination::CollectionLength,
+    ),
+    entry(
+        CONFORMANCE_ALLOCATION,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeAllocate,
+        Termination::SingleUnit,
+    ),
+    entry(
+        CONFORMANCE_INCREMENTAL_ALLOCATION,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeAllocate,
+        Termination::SingleUnit,
     ),
     entry(
         RESULT_LINEAGE,

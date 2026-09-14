@@ -654,6 +654,22 @@ fn tc_009_batch_charges_observations_before_assessment() {
                 && value.requested() == 1
     ));
 
+    let one_allocation = Budget::nothing_granted()
+        .grant(BudgetDimension::AccountedAllocation, 1)
+        .expect("one conformance report allocation");
+    let mut allocation_resources = ResourceAccountant::new(one_allocation, &inventory);
+    assert!(matches!(
+        assess_bounded(request(), Limits::default(), &mut allocation_resources),
+        OperationOutcome::Completed(_)
+    ));
+    assert!(matches!(
+        assess_bounded(request(), Limits::default(), &mut allocation_resources),
+        OperationOutcome::ResourceIncomplete(value)
+            if value.dimension() == BudgetDimension::AccountedAllocation
+                && value.consumed() == 1
+                && value.requested() == 1
+    ));
+
     let mut incremental = Incremental::new(model.clone());
     incremental
         .push(
@@ -676,6 +692,38 @@ fn tc_009_batch_charges_observations_before_assessment() {
         execution: AssessmentExecution::Completed,
         limits: Limits::default(),
     };
+    let mut allocation_incremental = Incremental::new(model.clone());
+    let one_allocation = Budget::nothing_granted()
+        .grant(BudgetDimension::AccountedAllocation, 1)
+        .expect("one-short incremental allocation grant");
+    let mut allocation_resources = ResourceAccountant::new(one_allocation, &inventory);
+    assert!(matches!(
+        allocation_incremental.push_bounded(
+            bindings[0].clone(),
+            bounded_context,
+            &mut allocation_resources,
+        ),
+        OperationOutcome::ResourceIncomplete(value)
+            if value.dimension() == BudgetDimension::AccountedAllocation
+                && value.consumed() == 1
+                && value.requested() == 1
+    ));
+    assert!(allocation_incremental.observations().is_empty());
+
+    let two_allocations = Budget::nothing_granted()
+        .grant(BudgetDimension::AccountedAllocation, 2)
+        .expect("prefix and report allocation grant");
+    let mut allocation_resources = ResourceAccountant::new(two_allocations, &inventory);
+    assert!(matches!(
+        allocation_incremental.push_bounded(
+            bindings[0].clone(),
+            bounded_context,
+            &mut allocation_resources,
+        ),
+        OperationOutcome::Completed(_)
+    ));
+    assert_eq!(allocation_incremental.observations().len(), 1);
+
     let incremental_incomplete = incremental.push_bounded(
         bindings[1].clone(),
         bounded_context,
@@ -751,6 +799,15 @@ fn tc_009_batch_charges_observations_before_assessment() {
     let mut exact_resources = ResourceAccountant::new(exact, &inventory);
     assert!(matches!(
         finishing.finish_bounded(bounded_context, &mut exact_resources,),
+        OperationOutcome::Completed(_)
+    ));
+
+    let one_allocation = Budget::nothing_granted()
+        .grant(BudgetDimension::AccountedAllocation, 1)
+        .expect("one final report allocation");
+    let mut allocation_resources = ResourceAccountant::new(one_allocation, &inventory);
+    assert!(matches!(
+        finishing.finish_bounded(bounded_context, &mut allocation_resources),
         OperationOutcome::Completed(_)
     ));
 }

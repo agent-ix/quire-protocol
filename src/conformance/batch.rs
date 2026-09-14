@@ -46,6 +46,12 @@ pub(crate) const ADVERSE_SOURCE: SourceSite = SourceSite::new(
     BudgetDimension::ResultItem,
     SiteKind::Retention,
 );
+pub(crate) const ALLOCATION_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("conformance/report/allocate"),
+    "conformance::batch::assess",
+    BudgetDimension::AccountedAllocation,
+    SiteKind::Allocation,
+);
 
 /// Immutable owner maxima. Callers may lower but never raise them.
 pub const OWNER_MAX: Limits = Limits {
@@ -522,28 +528,29 @@ pub fn assess_bounded(
         Err(error) => return OperationOutcome::from_charge(error),
     };
     let charges = [
+        (ALLOCATION_SOURCE.id(), 1, None),
         (
             OBSERVATION_SOURCE.id(),
             request.observations.len(),
-            effective.max_bindings,
+            Some(effective.max_bindings),
         ),
         (
             OPERATION_SOURCE.id(),
             request.model.obligations.len(),
-            effective.max_obligations,
+            Some(effective.max_obligations),
         ),
         (
             PREDECESSOR_SOURCE.id(),
             predecessors,
-            effective.max_predecessors,
+            Some(effective.max_predecessors),
         ),
         (
             RETAINED_BYTE_SOURCE.id(),
             retained_bytes,
-            effective.max_retained_bytes,
+            Some(effective.max_retained_bytes),
         ),
     ];
-    if let Err(error) = resources.charge_all_with_limits(&charges) {
+    if let Err(error) = resources.charge_all_mixed(&charges) {
         return OperationOutcome::from_charge(error);
     }
     match assess_inner(request, effective, Some(resources)) {
