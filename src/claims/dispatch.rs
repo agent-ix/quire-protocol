@@ -49,6 +49,12 @@ pub(crate) const COMPONENT_SOURCE: SourceSite = SourceSite::new(
     BudgetDimension::Node,
     SiteKind::Traversal,
 );
+pub(crate) const ALLOCATION_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("claims/report/allocate"),
+    "claims::dispatch::dispatch",
+    BudgetDimension::AccountedAllocation,
+    SiteKind::Allocation,
+);
 
 /// Immutable dispatch owner maxima.
 pub const OWNER_MAX: Limits = Limits {
@@ -501,30 +507,35 @@ pub fn dispatch_bounded(
         .filter(|request| request.premises.derived_artifact.is_some())
         .count();
     let charges = [
+        (ALLOCATION_SOURCE.id(), 1, None),
         (
             super::premises::INPUT_SOURCE.id(),
             preflight.bytes,
-            effective.max_bytes,
+            Some(effective.max_bytes),
         ),
         (
             BACKEND_SOURCE.id(),
             preflight.backends,
-            effective.max_backends,
+            Some(effective.max_backends),
         ),
         (
             COMPONENT_SOURCE.id(),
             preflight.components,
-            effective.max_components,
+            Some(effective.max_components),
         ),
-        (RESULT_SOURCE.id(), requests.len(), effective.max_requests),
-        (DERIVED_SOURCE.id(), derived, effective.max_components),
+        (
+            RESULT_SOURCE.id(),
+            requests.len(),
+            Some(effective.max_requests),
+        ),
+        (DERIVED_SOURCE.id(), derived, Some(effective.max_components)),
         (
             OPERATION_SOURCE.id(),
             requests.len(),
-            effective.max_requests,
+            Some(effective.max_requests),
         ),
     ];
-    if let Err(error) = resources.charge_all_with_limits(&charges) {
+    if let Err(error) = resources.charge_all_mixed(&charges) {
         return OperationOutcome::from_charge(error);
     }
     OperationOutcome::from_domain(dispatch(requests, backends, effective))

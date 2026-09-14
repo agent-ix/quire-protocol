@@ -526,6 +526,39 @@ fn tc_009_dispatch_charges_caller_operations_before_backend_calls() {
     assert_eq!(report.dispositions.len(), 2);
     assert_eq!(backend.calls.len(), 2);
     assert_eq!(fresh.usage().consumed(BudgetDimension::Operation), 2);
+
+    let requests = two_requests(&correspondence);
+    let mut backend = FakeBackend::new(
+        "backend:one",
+        "v1",
+        vec![Claim::Conformance, Claim::Projection],
+    );
+    let one_allocation = Budget::nothing_granted()
+        .grant(BudgetDimension::AccountedAllocation, 1)
+        .expect("one dispatch-report allocation");
+    let mut resources = ResourceAccountant::new(one_allocation, &inventory);
+    let first = {
+        let mut backends: [&mut dyn Backend; 1] = [&mut backend];
+        dispatch_bounded(&requests, &mut backends, Limits::default(), &mut resources)
+    };
+    assert!(matches!(first, OperationOutcome::Completed(_)));
+    assert_eq!(backend.calls.len(), 2);
+    let second = {
+        let mut backends: [&mut dyn Backend; 1] = [&mut backend];
+        dispatch_bounded(&requests, &mut backends, Limits::default(), &mut resources)
+    };
+    assert!(matches!(
+        second,
+        OperationOutcome::ResourceIncomplete(value)
+            if value.dimension() == BudgetDimension::AccountedAllocation
+                && value.consumed() == 1
+                && value.requested() == 1
+    ));
+    assert_eq!(
+        backend.calls.len(),
+        2,
+        "no call starts before report allocation"
+    );
 }
 
 fn empty_fragment(premises: &mut PremiseSet) {

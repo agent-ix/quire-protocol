@@ -1233,6 +1233,12 @@ const CLAIM_COMPONENT: SourceSite = SourceSite::new(
     BudgetDimension::Node,
     SiteKind::Traversal,
 );
+const CLAIM_ALLOCATION: SourceSite = SourceSite::new(
+    SiteId::new("claims/report/allocate"),
+    "claims::dispatch::dispatch",
+    BudgetDimension::AccountedAllocation,
+    SiteKind::Allocation,
+);
 const COMPENSATION_OBSERVATION: SourceSite = SourceSite::new(
     SiteId::new("compensation/observation/consume"),
     "compensation::recovery::assess",
@@ -1352,6 +1358,7 @@ pub const PRODUCTION_SOURCES: &[SourceSite] = &[
     crate::claims::dispatch::OPERATION_SOURCE,
     crate::claims::dispatch::BACKEND_SOURCE,
     crate::claims::dispatch::COMPONENT_SOURCE,
+    crate::claims::dispatch::ALLOCATION_SOURCE,
     crate::compensation::recovery::OBSERVATION_SOURCE,
     crate::compensation::ACTIVATION_RESULT_SOURCE,
     crate::compensation::REGISTRATION_RESULT_SOURCE,
@@ -1623,6 +1630,12 @@ pub const PRODUCTION_ENTRIES: &[InventoryEntry] = &[
         LimitAuthority::ConsumerOwner,
         ChargePoint::BeforeTraverse,
         Termination::CollectionLength,
+    ),
+    entry(
+        CLAIM_ALLOCATION,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeAllocate,
+        Termination::SingleUnit,
     ),
     entry(
         COMPENSATION_OBSERVATION,
