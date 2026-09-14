@@ -29,8 +29,8 @@ outputs; and complete the refusal envelope shared by every refusing operation.
   into a private candidate, and commit the bundle only after all whole-request
   invariants pass; exact replay and every failed candidate leave the observable
   snapshot, canonical serialization and accounting semantics unchanged.
-- [ ] Implement the shared three-member `OperationOutcome<T>`, ordered
-  per-admitted-claim `ClaimOutcome`, and `AssessmentBundle`; keep FR-241 semantic
+- [ ] Consume Task-017's shared three-member `OperationOutcome<T>` and ordered
+  per-admitted-claim `ClaimOutcome`, then implement `AssessmentBundle`; keep FR-241 semantic
   dispositions, claim-local construction refusals and pre-row resource
   incompleteness non-interchangeable.
 - [ ] Represent truth, adequacy, decision-scope progress/closure,
@@ -53,7 +53,7 @@ outputs; and complete the refusal envelope shared by every refusing operation.
 
 ## Deliverables
 
-- Per-assessment Engine, AssessmentBundle and outcome algebra; canonical
+- Per-assessment Engine, AssessmentBundle and composed use of the shared outcome algebra; canonical
   result/refusal types; strict readers; JCS and runtime-reference identity
   layers; lineage validator; TC-006/TC-011; and trace bindings.
 
