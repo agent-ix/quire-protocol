@@ -799,6 +799,39 @@ fn tc_009_result_output_budget_precedes_canonical_allocation() {
         required
     );
 
+    let one_allocation = Budget::nothing_granted()
+        .grant(BudgetDimension::AccountedAllocation, 1)
+        .expect("one logical result allocation");
+    let mut allocation_resources = ResourceAccountant::new(one_allocation, &inventory);
+    assert!(matches!(
+        result::produce_bounded(
+            input.clone(),
+            Limits::owner_max(),
+            &mut allocation_resources
+        ),
+        OperationOutcome::Completed(_)
+    ));
+    assert!(matches!(
+        result::produce_bounded(
+            input.clone(),
+            Limits::owner_max(),
+            &mut allocation_resources
+        ),
+        OperationOutcome::ResourceIncomplete(value)
+            if value.dimension() == BudgetDimension::AccountedAllocation
+                && value.consumed() == 1
+                && value.requested() == 1
+    ));
+
+    let fresh_allocation = Budget::nothing_granted()
+        .grant(BudgetDimension::AccountedAllocation, 1)
+        .expect("fresh logical result allocation");
+    let mut fresh_resources = ResourceAccountant::new(fresh_allocation, &inventory);
+    assert!(matches!(
+        result::produce_bounded(input.clone(), Limits::owner_max(), &mut fresh_resources),
+        OperationOutcome::Completed(_)
+    ));
+
     let usage = control.usage();
     let result_items = usage
         .claims

@@ -44,6 +44,12 @@ pub(crate) const OUTPUT_SOURCE: SourceSite = SourceSite::new(
     BudgetDimension::OutputByte,
     SiteKind::Allocation,
 );
+pub(crate) const ALLOCATION_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("result/document/allocate"),
+    "result::record::produce",
+    BudgetDimension::AccountedAllocation,
+    SiteKind::Allocation,
+);
 
 /// Canonical result contract label.
 pub const CONTRACT: &str = "quire.protocol.result/v1-draft.1";
@@ -600,29 +606,34 @@ pub fn produce_bounded(
     let effective = limits.effective();
     let semantic = semantic_usage(&input);
     let charges = [
-        (ITEM_SOURCE.id(), semantic.claims, effective.max_claims),
+        (ALLOCATION_SOURCE.id(), 1, None),
+        (
+            ITEM_SOURCE.id(),
+            semantic.claims,
+            Some(effective.max_claims),
+        ),
         (
             PREMISE_ITEM_SOURCE.id(),
             semantic.premises,
-            effective.max_premises,
+            Some(effective.max_premises),
         ),
         (
             SUPPORT_ITEM_SOURCE.id(),
             semantic.support_records,
-            effective.max_support_records,
+            Some(effective.max_support_records),
         ),
         (
             LIMITATION_ITEM_SOURCE.id(),
             semantic.limitations,
-            effective.max_limitations,
+            Some(effective.max_limitations),
         ),
         (
             super::lineage::LINEAGE_SOURCE.id(),
             semantic.lineage_nodes,
-            effective.max_lineage_nodes,
+            Some(effective.max_lineage_nodes),
         ),
     ];
-    if let Err(error) = resources.charge_all_with_limits(&charges) {
+    if let Err(error) = resources.charge_all_mixed(&charges) {
         return OperationOutcome::from_charge(error);
     }
     let prepared = match prepare(input, effective) {

@@ -959,6 +959,28 @@ impl<'inventory> ResourceAccountant<'inventory> {
         }
         Ok(())
     }
+
+    /// Transactionally charge one operation whose sites mix caller-only and
+    /// authored ceilings.
+    ///
+    /// `None` preserves the absence of an authored maximum; it is not replaced
+    /// by `usize::MAX` or another site's authority. This is crate-private so
+    /// owner operations can compose one atomic pre-work batch without exposing
+    /// optional ceiling mechanics as part of the public caller API.
+    pub(crate) fn charge_all_mixed(
+        &mut self,
+        charges: &[(SiteId, usize, Option<usize>)],
+    ) -> Result<(), ChargeError> {
+        for (index, (site, requested, authored_limit)) in charges.iter().enumerate() {
+            if let Err(error) = self.charge_effective(*site, *requested, *authored_limit) {
+                for (charged_site, charged_request, _) in charges[..index].iter().rev() {
+                    self.rollback_charge(*charged_site, *charged_request);
+                }
+                return Err(error);
+            }
+        }
+        Ok(())
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1119,6 +1141,12 @@ const RESULT_OUTPUT: SourceSite = SourceSite::new(
     SiteId::new("result/output/allocate"),
     "result::record::produce",
     BudgetDimension::OutputByte,
+    SiteKind::Allocation,
+);
+const RESULT_ALLOCATION: SourceSite = SourceSite::new(
+    SiteId::new("result/document/allocate"),
+    "result::record::produce",
+    BudgetDimension::AccountedAllocation,
     SiteKind::Allocation,
 );
 const CONFORMANCE_OPERATION: SourceSite = SourceSite::new(
@@ -1291,6 +1319,7 @@ pub const PRODUCTION_SOURCES: &[SourceSite] = &[
     crate::result::contract_ir::DEPTH_SOURCE,
     crate::result::contract_ir::OPERATION_SOURCE,
     crate::result::record::OUTPUT_SOURCE,
+    crate::result::record::ALLOCATION_SOURCE,
     crate::conformance::batch::OPERATION_SOURCE,
     crate::ids::ALLOCATION_SOURCE,
     crate::ids::INPUT_SOURCE,
@@ -1483,6 +1512,12 @@ pub const PRODUCTION_ENTRIES: &[InventoryEntry] = &[
         LimitAuthority::ConsumerOwner,
         ChargePoint::BeforeAllocate,
         Termination::InputLength,
+    ),
+    entry(
+        RESULT_ALLOCATION,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeAllocate,
+        Termination::SingleUnit,
     ),
     entry(
         CONFORMANCE_OPERATION,
