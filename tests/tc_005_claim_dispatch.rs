@@ -482,6 +482,38 @@ fn tc_009_dispatch_charges_caller_operations_before_backend_calls() {
         vec![Claim::Conformance, Claim::Projection],
     );
     let mut backends: [&mut dyn Backend; 1] = [&mut backend];
+    let owner_short = Limits {
+        max_requests: 1,
+        ..Limits::default()
+    };
+    let mut owner_resources = ResourceAccountant::new(Budget::nothing_granted(), &inventory);
+    assert!(matches!(
+        dispatch_bounded(
+            &requests,
+            &mut backends,
+            owner_short,
+            &mut owner_resources
+        ),
+        OperationOutcome::ResourceIncomplete(value)
+            if value.dimension() == BudgetDimension::ResultItem
+                && value.granted() == 1
+                && value.requested() == 2
+    ));
+    assert!(backend.calls.is_empty());
+    assert_eq!(
+        owner_resources
+            .usage()
+            .consumed(BudgetDimension::ResultItem),
+        0
+    );
+
+    let requests = two_requests(&correspondence);
+    let mut backend = FakeBackend::new(
+        "backend:one",
+        "v1",
+        vec![Claim::Conformance, Claim::Projection],
+    );
+    let mut backends: [&mut dyn Backend; 1] = [&mut backend];
     let exact = Budget::nothing_granted()
         .grant(BudgetDimension::Operation, 2)
         .expect("positive exact grant");

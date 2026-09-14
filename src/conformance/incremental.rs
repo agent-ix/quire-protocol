@@ -99,6 +99,7 @@ impl<'a> Incremental<'a> {
         context: IncrementalContext<'a>,
         resources: &mut ResourceAccountant<'_>,
     ) -> OperationOutcome<&'request Report, Refusal> {
+        let effective = context.limits.effective();
         let Some(candidate_len) = self.observations.len().checked_add(1) else {
             return OperationOutcome::from_charge(ChargeError::CounterOverflow {
                 site: OBSERVATION_SOURCE.id(),
@@ -107,10 +108,18 @@ impl<'a> Incremental<'a> {
             });
         };
         let charges = [
-            (OBSERVATION_SOURCE.id(), candidate_len),
-            (OPERATION_SOURCE.id(), self.model.obligations().len()),
+            (
+                OBSERVATION_SOURCE.id(),
+                candidate_len,
+                effective.max_bindings,
+            ),
+            (
+                OPERATION_SOURCE.id(),
+                self.model.obligations().len(),
+                effective.max_obligations,
+            ),
         ];
-        if let Err(error) = resources.charge_all(&charges) {
+        if let Err(error) = resources.charge_all_with_limits(&charges) {
             return OperationOutcome::from_charge(error);
         }
         OperationOutcome::from_domain(self.push(
@@ -119,7 +128,7 @@ impl<'a> Incremental<'a> {
             context.completeness,
             context.global_conformance,
             context.execution,
-            context.limits,
+            effective,
         ))
     }
 
@@ -168,11 +177,20 @@ impl<'a> Incremental<'a> {
         context: IncrementalContext<'a>,
         resources: &mut ResourceAccountant<'_>,
     ) -> OperationOutcome<&'request Report, Refusal> {
+        let effective = context.limits.effective();
         let charges = [
-            (OBSERVATION_SOURCE.id(), self.observations.len()),
-            (OPERATION_SOURCE.id(), self.model.obligations().len()),
+            (
+                OBSERVATION_SOURCE.id(),
+                self.observations.len(),
+                effective.max_bindings,
+            ),
+            (
+                OPERATION_SOURCE.id(),
+                self.model.obligations().len(),
+                effective.max_obligations,
+            ),
         ];
-        if let Err(error) = resources.charge_all(&charges) {
+        if let Err(error) = resources.charge_all_with_limits(&charges) {
             return OperationOutcome::from_charge(error);
         }
         OperationOutcome::from_domain(self.finish(
@@ -180,7 +198,7 @@ impl<'a> Incremental<'a> {
             context.completeness,
             context.global_conformance,
             context.execution,
-            context.limits,
+            effective,
         ))
     }
 

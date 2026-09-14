@@ -122,10 +122,15 @@ pub fn admit_discriminating_bounded(
     limits: Limits,
     resources: &mut ResourceAccountant<'_>,
 ) -> OperationOutcome<AdmittedPackage, AdmissionRefusal> {
-    if let Err(error) = resources.charge(ADMISSION_INPUT_SOURCE.id(), bytes.len()) {
+    let effective = limits.bounded();
+    if let Err(error) = resources.charge_with_limit(
+        ADMISSION_INPUT_SOURCE.id(),
+        bytes.len(),
+        effective.payload_bytes,
+    ) {
         return OperationOutcome::from_charge(error);
     }
-    OperationOutcome::from_domain(admit_discriminating(bytes, expected, limits))
+    OperationOutcome::from_domain(admit_discriminating(bytes, expected, effective))
 }
 
 /// The first producer-reference slot whose offered digest is cross-domain.

@@ -35,6 +35,18 @@ pub(crate) const OPERATION_SOURCE: SourceSite = SourceSite::new(
     BudgetDimension::Operation,
     SiteKind::Iteration,
 );
+pub(crate) const BACKEND_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("claims/backend/select"),
+    "claims::dispatch::dispatch",
+    BudgetDimension::Definition,
+    SiteKind::Traversal,
+);
+pub(crate) const COMPONENT_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("claims/premise/component/visit"),
+    "claims::dispatch::dispatch",
+    BudgetDimension::Node,
+    SiteKind::Traversal,
+);
 
 /// Immutable dispatch owner maxima.
 pub const OWNER_MAX: Limits = Limits {
@@ -477,21 +489,40 @@ pub fn dispatch_bounded(
     limits: Limits,
     resources: &mut ResourceAccountant<'_>,
 ) -> OperationOutcome<Report, Refusal> {
+    let effective = limits.effective();
     let preflight = preflight(requests, backends.len());
     let derived = requests
         .iter()
         .filter(|request| request.premises.derived_artifact.is_some())
         .count();
     let charges = [
-        (super::premises::INPUT_SOURCE.id(), preflight.bytes),
-        (RESULT_SOURCE.id(), requests.len()),
-        (DERIVED_SOURCE.id(), derived),
-        (OPERATION_SOURCE.id(), requests.len()),
+        (
+            super::premises::INPUT_SOURCE.id(),
+            preflight.bytes,
+            effective.max_bytes,
+        ),
+        (
+            BACKEND_SOURCE.id(),
+            preflight.backends,
+            effective.max_backends,
+        ),
+        (
+            COMPONENT_SOURCE.id(),
+            preflight.components,
+            effective.max_components,
+        ),
+        (RESULT_SOURCE.id(), requests.len(), effective.max_requests),
+        (DERIVED_SOURCE.id(), derived, effective.max_components),
+        (
+            OPERATION_SOURCE.id(),
+            requests.len(),
+            effective.max_requests,
+        ),
     ];
-    if let Err(error) = resources.charge_all(&charges) {
+    if let Err(error) = resources.charge_all_with_limits(&charges) {
         return OperationOutcome::from_charge(error);
     }
-    OperationOutcome::from_domain(dispatch(requests, backends, limits))
+    OperationOutcome::from_domain(dispatch(requests, backends, effective))
 }
 
 fn request_defects(request: &ClaimRequest<'_>) -> Vec<PremiseDefect> {

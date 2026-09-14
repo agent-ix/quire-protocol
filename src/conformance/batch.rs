@@ -492,14 +492,23 @@ pub fn assess_bounded(
     limits: Limits,
     resources: &mut ResourceAccountant<'_>,
 ) -> OperationOutcome<Report, Refusal> {
+    let effective = limits.effective();
     let charges = [
-        (OBSERVATION_SOURCE.id(), request.observations.len()),
-        (OPERATION_SOURCE.id(), request.model.obligations.len()),
+        (
+            OBSERVATION_SOURCE.id(),
+            request.observations.len(),
+            effective.max_bindings,
+        ),
+        (
+            OPERATION_SOURCE.id(),
+            request.model.obligations.len(),
+            effective.max_obligations,
+        ),
     ];
-    if let Err(error) = resources.charge_all(&charges) {
+    if let Err(error) = resources.charge_all_with_limits(&charges) {
         return OperationOutcome::from_charge(error);
     }
-    OperationOutcome::from_domain(assess(request, limits))
+    OperationOutcome::from_domain(assess(request, effective))
 }
 
 /// Assess one exact admitted history without repairing or reordering it.

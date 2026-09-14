@@ -1114,6 +1114,23 @@ fn tc_003_aggregate_composes_every_atomic_fact_without_inference() {
     assert_eq!(surface.compensation_calls.get(), 0);
 
     let inventory = production_inventory().expect("reconciled production inventory");
+    let mut owner_resources = ResourceAccountant::new(Budget::nothing_granted(), &inventory);
+    let owner_incomplete = compose_bounded(pure(&surface), parts, one_under, &mut owner_resources);
+    assert!(matches!(
+        owner_incomplete,
+        OperationOutcome::ResourceIncomplete(value)
+            if value.dimension() == BudgetDimension::ResultItem
+                && value.granted() == 0
+                && value.consumed() == 0
+                && value.requested() == 1
+    ));
+    assert_eq!(
+        owner_resources
+            .usage()
+            .consumed(BudgetDimension::ResultItem),
+        0
+    );
+
     let one_short = Budget::nothing_granted()
         .grant(BudgetDimension::ResultItem, 6)
         .expect("positive result-item grant");

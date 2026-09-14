@@ -1387,6 +1387,38 @@ fn tc_009_authored_and_caller_ceilings_are_enforced_together() {
     };
     assert_eq!(incomplete.granted(), 2);
 
+    const SECOND_SITE: SiteId = SiteId::new("c30.fixture.second-retention");
+    let second_source = SourceSite::new(
+        SECOND_SITE,
+        "c30::fixture::retain_second",
+        BudgetDimension::InputByte,
+        SiteKind::Retention,
+    );
+    let second_entry = InventoryEntry::new(
+        second_source,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeRetain,
+        Termination::InputLength,
+        IncompleteCode::BudgetExceeded,
+        CALLER_BOUNDARY,
+    );
+    let independent_inventory = Inventory::reconcile(
+        &[caller_source(), second_source],
+        &[caller_entry(), second_entry],
+    )
+    .expect("two independently bounded sites reconcile");
+    let caller_four = Budget::nothing_granted()
+        .grant(BudgetDimension::InputByte, 4)
+        .expect("positive caller grant");
+    let mut independent = ResourceAccountant::new(caller_four, &independent_inventory);
+    independent
+        .charge_with_limit(CALLER_SITE, 2, 2)
+        .expect("first site reaches its own authored ceiling");
+    independent
+        .charge_with_limit(SECOND_SITE, 2, 2)
+        .expect("second site has an independent authored ceiling");
+    assert_eq!(independent.usage().consumed(BudgetDimension::InputByte), 4);
+
     let mut transactional = ResourceAccountant::new(Budget::nothing_granted(), &inventory);
     let charges = [(CALLER_SITE, 1, 2), (CALLER_SITE, 2, 2)];
     assert!(matches!(

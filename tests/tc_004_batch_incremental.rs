@@ -481,6 +481,25 @@ fn tc_009_batch_charges_observations_before_assessment() {
         0
     );
 
+    let owner_short = Limits {
+        max_bindings: 1,
+        ..Limits::default()
+    };
+    let mut owner_resources = ResourceAccountant::new(Budget::nothing_granted(), &inventory);
+    assert!(matches!(
+        assess_bounded(request(), owner_short, &mut owner_resources),
+        OperationOutcome::ResourceIncomplete(value)
+            if value.dimension() == BudgetDimension::Observation
+                && value.granted() == 1
+                && value.requested() == 2
+    ));
+    assert_eq!(
+        owner_resources
+            .usage()
+            .consumed(BudgetDimension::Observation),
+        0
+    );
+
     let exact = Budget::nothing_granted()
         .grant(BudgetDimension::Observation, 2)
         .expect("positive exact grant");

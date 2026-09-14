@@ -27,8 +27,38 @@ use algebra::{AttemptAdmission, AttemptFact, OrderingAssessment, OrderingViolati
 use purity::PureAssessment;
 use recovery::Decision as RecoveryDecision;
 
-pub(crate) const RESULT_SOURCE: SourceSite = SourceSite::new(
-    SiteId::new("compensation/result/retain"),
+pub(crate) const ACTIVATION_RESULT_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("compensation/result/activation/retain"),
+    "compensation::compose",
+    BudgetDimension::ResultItem,
+    SiteKind::Retention,
+);
+pub(crate) const REGISTRATION_RESULT_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("compensation/result/registration/retain"),
+    "compensation::compose",
+    BudgetDimension::ResultItem,
+    SiteKind::Retention,
+);
+pub(crate) const ORDERING_RESULT_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("compensation/result/ordering/retain"),
+    "compensation::compose",
+    BudgetDimension::ResultItem,
+    SiteKind::Retention,
+);
+pub(crate) const ATTEMPT_RESULT_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("compensation/result/attempt/retain"),
+    "compensation::compose",
+    BudgetDimension::ResultItem,
+    SiteKind::Retention,
+);
+pub(crate) const RETRY_RESULT_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("compensation/result/retry/retain"),
+    "compensation::compose",
+    BudgetDimension::ResultItem,
+    SiteKind::Retention,
+);
+pub(crate) const RECOVERY_RESULT_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("compensation/result/recovery/retain"),
     "compensation::compose",
     BudgetDimension::ResultItem,
     SiteKind::Retention,
@@ -210,21 +240,43 @@ pub fn compose_bounded(
     limits: Limits,
     resources: &mut ResourceAccountant<'_>,
 ) -> OperationOutcome<Snapshot, ResourceRefusal> {
+    let effective = limits.effective();
     let charges = [
-        (RESULT_SOURCE.id(), usize::from(parts.activation.is_some())),
         (
-            RESULT_SOURCE.id(),
-            usize::from(parts.registration.is_some()),
+            ACTIVATION_RESULT_SOURCE.id(),
+            usize::from(parts.activation.is_some()),
+            1,
         ),
-        (RESULT_SOURCE.id(), usize::from(parts.ordering.is_some())),
-        (RESULT_SOURCE.id(), parts.attempts.len()),
-        (RESULT_SOURCE.id(), parts.retry_outcomes.len()),
-        (RESULT_SOURCE.id(), parts.recoveries.len()),
+        (
+            REGISTRATION_RESULT_SOURCE.id(),
+            usize::from(parts.registration.is_some()),
+            1,
+        ),
+        (
+            ORDERING_RESULT_SOURCE.id(),
+            usize::from(parts.ordering.is_some()),
+            1,
+        ),
+        (
+            ATTEMPT_RESULT_SOURCE.id(),
+            parts.attempts.len(),
+            effective.max_attempts,
+        ),
+        (
+            RETRY_RESULT_SOURCE.id(),
+            parts.retry_outcomes.len(),
+            effective.max_retry_outcomes,
+        ),
+        (
+            RECOVERY_RESULT_SOURCE.id(),
+            parts.recoveries.len(),
+            effective.max_recovery_decisions,
+        ),
     ];
-    if let Err(error) = resources.charge_all(&charges) {
+    if let Err(error) = resources.charge_all_with_limits(&charges) {
         return OperationOutcome::from_charge(error);
     }
-    OperationOutcome::from_domain(compose(pure, parts, limits))
+    OperationOutcome::from_domain(compose(pure, parts, effective))
 }
 
 /// Compose a complete snapshot without reinterpreting any atomic fact.

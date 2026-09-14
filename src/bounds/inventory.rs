@@ -608,8 +608,11 @@ impl Inventory {
         &self.entries
     }
 
-    fn entry(&self, site: SiteId) -> Option<&InventoryEntry> {
-        self.entries.iter().find(|entry| entry.source.id == site)
+    fn entry(&self, site: SiteId) -> Option<(usize, &InventoryEntry)> {
+        self.entries
+            .iter()
+            .enumerate()
+            .find(|(_, entry)| entry.source.id == site)
     }
 }
 
@@ -790,16 +793,18 @@ impl fmt::Display for ResourceIncomplete {
 pub struct ResourceAccountant<'inventory> {
     budget: Budget,
     usage: Usage,
+    site_consumed: Box<[usize]>,
     inventory: &'inventory Inventory,
 }
 
 impl<'inventory> ResourceAccountant<'inventory> {
     /// Begin a fresh request with zero consumption.
     #[must_use]
-    pub const fn new(budget: Budget, inventory: &'inventory Inventory) -> Self {
+    pub fn new(budget: Budget, inventory: &'inventory Inventory) -> Self {
         Self {
             budget,
             usage: Usage::ZERO,
+            site_consumed: vec![0; inventory.entries.len()].into_boxed_slice(),
             inventory,
         }
     }
@@ -828,9 +833,11 @@ impl<'inventory> ResourceAccountant<'inventory> {
 
     /// Charge one increment against both its authored and caller ceilings.
     ///
-    /// The effective ceiling is the lower of `authored_limit` and a present
-    /// caller grant. An absent caller grant remains absent and therefore cannot
-    /// weaken or replace the authored ceiling.
+    /// A present caller ceiling applies to aggregate usage on the dimension;
+    /// `authored_limit` applies only to this source site's usage. This keeps two
+    /// sites on one dimension from consuming each other's authored allowance.
+    /// An absent caller grant remains absent and cannot weaken or replace the
+    /// authored ceiling.
     ///
     /// # Errors
     ///
@@ -852,7 +859,7 @@ impl<'inventory> ResourceAccountant<'inventory> {
         requested: usize,
         authored_limit: Option<usize>,
     ) -> Result<(), ChargeError> {
-        let Some(entry) = self.inventory.entry(site) else {
+        let Some((entry_index, entry)) = self.inventory.entry(site) else {
             return Err(ChargeError::UnregisteredSite { site });
         };
         let dimension = entry.source.dimension;
@@ -864,14 +871,7 @@ impl<'inventory> ResourceAccountant<'inventory> {
                 requested,
             });
         };
-        let caller_limit = self.budget.grant_for(dimension);
-        let effective_limit = match (caller_limit, authored_limit) {
-            (Some(caller), Some(authored)) => Some(caller.min(authored)),
-            (Some(caller), None) => Some(caller),
-            (None, Some(authored)) => Some(authored),
-            (None, None) => None,
-        };
-        if let Some(granted) = effective_limit {
+        if let Some(granted) = self.budget.grant_for(dimension) {
             if next > granted {
                 return Err(ChargeError::ResourceIncomplete(ResourceIncomplete {
                     code: entry.incomplete_code,
@@ -883,8 +883,39 @@ impl<'inventory> ResourceAccountant<'inventory> {
                 }));
             }
         }
+        let site_consumed = self.site_consumed[entry_index];
+        let Some(site_next) = site_consumed.checked_add(requested) else {
+            return Err(ChargeError::CounterOverflow {
+                site,
+                consumed: site_consumed,
+                requested,
+            });
+        };
+        if let Some(granted) = authored_limit {
+            if site_next > granted {
+                return Err(ChargeError::ResourceIncomplete(ResourceIncomplete {
+                    code: entry.incomplete_code,
+                    dimension,
+                    site,
+                    granted,
+                    consumed: site_consumed,
+                    requested,
+                }));
+            }
+        }
         self.usage.consumed[dimension.index()] = next;
+        self.site_consumed[entry_index] = site_next;
         Ok(())
+    }
+
+    fn rollback_charge(&mut self, site: SiteId, requested: usize) {
+        let (entry_index, entry) = self
+            .inventory
+            .entry(site)
+            .expect("only a successfully charged registered site is rolled back");
+        let dimension = entry.source.dimension;
+        self.usage.consumed[dimension.index()] -= requested;
+        self.site_consumed[entry_index] -= requested;
     }
 
     /// Transactionally charge all pre-work increments for one operation.
@@ -897,10 +928,11 @@ impl<'inventory> ResourceAccountant<'inventory> {
     ///
     /// Returns the first charge error in declared order with usage unchanged.
     pub fn charge_all(&mut self, charges: &[(SiteId, usize)]) -> Result<(), ChargeError> {
-        let before = self.usage;
-        for (site, requested) in charges {
+        for (index, (site, requested)) in charges.iter().enumerate() {
             if let Err(error) = self.charge(*site, *requested) {
-                self.usage = before;
+                for (charged_site, charged_request) in charges[..index].iter().rev() {
+                    self.rollback_charge(*charged_site, *charged_request);
+                }
                 return Err(error);
             }
         }
@@ -917,10 +949,11 @@ impl<'inventory> ResourceAccountant<'inventory> {
         &mut self,
         charges: &[(SiteId, usize, usize)],
     ) -> Result<(), ChargeError> {
-        let before = self.usage;
-        for (site, requested, authored_limit) in charges {
+        for (index, (site, requested, authored_limit)) in charges.iter().enumerate() {
             if let Err(error) = self.charge_with_limit(*site, *requested, *authored_limit) {
-                self.usage = before;
+                for (charged_site, charged_request, _) in charges[..index].iter().rev() {
+                    self.rollback_charge(*charged_site, *charged_request);
+                }
                 return Err(error);
             }
         }
@@ -1076,14 +1109,56 @@ const CLAIM_OPERATION: SourceSite = SourceSite::new(
     BudgetDimension::Operation,
     SiteKind::Iteration,
 );
+const CLAIM_BACKEND: SourceSite = SourceSite::new(
+    SiteId::new("claims/backend/select"),
+    "claims::dispatch::dispatch",
+    BudgetDimension::Definition,
+    SiteKind::Traversal,
+);
+const CLAIM_COMPONENT: SourceSite = SourceSite::new(
+    SiteId::new("claims/premise/component/visit"),
+    "claims::dispatch::dispatch",
+    BudgetDimension::Node,
+    SiteKind::Traversal,
+);
 const COMPENSATION_OBSERVATION: SourceSite = SourceSite::new(
     SiteId::new("compensation/observation/consume"),
     "compensation::recovery::assess",
     BudgetDimension::Observation,
     SiteKind::Iteration,
 );
-const COMPENSATION_RESULT: SourceSite = SourceSite::new(
-    SiteId::new("compensation/result/retain"),
+const COMPENSATION_ACTIVATION_RESULT: SourceSite = SourceSite::new(
+    SiteId::new("compensation/result/activation/retain"),
+    "compensation::compose",
+    BudgetDimension::ResultItem,
+    SiteKind::Retention,
+);
+const COMPENSATION_REGISTRATION_RESULT: SourceSite = SourceSite::new(
+    SiteId::new("compensation/result/registration/retain"),
+    "compensation::compose",
+    BudgetDimension::ResultItem,
+    SiteKind::Retention,
+);
+const COMPENSATION_ORDERING_RESULT: SourceSite = SourceSite::new(
+    SiteId::new("compensation/result/ordering/retain"),
+    "compensation::compose",
+    BudgetDimension::ResultItem,
+    SiteKind::Retention,
+);
+const COMPENSATION_ATTEMPT_RESULT: SourceSite = SourceSite::new(
+    SiteId::new("compensation/result/attempt/retain"),
+    "compensation::compose",
+    BudgetDimension::ResultItem,
+    SiteKind::Retention,
+);
+const COMPENSATION_RETRY_RESULT: SourceSite = SourceSite::new(
+    SiteId::new("compensation/result/retry/retain"),
+    "compensation::compose",
+    BudgetDimension::ResultItem,
+    SiteKind::Retention,
+);
+const COMPENSATION_RECOVERY_RESULT: SourceSite = SourceSite::new(
+    SiteId::new("compensation/result/recovery/retain"),
     "compensation::compose",
     BudgetDimension::ResultItem,
     SiteKind::Retention,
@@ -1130,8 +1205,15 @@ pub const PRODUCTION_SOURCES: &[SourceSite] = &[
     crate::claims::dispatch::RESULT_SOURCE,
     crate::claims::dispatch::DERIVED_SOURCE,
     crate::claims::dispatch::OPERATION_SOURCE,
+    crate::claims::dispatch::BACKEND_SOURCE,
+    crate::claims::dispatch::COMPONENT_SOURCE,
     crate::compensation::recovery::OBSERVATION_SOURCE,
-    crate::compensation::RESULT_SOURCE,
+    crate::compensation::ACTIVATION_RESULT_SOURCE,
+    crate::compensation::REGISTRATION_RESULT_SOURCE,
+    crate::compensation::ORDERING_RESULT_SOURCE,
+    crate::compensation::ATTEMPT_RESULT_SOURCE,
+    crate::compensation::RETRY_RESULT_SOURCE,
+    crate::compensation::RECOVERY_RESULT_SOURCE,
     crate::result::reader::INPUT_SOURCE,
     crate::result::reader::OPERATION_SOURCE,
 ];
@@ -1293,13 +1375,55 @@ pub const PRODUCTION_ENTRIES: &[InventoryEntry] = &[
         Termination::CollectionLength,
     ),
     entry(
+        CLAIM_BACKEND,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeTraverse,
+        Termination::CollectionLength,
+    ),
+    entry(
+        CLAIM_COMPONENT,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeTraverse,
+        Termination::CollectionLength,
+    ),
+    entry(
         COMPENSATION_OBSERVATION,
         LimitAuthority::ProducerOwner,
         ChargePoint::BeforeIterate,
         Termination::CollectionLength,
     ),
     entry(
-        COMPENSATION_RESULT,
+        COMPENSATION_ACTIVATION_RESULT,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeRetain,
+        Termination::SingleUnit,
+    ),
+    entry(
+        COMPENSATION_REGISTRATION_RESULT,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeRetain,
+        Termination::SingleUnit,
+    ),
+    entry(
+        COMPENSATION_ORDERING_RESULT,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeRetain,
+        Termination::SingleUnit,
+    ),
+    entry(
+        COMPENSATION_ATTEMPT_RESULT,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeRetain,
+        Termination::CollectionLength,
+    ),
+    entry(
+        COMPENSATION_RETRY_RESULT,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeRetain,
+        Termination::CollectionLength,
+    ),
+    entry(
+        COMPENSATION_RECOVERY_RESULT,
         LimitAuthority::ConsumerOwner,
         ChargePoint::BeforeRetain,
         Termination::CollectionLength,

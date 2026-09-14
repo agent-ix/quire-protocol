@@ -136,6 +136,29 @@ fn tc_009_admission_charges_all_input_bytes_before_decode() {
         0
     );
 
+    let mut owner_resources = ResourceAccountant::new(Budget::nothing_granted(), &inventory);
+    let owner_short = Limits {
+        payload_bytes: bytes.len() - 1,
+        ..Limits::default()
+    };
+    let owner_incomplete = admit_discriminating_bounded(
+        bytes,
+        &selections.expected(),
+        owner_short,
+        &mut owner_resources,
+    );
+    assert!(matches!(
+        owner_incomplete,
+        OperationOutcome::ResourceIncomplete(value)
+            if value.dimension() == BudgetDimension::InputByte
+                && value.granted() == bytes.len() - 1
+                && value.requested() == bytes.len()
+    ));
+    assert_eq!(
+        owner_resources.usage().consumed(BudgetDimension::InputByte),
+        0
+    );
+
     let exact = Budget::nothing_granted()
         .grant(BudgetDimension::InputByte, bytes.len())
         .expect("positive exact grant");
