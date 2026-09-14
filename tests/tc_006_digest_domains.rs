@@ -371,7 +371,7 @@ fn tc_006_unlabelled_value_is_cross_domain() {
 ///
 /// Tracing: TC-006, FR-006-AC-4.
 #[test]
-#[trace("TC-006", "FR-006-AC-4", "FR-015-AC-2")]
+#[trace("TC-006", "FR-006-AC-4", "FR-015-AC-2", "FR-031-AC-6")]
 fn tc_006_producer_reference_is_opaque_and_copied_exactly() {
     let text = "sha256:0000000000000000000000000000000000000000000000000000000000000001";
     let reference = ProducerDigestRef::copy_exact(DigestDomain::RawArtifact, text)
@@ -389,7 +389,14 @@ fn tc_006_producer_reference_is_opaque_and_copied_exactly() {
 ///
 /// Tracing: TC-006, FR-006-AC-4.
 #[test]
-#[trace("TC-006", "FR-006-AC-4")]
+#[trace(
+    "TC-006",
+    "TC-008",
+    "FR-006-AC-4",
+    "FR-031-AC-4",
+    "NFR-001-AC-1",
+    "NFR-001-AC-3"
+)]
 fn tc_006_jcs_is_member_order_invariant_and_refuses_numbers() {
     let left = json!({ "b": "two", "a": "one", "c": [true, null] });
     let right = json!({ "c": [true, null], "a": "one", "b": "two" });
@@ -401,6 +408,10 @@ fn tc_006_jcs_is_member_order_invariant_and_refuses_numbers() {
         ResultDigest::of_result(&left).expect("canonicalises"),
         ResultDigest::of_result(&right).expect("canonicalises")
     );
+    let digest = ResultDigest::of_result(&left)
+        .expect("canonicalises")
+        .text();
+    assert!(digest.starts_with("sha256-jcs:"));
     assert_eq!(
         canonicalize(&json!({ "n": 1 })),
         Err(JcsError::UnsupportedNumber("1".to_owned()))

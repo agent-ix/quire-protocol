@@ -380,7 +380,9 @@ fn order(nodes: Vec<Milestone>, pairs: &[(usize, usize)]) -> AuthoredOrder {
     "FR-021-AC-1",
     "FR-021-AC-2",
     "FR-021-AC-3",
-    "FR-021-AC-4"
+    "FR-021-AC-4",
+    "TC-008",
+    "NFR-001-AC-3"
 )]
 #[test]
 fn tc_003_commit_violations_follow_only_authored_causal_order() {

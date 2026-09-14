@@ -16,6 +16,7 @@ use quire_protocol::bounds::inventory::{
     production_inventory, Budget, BudgetDimension, OperationOutcome, ResourceAccountant,
 };
 use quire_protocol::closure::{AssessmentExecution, GlobalConformanceClosure};
+use quire_protocol::repro::{CorpusIdentity, ReproductionInputs, Seed, ToolchainIdentity};
 use quire_protocol::result::{
     self, contract_ir, Activation, Adequacy, Assumption, AssumptionState, AxisInputs, Claim,
     ClaimKind, ClaimStrength, CorrectionInput, CorrectionRelation, DecisionSupport,
@@ -409,6 +410,20 @@ fn global_premises() -> Vec<GlobalPremise> {
     ]
 }
 
+fn reproduction(
+    seed: u64,
+    toolchain_identity: &[u8],
+    corpus_identity: &[u8],
+    display: &str,
+) -> quire_protocol::repro::ReproductionRecord {
+    ReproductionInputs::nothing_offered()
+        .with_seed(Seed::new(seed))
+        .with_toolchain(ToolchainIdentity::new(toolchain_identity, display))
+        .with_corpus(CorpusIdentity::new(corpus_identity, display))
+        .record()
+        .expect("complete reproduction identity")
+}
+
 fn base_input<'a>(fixture: &'a Fixture) -> Input<'a> {
     let observation_identity = fixture
         .decision
@@ -485,6 +500,12 @@ fn base_input<'a>(fixture: &'a Fixture) -> Input<'a> {
             input_identity: "input:one".into(),
             backend_identity: "backend:model-checker".into(),
             producer_identity: "producer:one".into(),
+            reproduction: reproduction(
+                0x5eed_0000_0000_0001,
+                b"rustc-1.98.0-x86_64-unknown-linux-gnu",
+                b"corpus:9f2c1ad4",
+                "local reproduction inputs",
+            ),
         },
         correction: None,
     }
@@ -501,6 +522,219 @@ fn validated<'a>(input: Input<'a>) -> result::ValidatedResult {
         Limits::owner_max(),
     )
     .expect("strict result")
+}
+
+fn assert_result_mutation(label: &str, baseline: &result::Document, input: Input<'_>) {
+    match result::produce(input, Limits::owner_max()) {
+        Ok(mutant) => {
+            assert_ne!(
+                mutant.result_id(),
+                baseline.result_id(),
+                "{label} did not affect the result identity"
+            );
+            assert_ne!(
+                mutant.bytes(),
+                baseline.bytes(),
+                "{label} did not affect the canonical result bytes"
+            );
+        }
+        Err(refusal) => {
+            assert!(
+                !refusal.code().as_str().is_empty(),
+                "{label} returned an untyped refusal"
+            );
+            assert_eq!(
+                refusal.envelope().partial_output(),
+                quire_protocol::refusal::PartialOutput::NoneEmitted,
+                "{label} exposed partial output beside its refusal"
+            );
+        }
+    }
+}
+
+#[test]
+#[trace("TC-008", "NFR-001-AC-1", "FR-017-AC-5", "NFR-008-AC-7", "Task-008")]
+fn tc_008_result_bytes_ignore_allocation_layout_and_localized_rendering() {
+    let first_fixture = fixture();
+    let first_input = base_input(&first_fixture);
+    let first = result::produce(first_input, Limits::owner_max()).expect("first result");
+
+    // Perturb allocator history and rebuild every owner view independently.
+    let allocation_noise: Vec<Vec<u8>> = (0_u16..257)
+        .map(|length| vec![0xa5; usize::from(length)])
+        .collect();
+    assert_eq!(allocation_noise.len(), 257);
+    let second_fixture = fixture();
+    let mut second_input = base_input(&second_fixture);
+    second_input.provenance.reproduction = reproduction(
+        0x5eed_0000_0000_0001,
+        b"rustc-1.98.0-x86_64-unknown-linux-gnu",
+        b"corpus:9f2c1ad4",
+        "Yerelleştirilmiş çalıştırma",
+    );
+    let second = result::produce(second_input, Limits::owner_max()).expect("second result");
+
+    assert_eq!(first.result_id(), second.result_id());
+    assert_eq!(first.digest(), second.digest());
+    assert_eq!(first.bytes(), second.bytes());
+
+    let json: Value = serde_json::from_slice(first.bytes()).expect("owner JSON");
+    let reproduction = &json["provenance"]["reproduction"];
+    assert_eq!(reproduction["seed"], "6840123409045651457");
+    assert_eq!(
+        reproduction["toolchainIdentity"],
+        "72757374632d312e39382e302d7838365f36342d756e6b6e6f776e2d6c696e75782d676e75"
+    );
+    assert_eq!(
+        reproduction["corpusIdentity"],
+        "636f727075733a3966326331616434"
+    );
+}
+
+#[test]
+#[trace("TC-008", "NFR-001-AC-1", "Task-008")]
+fn tc_008_process_locale_does_not_change_canonical_result() {
+    const CHILD: &str = "QUIRE_TC008_LOCALE_CHILD";
+    const MARKER: &str = "TC008-CANONICAL:";
+    if std::env::var_os(CHILD).is_some() {
+        let owner = fixture();
+        let document =
+            result::produce(base_input(&owner), Limits::owner_max()).expect("locale result");
+        println!("{MARKER}{}:{}", document.result_id(), document.digest());
+        return;
+    }
+
+    fn identity_under(locale: &str, child: &str, marker: &str) -> String {
+        let output = std::process::Command::new(
+            std::env::current_exe().expect("current integration-test executable"),
+        )
+        .args([
+            "--exact",
+            "tc_008_process_locale_does_not_change_canonical_result",
+            "--nocapture",
+        ])
+        .env(child, "1")
+        .env("LC_ALL", locale)
+        .output()
+        .expect("locale-isolated child process");
+        assert!(
+            output.status.success(),
+            "locale child {locale} failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8(output.stdout)
+            .expect("Rust test output is UTF-8")
+            .lines()
+            .find_map(|line| line.strip_prefix(marker).map(str::to_owned))
+            .expect("locale child emitted the canonical marker")
+    }
+
+    assert_eq!(
+        identity_under("C", CHILD, MARKER),
+        identity_under("tr_TR.UTF-8", CHILD, MARKER)
+    );
+}
+
+#[test]
+#[trace("TC-008", "NFR-001-AC-2", "NFR-001-AC-3", "FR-031-AC-5", "Task-008")]
+fn tc_008_every_named_semantic_identity_is_discriminated() {
+    let owner = fixture();
+    let baseline = result::produce(base_input(&owner), Limits::owner_max()).expect("baseline");
+
+    macro_rules! mutate {
+        ($label:literal, |$input:ident| $mutation:block) => {{
+            let mut input = base_input(&owner);
+            let $input = &mut input;
+            $mutation
+            assert_result_mutation($label, &baseline, input);
+        }};
+    }
+
+    mutate!("source", |input| {
+        input.provenance.source_identity = "source:two".into();
+    });
+    mutate!("accepted source-baseline/profile", |input| {
+        input.provenance.profile_identity = "profile:two".into();
+    });
+    mutate!("model", |input| {
+        input.provenance.model_identity = "model:two".into();
+    });
+    mutate!("compiled protocol", |input| {
+        input.provenance.protocol_identity = "protocol:two".into();
+    });
+    mutate!("request", |input| {
+        input.provenance.request_identity = "request:two".into();
+    });
+    mutate!("binding", |input| {
+        input.provenance.binding_identity = "binding:two".into();
+    });
+    mutate!("input", |input| {
+        input.provenance.input_identity = "input:two".into();
+    });
+    mutate!("producer", |input| {
+        input.provenance.producer_identity = "producer:two".into();
+    });
+    mutate!("backend", |input| {
+        input.provenance.backend_identity = "backend:two".into();
+        input.claim.backend_identity = Some("backend:two".into());
+    });
+    mutate!("implementation", |input| {
+        input.provenance.reproduction = reproduction(
+            0x5eed_0000_0000_0001,
+            b"rustc-1.99.0-x86_64-unknown-linux-gnu",
+            b"corpus:9f2c1ad4",
+            "implementation mutation",
+        );
+    });
+    mutate!("observation", |input| {
+        input.decision_support[0].observation_identity = "observation:substituted".into();
+    });
+    mutate!("decision-scope progress", |input| {
+        input.axes.decision_scope_progress = &owner.decision.progress_open;
+    });
+    mutate!("decision-scope closure", |input| {
+        input.axes.decision_scope_closure = &owner.decision.closure_open;
+    });
+    mutate!("surrounding-execution progress", |input| {
+        input.axes.surrounding_execution_progress = &owner.surrounding.progress_open;
+    });
+    mutate!("surrounding-execution closure", |input| {
+        input.axes.surrounding_execution_closure = &owner.surrounding.closure_open;
+    });
+    mutate!("complete-global closure", |input| {
+        input.global_conformance.state = GlobalConformanceClosure::Incomplete;
+    });
+
+    // Source identity bytes are exact: a presentation-changing trim would be
+    // a semantic rewrite, not an equivalent presentation.
+    mutate!("identity-changing source presentation", |input| {
+        input.provenance.source_identity = " source:one ".into();
+    });
+
+    // The execution/branch/workflow list is an exact authored sequence. It is
+    // not presentation-sorted into acceptance.
+    mutate!("authored global-premise order", |input| {
+        input.global_conformance.premises.swap(0, 1);
+    });
+}
+
+#[test]
+#[trace("TC-008", "TC-009", "NFR-002-AC-1", "Task-008")]
+fn tc_009_reproduction_provenance_obeys_result_string_bounds() {
+    let owner = fixture();
+    let mut input = base_input(&owner);
+    input.provenance.reproduction = reproduction(1, b"abc", b"d", "bounded identities");
+    let limits = Limits {
+        max_string_bytes: 5,
+        ..Limits::owner_max()
+    };
+    let refusal = result::produce(input, limits).expect_err("six encoded bytes exceed five");
+    assert_eq!(refusal.code(), ErrorCode::ResourceIncomplete);
+    assert_eq!(refusal.usage().string_bytes, 6);
+    assert_eq!(
+        refusal.envelope().partial_output(),
+        quire_protocol::refusal::PartialOutput::NoneEmitted
+    );
 }
 
 #[test]
@@ -683,6 +917,53 @@ fn tc_015_strict_mutations_lineage_and_limits_fail_closed() {
     )
     .expect_err("unknown field");
     assert_eq!(error.code(), ErrorCode::InvalidJson);
+
+    let mut missing_reproduction: Value =
+        serde_json::from_slice(document.bytes()).expect("result JSON");
+    missing_reproduction["provenance"]
+        .as_object_mut()
+        .expect("provenance object")
+        .remove("reproduction");
+    let missing_reproduction = quire_protocol::digest::jcs::canonicalize(&missing_reproduction)
+        .expect("canonical missing-field mutation");
+    assert_eq!(
+        result::read(
+            missing_reproduction.as_bytes(),
+            result::Expected {
+                input: input.clone(),
+                enclosing_digest: document.digest(),
+            },
+            Limits::owner_max(),
+        )
+        .expect_err("missing reproduction provenance")
+        .code(),
+        ErrorCode::InvalidJson
+    );
+
+    let mut changed_reproduction: Value =
+        serde_json::from_slice(document.bytes()).expect("result JSON");
+    changed_reproduction["provenance"]["reproduction"]["toolchainIdentity"] =
+        Value::String("00".into());
+    let changed_reproduction = quire_protocol::digest::jcs::canonicalize(&changed_reproduction)
+        .expect("canonical reproduction mutation");
+    let changed_digest = quire_protocol::digest::jcs::ResultDigest::of_result(
+        &serde_json::from_str(&changed_reproduction).expect("mutated result value"),
+    )
+    .expect("mutated enclosing digest")
+    .text();
+    assert_eq!(
+        result::read(
+            changed_reproduction.as_bytes(),
+            result::Expected {
+                input: input.clone(),
+                enclosing_digest: &changed_digest,
+            },
+            Limits::owner_max(),
+        )
+        .expect_err("changed reproduction identity")
+        .code(),
+        ErrorCode::IdentityMismatch
+    );
 
     let mut trailing = document.bytes().to_vec();
     trailing.push(b'\n');

@@ -144,11 +144,22 @@
     },
     "provenance": {
       "type": "object", "additionalProperties": false,
-      "required": ["backendIdentity", "bindingIdentity", "inputIdentity", "modelIdentity", "producerIdentity", "profileIdentity", "protocolIdentity", "requestIdentity", "sourceIdentity"],
+      "required": ["backendIdentity", "bindingIdentity", "inputIdentity", "modelIdentity", "producerIdentity", "profileIdentity", "protocolIdentity", "reproduction", "requestIdentity", "sourceIdentity"],
       "properties": {
         "backendIdentity": { "$ref": "#/$defs/nonempty" }, "bindingIdentity": { "$ref": "#/$defs/nonempty" }, "inputIdentity": { "$ref": "#/$defs/nonempty" },
         "modelIdentity": { "$ref": "#/$defs/nonempty" }, "producerIdentity": { "$ref": "#/$defs/nonempty" }, "profileIdentity": { "$ref": "#/$defs/nonempty" },
-        "protocolIdentity": { "$ref": "#/$defs/nonempty" }, "requestIdentity": { "$ref": "#/$defs/nonempty" }, "sourceIdentity": { "$ref": "#/$defs/nonempty" }
+        "protocolIdentity": { "$ref": "#/$defs/nonempty" },
+        "reproduction": { "$ref": "#/$defs/reproduction" },
+        "requestIdentity": { "$ref": "#/$defs/nonempty" }, "sourceIdentity": { "$ref": "#/$defs/nonempty" }
+      }
+    },
+    "reproduction": {
+      "type": "object", "additionalProperties": false,
+      "required": ["corpusIdentity", "seed", "toolchainIdentity"],
+      "properties": {
+        "corpusIdentity": { "type": "string", "pattern": "^(?:[0-9a-f]{2})+$" },
+        "seed": { "type": "string", "pattern": "^(?:0|[1-9][0-9]*)$" },
+        "toolchainIdentity": { "type": "string", "pattern": "^(?:[0-9a-f]{2})+$" }
       }
     },
     "settlement": {

@@ -205,7 +205,14 @@ fn tc_004_incremental_settles_before_final_fact_and_agrees_with_batch() {
 
 /// Independent obligations admit every presentation permutation; the exact
 /// retained observation order changes, while semantic values do not.
-#[trace("TC-004", "FR-004-AC-1", "FR-026-AC-1", "FR-026-AC-3")]
+#[trace(
+    "TC-004",
+    "TC-008",
+    "FR-004-AC-1",
+    "FR-026-AC-1",
+    "FR-026-AC-3",
+    "NFR-001-AC-1"
+)]
 #[test]
 fn tc_004_permitted_presentation_orders_are_semantically_invariant() {
     let decision = scope_views("decision-order");

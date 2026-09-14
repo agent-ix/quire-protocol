@@ -97,13 +97,15 @@ The five words below are not interchangeable, and no total mixes them.
   than read off a `Verification` cell, and it is much smaller than the others:
 
   ```
-  $ quire coverage --scope /home/peter/dev/quire-protocol
-  Coverage: 38/322 rows backed (11%)
+  $ quire coverage --scope /home/peter/dev/quire-protocol-temporal-result-owner
+  Coverage: 96/329 rows backed (29%)
   ```
 
-  Thirty-eight rows: FR-001 3 of 5, FR-002 3 of 5, FR-004 1 of 4, FR-005 1 of 5,
-  FR-006 1 of 8, FR-008 6 of 9, FR-011 3 of 7, FR-015 3 of 5, FR-028 5 of 6,
-  NFR-001 2 of 3, NFR-002 2 of 4, plus 8 of the 14 test-case rows.
+  At the 2026-09-14 implementation checkpoint, 96 rows are engine-backed.
+  NFR-001 is 3 of 3, NFR-002 is 4 of 4, and 10 of the 15 test-case rows have at
+  least one bound symbol. The remaining row-level gaps are enumerated by the
+  same machine output and remain implementation work; this figure is not a
+  qualification claim.
 
   The same run reports a binding census, which is related to `NFR-003-AC-5`
   without being the measurement that criterion asks for:
@@ -288,7 +290,7 @@ version 2 lane is executable from the exact `93c411b` pin.
 Parent and atomic rows are both listed. FR-010..FR-018 carry `object:` and are
 in Domain Object Coverage instead.
 
-| Functional Req | Acceptance Criteria | Test Cases | Status |
+| Functional Req | Acceptance Criteria | Test Cases | Coverage Status |
 | --- | --- | --- | --- |
 | FR-001 | FR-001-AC-1, FR-001-AC-2, FR-001-AC-3, FR-001-AC-4, FR-001-AC-5 | TC-001 (AC-1..AC-4); IT-001 (AC-4, AC-5) | 🚧 Planned — 5 of 5 criteria backed, 0 unbacked. FR-001-AC-5 is integration-backed only: both cross-version directions now execute, while SC-06a's complete version 1 regression comparison remains planned under Task-009 |
 | FR-002 | FR-002-AC-1, FR-002-AC-2, FR-002-AC-3, FR-002-AC-4, FR-002-AC-5 | TC-002 (AC-1..AC-4); IT-001 (AC-5) | 🚧 Planned — 5 of 5 criteria backed, 0 unbacked. FR-002-AC-5 now executes through A's published version 2 handoff: the valid binding set links and all published temporal selection/binding mutations refuse with their declared typed identities. AC-1 remains unresolved by owner ruling on issue #4; AC-3 and AC-4 remain partially implemented for the separately tracked graph/linking gaps. |
@@ -311,7 +313,7 @@ in Domain Object Coverage instead.
 | FR-028 | FR-028-AC-1..AC-6 | TC-004 (AC-1..AC-6) | 🚧 Planned — 6 of 6 criteria test-backed, 0 unbacked, 0 unexecutable |
 | FR-029 | FR-029-AC-1..AC-6 | TC-005 (AC-1..AC-5); none for FR-029-AC-6 | 🚧 Planned — 5 of 6 criteria test-backed. Unbacked: FR-029-AC-6 (Analysis) |
 | FR-030 | FR-030-AC-1..AC-6 | TC-005 (AC-1..AC-5); none for FR-030-AC-6 | 🚧 Planned — 5 of 6 criteria test-backed. Unbacked: FR-030-AC-6 (Analysis) |
-| FR-031 | FR-031-AC-1..AC-6 | TC-006 (AC-1, AC-2, AC-3, AC-5); none for FR-031-AC-4, FR-031-AC-6 | 🚧 Planned — 4 of 6 criteria test-backed. Unbacked: FR-031-AC-4, FR-031-AC-6 (Inspection) |
+| FR-031 | FR-031-AC-1..AC-6 | TC-006 (AC-1..AC-6), TC-008 (AC-5) | 🚧 In progress — 6 of 6 criteria have direct tests; Task-006 remains open for its other canonical-result and refusal deliverables |
 | FR-032 | FR-032-AC-1..AC-7 | TC-006 (AC-1..AC-7) | 🚧 Planned — 7 of 7 criteria test-backed, 0 unbacked, 0 unexecutable |
 | FR-033 | FR-033-AC-1..AC-5 | TC-006 (AC-1..AC-5) | 🚧 Planned — 5 of 5 criteria test-backed, 0 unbacked, 0 unexecutable |
 | FR-034 | FR-034-AC-1..AC-7 | TC-007 (AC-1..AC-5, AC-7); none for FR-034-AC-6 | 🚧 Planned — 6 of 7 criteria test-backed. Unbacked: FR-034-AC-6 (Inspection) |
@@ -359,8 +361,8 @@ the reference resolves in both directions.
 
 | Non-Functional Req | Verification Method | Evidence/Test Cases | Status |
 | --- | --- | --- | --- |
-| NFR-001 | Property and metamorphic testing | TC-008 (AC-1..AC-3) | 🚧 Planned — 3 of 3 criteria test-backed, 0 unbacked, 0 unexecutable |
-| NFR-002 | Property, mutation, and source-bound inventory inspection | TC-009 (AC-1..AC-4) | 🚧 Planned — 4 of 4 criteria test-backed, 0 unbacked, 0 unexecutable. IT-001 SC-07/SC-09 additionally execute against A's published handoff; SC-09 measures and probes all 13 producer accounting dimensions. No criterion rests on IT-001 alone. The count, allocation and deadline guard slice executed as chunk C-29; the source-bound site inventory is chunk C-30 and remains planned |
+| NFR-001 | Property and metamorphic testing | TC-008 (AC-1..AC-3) | 🚧 In progress — 3 of 3 criteria are engine-backed. The canonical result now retains the complete reproduction tuple; map order, locale-isolated child processes, allocation layout, permitted independent arrival order, authored causal order, and the named result-identity mutation matrix execute. End-to-end E02 and observation/temporal integration permutations remain owned by Task-007 and Task-010, so this is not yet a plan-complete claim |
+| NFR-002 | Property, mutation, and source-bound inventory inspection | TC-009 (AC-1..AC-4) | ✅ Implemented on current owner paths — 4 of 4 criteria engine-backed. The production inventory reconciles source sites bidirectionally; delete, duplicate, orphan and missing-boundary mutants fail; every production site has below/at/above evidence; static and elapsed-time accounting are separate; production deadline tests exercise before/after checks and honest overshoot; action-capable assessment doubles record zero calls. Projection-path coverage remains contingent on Task-007 |
 | NFR-003 | Shared Rust language-boundary check, static analysis, architecture inspection, Rust review, Quire coverage, gap analysis | TC-010 (AC-1..AC-6); IT-003 (AC-4, AC-6) | 🚧 Planned — 6 of 6 criteria test-backed, 0 unbacked, 0 unexecutable |
 | NFR-004 | Cargo metadata inspection, conditional-compilation inventory, enumerated gate execution over one unchanged head, per-criterion negative controls | TC-012 (AC-1..AC-10) | 🚧 Planned — 10 of 10 criteria backed by TC-012, 0 unbacked, 0 unexecutable. NFR-004-AC-2's cell reads `Inspection (TC-012)`, so it is inspection-method but test-case-backed. IT-003 previously appeared here but declares and exercises no NFR-004 scenario |
 | NFR-005 | Static inspection and Quire coverage over the integration lanes, denominated on owed rather than executed scenarios | IT-002, IT-003 | 🚧 Planned — this requirement states five metrics and no acceptance criteria, so it contributes 0 to the 288. Its denominator is the 22 scenarios IT-002 and IT-003 owe (12 + 10); all 22 are unexecutable, so every metric scores 0 of 22 rather than a vacuous 100% |
@@ -411,8 +413,8 @@ a coverage claim in this matrix.
 | TC-005 | Separate protocol claim dispositions | Property | P0 | FR-005, FR-029, FR-030 | 🚧 Planned — the six-disposition record and its no-aggregate-verdict proof landed; premise retention, dispatch and the conformance controls are pending |
 | TC-006 | Produce and strictly read canonical protocol results | Property | P0 | FR-006, FR-031, FR-032, FR-033 | 🚧 Planned |
 | TC-007 | Project canonical protocol results to E02 | Property | P0 | FR-007, FR-034, FR-035 | 🚧 Planned |
-| TC-008 | Reproduce results under equivalent presentations | Property | P0 | NFR-001, FR-016, FR-017, NFR-008 | 🚧 Planned — reproduction-record slice executed (12 tests, chunk C-31); equivalent-presentation permutations and the full one-axis mutation matrix remain planned |
-| TC-009 | Enforce every protocol resource boundary | Property | P0 | NFR-002, FR-003, FR-016, FR-017, FR-025 | 🚧 Planned — the count, allocation and deadline guards landed in `tests/tc_009_bounds.rs` (21 tests, chunk C-29); the site inventory and its bidirectional reconciliation remain planned for C-30, and A's accumulation discipline is mirrored here rather than read from A |
+| TC-008 | Reproduce results under equivalent presentations | Property | P0 | NFR-001, FR-016, FR-017, NFR-008 | 🚧 In progress — reproduction input refusal and identity tests, canonical-result provenance retention, map/locale/allocation/arrival-order permutations, authored-order controls, and the complete named result-identity mutation matrix execute. Task-007 and Task-010 still owe projection and producer-integration permutations |
+| TC-009 | Enforce every protocol resource boundary | Property | P0 | NFR-002, FR-003, FR-016, FR-017, FR-025 | ✅ Implemented on current owner paths — 33 core inventory/guard tests plus bounded admission, link, compensation, conformance, claim, result, Contract-IR and reproduction cases execute. New production sites must enter the bidirectional inventory and boundary registry or the mutation ratchet fails |
 | TC-010 | Preserve Rust and shared assurance containment | Static | P0 | NFR-003, FR-009, FR-017 | 🚧 Planned |
 | TC-011 | Return typed refusals without text parsing | Property | P0 | FR-008, FR-014, FR-016, FR-036, FR-037, FR-038, FR-039, FR-040, NFR-008 | 🚧 Planned — backs FR-008-AC-1..AC-8 and the five atomic parts FR-036..FR-040; FR-008-AC-9 is unbacked. The envelope, the code catalog and the repository-wide code audit landed. C-05 now preserves A's typed error and stable code without parsing text, but deliberately carries no FR-008 trace: it cannot form the complete envelope while AC-3/AC-6 await an adopted catalog selection (upstream FR-270) and AC-5 plus the policy halves of AC-4/AC-8 await the typed cause contract (upstream FR-272) |
 | TC-012 | Run the local verification gate and refuse an undefined lane | Static | P0 | NFR-004 | 🚧 Planned |

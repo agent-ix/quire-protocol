@@ -10,6 +10,7 @@ use crate::bounds::inventory::{BudgetDimension, OperationOutcome, ResourceAccoun
 use crate::bounds::{SiteId, SiteKind, UnitLabel};
 use crate::closure::{AssessmentExecution, ScopeState};
 use crate::digest::jcs::{canonical_len, canonicalize, ResultDigest};
+use crate::repro::ReproductionRecord;
 use crate::ByteDigest;
 
 use super::{global, lineage, ErrorCode, Refusal, Result};
@@ -57,7 +58,7 @@ pub const CONTRACT: &str = "quire.protocol.result/v1-draft.1";
 pub const SCHEMA_BYTES: &[u8] =
     include_bytes!("../../schemas/protocol-result-v1-draft-1.schema.json");
 /// Lowercase SHA-256 digest of [`SCHEMA_BYTES`].
-pub const SCHEMA_SHA256: &str = "2623a83afcb30a9c5307922d8a0f169ad2509ca477590e527b06172d6f5a3fa9";
+pub const SCHEMA_SHA256: &str = "8825d5b05edf7aef9e53dd117b4f344b824e1c6fb2757071f6dd14a268079dd2";
 const IDENTITY_VERSION: &str = "quire.protocol.result-identity/v1-draft.1";
 
 /// Immutable owner maxima. Caller limits may lower, never raise, these values.
@@ -410,6 +411,8 @@ pub struct ProvenanceRecord {
     pub input_identity: String,
     pub backend_identity: String,
     pub producer_identity: String,
+    /// Exact local-run inputs needed to reproduce this result.
+    pub reproduction: ReproductionRecord,
 }
 
 /// Explicit correction relation to the direct predecessor.
@@ -674,7 +677,7 @@ fn prepare(input: Input<'_>, effective: Limits) -> Result<Prepared> {
     validate_input(&input, effective)?;
     let semantic_usage = semantic_usage(&input);
     let snapshot = snapshot(&input);
-    let mut value = result_value(&input, &snapshot, None);
+    let mut value = result_value(&input, &snapshot, None)?;
     let preimage = json!({"identityVersion": IDENTITY_VERSION, "result": value});
     let result_id = ResultDigest::of_result(&preimage)
         .map_err(|_| {
@@ -686,7 +689,7 @@ fn prepare(input: Input<'_>, effective: Limits) -> Result<Prepared> {
             )
         })?
         .text();
-    value = result_value(&input, &snapshot, Some(&result_id));
+    value = result_value(&input, &snapshot, Some(&result_id))?;
     Ok(Prepared {
         snapshot,
         value,
@@ -755,7 +758,7 @@ fn validate_input(input: &Input<'_>, limits: Limits) -> Result<()> {
             None,
         ));
     }
-    validate_nonempty(input)?;
+    validate_nonempty(input, limits)?;
     global::validate(&input.claim, &input.global_conformance, limits)?;
     lineage::validate_support(&input.decision_support, limits)?;
     lineage::validate_correction(input.correction, limits)?;
@@ -765,7 +768,7 @@ fn validate_input(input: &Input<'_>, limits: Limits) -> Result<()> {
     Ok(())
 }
 
-fn validate_nonempty(input: &Input<'_>) -> Result<()> {
+fn validate_nonempty(input: &Input<'_>, limits: Limits) -> Result<()> {
     let p = &input.provenance;
     let required = [
         p.source_identity.as_str(),
@@ -785,6 +788,43 @@ fn validate_nonempty(input: &Input<'_>) -> Result<()> {
             ErrorCode::InvalidSelection,
             "a required exact identity is empty",
             Usage::default(),
+            None,
+        ));
+    }
+    let Some(toolchain_string_bytes) = p.reproduction.toolchain().bytes().len().checked_mul(2)
+    else {
+        return Err(refusal(
+            ErrorCode::ResourceIncomplete,
+            "a reproduction identity cannot be represented within the result domain",
+            Usage {
+                string_bytes: usize::MAX,
+                ..Usage::default()
+            },
+            None,
+        ));
+    };
+    let Some(corpus_string_bytes) = p.reproduction.corpus().bytes().len().checked_mul(2) else {
+        return Err(refusal(
+            ErrorCode::ResourceIncomplete,
+            "a reproduction identity cannot be represented within the result domain",
+            Usage {
+                string_bytes: usize::MAX,
+                ..Usage::default()
+            },
+            None,
+        ));
+    };
+    let largest_reproduction_string = toolchain_string_bytes
+        .max(corpus_string_bytes)
+        .max(p.reproduction.seed().to_string().len());
+    if largest_reproduction_string > limits.max_string_bytes {
+        return Err(refusal(
+            ErrorCode::ResourceIncomplete,
+            "a reproduction identity exceeds the effective string ceiling",
+            Usage {
+                string_bytes: largest_reproduction_string,
+                ..Usage::default()
+            },
             None,
         ));
     }
@@ -1052,8 +1092,9 @@ const fn open_closed(state: quire_observation::authority::OpenClosed) -> ScopeSt
     }
 }
 
-fn result_value(input: &Input<'_>, snapshot: &Snapshot, result_id: Option<&str>) -> Value {
+fn result_value(input: &Input<'_>, snapshot: &Snapshot, result_id: Option<&str>) -> Result<Value> {
     let axes = &snapshot.axes;
+    let provenance = provenance_value(&input.provenance)?;
     let mut value = json!({
         "activation": input.activation.label(),
         "assumptions": input.assumptions.iter().map(|a| json!({"identity": a.identity, "state": a.state.label()})).collect::<Vec<_>>(),
@@ -1073,7 +1114,7 @@ fn result_value(input: &Input<'_>, snapshot: &Snapshot, result_id: Option<&str>)
         "observationAdequacy": input.observation_adequacy.label(),
         "participation": participation_value(&input.participation),
         "protocolAdequacy": input.protocol_adequacy.label(),
-        "provenance": provenance_value(&input.provenance),
+        "provenance": provenance,
         "resultId": result_id,
         "settlement": {"basis": input.settlement.basis.label(), "supportingFactIdentities": input.settlement.supporting_fact_identities, "supportingProgressIdentities": input.settlement.supporting_progress_identities},
         "surroundingExecutionClosure": axis_value(&axes[3]),
@@ -1085,7 +1126,7 @@ fn result_value(input: &Input<'_>, snapshot: &Snapshot, result_id: Option<&str>)
             object.remove("resultId");
         }
     }
-    value
+    Ok(value)
 }
 
 fn axis_value(axis: &OwnerAxis) -> Value {
@@ -1103,8 +1144,56 @@ fn premise_value(p: &GlobalPremise) -> Value {
 fn correction_value(c: &CorrectionSnapshot) -> Value {
     json!({"contradictedPremiseIdentity": c.contradicted_premise_identity, "correctedInputIdentity": c.corrected_input_identity, "predecessorDigest": c.predecessor_digest, "predecessorResultId": c.predecessor_result_id, "relation": c.relation.label()})
 }
-fn provenance_value(p: &ProvenanceRecord) -> Value {
-    json!({"backendIdentity": p.backend_identity, "bindingIdentity": p.binding_identity, "inputIdentity": p.input_identity, "modelIdentity": p.model_identity, "producerIdentity": p.producer_identity, "profileIdentity": p.profile_identity, "protocolIdentity": p.protocol_identity, "requestIdentity": p.request_identity, "sourceIdentity": p.source_identity})
+fn provenance_value(p: &ProvenanceRecord) -> Result<Value> {
+    let toolchain = hex_identity(p.reproduction.toolchain().bytes()).ok_or_else(|| {
+        refusal(
+            ErrorCode::ResourceIncomplete,
+            "the toolchain identity cannot be represented within the result domain",
+            Usage {
+                string_bytes: usize::MAX,
+                ..Usage::default()
+            },
+            None,
+        )
+    })?;
+    let corpus = hex_identity(p.reproduction.corpus().bytes()).ok_or_else(|| {
+        refusal(
+            ErrorCode::ResourceIncomplete,
+            "the corpus identity cannot be represented within the result domain",
+            Usage {
+                string_bytes: usize::MAX,
+                ..Usage::default()
+            },
+            None,
+        )
+    })?;
+    Ok(json!({
+        "backendIdentity": p.backend_identity,
+        "bindingIdentity": p.binding_identity,
+        "inputIdentity": p.input_identity,
+        "modelIdentity": p.model_identity,
+        "producerIdentity": p.producer_identity,
+        "profileIdentity": p.profile_identity,
+        "protocolIdentity": p.protocol_identity,
+        "reproduction": {
+            "corpusIdentity": corpus,
+            "seed": p.reproduction.seed().to_string(),
+            "toolchainIdentity": toolchain,
+        },
+        "requestIdentity": p.request_identity,
+        "sourceIdentity": p.source_identity,
+    }))
+}
+
+fn hex_identity(bytes: &[u8]) -> Option<String> {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let capacity = bytes.len().checked_mul(2)?;
+    let mut encoded = String::with_capacity(capacity);
+    for byte in bytes {
+        encoded.push(char::from(HEX[usize::from(byte >> 4)]));
+        encoded.push(char::from(HEX[usize::from(byte & 0x0f)]));
+    }
+    Some(encoded)
 }
 fn participation_value(p: &Participation) -> Value {
     match p {

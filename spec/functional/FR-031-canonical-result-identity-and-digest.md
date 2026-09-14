@@ -28,7 +28,8 @@ When a canonical protocol result is read, the strict reader SHALL recompute the 
 
 One constructed result fact set, the enclosing artifact reference, the selected
 digest domain member, and the exact source, profile, model, protocol, request,
-binding, input, backend and producer identities carried as provenance.
+binding, input, backend and producer identities plus the exact deterministic
+seed, toolchain identity and corpus identity carried as reproduction provenance.
 
 ## Outputs
 
@@ -61,6 +62,14 @@ matched against its selected input. None is inferred from display name, source
 path, span, message text, locale or rendering, and none is substituted from
 another identity of the same shape.
 
+The same provenance record carries the complete `NFR-001` reproduction tuple:
+the caller-selected deterministic seed and the exact toolchain and corpus
+identity bytes. The canonical JSON spells the seed as its unsigned decimal
+string and each arbitrary byte identity as lowercase hexadecimal, so neither a
+JSON number conversion nor a lossy text decode can alter the run identity.
+Display text is excluded. An omitted, empty, over-limit or malformed member is
+refused rather than inferred.
+
 ## Acceptance Criteria
 
 | ID | Criteria | Verification |
@@ -68,9 +77,9 @@ another identity of the same shape.
 | FR-031-AC-1 | Every emitted result carries the `FR-240` contract version and kind plus a result identity, and a result with a stale identity is refused by the strict reader. | Test (TC-006) |
 | FR-031-AC-2 | The enclosing artifact reference's digest is computed over the complete RFC 8785 canonical result bytes and appears nowhere inside those bytes. | Test (TC-006) |
 | FR-031-AC-3 | A strict reader recomputes the enclosing digest before accepting, and refuses a result whose recomputed digest differs from the carried one. | Test (TC-006) |
-| FR-031-AC-4 | The protocol-result digest carries the `quire.verification.jcs` label exactly as `FR-201` publishes it, and no digest domain label used by this requirement originates in this repository. | Inspection |
-| FR-031-AC-5 | Every source, profile, model, protocol, request, binding, input, backend and producer identity on the result is recomputed or strictly matched, and none is inferred from display text or substituted from another identity. | Test (TC-006) |
-| FR-031-AC-6 | RFC 8785 canonicalization is applied to the protocol-result digest preimage only; an offered artifact's supplied bytes are digested as delivered under the member FR-015 selects for them. | Inspection |
+| FR-031-AC-4 | The protocol-result digest carries the `quire.verification.jcs` label exactly as `FR-201` publishes it, and no producer-domain value can substitute for it. | Test (TC-006) |
+| FR-031-AC-5 | Every source, profile, model, protocol, request, binding, input, backend and producer identity plus the deterministic seed and exact toolchain and corpus identity bytes on the result is recomputed or strictly matched; changing any one changes the result identity or refuses, and none is inferred from display text or substituted from another identity. | Test (TC-006, TC-008) |
+| FR-031-AC-6 | RFC 8785 canonicalization is applied to the protocol-result digest preimage only; an offered artifact's supplied bytes are copied and digested as delivered under the member FR-015 selects for them. | Test (TC-006) |
 
 ## Adopted vocabulary
 
