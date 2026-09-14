@@ -823,6 +823,35 @@ impl<'inventory> ResourceAccountant<'inventory> {
     /// faults are separate error variants and are never reported as exhausted
     /// caller budgets.
     pub fn charge(&mut self, site: SiteId, requested: usize) -> Result<(), ChargeError> {
+        self.charge_effective(site, requested, None)
+    }
+
+    /// Charge one increment against both its authored and caller ceilings.
+    ///
+    /// The effective ceiling is the lower of `authored_limit` and a present
+    /// caller grant. An absent caller grant remains absent and therefore cannot
+    /// weaken or replace the authored ceiling.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ChargeError::ResourceIncomplete`] before changing usage when
+    /// the next unit exceeds either ceiling. Inventory and counter faults remain
+    /// structurally separate.
+    pub fn charge_with_limit(
+        &mut self,
+        site: SiteId,
+        requested: usize,
+        authored_limit: usize,
+    ) -> Result<(), ChargeError> {
+        self.charge_effective(site, requested, Some(authored_limit))
+    }
+
+    fn charge_effective(
+        &mut self,
+        site: SiteId,
+        requested: usize,
+        authored_limit: Option<usize>,
+    ) -> Result<(), ChargeError> {
         let Some(entry) = self.inventory.entry(site) else {
             return Err(ChargeError::UnregisteredSite { site });
         };
@@ -835,7 +864,14 @@ impl<'inventory> ResourceAccountant<'inventory> {
                 requested,
             });
         };
-        if let Some(granted) = self.budget.grant_for(dimension) {
+        let caller_limit = self.budget.grant_for(dimension);
+        let effective_limit = match (caller_limit, authored_limit) {
+            (Some(caller), Some(authored)) => Some(caller.min(authored)),
+            (Some(caller), None) => Some(caller),
+            (None, Some(authored)) => Some(authored),
+            (None, None) => None,
+        };
+        if let Some(granted) = effective_limit {
             if next > granted {
                 return Err(ChargeError::ResourceIncomplete(ResourceIncomplete {
                     code: entry.incomplete_code,
@@ -864,6 +900,26 @@ impl<'inventory> ResourceAccountant<'inventory> {
         let before = self.usage;
         for (site, requested) in charges {
             if let Err(error) = self.charge(*site, *requested) {
+                self.usage = before;
+                return Err(error);
+            }
+        }
+        Ok(())
+    }
+
+    /// Transactionally charge increments against authored and caller ceilings.
+    ///
+    /// # Errors
+    ///
+    /// Returns the first resource-incomplete or accounting fault with the
+    /// complete pre-call usage restored.
+    pub fn charge_all_with_limits(
+        &mut self,
+        charges: &[(SiteId, usize, usize)],
+    ) -> Result<(), ChargeError> {
+        let before = self.usage;
+        for (site, requested, authored_limit) in charges {
+            if let Err(error) = self.charge_with_limit(*site, *requested, *authored_limit) {
                 self.usage = before;
                 return Err(error);
             }

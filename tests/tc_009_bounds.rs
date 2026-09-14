@@ -67,6 +67,11 @@ fn caller_entry() -> InventoryEntry {
     )
 }
 
+fn caller_inventory() -> Inventory {
+    Inventory::reconcile(&[caller_source()], &[caller_entry()])
+        .expect("one exact source and inventory entry reconcile")
+}
+
 /// Ceilings low enough to reach in a test. `Limits::bounded()` only clamps
 /// downwards, so every lowered value below survives it unchanged.
 fn test_limits() -> Limits {
@@ -1330,6 +1335,68 @@ fn tc_009_every_production_site_has_below_at_above_boundary() {
             source.id()
         );
     }
+}
+
+#[trace("TC-009", "NFR-002-AC-1", "FR-016-AC-2", "FR-016-AC-7")]
+#[test]
+fn tc_009_authored_and_caller_ceilings_are_enforced_together() {
+    let inventory = caller_inventory();
+
+    let mut authored_only = ResourceAccountant::new(Budget::nothing_granted(), &inventory);
+    authored_only
+        .charge_with_limit(CALLER_SITE, 2, 2)
+        .expect("exact authored ceiling");
+    let ChargeError::ResourceIncomplete(incomplete) = authored_only
+        .charge_with_limit(CALLER_SITE, 1, 2)
+        .expect_err("authored ceiling refuses its excess unit")
+    else {
+        panic!("authored excess returned an accounting fault");
+    };
+    assert_eq!(incomplete.granted(), 2);
+    assert_eq!(incomplete.consumed(), 2);
+    assert_eq!(
+        authored_only.usage().consumed(BudgetDimension::InputByte),
+        2
+    );
+
+    let caller_lower = Budget::nothing_granted()
+        .grant(BudgetDimension::InputByte, 1)
+        .expect("positive caller grant");
+    let mut caller_lower = ResourceAccountant::new(caller_lower, &inventory);
+    let ChargeError::ResourceIncomplete(incomplete) = caller_lower
+        .charge_with_limit(CALLER_SITE, 2, 3)
+        .expect_err("caller ceiling lowers the authored ceiling")
+    else {
+        panic!("caller excess returned an accounting fault");
+    };
+    assert_eq!(incomplete.granted(), 1);
+    assert_eq!(incomplete.consumed(), 0);
+
+    let caller_higher = Budget::nothing_granted()
+        .grant(BudgetDimension::InputByte, 3)
+        .expect("positive caller grant");
+    let mut caller_higher = ResourceAccountant::new(caller_higher, &inventory);
+    caller_higher
+        .charge_with_limit(CALLER_SITE, 2, 2)
+        .expect("caller cannot lower exact authored use when it grants more");
+    let ChargeError::ResourceIncomplete(incomplete) = caller_higher
+        .charge_with_limit(CALLER_SITE, 1, 2)
+        .expect_err("caller cannot raise the authored ceiling")
+    else {
+        panic!("authored excess returned an accounting fault");
+    };
+    assert_eq!(incomplete.granted(), 2);
+
+    let mut transactional = ResourceAccountant::new(Budget::nothing_granted(), &inventory);
+    let charges = [(CALLER_SITE, 1, 2), (CALLER_SITE, 2, 2)];
+    assert!(matches!(
+        transactional.charge_all_with_limits(&charges),
+        Err(ChargeError::ResourceIncomplete(_))
+    ));
+    assert_eq!(
+        transactional.usage().consumed(BudgetDimension::InputByte),
+        0
+    );
 }
 
 #[trace("TC-009", "NFR-002-AC-3")]
