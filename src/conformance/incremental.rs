@@ -4,12 +4,29 @@
 use quire_observation::authority::completeness;
 
 use crate::assessment::{AxisInputs, GlobalConformanceInput};
+use crate::bounds::inventory::{ChargeError, OperationOutcome, ResourceAccountant};
 use crate::closure::AssessmentExecution;
 
 use super::batch::{
     assess, BoundObservation, Limits, Model, ObligationDisposition, Report, Request, Usage,
+    OBSERVATION_SOURCE, OPERATION_SOURCE,
 };
 use super::{ErrorCode, Refusal, Result};
+
+/// Producer-owned context shared by one bounded incremental assessment step.
+#[derive(Clone, Copy, Debug)]
+pub struct IncrementalContext<'a> {
+    /// Four independently supplied progress and closure views.
+    pub axes: AxisInputs<'a>,
+    /// Exact producer-owned completeness view.
+    pub completeness: &'a completeness::View,
+    /// Exact global-conformance premise set.
+    pub global_conformance: &'a GlobalConformanceInput,
+    /// Execution disposition supplied by its owner.
+    pub execution: AssessmentExecution,
+    /// Immutable-owner-clamped conformance limits.
+    pub limits: Limits,
+}
 
 /// Incremental assessor that evaluates every admitted prefix.
 #[derive(Clone, Debug)]
@@ -72,6 +89,40 @@ impl<'a> Incremental<'a> {
         }
     }
 
+    /// Assess and retain the next prefix under the shared caller budget.
+    ///
+    /// The whole candidate prefix and model operation population are charged
+    /// transactionally before cloning the retained prefix or assessing it.
+    pub fn push_bounded<'request>(
+        &'request mut self,
+        observation: BoundObservation<'a>,
+        context: IncrementalContext<'a>,
+        resources: &mut ResourceAccountant<'_>,
+    ) -> OperationOutcome<&'request Report, Refusal> {
+        let Some(candidate_len) = self.observations.len().checked_add(1) else {
+            return OperationOutcome::from_charge(ChargeError::CounterOverflow {
+                site: OBSERVATION_SOURCE.id(),
+                consumed: self.observations.len(),
+                requested: 1,
+            });
+        };
+        let charges = [
+            (OBSERVATION_SOURCE.id(), candidate_len),
+            (OPERATION_SOURCE.id(), self.model.obligations().len()),
+        ];
+        if let Err(error) = resources.charge_all(&charges) {
+            return OperationOutcome::from_charge(error);
+        }
+        OperationOutcome::from_domain(self.push(
+            observation,
+            context.axes,
+            context.completeness,
+            context.global_conformance,
+            context.execution,
+            context.limits,
+        ))
+    }
+
     /// Re-assess the complete retained prefix under final producer-owned axes.
     pub fn finish(
         &mut self,
@@ -106,6 +157,31 @@ impl<'a> Incremental<'a> {
                 self.model.protocol_identity().as_bytes(),
             )),
         }
+    }
+
+    /// Re-assess the retained final prefix under the shared caller budget.
+    ///
+    /// The complete retained prefix and model operation population are charged
+    /// transactionally before assessment constructs a replacement report.
+    pub fn finish_bounded<'request>(
+        &'request mut self,
+        context: IncrementalContext<'a>,
+        resources: &mut ResourceAccountant<'_>,
+    ) -> OperationOutcome<&'request Report, Refusal> {
+        let charges = [
+            (OBSERVATION_SOURCE.id(), self.observations.len()),
+            (OPERATION_SOURCE.id(), self.model.obligations().len()),
+        ];
+        if let Err(error) = resources.charge_all(&charges) {
+            return OperationOutcome::from_charge(error);
+        }
+        OperationOutcome::from_domain(self.finish(
+            context.axes,
+            context.completeness,
+            context.global_conformance,
+            context.execution,
+            context.limits,
+        ))
     }
 
     /// Exact retained admitted prefix in presentation order.

@@ -8,7 +8,7 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use quire_observation::authority::{completeness, observation, OpenClosed};
 
 use crate::assessment::{AxisInputs, GlobalConformanceInput};
-use crate::bounds::inventory::{BudgetDimension, SourceSite};
+use crate::bounds::inventory::{BudgetDimension, OperationOutcome, ResourceAccountant, SourceSite};
 use crate::bounds::{SiteId, SiteKind};
 use crate::closure::{AssessmentExecution, GlobalConformanceClosure};
 
@@ -479,6 +479,27 @@ pub struct Report {
     pub premises: PremiseSnapshot,
     /// Bounded work and retention actually observed.
     pub usage: Usage,
+}
+
+/// Assess under the shared QProtocol caller budget.
+///
+/// The complete observation and obligation populations are charged
+/// transactionally before any validation, traversal, or result allocation.
+/// The conformance owner's immutable maxima remain independently enforced by
+/// [`assess`].
+pub fn assess_bounded(
+    request: Request<'_>,
+    limits: Limits,
+    resources: &mut ResourceAccountant<'_>,
+) -> OperationOutcome<Report, Refusal> {
+    let charges = [
+        (OBSERVATION_SOURCE.id(), request.observations.len()),
+        (OPERATION_SOURCE.id(), request.model.obligations.len()),
+    ];
+    if let Err(error) = resources.charge_all(&charges) {
+        return OperationOutcome::from_charge(error);
+    }
+    OperationOutcome::from_domain(assess(request, limits))
 }
 
 /// Assess one exact admitted history without repairing or reordering it.

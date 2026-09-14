@@ -17,12 +17,12 @@ use crate::refusal::{
 use crate::ByteDigest;
 
 pub use batch::{
-    assess, AdverseKind, AdverseObservation, BoundObservation, GlobalDisposition,
+    assess, assess_bounded, AdverseKind, AdverseObservation, BoundObservation, GlobalDisposition,
     GlobalPremiseDefect, GlobalPremiseDefectKind, IncompleteCause, Limits, Model,
     ObligationDisposition, ObligationId, ObligationResult, ObservationObligation, Report, Request,
     Usage,
 };
-pub use incremental::{compare, Incremental};
+pub use incremental::{compare, Incremental, IncrementalContext};
 
 /// Stable conformance refusal cause.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]

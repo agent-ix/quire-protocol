@@ -3,11 +3,14 @@
 
 use ix_trace_rs::trace;
 use quire_protocol::assessment::{AxisInputs, GlobalConformanceInput, GlobalPremise, PremiseKind};
+use quire_protocol::bounds::inventory::{
+    production_inventory, Budget, BudgetDimension, OperationOutcome, ResourceAccountant,
+};
 use quire_protocol::closure::{AssessmentExecution, GlobalConformanceClosure};
 use quire_protocol::conformance::{
-    assess, compare, AdverseKind, BoundObservation, ErrorCode, GlobalDisposition,
-    GlobalPremiseDefectKind, IncompleteCause, Incremental, Limits, Model, ObligationDisposition,
-    ObligationId, ObservationObligation, Request,
+    assess, assess_bounded, compare, AdverseKind, BoundObservation, ErrorCode, GlobalDisposition,
+    GlobalPremiseDefectKind, IncompleteCause, Incremental, IncrementalContext, Limits, Model,
+    ObligationDisposition, ObligationId, ObservationObligation, Request,
 };
 
 #[path = "support/observation_owner.rs"]
@@ -415,6 +418,223 @@ fn tc_004_bounds_and_path_divergence_are_typed() {
     let divergence = compare(&report, &divergent).expect_err("different value");
     assert_eq!(divergence.code(), ErrorCode::PathDivergence);
     assert_ne!(divergence.outcome_identity(), resource.outcome_identity());
+}
+
+#[trace("TC-004", "TC-009", "NFR-002-AC-1", "FR-016-AC-2", "FR-016-AC-4")]
+#[test]
+fn tc_009_batch_charges_observations_before_assessment() {
+    let decision = scope_views("decision-caller-budget");
+    let surrounding = scope_views("surrounding-caller-budget");
+    let model = Model::new(
+        "protocol:caller-budget",
+        vec![
+            obligation(
+                "obligation:one",
+                &decision.observation,
+                "effect:one",
+                vec![],
+            ),
+            obligation(
+                "obligation:two",
+                &decision.observation,
+                "effect:two",
+                vec![],
+            ),
+        ],
+        Limits::default(),
+    )
+    .expect("valid model");
+    let bindings = [
+        binding(
+            "obligation:one",
+            &decision.observation,
+            "workflow:one",
+            "effect:one",
+        ),
+        binding(
+            "obligation:one",
+            &decision.observation,
+            "workflow:one",
+            "effect:one",
+        ),
+    ];
+    let global = premises(GlobalConformanceClosure::Closed);
+    let request = || request(&model, &bindings, &decision, &surrounding, &global, true);
+    let inventory = production_inventory().expect("production inventory");
+
+    let one_short = Budget::nothing_granted()
+        .grant(BudgetDimension::Observation, 1)
+        .expect("positive one-short grant");
+    let mut one_short_resources = ResourceAccountant::new(one_short, &inventory);
+    let incomplete = assess_bounded(request(), Limits::default(), &mut one_short_resources);
+    assert!(matches!(
+        incomplete,
+        OperationOutcome::ResourceIncomplete(value)
+            if value.dimension() == BudgetDimension::Observation
+                && value.consumed() == 0
+                && value.requested() == 2
+    ));
+    assert_eq!(
+        one_short_resources
+            .usage()
+            .consumed(BudgetDimension::Observation),
+        0
+    );
+
+    let exact = Budget::nothing_granted()
+        .grant(BudgetDimension::Observation, 2)
+        .expect("positive exact grant");
+    let mut exact_resources = ResourceAccountant::new(exact, &inventory);
+    assert!(matches!(
+        assess_bounded(request(), Limits::default(), &mut exact_resources),
+        OperationOutcome::Completed(_)
+    ));
+    assert_eq!(
+        exact_resources
+            .usage()
+            .consumed(BudgetDimension::Observation),
+        2
+    );
+
+    let one_short = Budget::nothing_granted()
+        .grant(BudgetDimension::Operation, 1)
+        .expect("positive one-short grant");
+    let mut one_short_resources = ResourceAccountant::new(one_short, &inventory);
+    assert!(matches!(
+        assess_bounded(
+            request(),
+            Limits::default(),
+            &mut one_short_resources
+        ),
+        OperationOutcome::ResourceIncomplete(value)
+            if value.dimension() == BudgetDimension::Operation
+                && value.requested() == 2
+    ));
+    assert_eq!(
+        one_short_resources
+            .usage()
+            .consumed(BudgetDimension::Observation),
+        0
+    );
+    assert_eq!(
+        one_short_resources
+            .usage()
+            .consumed(BudgetDimension::Operation),
+        0
+    );
+
+    let exact = Budget::nothing_granted()
+        .grant(BudgetDimension::Operation, 2)
+        .expect("positive exact grant");
+    let mut exact_resources = ResourceAccountant::new(exact, &inventory);
+    assert!(matches!(
+        assess_bounded(request(), Limits::default(), &mut exact_resources),
+        OperationOutcome::Completed(_)
+    ));
+    assert_eq!(
+        exact_resources.usage().consumed(BudgetDimension::Operation),
+        2
+    );
+
+    let mut incremental = Incremental::new(model.clone());
+    incremental
+        .push(
+            bindings[0].clone(),
+            axes(&decision, &surrounding, true),
+            &decision.completeness_complete,
+            &global,
+            AssessmentExecution::Completed,
+            Limits::default(),
+        )
+        .expect("first retained prefix");
+    let one_short = Budget::nothing_granted()
+        .grant(BudgetDimension::Observation, 1)
+        .expect("positive one-short grant");
+    let mut one_short_resources = ResourceAccountant::new(one_short, &inventory);
+    let bounded_context = IncrementalContext {
+        axes: axes(&decision, &surrounding, true),
+        completeness: &decision.completeness_complete,
+        global_conformance: &global,
+        execution: AssessmentExecution::Completed,
+        limits: Limits::default(),
+    };
+    let incremental_incomplete = incremental.push_bounded(
+        bindings[1].clone(),
+        bounded_context,
+        &mut one_short_resources,
+    );
+    assert!(matches!(
+        incremental_incomplete,
+        OperationOutcome::ResourceIncomplete(value)
+            if value.dimension() == BudgetDimension::Observation
+                && value.requested() == 2
+    ));
+    assert_eq!(incremental.observations().len(), 1);
+
+    let exact = Budget::nothing_granted()
+        .grant(BudgetDimension::Observation, 2)
+        .expect("positive exact grant");
+    let mut exact_resources = ResourceAccountant::new(exact, &inventory);
+    let reached_assessment =
+        incremental.push_bounded(bindings[1].clone(), bounded_context, &mut exact_resources);
+    assert!(matches!(
+        reached_assessment,
+        OperationOutcome::DomainError(_)
+    ));
+    assert_eq!(incremental.observations().len(), 1);
+
+    let open = premises(GlobalConformanceClosure::Open);
+    let second_binding = binding(
+        "obligation:two",
+        &decision.observation,
+        "workflow:one",
+        "effect:two",
+    );
+    let mut finishing = Incremental::new(model);
+    finishing
+        .push(
+            bindings[0].clone(),
+            axes(&decision, &surrounding, false),
+            &decision.completeness_incomplete,
+            &open,
+            AssessmentExecution::Completed,
+            Limits::default(),
+        )
+        .expect("open first prefix");
+    finishing
+        .push(
+            second_binding,
+            axes(&decision, &surrounding, true),
+            &decision.completeness_complete,
+            &global,
+            AssessmentExecution::Completed,
+            Limits::default(),
+        )
+        .expect("settled second prefix");
+
+    let one_short = Budget::nothing_granted()
+        .grant(BudgetDimension::Observation, 1)
+        .expect("positive one-short grant");
+    let mut one_short_resources = ResourceAccountant::new(one_short, &inventory);
+    assert!(matches!(
+        finishing.finish_bounded(
+            bounded_context,
+            &mut one_short_resources,
+        ),
+        OperationOutcome::ResourceIncomplete(value)
+            if value.dimension() == BudgetDimension::Observation
+                && value.requested() == 2
+    ));
+    assert_eq!(finishing.observations().len(), 2);
+
+    let exact = Budget::nothing_granted()
+        .grant(BudgetDimension::Observation, 2)
+        .expect("positive exact grant");
+    let mut exact_resources = ResourceAccountant::new(exact, &inventory);
+    assert!(matches!(
+        finishing.finish_bounded(bounded_context, &mut exact_resources,),
+        OperationOutcome::Completed(_)
+    ));
 }
 
 /// The conformance layer retains all four owner views and never promotes one
