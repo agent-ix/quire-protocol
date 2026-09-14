@@ -9,8 +9,9 @@ relationships:
 
 ## Description
 
-Planned complete result-owner and selected-mapping checks for FR-042. No new
-implementation coverage is claimed.
+Complete result-owner and selected-mapping checks for FR-042. The executable
+Rust suite is `tests/tc_015_result_owner.rs`; every test carries direct TC-015
+and criterion-level trace tags for the behavior it exercises.
 
 ## Test Procedure
 
@@ -30,4 +31,8 @@ typed non-value, and no refusal exposes a partial view.
 
 ## Status
 
-Planned for `quire-protocol#8`.
+Implemented for `quire-protocol#8` in the reviewed FR-042 result-owner
+candidate. Twelve executable tests cover canonical production and strict
+reading, complete constructor-private typed views, four independent axes,
+Boolean and typed non-value mapping, schema pins, identity and lineage
+mutations, reproduction provenance, and exact/one-short resource limits.
