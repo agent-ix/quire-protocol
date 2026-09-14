@@ -174,6 +174,32 @@ fn tc_009_admission_charges_all_input_bytes_before_decode() {
         exact_resources.usage().consumed(BudgetDimension::InputByte),
         bytes.len()
     );
+
+    let one_allocation = Budget::nothing_granted()
+        .grant(BudgetDimension::AccountedAllocation, 1)
+        .expect("one admitted-package allocation");
+    let mut allocation_resources = ResourceAccountant::new(one_allocation, &inventory);
+    assert!(matches!(
+        admit_discriminating_bounded(
+            bytes,
+            &selections.expected(),
+            Limits::default(),
+            &mut allocation_resources,
+        ),
+        OperationOutcome::DomainError(_)
+    ));
+    assert!(matches!(
+        admit_discriminating_bounded(
+            bytes,
+            &selections.expected(),
+            Limits::default(),
+            &mut allocation_resources,
+        ),
+        OperationOutcome::ResourceIncomplete(value)
+            if value.dimension() == BudgetDimension::AccountedAllocation
+                && value.consumed() == 1
+                && value.requested() == 1
+    ));
 }
 
 /// A producer reference offered where the JCS protocol-result digest belongs.

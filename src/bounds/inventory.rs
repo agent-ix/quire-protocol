@@ -999,6 +999,12 @@ const ADMISSION_INPUT: SourceSite = SourceSite::new(
     BudgetDimension::InputByte,
     SiteKind::Iteration,
 );
+const ADMISSION_ALLOCATION: SourceSite = SourceSite::new(
+    SiteId::new("admission/package/allocate"),
+    "inventory::map::admit_discriminating",
+    BudgetDimension::AccountedAllocation,
+    SiteKind::Allocation,
+);
 const LINK_DEFINITION: SourceSite = SourceSite::new(
     SiteId::new("link/definition/select"),
     "link::link",
@@ -1337,6 +1343,7 @@ const RESULT_DEPTH: SourceSite = SourceSite::new(
 /// reconciliation rather than changing both populations by construction.
 pub const PRODUCTION_SOURCES: &[SourceSite] = &[
     crate::inventory::map::ADMISSION_INPUT_SOURCE,
+    crate::inventory::map::ADMISSION_ALLOCATION_SOURCE,
     crate::link::DEFINITION_SOURCE,
     crate::link::NODE_SOURCE,
     crate::link::EDGE_SOURCE,
@@ -1417,6 +1424,12 @@ pub const PRODUCTION_ENTRIES: &[InventoryEntry] = &[
         LimitAuthority::ConsumerOwner,
         ChargePoint::BeforeDecode,
         Termination::InputLength,
+    ),
+    entry(
+        ADMISSION_ALLOCATION,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeAllocate,
+        Termination::SingleUnit,
     ),
     entry(
         LINK_DEFINITION,

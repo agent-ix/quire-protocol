@@ -27,6 +27,12 @@ pub(crate) const ADMISSION_INPUT_SOURCE: SourceSite = SourceSite::new(
     BudgetDimension::InputByte,
     SiteKind::Iteration,
 );
+pub(crate) const ADMISSION_ALLOCATION_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("admission/package/allocate"),
+    "inventory::map::admit_discriminating",
+    BudgetDimension::AccountedAllocation,
+    SiteKind::Allocation,
+);
 
 /// A B-owned admission refusal. Each variant is independently assertable.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -123,11 +129,14 @@ pub fn admit_discriminating_bounded(
     resources: &mut ResourceAccountant<'_>,
 ) -> OperationOutcome<AdmittedPackage, AdmissionRefusal> {
     let effective = limits.bounded();
-    if let Err(error) = resources.charge_with_limit(
-        ADMISSION_INPUT_SOURCE.id(),
-        bytes.len(),
-        effective.payload_bytes,
-    ) {
+    if let Err(error) = resources.charge_all_mixed(&[
+        (
+            ADMISSION_INPUT_SOURCE.id(),
+            bytes.len(),
+            Some(effective.payload_bytes),
+        ),
+        (ADMISSION_ALLOCATION_SOURCE.id(), 1, None),
+    ]) {
         return OperationOutcome::from_charge(error);
     }
     OperationOutcome::from_domain(admit_discriminating(bytes, expected, effective))
