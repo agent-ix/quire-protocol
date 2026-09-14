@@ -181,12 +181,24 @@ impl Model {
     ) -> Result<Self> {
         let protocol_identity = protocol_identity.into();
         let effective = limits.effective();
-        let predecessors = obligations
-            .iter()
-            .try_fold(0usize, |sum, obligation| {
-                sum.checked_add(obligation.predecessors.len())
-            })
-            .unwrap_or(usize::MAX);
+        let predecessors = match obligations.iter().try_fold(0usize, |sum, obligation| {
+            sum.checked_add(obligation.predecessors.len())
+        }) {
+            Some(predecessors) => predecessors,
+            None => {
+                return Err(Refusal::new(
+                    ErrorCode::ResourceIncomplete,
+                    "obligation predecessor population cannot be represented",
+                    None,
+                    Usage {
+                        obligations: obligations.len(),
+                        predecessors: usize::MAX,
+                        ..Usage::default()
+                    },
+                    protocol_identity.as_bytes(),
+                ))
+            }
+        };
         let usage = Usage {
             obligations: obligations.len(),
             predecessors,
@@ -656,10 +668,11 @@ fn assess_inner(
     mut resources: Option<&mut ResourceAccountant<'_>>,
 ) -> core::result::Result<Report, AssessError> {
     let effective = limits.effective();
+    let predecessors = predecessor_count(&request)?;
     let mut usage = Usage {
         obligations: request.model.obligations.len(),
         bindings: request.observations.len(),
-        predecessors: predecessor_count(&request).unwrap_or(usize::MAX),
+        predecessors,
         ..Usage::default()
     };
     if usage.obligations > effective.max_obligations
@@ -674,7 +687,7 @@ fn assess_inner(
         .into());
     }
     validate_owner_axes_and_required_premises(&request, usage)?;
-    usage.retained_bytes = retained_byte_count(&request).unwrap_or(usize::MAX);
+    usage.retained_bytes = retained_byte_count(&request)?;
     if usage.retained_bytes > effective.max_retained_bytes {
         return Err(resource_refusal(
             "retained owner bytes exceed an effective ceiling",
