@@ -2,7 +2,7 @@
 id: Task-012
 title: "Consume the version-explicit compiled-protocol /2 artifact"
 type: Task
-status: in_progress
+status: done
 track: B
 priority: P0
 relationships:
@@ -25,10 +25,14 @@ byte-for-byte unchanged in behaviour.
 
 ## Dependency state
 
-**Delivered.** A's `/2` is published and promoted. `quire-spec-language`
-`04254a31071cc2d4c97e5c0707e1414141e55d89` is that repository's `main` after
-PR #75 merged, released as `v0.1.0`, and it is what `Cargo.toml` and
-`Cargo.lock` pin. The surface B builds against:
+**Delivered and pinned.** A's `/2` is published
+and promoted. `quire-spec-language` release `v0.2.0` is at `6eccb05`, and PR #92
+exports its handoff path, member names, and mutation format on `main` at
+`93c411b287ccf4789879ac4ef3094fc921dada58`. `Cargo.toml` and `Cargo.lock`
+pin that exact revision. The direct test dependency on `quire-contract-ir` is
+also aligned to A's `04eb6f8` transitive pin, so one Rust identity type is
+present in the resolved graph.
+The complete surface B consumes is:
 
 - `protocol_artifact::v2::{Expected, ExpectedDefinition, ExpectedTemporal,
   AdmittedPackage, read, encode_candidate}`
@@ -38,6 +42,11 @@ PR #75 merged, released as `v0.1.0`, and it is what `Cargo.toml` and
 - `protocol_artifact::handoff::{SelectionV2, MutationManifest, ...}` — the
   interchange record shapes for `expected-v2.json` and
   `mutations/manifest.json`, decoded rather than mirrored
+- `protocol_artifact::handoff::{PUBLISHED_HANDOFF, PUBLISHED_OFFER_FILE,
+  PUBLISHED_ARTIFACT_REFERENCE_FILE, PUBLISHED_SELECTION_FILE,
+  PUBLISHED_MUTATION_MANIFEST_FILE, PUBLISHED_CHECKSUMS_FILE,
+  MUTATION_MANIFEST_FORMAT}` — the owner-exported address, member names, and
+  manifest format
 - `protocol_artifact::Error::code` — the stable refusal identity per axis
 - the existing shared `protocol_artifact::{Limits, Report, Invalid, Unsupported}`
 
@@ -47,20 +56,13 @@ The handoff bundle A committed under `artifacts/compiled-protocol-v2/` is 109
 files plus `SHA256SUMS`, carrying 28 mutation cases over 21 axes in format
 `quire.protocol.v2-mutations/1`.
 
-**What is still owed** is addressing, not content: A publishes no path constant
-naming that directory inside its own crate source, so B can only reach it
-through the out-of-band `QUIRE_PROTOCOL_A_V2_HANDOFF` variable and the
-submitting tests stay `#[ignore]`d under the declared gate. Stated once in
-`tests/support/v2_handoff/mod.rs::A_OWED_API`. Vendoring the bundle here is
-refused: it would mirror what its owner publishes.
-
 ## Subtasks
 
 ### B-owned, available now
 
-- [x] Author the B-owned `/2` evidence loader and absence reporting
-  (`tests/support/v2/mod.rs`), with no A type named and the offered bytes carried
-  through as opaque bytes.
+- [x] Author the B-owned pre-delivery `/2` evidence loader and scenario index;
+  this provisional corpus was retired after A published the authoritative
+  handoff and manifest.
 - [x] Enumerate the scenario corpus SC-06 through SC-09 owe: one valid
   admission, both cross-version submissions, every changed-selection axis, every
   ordered digest-domain substitution, every recanonicalized producer input,
@@ -92,9 +94,10 @@ refused: it would mirror what its owner publishes.
 - [x] Obtain A's immutable revision, raw `/2` bytes and external artifact
   reference, independent selection recipe, original unrecanonicalized input
   corpus, per-axis mutation fixtures with documented refusal expectations, and
-  the exact public names of the `/2` boundary. All in hand at `04254a3`.
-- [x] Pin that revision in `Cargo.toml` and `Cargo.lock`. `04254a3` is A's
-  `origin/main`, not a branch commit.
+  the exact public names of the `/2` boundary. The reader/corpus was delivered
+  at `04254a3`; the complete exported handoff surface is at `93c411b`.
+- [x] Pin `93c411b` in `Cargo.toml` and `Cargo.lock`; it is A's `origin/main`,
+  not a branch commit.
 - [x] Add `quire_protocol::admit_and_link_v2` as a distinct public entry point
   over A's `/2` reader, leaving `admit_and_link` untouched.
 - [x] Rederive B's `/2` selection from the original input corpus without reading
@@ -109,18 +112,26 @@ refused: it would mirror what its owner publishes.
 
 ### Remaining
 
-- [ ] Reach the handoff under the declared gate. Until A publishes a path
-  constant for its own handoff directory, the 6 submitting tests are
-  `#[ignore]`d and SC-06..SC-09 are reported unexecuted rather than passing.
-  The 7 tests that exercise B's integrity mechanism build synthetic handoffs
-  under `CARGO_TARGET_TMPDIR` and do run on every gate.
-- [ ] Settle the pre-delivery corpus. `tests/support/v2/mod.rs` and
+- [x] Pin `quire-spec-language` `93c411b`, import A's exported handoff constants,
+  remove `QUIRE_PROTOCOL_A_V2_HANDOFF`, `A_OWED_API`, and the six ignored-test
+  gates, and execute the handoff on every default local test run.
+- [x] Exercise both cross-version submissions through the public `/1` and `/2`
+  entry points, without auto-detection, upgrade, or downgrade.
+- [x] Exercise SC-09 against every `protocol_artifact::Dimension::ALL` member:
+  measure the unchanged base input, admit at exact usage, refuse at one-short
+  with the matching dimension, and admit the same bytes under a fresh exact
+  budget.
+- [x] Retire the superseded pre-delivery corpus. `tests/support/v2/mod.rs` and
   `tests/it001_v2_intake.rs` hold B's own scenario inventory, planned before A
   published one, whose `ExpectedRefusal` identities were to be mapped
   injectively onto A's typed refusals at the pin step. A now publishes its own
   28-case manifest, so that mapping supersedes the corpus rather than annotating
-  it. Retiring it touches TM-001, IT-001 Notes and the `spec/reviews/v2-intake`
-  findings, so it is specified before it is deleted.
+  it. Reconcile TM-001, IT-001, the current functional references, the fixture
+  README, and the plan log; preserve the historical `spec/reviews/v2-intake/`
+  reviews as the record of the state they examined.
+- [x] Run the Rust local gate plus self `/rust-review` and `/gap-analysis`, fix
+  all findings, merge the one-ticket PR administratively, and update issue #48,
+  parent tracking, this task, and the plan log immediately.
 
 ## Deliverables
 
@@ -130,5 +141,6 @@ refused: it would mirror what its owner publishes.
 ## Boundary
 
 Admission and linking alone establish no PT02 result, F observation adequacy,
-replay agreement, or campaign completion. Completing this task closes IT-001
-SC-06 through SC-09 and nothing else.
+replay agreement, or campaign completion. Completing this task executes the
+version 2 portions of IT-001 SC-06 through SC-09. Task-009 continues to own the
+broader version 1 SC-01 through SC-05 regression lane.

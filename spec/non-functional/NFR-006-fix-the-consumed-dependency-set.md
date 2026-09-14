@@ -97,9 +97,9 @@ it.
 | Metric | Target | Threshold | Method |
 | --- | --- | --- | --- |
 | Declared manifest dependencies pinned to an exact `=` version or an exact 40-hex git `rev` | Every declared dependency | 100%, 0 range, branch, tag or path requirements | Inspection |
-| Lockfile packages carrying either a `checksum` or a 40-hex git `rev` equal to the manifest's | Every package but this crate | 130 of 131 today | Inspection |
+| Lockfile packages carrying either a `checksum` or a 40-hex git `rev` equal to the manifest's | Every package but this crate | 131 of 131 today | Inspection |
 | Closure packages executing code at build time that are absent from the build-execution enumeration, or enumerated but absent from the closure | None | 0 unmatched in either direction | Inspection |
-| Git-sourced dependency revisions where the rights record and the build manifest disagree | None | 0 disagreements; 1 today | Inspection |
+| Git-sourced dependency revisions where the rights record and the build manifest disagree | None | 0 disagreements today | Inspection |
 | Gate runs whose lockfile differs before and after the run | None | 0 accepted as evidence | Inspection |
 | Delivery-root bytes reaching a consumer path without a `pinned` entry's digest covering them | None | 0 bytes | Test (TC-013) |
 | Version-lock entries a delivery index supplied, selected or repaired | None | 0 entries | Test (TC-013) |

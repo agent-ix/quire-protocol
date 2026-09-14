@@ -15,14 +15,11 @@ use std::fmt;
 /// Every variant is produced by exactly one comparison, so no two of them can
 /// share a value.
 ///
-/// Distinct from `MutatedSelection` in `tests/support/v2/mod.rs`, which names
-/// which selection a scenario mutates *before* submission. That one is
-/// per-object and pre-refusal; this one is per-component and post-refusal.
-/// Neither is a vocabulary the producer or core publishes: the producer
-/// collapses all of this into one `Invalid::Selection`, and this enum is a
-/// local refinement of that single code, authorised by `FR-013` — "It does not
-/// type the axis" — with `FR-013-AC-8` stating that adding or removing a member
-/// changes no obligation.
+/// This is a per-component, post-refusal discriminator. It is not vocabulary
+/// the producer or core publishes: the version 1 producer collapses all of this
+/// into one `Invalid::Selection`, and this enum is a local refinement of that
+/// single code, authorised by `FR-013` — "It does not type the axis" — with
+/// `FR-013-AC-8` stating that adding or removing a member changes no obligation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum DivergedSelection {
     /// The offered compiled-protocol contract identity is not the selected one.

@@ -674,7 +674,7 @@ dependencies = [
 [[package]]
 name = "quire-contract-ir"
 version = "0.1.0"
-source = "git+https://github.com/agent-ix/quire-contract-ir?rev=690bde7f2dc58662cf9ff0595c2c0e3b17107c6f#690bde7f2dc58662cf9ff0595c2c0e3b17107c6f"
+source = "git+https://github.com/agent-ix/quire-contract-ir?rev=04eb6f849c03be23177d373549c6c272551f957d#04eb6f849c03be23177d373549c6c272551f957d"
 dependencies = [
  "jsonschema",
  "serde",
@@ -697,8 +697,8 @@ dependencies = [
 
 [[package]]
 name = "quire-spec-language"
-version = "0.1.0"
-source = "git+https://github.com/agent-ix/quire-spec-language?rev=04254a31071cc2d4c97e5c0707e1414141e55d89#04254a31071cc2d4c97e5c0707e1414141e55d89"
+version = "0.2.0"
+source = "git+https://github.com/agent-ix/quire-spec-language?rev=93c411b287ccf4789879ac4ef3094fc921dada58#93c411b287ccf4789879ac4ef3094fc921dada58"
 dependencies = [
  "agent-ix-baseline-producer",
  "logos",

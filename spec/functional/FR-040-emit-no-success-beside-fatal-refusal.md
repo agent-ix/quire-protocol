@@ -66,10 +66,9 @@ outcome, the typed refusal and the completed-empty result pairwise non-equivalen
 FR-040-AC-4 is this requirement's injectivity obligation. A suppression rule is
 the weakest possible oracle: if "returned no success value" is what a negative row
 checks, one shared error code satisfies every negative row — the defect recorded
-on `ExpectedRefusal` in `tests/support/v2/mod.rs`: "A two-valued admits/refuses
-oracle is satisfied by one shared error code across every negative row, which is
-the defect SR-027 recorded on version 1." FR-040-AC-4 therefore fails such an
-integration rather than crediting it.
+by SR-027 on version 1. `tests/it001_v2_handoff.rs` instead compares each
+manifest case to the producer's exact `expected_refusal_code`. FR-040-AC-4
+therefore fails a two-valued integration rather than crediting it.
 
 ### Where the upstream vocabulary does not yet reach
 

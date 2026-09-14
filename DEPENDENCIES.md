@@ -10,9 +10,9 @@ record discharges.
 
 | Crate | Pinned revision | Declared license | Role |
 | --- | --- | --- | --- |
-| `quire-spec-language` | `04254a31071cc2d4c97e5c0707e1414141e55d89` | `AGPL-3.0-only` | Supplies the accepted `quire.compiled-protocol/1` and `/2` wire contracts, their public Rust readers, and the published `protocol_artifact::handoff` record shapes. |
+| `quire-spec-language` | `93c411b287ccf4789879ac4ef3094fc921dada58` | `AGPL-3.0-only` | Supplies the accepted `quire.compiled-protocol/1` and `/2` readers, handoff records, committed corpus, and owner-exported handoff path/member/format constants. Release `v0.2.0` is its ancestor at `6eccb05`. |
 | `agent-ix-baseline-producer` | `f79e5a641b3eac702642282ad6cc84dd48d280dc` | `AGPL-3.0-only` | Transitive baseline producer reached through `quire-spec-language`; sourced from `agent-ix/filament-core-data`. |
-| `quire-contract-ir` | `690bde7f2dc58662cf9ff0595c2c0e3b17107c6f` | `MIT OR Apache-2.0` | Transitive contract-IR types reached through `quire-spec-language`. |
+| `quire-contract-ir` | `04eb6f849c03be23177d373549c6c272551f957d` | `MIT OR Apache-2.0` | Direct test type and the exact transitive contract-IR revision selected by `quire-spec-language` `93c411b`; one identity type is present in the resolved graph. |
 | `ix-trace-rs` | `2ce4ebf47f726b9d76388220545cd0abda8a5cfb` | `AGPL-3.0-or-later` | Test-only trace attributes binding tests to acceptance criteria. |
 
 All four are compatible with this repository's `AGPL-3.0-or-later` decision:
@@ -51,8 +51,7 @@ recurring on the transitive edge rather than the direct one.
 - It asserts no immutability of any pinned revision. `FR-009` takes an
   owner-supplied assertion for that; `AD-001` and `NFR-003` forbid this
   repository from reaching a network or a version-control system to check it.
-- It does not assert that a version 2 scenario executed. `quire-spec-language`
-  `04254a3` supplies both the `/1` and `/2` contracts and `admit_and_link_v2` is
-  written against `/2`, but A's handoff bundle is not retained in this
-  repository, so the scenarios that submit to A are reported unexecuted under
-  the declared gate rather than passing. `spec/tests.md` records that state.
+- It does not turn the producer's committed handoff into consumer-owned bytes.
+  `quire-spec-language` `93c411b` supplies both contracts and exports the path
+  within its own exactly pinned crate source. The version 2 scenarios execute
+  there under the default local gate; this repository vendors no copy.
