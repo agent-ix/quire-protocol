@@ -50,6 +50,10 @@ The version 2 intake is a separate contract with its own published surface:
 - `temporal::{evaluate_v2, evaluate_with_progress_v2, mapping_support_v2}`
 - the existing shared `protocol_artifact::{Limits, Report, Error, Invalid,
   Unsupported}`
+- `protocol_artifact::handoff::{PUBLISHED_HANDOFF, PUBLISHED_OFFER_FILE,
+  PUBLISHED_ARTIFACT_REFERENCE_FILE, PUBLISHED_SELECTION_FILE,
+  PUBLISHED_MUTATION_MANIFEST_FILE, PUBLISHED_CHECKSUMS_FILE,
+  MUTATION_MANIFEST_FORMAT}`
 
 B constructs `Expected`, `ExpectedDefinition` and `ExpectedTemporal`
 independently from its own retained inputs and submits the exact offered bytes
@@ -59,9 +63,9 @@ post-admission concern that IT-001 does not exercise. Neither version may
 select, repair, upgrade, or downgrade the other, neither may be detected from
 the offered bytes, and the two mutually refuse.
 
-This candidate fixture is integration evidence only. Its producer PR and the
-remaining acceptance/traceability item in `quire-spec-language#40` must close
-before it can establish a promoted baseline or complete FR-001/FR-002.
+The published handoff is integration evidence owned by the producer and reached
+through `PUBLISHED_HANDOFF` in the pinned dependency source. No environment
+variable, copied path, or vendored mirror selects it.
 
 ## Inputs
 
@@ -98,10 +102,9 @@ equal under it. The association between a binding and the declaration it binds
 is therefore A's wire concern, not an upstream semantic one.
 
 The sentence above lives in A's `docs/compiled-protocol-v2.md`, published on
-A's `main` and citable at `04254a31071cc2d4c97e5c0707e1414141e55d89`. The four
+A's `main` and citable at `93c411b287ccf4789879ac4ef3094fc921dada58`. The four
 mutations it grounds are in A's published manifest and each refuses with the
-identity A declares. They remain unexecuted under the declared gate for the
-retention reason in Notes, not for want of a citable revision.
+identity A declares.
 
 Both lanes use one-axis mutations of offered wire/version, seal,
 producer/source/dependency/baseline identity, feature, a binding actually
@@ -152,7 +155,9 @@ dimension, one unit short of it, and a fresh budget at the exact value.
      frontend, or foreign runtime in the admitted path.
 6. Submit the exact version 2 bytes and an independently retained version 2 selection,
    built as `v2::Expected` and `v2::ExpectedTemporal` without reading A's
-   offered bytes, through `quire_protocol::admit_and_link_v2`; submit each
+   offered bytes, through `quire_protocol::admit_and_link_v2`. Load the bundle
+   from A's `protocol_artifact::handoff::PUBLISHED_HANDOFF` and use A's exported
+   member-name and manifest-format constants rather than B-owned literals. Submit each
    version's bytes at the other version's entry point; and reseal one changed
    version 2 selection axis at a time.
    - IT-001-SC-06: version 2 retains the exact A-provided artifact bytes and external
@@ -208,9 +213,10 @@ dimension, one unit short of it, and a fresh budget at the exact value.
      *owner component* appears in `FR-252`'s clock-binding key, so the axis is
      grounded in the producer's wire contract and not in an upstream key.
 9. Submit one unchanged version 2 input under a budget set exactly to what that
-   input consumes on each declared limit dimension, then under a budget one unit
-   short of it, then resubmit the same input under a fresh budget at the exact
-   value.
+   input consumes on each member of `protocol_artifact::Dimension::ALL`, then
+   under a budget one unit short of that member's usage, then resubmit the same
+   input under a fresh budget at the exact value. Hold the input bytes and all
+   other dimensions constant while changing only the selected dimension.
    - IT-001-SC-09: the exactly sufficient budget admits, the one-short budget
      returns that dimension's typed resource refusal before a linked package is
      exposed, and the fresh-budget resubmission of the same bytes admits, so no
@@ -231,31 +237,20 @@ or campaign-completion result.
 
 - Priority: P0
 - Target Integration: native compiler artifact to protocol library
-- Automation: Automated fixture lane; promotion remains blocked by the external
-  compiler-contract acceptance gate
+- Automation: Automated local fixture lane reached through the pinned producer
+  dependency; no hosted execution
 
 ## Dependencies
 
 The A-owned frozen profile and each versioned compiled-protocol artifact contract
-must be accepted. `quire-spec-language` PR72 at `5690c2b` supplies the signed-64
-version 1 endpoint candidate. `quire-spec-language#40` owned version 2 contract
-acceptance, traceability, and the public typed boundary; all of it is delivered
-and promoted at `04254a31071cc2d4c97e5c0707e1414141e55d89`, which is the pinned
-revision. One item is outstanding and it is addressing, not contract: A
-publishes no path constant naming its own handoff directory inside its crate
-source, so this repository cannot reach the bundle under the declared gate.
-
-the version 2 reader is implemented and under final integration: the surface named in
-Preconditions exists, passes A's focused integration suite, and carries the
-temporal binding cardinality, uniqueness and sort rule quoted in Preconditions,
-typed per-axis mutation refusals, independent `Expected` construction, raw-byte digest-domain crossing
-tests, and a non-vacuous pretty-JSON recanonicalization mutation over original
-model bytes. It is not yet published to `quire-spec-language` `origin/main` or
-any remote branch. B verified the surface directly in A's local worktree at
-`agent-a/66-v2-impl` `d03e4ca`: `src/protocol_artifact/v2/{mod,intake,wire}.rs`
-and `src/protocol_artifact/native/temporal_v2.rs` exist and carry the names
-above, with `MEDIA = "application/vnd.quire.compiled-protocol+json;version=2"`
-and `SCHEMA = "quire.compiled-protocol.schema/2"`.
+are accepted. `quire-spec-language` release `v0.2.0` is at
+`6eccb05adf58cb2ed0c6092f5ef8e23d55030028`. Its post-release interface PR #92
+exports the handoff path, all member names, and the mutation-manifest format on
+`main` at `93c411b287ccf4789879ac4ef3094fc921dada58`; this repository pins that
+exact revision. The version 2 reader, its typed per-axis refusals, the independent
+selection records, the original inputs, the 28-case mutation corpus, and the
+published handoff are all present under that dependency source. No environment
+configuration or copied artifact tree is part of the gate.
 
 `v2::Expected` **composes** the version 1 expectation rather than replacing it:
 `{ inherited: protocol_artifact::Expected, temporal: &[ExpectedTemporal] }`, and
@@ -265,11 +260,10 @@ enum's variant and the clock parameters are its fields. Changed-selection axes
 therefore divide into inherited axes, which version 1 already discriminates, and the
 temporal axes this contract adds.
 
-B may build its version 2 intake, spec and tests against those exact names now, but
-must keep execution dependency-gated. B does not pin any intermediate commit. A
-will supply one final immutable revision together with the raw version 2 bytes and
-reference, the sidecar recipe, the original input corpus, and the
-mutation-fixture paths; B pins only that revision.
+B consumes only A's exported surface. The producer sidecar remains inert as
+authorization: B reconstructs the expected values from its independently
+retained inputs, and the loader checks the original bytes against those selected
+identities before admission.
 
 The recipe is a derivation B implements, not a file B reads. A producer-emitted
 sidecar carrying the expected selection — `expected.json` beside the version 1
@@ -278,9 +272,8 @@ offer that ships its own acceptance context authorizes itself. SC-01 forbids
 this for version 1 and it holds identically for version 2.
 
 The version 1 numeric and handoff commits that were previously reachable only from
-`agent-a/handoff-numeric-domains` are contained in A's `main`. B no longer pins
-`5690c2b29c155ec72e21f5a7bb00fe1146b6f71a`: it pins
-`04254a31071cc2d4c97e5c0707e1414141e55d89`, A's promoted revision.
+`agent-a/handoff-numeric-domains` are contained in A's `main` and remain
+available through the same `93c411b287ccf4789879ac4ef3094fc921dada58` pin.
 
 A prose definition, native source file, emitted sidecar, hand-authored bytes, or
 a version 1 value cannot substitute for either compiled interface because this
@@ -303,17 +296,13 @@ escaping path, a symbolic link, a malformed checksum line and a ceiling above
 A's hard maximum — builds synthetic handoffs under `CARGO_TARGET_TMPDIR` and is
 checked on every gate run.
 
-What is not checked on every gate run is submission to A. A's handoff bundle is
-not retained in this repository and A publishes no path constant naming it
-inside A's own crate source, so the lane reads it from
-`QUIRE_PROTOCOL_A_V2_HANDOFF` and the 6 submitting tests are `#[ignore]`d. The
-gate therefore sees `7 passed; 6 ignored`: SC-06 through SC-09 are reported
-unexecuted and counted as zero under FR-009-AC-3, never as passing. With the
-bundle configured they all execute — the base offer admits, and every one of
-A's 28 declared mutation cases refuses with the identity A declares, over an
-inventory of 21 axes frozen at the pin. Vendoring A's 13 MB of published
-artifacts here is refused: it would mirror what its owner already publishes.
-The version 1 SC-01 through SC-05 lane is unchanged.
+The version 2 lane runs on every local gate from A's exported
+`PUBLISHED_HANDOFF`. Its loader verifies `PUBLISHED_CHECKSUMS_FILE` over every
+published member before decoding, and the lane admits the base offer, checks
+both cross-version submissions, runs all 28 manifest mutations, and probes every
+member of `Dimension::ALL` at exact usage, one-short, and fresh exact usage.
+The superseded B-authored pre-delivery corpus is not retained as a second source
+of protocol vocabulary. The version 1 SC-01 through SC-05 lane is unchanged.
 
 ## Traceability
 

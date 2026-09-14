@@ -91,8 +91,8 @@ it unfalsifiable while leaving FR-008 and FR-014 formally satisfied:
    The negative scenario "fails" and a two-valued oracle records a refusal, with
    no identity to collide.
 
-Each is a way for the corpus of seven refusal axes in `tests/support/v2/mod.rs`
-to collapse back into the two-valued oracle it was written to replace. The
+Each is a way for a typed refusal corpus to collapse back into a two-valued
+oracle. The
 observability obligation is what closes them, and it is stateable without any of
 upstream's open gaps closing, for the same reason FR-014 gives about
 injectivity: it is a property of the return channel, not of the interior's

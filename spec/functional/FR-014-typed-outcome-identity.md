@@ -42,11 +42,11 @@ The library SHALL derive a typed outcome identity from no display text, locale o
   [NFR-005](../non-functional/NFR-005-retain-composed-acceptance-evidence.md)
   scopes it: "two axes sharing one may not" collide *within* one integration.
 - **refusal_axis** (identity component) — the named way the outcome differs from
-  success. This repository's test corpus enumerates the axes it exercises as
-  `ExpectedRefusal` in `tests/support/v2/mod.rs`. That enumeration is a scenario
-  index and not a refusal vocabulary: the refusal a caller receives is the
-  producer's own value, from `protocol_artifact::Error` and its
-  `protocol_artifact::{Invalid, Unsupported}` payloads, carried unmodified.
+  success. For the version 2 integration, the producer's published
+  `MutationManifest` enumerates the cases and their expected refusal codes. The
+  manifest is a scenario index and not a locally re-declared refusal vocabulary:
+  the refusal a caller receives is the producer's own value, from
+  `protocol_artifact::Error` and its typed payloads, carried unmodified.
 
   Five of the corpus axes name conditions the producer already has codes for —
   a wrong contract version is `Unsupported::Wire`, a cross-domain digest is
@@ -97,10 +97,10 @@ integration: distinct axes map to distinct identities, and the mapping onto a
 producer's own typed refusal enum stays injective across the pin step.
 
 A two-valued admits/refuses oracle is satisfied by one shared error code across
-every negative row. That is the defect this artifact exists to prevent, and
-`tests/support/v2/mod.rs` records it on `ExpectedRefusal`: "A two-valued
-admits/refuses oracle is satisfied by one shared error code across every negative
-row, which is the defect SR-027 recorded on version 1."
+every negative row. That is the defect this artifact exists to prevent. The
+version 2 lane therefore compares every executed mutation against the exact
+producer-published `expected_refusal_code` through `Error::code`; it never
+scores a negative row from `is_err()` alone.
 
 Sharing in the other direction is legitimate and is not a collision: many
 scenarios may exercise one axis, and they carry that axis's one identity.

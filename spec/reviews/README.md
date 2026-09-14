@@ -1,9 +1,19 @@
+---
+type: index
+title: "Specification review index"
+description: "Rules and location index for immutable specification review records."
+---
 # Reviews
 
 Every file under `spec/reviews/` is a `SpecReview`: a dated record of what a
 reviewer found in a named part of this repository at a named revision. Reviews
 live here and nowhere else — two gap analyses were once filed under a
 repository-root `reviews/`, where nothing referenced them.
+
+## Contents
+
+Each child directory contains the immutable review set for the scope named by
+that directory; this index defines how those records are interpreted.
 
 ## A review is a record, not a standing claim
 

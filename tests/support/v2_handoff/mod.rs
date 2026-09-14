@@ -17,7 +17,7 @@
 
 use std::{
     collections::BTreeSet,
-    env, fmt, fs,
+    fmt, fs,
     path::{Path, PathBuf},
 };
 
@@ -30,39 +30,6 @@ use quire_spec_language::{
     ByteDigest, Source, SourceIdentity,
 };
 
-/// Directory holding A's `/2` handoff, as published by its release producer.
-pub const FIXTURE_ENV: &str = "QUIRE_PROTOCOL_A_V2_HANDOFF";
-
-/// Files A's handoff publishes at a fixed name.
-pub const OFFER_FILE: &str = "compiled-protocol-v2.json";
-pub const REFERENCE_FILE: &str = "compiled-protocol-v2.ref.json";
-pub const SELECTION_FILE: &str = "expected-v2.json";
-pub const MUTATION_MANIFEST_FILE: &str = "mutations/manifest.json";
-/// The published checksum manifest covering every other member.
-pub const CHECKSUM_FILE: &str = "SHA256SUMS";
-
-/// The mutation manifest envelope version this reader accepts.
-pub const MUTATION_FORMAT: &str = "quire.protocol.v2-mutations/1";
-
-/// What B still needs from A, reported rather than filled in locally.
-///
-/// Tracked as `agent-ix/quire-spec-language#78`.
-///
-/// The constants above are A's file schema and A's corpus format identity, not
-/// B's. Three of the four file names are cross-checked against the manifest's
-/// own `base_offer`/`base_artifact`/`independent_selection` members, so a rename
-/// refuses rather than drifts; `SHA256SUMS` and `MUTATION_FORMAT` have no such
-/// anchor, and A publishes neither as an exported constant.
-pub const A_OWED_API: &[&str] = &[
-    "A publishes no path constant naming its own handoff directory, so B can \
-     only reach it through QUIRE_PROTOCOL_A_V2_HANDOFF. Until A publishes one, \
-     the bundle is not anchored to the pinned revision, the lane cannot execute \
-     on a clean checkout, and IT-001 SC-06..SC-09 stay unscored.",
-    "A publishes its handoff file names and its mutation-corpus format \
-     identity only as literals inside its own tests, so B's copies above are \
-     the sole authority for them in this tree. B asks A to export them.",
-];
-
 // ---------------------------------------------------------------------------
 // Absence
 // ---------------------------------------------------------------------------
@@ -71,8 +38,6 @@ pub const A_OWED_API: &[&str] = &[
 /// treated as a pass.
 #[derive(Debug)]
 pub enum Absence {
-    /// `QUIRE_PROTOCOL_A_V2_HANDOFF` is unset.
-    EnvUnset,
     /// The named directory does not exist.
     MissingRoot(PathBuf),
     /// A published member is absent.
@@ -134,7 +99,6 @@ pub enum Absence {
 impl fmt::Display for Absence {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::EnvUnset => write!(f, "{FIXTURE_ENV} is unset"),
             Self::MissingRoot(path) => write!(f, "handoff root {} does not exist", path.display()),
             Self::MissingMember { role, path } => {
                 write!(f, "published {role} member {} is absent", path.display())
@@ -145,7 +109,7 @@ impl fmt::Display for Absence {
             Self::UnknownMutationFormat { format } => {
                 write!(
                     f,
-                    "mutation manifest declares format {format}, not {MUTATION_FORMAT}"
+                    "mutation manifest declares format {format}, not {MUTATION_MANIFEST_FORMAT}"
                 )
             }
             Self::ManifestBase { member, named } => write!(
@@ -193,7 +157,7 @@ impl fmt::Display for Absence {
                 path.display()
             ),
             Self::ChecksumLine { line } => {
-                write!(f, "{CHECKSUM_FILE} line is malformed: {line:?}")
+                write!(f, "{PUBLISHED_CHECKSUMS_FILE} line is malformed: {line:?}")
             }
             Self::Checksum {
                 relative,
@@ -201,10 +165,13 @@ impl fmt::Display for Absence {
                 actual,
             } => write!(
                 f,
-                "{relative} hashes to {actual}, but {CHECKSUM_FILE} lists {listed}"
+                "{relative} hashes to {actual}, but {PUBLISHED_CHECKSUMS_FILE} lists {listed}"
             ),
             Self::Unlisted { relative } => {
-                write!(f, "{relative} is present but not listed in {CHECKSUM_FILE}")
+                write!(
+                    f,
+                    "{relative} is present but not listed in {PUBLISHED_CHECKSUMS_FILE}"
+                )
             }
             Self::RepeatedClockIdentity { identity } => {
                 write!(f, "two temporal selections name clock identity {identity}")
@@ -226,7 +193,9 @@ impl fmt::Display for Absence {
 // error here rather than a silent divergence.
 pub use artifact::handoff::{
     MutationInput, MutationManifest, SelectedArtifactLimits, SelectedDeclaration, SelectedModel,
-    SelectionV2,
+    SelectionV2, MUTATION_MANIFEST_FORMAT, PUBLISHED_ARTIFACT_REFERENCE_FILE,
+    PUBLISHED_CHECKSUMS_FILE, PUBLISHED_HANDOFF, PUBLISHED_MUTATION_MANIFEST_FILE,
+    PUBLISHED_OFFER_FILE, PUBLISHED_SELECTION_FILE,
 };
 
 /// A's selected ceilings as this platform's `Limits`.
@@ -292,10 +261,9 @@ pub struct Handoff {
 }
 
 impl Handoff {
-    /// Load the handoff named by `FIXTURE_ENV`.
+    /// Load the handoff published inside the exactly pinned producer crate.
     pub fn load() -> Result<Self, Absence> {
-        let root = env::var_os(FIXTURE_ENV).ok_or(Absence::EnvUnset)?;
-        Self::load_from(Path::new(&root))
+        Self::load_from(Path::new(PUBLISHED_HANDOFF))
     }
 
     /// Load the handoff published under `root`.
@@ -304,12 +272,17 @@ impl Handoff {
             return Err(Absence::MissingRoot(root.to_path_buf()));
         }
         verify_checksums(root)?;
-        let offer = read_member(root, OFFER_FILE, "offer")?;
-        let reference: w::ArtifactRef = read_json(root, REFERENCE_FILE, "artifact reference")?;
-        let selection: SelectionV2 = read_json(root, SELECTION_FILE, "independent selection")?;
+        let offer = read_member(root, PUBLISHED_OFFER_FILE, "offer")?;
+        let reference: w::ArtifactRef = read_json(
+            root,
+            PUBLISHED_ARTIFACT_REFERENCE_FILE,
+            "artifact reference",
+        )?;
+        let selection: SelectionV2 =
+            read_json(root, PUBLISHED_SELECTION_FILE, "independent selection")?;
         let mutations: MutationManifest =
-            read_json(root, MUTATION_MANIFEST_FILE, "mutation manifest")?;
-        if mutations.format != MUTATION_FORMAT {
+            read_json(root, PUBLISHED_MUTATION_MANIFEST_FILE, "mutation manifest")?;
+        if mutations.format != MUTATION_MANIFEST_FORMAT {
             return Err(Absence::UnknownMutationFormat {
                 format: mutations.format,
             });
@@ -318,12 +291,16 @@ impl Handoff {
         // not the members B loaded, the declared refusal identities belong to a
         // different handoff and cannot be asserted against this one.
         for (member, named, loaded) in [
-            ("base_offer", &mutations.base_offer, OFFER_FILE),
-            ("base_artifact", &mutations.base_artifact, REFERENCE_FILE),
+            ("base_offer", &mutations.base_offer, PUBLISHED_OFFER_FILE),
+            (
+                "base_artifact",
+                &mutations.base_artifact,
+                PUBLISHED_ARTIFACT_REFERENCE_FILE,
+            ),
             (
                 "independent_selection",
                 &mutations.independent_selection,
-                SELECTION_FILE,
+                PUBLISHED_SELECTION_FILE,
             ),
         ] {
             if named != loaded {
@@ -703,17 +680,16 @@ fn member_path(root: &Path, relative: &str, role: &str) -> Result<PathBuf, Absen
 ///
 /// This establishes that the directory is internally whole and self-consistent.
 /// It does not establish provenance: the manifest is verified only against
-/// itself, and the handoff arrives through an out-of-band directory rather than
-/// through the pinned `Cargo.toml` revision. Anchoring the bundle to A's pinned
-/// crate source is the retention question `A_OWED_API` records.
+/// itself. Provenance is anchored separately by loading only A's exported path
+/// from the exactly pinned dependency source.
 fn verify_checksums(root: &Path) -> Result<(), Absence> {
     // The walk runs first: it refuses symbolic links, whose bytes are not the
     // published ones, before any member is read through one.
     let present = published_files(root, root, 0)?;
 
-    let text = read_member(root, CHECKSUM_FILE, "checksum manifest")?;
+    let text = read_member(root, PUBLISHED_CHECKSUMS_FILE, "checksum manifest")?;
     let text = String::from_utf8(text).map_err(|error| Absence::Unreadable {
-        path: root.join(CHECKSUM_FILE),
+        path: root.join(PUBLISHED_CHECKSUMS_FILE),
         cause: error.to_string(),
     })?;
 
@@ -751,7 +727,7 @@ fn verify_checksums(root: &Path) -> Result<(), Absence> {
     }
 
     for relative in present {
-        if relative != CHECKSUM_FILE && !listed.contains(&relative) {
+        if relative != PUBLISHED_CHECKSUMS_FILE && !listed.contains(&relative) {
             return Err(Absence::Unlisted { relative });
         }
     }

@@ -30,9 +30,9 @@ The comparator SHALL compare a value whose provenance is absent against no expec
 - **provenance** (identity component) — one of *selected* or *offered*.
   *Selected* is what this repository independently retained before it inspected
   any offer; *offered* is what the external producer presented. The distinction
-  is the one `tests/support/v2/mod.rs` states on `OfferedAxis`: "Distinct from
-  `MutatedSelection`: those change what B independently selected, these change what
-  A offered. Both must refuse, for different reasons."
+  is exercised by `tests/it001_v2_handoff.rs`: selection-side mutation cases
+  rebuild the independent expectation, while offer-side cases submit A's
+  published mutated bytes unchanged. Both refuse, for different typed reasons.
 - **subject** (identity component) — the thing the value is a value *of*: the
   identity within its provenance side that the comparison is about.
 - **value** (state) — the bytes or the retained identity components themselves.
@@ -61,10 +61,9 @@ A contract version is likewise never inferred from the offered bytes
 
 This artifact types the **discrimination** — the provenance-bearing key and the
 rule that byte equality never collapses the two sides. It does not type the axis
-lists. `MutatedSelection`'s thirteen members and `OfferedAxis`'s six members are
-this repository's test corpus for the discrimination, enumerated per contract in
-the integration lane, and adding or removing a member changes no obligation
-stated here.
+lists. The version 2 integration consumes the producer's published mutation
+manifest as its closed corpus and adds no second local axis vocabulary; adding
+or removing a manifest case changes no obligation stated here.
 
 ## Identity and comparison
 
