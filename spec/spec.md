@@ -224,15 +224,15 @@ review and semantic QUOIN `/gap-analysis` over one unchanged head.
 ## 14. Lifecycle Status
 
 The repository is partially implemented. Fifteen integration-test binaries plus
-the in-crate unit-test binary list 242 regular tests on this candidate: 219 run
+the in-crate unit-test binary list 244 regular tests on this candidate: 221 run
 in the default gate and 23 generated version 1 fixture tests remain explicitly
 ignored. The same gate lists and runs 37 doc-tests. `tc_012_local_gate` contributes
 ten default-running tests that bind all ten NFR-004 criteria and independently
-exercise thirteen stable gate-defect identities. The version 2 handoff's 15
+exercise thirteen stable gate-defect identities. The version 2 handoff's 17
 tests execute by default from the pinned dependency source; its superseded
 24-test pre-delivery corpus was retired rather than retained as a second
-protocol vocabulary. Historical smaller totals described earlier implementation
-checkpoints and are not the current inventory.
+protocol vocabulary. Historical smaller totals described earlier
+implementation checkpoints and are not the current inventory.
 
 What remains unimplemented is the larger part. `admit_and_link_v2` is now
 written against A's published `quire.compiled-protocol/2` reader at the pinned

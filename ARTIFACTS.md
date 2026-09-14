@@ -1,8 +1,10 @@
 # Artifact, dependency, and rights policy
 
-The repository currently contains authored project documentation and
-specification artifacts only. It copies no implementation source, protocol
-library, fixture corpus, generated code, or external test data.
+The repository contains its authored Rust library and tests alongside project
+documentation and specification artifacts. It consumes exact pinned Rust
+dependencies and reads the native compiler owner's published handoff from that
+dependency's source tree; it copies no external implementation source, fixture
+corpus, generated code, or test data into this repository.
 
 Every admitted source profile, compiler artifact, observation, temporal result,
 E02 contract, producer result, fixture, and generated counterexample must retain
@@ -14,6 +16,6 @@ the original evidence.
 
 Before adding a dependency, record its exact version or revision, license,
 feature set, provenance, purpose, and compatibility with the selected outbound
-`AGPL-3.0-or-later` license. No choreography or protocol implementation is
+`AGPL-3.0-or-later` license. No external choreography implementation is
 selected for the initial finite slice. E03 remains the admission gate for any
 later specialized library.

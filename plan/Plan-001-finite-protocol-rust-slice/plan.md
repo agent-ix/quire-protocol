@@ -88,7 +88,7 @@ by downstream integrations; no adapter may introduce another semantic model.
 
 ### Property and Model Tests
 
-- [ ] **TC-001** (FR-001 AC-1..AC-4): accept only exact promoted profile bytes and reject every one-axis identity, state, feature, unsafe-number, non-canonical exact-number, field/signed-64 overflow, invalid-rational, and cross-domain digest mutation.
+- [x] **TC-001** (FR-001 AC-1..AC-4): accept only exact promoted profile bytes and reject every one-axis identity, state, feature, unsafe-number, non-canonical exact-number, field/signed-64 overflow, invalid-rational, and cross-domain digest mutation.
 - [ ] **TC-002** (FR-002 AC-1..AC-4): link every FR-050..FR-054 typed identity, legal interleaving, join, bounded progress/termination, channel premise, and owned visible choice; reject each invalid source mutation and discriminate semantic from presentation changes.
 - [ ] **TC-003** (FR-003 AC-1..AC-7): discriminate trigger/capture/anchor activation, effects, replay-idempotent registration, commits, retries, full/partial recovery relations, population authority, missing inputs, and zero-call I/O purity through API/dependency mutations.
 - [ ] **TC-004** (FR-004 AC-1..AC-4): compare batch and incremental finite conformance over legal permutations, independently varied decision-scope/surrounding/global-conformance closure, and every adverse execution state.
@@ -168,7 +168,7 @@ All Cargo work remains serialized on the shared workstation even when source own
 
 | Task | Track | Owns (references) | Verified by (verifies) | Status |
 | --- | --- | --- | --- | --- |
-| Task-001 | A | FR-001 | TC-001 | blocked |
+| Task-001 | A | FR-001 | TC-001 | done |
 | Task-002 | A | FR-002 | TC-002 | in_progress |
 | Task-003 | A | FR-003 | TC-003 | blocked |
 | Task-004 | A | FR-004 | TC-004 | blocked |

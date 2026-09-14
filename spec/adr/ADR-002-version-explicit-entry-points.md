@@ -17,8 +17,10 @@ relationships:
 
 ## Status
 
-Accepted. The version 1 half is implemented; the version 2 half is specified and
-unexecutable, because A has published no revision to pin (see Consequences).
+Accepted. Both version-explicit entry points and mutual-refusal directions are
+implemented and execute against the pinned published handoff. IT-001 SC-06a's
+complete two-revision version 1 regression comparison remains planned under
+Task-009.
 
 ## Context
 
@@ -93,18 +95,16 @@ which contract it holds before it can call anything, and if it does not know,
 the library's answer is a refusal rather than a best effort. That is the
 intended answer, and it is inconvenient.
 
-**Both cross-version refusal directions are unexecuted.** IT-001-SC-06 requires
-version 1 bytes at `admit_and_link_v2` and version 2 bytes at `admit_and_link` each to
-return a typed refusal. `admit_and_link_v2` does not exist in this repository's
-`src/` today, and the version 2 reader is present only in a local worktree. Under
-FR-009 the version 2 entry is `unresolved`, so SC-06 through SC-09 assert nothing
-about A's behaviour and remain unexecuted. This ADR records a decision, not a
-passing test.
+**Both cross-version refusal directions execute.** IT-001-SC-06 submits version
+1 bytes at `admit_and_link_v2` and version 2 bytes at `admit_and_link`; each
+returns a distinct typed refusal. The version 2 reader, published handoff and
+entry point are pinned through `quire-spec-language` revision `7931a00`.
 
-**SC-06a is a two-revision comparison, which no single run can produce.** It
+**SC-06a remains a two-revision comparison, which no single run can produce.** It
 requires the same fixture at the revision before version 2 and at the revision that
 adds it. That is an obligation on how the version 2 change is landed, not a test that
-can be written once and left. It is unexecuted for the same reason as SC-06.
+can be written once and left. It remains planned under Task-009 even though
+SC-06 itself now executes.
 
 **Cross-version refusals must be distinguishable from each other and from
 everything else.** SC-06 states that each refusal is distinguishable from the
