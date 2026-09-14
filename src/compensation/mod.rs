@@ -19,7 +19,7 @@ pub mod purity;
 /// Full and partial recovery through exact authored relation owners.
 pub mod recovery;
 
-use crate::bounds::inventory::{BudgetDimension, SourceSite};
+use crate::bounds::inventory::{BudgetDimension, OperationOutcome, ResourceAccountant, SourceSite};
 use crate::bounds::{SiteId, SiteKind};
 
 use activate::{Activation, Record as ActivationRecord};
@@ -197,6 +197,34 @@ pub enum Resource {
     Attempts,
     RetryOutcomes,
     RecoveryDecisions,
+}
+
+/// Compose under the shared QProtocol caller budget.
+///
+/// Every optional or repeated result item is charged transactionally before
+/// availability assessment or cloning begins. The module's immutable owner
+/// maxima remain independently enforced by [`compose`].
+pub fn compose_bounded(
+    pure: PureAssessment,
+    parts: Parts<'_>,
+    limits: Limits,
+    resources: &mut ResourceAccountant<'_>,
+) -> OperationOutcome<Snapshot, ResourceRefusal> {
+    let charges = [
+        (RESULT_SOURCE.id(), usize::from(parts.activation.is_some())),
+        (
+            RESULT_SOURCE.id(),
+            usize::from(parts.registration.is_some()),
+        ),
+        (RESULT_SOURCE.id(), usize::from(parts.ordering.is_some())),
+        (RESULT_SOURCE.id(), parts.attempts.len()),
+        (RESULT_SOURCE.id(), parts.retry_outcomes.len()),
+        (RESULT_SOURCE.id(), parts.recoveries.len()),
+    ];
+    if let Err(error) = resources.charge_all(&charges) {
+        return OperationOutcome::from_charge(error);
+    }
+    OperationOutcome::from_domain(compose(pure, parts, limits))
 }
 
 /// Compose a complete snapshot without reinterpreting any atomic fact.

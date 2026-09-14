@@ -5,6 +5,9 @@ use std::cell::Cell;
 use std::num::NonZeroU32;
 
 use ix_trace_rs::trace;
+use quire_protocol::bounds::inventory::{
+    production_inventory, Budget, BudgetDimension, OperationOutcome, ResourceAccountant,
+};
 use quire_protocol::compensation::activate::{
     assess as assess_activation, Activation, Binding, Guard, IdentityAxis, TriggerEvidence,
 };
@@ -20,8 +23,8 @@ use quire_protocol::compensation::recovery::{
     RecoveryRelation, RelationSelection, State, Substitution,
 };
 use quire_protocol::compensation::{
-    compose, Availability, Limits as CompositionLimits, Parts, Resource as CompositionResource,
-    UnavailableCause,
+    compose, compose_bounded, Availability, Limits as CompositionLimits, Parts,
+    Resource as CompositionResource, UnavailableCause,
 };
 use quire_protocol::ids::{
     AttemptId, CommitId, DefinitionId, DeliveryId, EffectId, ReceiveId, RecoveryId, RegistrationId,
@@ -930,13 +933,19 @@ fn tc_003_aggregate_recovery_requires_exact_population_authority() {
 /// incomplete, or refused child into aggregate availability.
 #[trace(
     "TC-003",
+    "TC-009",
     "FR-003-AC-1",
     "FR-003-AC-2",
     "FR-003-AC-3",
     "FR-003-AC-4",
     "FR-003-AC-5",
     "FR-003-AC-6",
-    "FR-003-AC-7"
+    "FR-003-AC-7",
+    "FR-016-AC-2",
+    "FR-016-AC-3",
+    "FR-016-AC-4",
+    "NFR-002-AC-1",
+    "NFR-002-AC-4"
 )]
 #[test]
 fn tc_003_aggregate_composes_every_atomic_fact_without_inference() {
@@ -1101,6 +1110,51 @@ fn tc_003_aggregate_composes_every_atomic_fact_without_inference() {
     assert_eq!(refusal.resource(), CompositionResource::Attempts);
     assert_eq!(refusal.observed(), 1);
     assert_eq!(refusal.limit(), 0);
+    assert_eq!(surface.business_calls.get(), 0);
+    assert_eq!(surface.compensation_calls.get(), 0);
+
+    let inventory = production_inventory().expect("reconciled production inventory");
+    let one_short = Budget::nothing_granted()
+        .grant(BudgetDimension::ResultItem, 6)
+        .expect("positive result-item grant");
+    let mut one_short_resources = ResourceAccountant::new(one_short, &inventory);
+    let incomplete = compose_bounded(
+        pure(&surface),
+        parts,
+        CompositionLimits::owner_max(),
+        &mut one_short_resources,
+    );
+    assert!(matches!(
+        incomplete,
+        OperationOutcome::ResourceIncomplete(value)
+            if value.dimension() == BudgetDimension::ResultItem
+                && value.consumed() == 5
+                && value.requested() == 2
+    ));
+    assert_eq!(
+        one_short_resources
+            .usage()
+            .consumed(BudgetDimension::ResultItem),
+        0
+    );
+
+    let exact = Budget::nothing_granted()
+        .grant(BudgetDimension::ResultItem, 7)
+        .expect("positive result-item grant");
+    let mut exact_resources = ResourceAccountant::new(exact, &inventory);
+    let bounded = compose_bounded(
+        pure(&surface),
+        parts,
+        CompositionLimits::owner_max(),
+        &mut exact_resources,
+    );
+    assert!(matches!(bounded, OperationOutcome::Completed(_)));
+    assert_eq!(
+        exact_resources
+            .usage()
+            .consumed(BudgetDimension::ResultItem),
+        7
+    );
     assert_eq!(surface.business_calls.get(), 0);
     assert_eq!(surface.compensation_calls.get(), 0);
 }
