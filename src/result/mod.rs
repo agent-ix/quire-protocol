@@ -15,7 +15,7 @@ pub mod record;
 
 use crate::refusal::catalog::{CatalogSelection, CodeEntry, CodeModule, Provenance, RefusalCode};
 use crate::refusal::{
-    AffectedIdentity, OriginatingStage, ProtocolRefusal, RefusalDomain, RetryDecision,
+    AffectedIdentity, ProtocolRefusal, ProtocolStage, RefusalAxis, RefusalDomain, RetryDecision,
     Unavailability,
 };
 
@@ -89,21 +89,43 @@ pub struct Refusal {
     code: ErrorCode,
     detail: &'static str,
     usage: Usage,
-    envelope: Box<ProtocolRefusal>,
+    envelope: ProtocolRefusal,
 }
 
 impl Refusal {
-    pub(crate) fn new(
+    pub(crate) fn assembly(
         code: ErrorCode,
         detail: &'static str,
         usage: Usage,
         identity: Option<&str>,
     ) -> Self {
-        let mut builder = ProtocolRefusal::builder(
-            RefusalCode::of(code.entry()),
+        Self::at_stage(code, detail, usage, identity, ProtocolStage::ResultAssembly)
+    }
+
+    pub(crate) fn read(
+        code: ErrorCode,
+        detail: &'static str,
+        usage: Usage,
+        identity: Option<&str>,
+    ) -> Self {
+        Self::at_stage(code, detail, usage, identity, ProtocolStage::ResultRead)
+    }
+
+    pub(crate) fn at_stage(
+        code: ErrorCode,
+        detail: &'static str,
+        usage: Usage,
+        identity: Option<&str>,
+        stage: ProtocolStage,
+    ) -> Self {
+        let refusal_code = RefusalCode::of(code.entry());
+        let mut builder = ProtocolRefusal::legacy_builder(
+            refusal_code,
             CatalogSelection::local(),
-            OriginatingStage::ResourceExecution,
+            stage,
+            RefusalAxis::from_registered_code(refusal_code),
         )
+        .expect("result codes belong to a result stage")
         .unavailable_location(Unavailability::NotApplicableToStage);
         if let Some(identity) = identity {
             builder = builder.identity(AffectedIdentity::retained(identity.as_bytes()));
@@ -112,7 +134,7 @@ impl Refusal {
             code,
             detail,
             usage,
-            envelope: Box::new(builder.emitting_nothing()),
+            envelope: builder.emitting_nothing(),
         }
     }
 
@@ -137,7 +159,7 @@ impl Refusal {
     /// Complete FR-036/FR-040 refusal envelope.
     #[must_use]
     pub fn envelope(&self) -> &ProtocolRefusal {
-        self.envelope.as_ref()
+        &self.envelope
     }
 }
 

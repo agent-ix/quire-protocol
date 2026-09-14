@@ -12,6 +12,7 @@ use quire_protocol::conformance::{
     GlobalPremiseDefectKind, IncompleteCause, Incremental, IncrementalContext, Limits, Model,
     ObligationDisposition, ObligationId, ObservationObligation, Request,
 };
+use quire_protocol::refusal::ProtocolStage;
 
 #[path = "support/observation_owner.rs"]
 #[allow(dead_code)]
@@ -1013,4 +1014,5 @@ fn tc_004_global_premise_defects_do_not_rewrite_obligation_truth() {
     )
     .expect_err("global conformance cannot be not-required");
     assert_eq!(refusal.code(), ErrorCode::InvalidPremises);
+    assert_eq!(refusal.envelope().stage(), ProtocolStage::Conformance);
 }

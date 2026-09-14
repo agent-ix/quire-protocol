@@ -23,7 +23,7 @@ pub(crate) fn validate_support(records: &[DecisionSupport], limits: Limits) -> R
         ..Usage::default()
     };
     if records.len() > limits.max_support_records || records.len() > limits.max_lineage_nodes {
-        return Err(Refusal::new(
+        return Err(Refusal::assembly(
             ErrorCode::ResourceIncomplete,
             "decision-support lineage exceeds its effective ceiling",
             usage,
@@ -72,7 +72,7 @@ pub(crate) fn validate_support(records: &[DecisionSupport], limits: Limits) -> R
                 return invalid("decision-support lineage contains a cycle", usage);
             }
             if visited.len() > limits.max_lineage_nodes {
-                return Err(Refusal::new(
+                return Err(Refusal::assembly(
                     ErrorCode::ResourceIncomplete,
                     "decision-support walk exceeds its effective ceiling",
                     Usage {
@@ -120,7 +120,7 @@ pub(crate) fn validate_correction(
         ..Usage::default()
     };
     if limits.max_lineage_nodes < 1 {
-        return Err(Refusal::new(
+        return Err(Refusal::assembly(
             ErrorCode::ResourceIncomplete,
             "correction lineage exceeds its effective ceiling",
             usage,
@@ -165,5 +165,10 @@ pub(crate) fn validate_correction(
 }
 
 fn invalid<T>(detail: &'static str, usage: Usage) -> Result<T> {
-    Err(Refusal::new(ErrorCode::LineageInvalid, detail, usage, None))
+    Err(Refusal::assembly(
+        ErrorCode::LineageInvalid,
+        detail,
+        usage,
+        None,
+    ))
 }

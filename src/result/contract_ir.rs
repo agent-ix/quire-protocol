@@ -10,7 +10,7 @@ use crate::bounds::{SiteId, SiteKind, UnitLabel};
 use crate::closure::AssessmentExecution;
 use crate::digest::jcs::{canonical_len, canonicalize};
 use crate::refusal::catalog::{CodeEntry, CodeModule, Provenance};
-use crate::refusal::{RefusalDomain, RetryDecision};
+use crate::refusal::{ProtocolStage, RefusalDomain, RetryDecision};
 use crate::ByteDigest;
 
 use super::record::{
@@ -431,8 +431,9 @@ pub fn map<'a>(
     selection: MappingSelection<'_>,
     limits: Limits,
 ) -> Result<MappedResultView<'a>> {
-    validate_selection(selection)?;
-    finish_mapping(prepare_mapping(source)?, limits.effective())
+    let stage = ProtocolStage::ResultAssembly;
+    validate_selection(selection, stage)?;
+    finish_mapping(prepare_mapping(source, stage)?, limits.effective(), stage)
 }
 
 /// Derive the selected mapping under the shared QProtocol caller budget.
@@ -457,7 +458,8 @@ fn map_bounded_unit<'a>(
     limits: Limits,
     resources: &mut ResourceAccountant<'_>,
 ) -> OperationOutcome<MappedResultView<'a>, Refusal> {
-    if let Err(error) = validate_selection(selection) {
+    let stage = ProtocolStage::ResultAssembly;
+    if let Err(error) = validate_selection(selection, stage) {
         return OperationOutcome::DomainError(error);
     }
     let effective = limits.effective();
@@ -483,14 +485,14 @@ fn map_bounded_unit<'a>(
     ]) {
         return OperationOutcome::from_charge(error);
     }
-    let prepared = match prepare_mapping(source) {
+    let prepared = match prepare_mapping(source, stage) {
         Ok(prepared) => prepared,
         Err(error) => return OperationOutcome::DomainError(error),
     };
     let required = match canonical_len(&prepared.value) {
         Ok(required) => required,
         Err(_) => {
-            return OperationOutcome::DomainError(Refusal::new(
+            return OperationOutcome::DomainError(Refusal::assembly(
                 ErrorCode::MappingMismatch,
                 "mapping cannot determine its canonical output length",
                 Usage::default(),
@@ -503,10 +505,10 @@ fn map_bounded_unit<'a>(
     {
         return OperationOutcome::from_charge(error);
     }
-    OperationOutcome::from_domain(finish_mapping(prepared, effective))
+    OperationOutcome::from_domain(finish_mapping(prepared, effective, stage))
 }
 
-fn prepare_mapping(source: &ValidatedResult) -> Result<PreparedMapping<'_>> {
+fn prepare_mapping(source: &ValidatedResult, stage: ProtocolStage) -> Result<PreparedMapping<'_>> {
     let snapshot = &source.document.snapshot;
     let outcome = match (snapshot.execution, snapshot.truth) {
         (AssessmentExecution::Completed, Truth::Satisfied) => Outcome::Value(true),
@@ -520,13 +522,14 @@ fn prepare_mapping(source: &ValidatedResult) -> Result<PreparedMapping<'_>> {
             Truth::Satisfied | Truth::Violated | Truth::Pending | Truth::Unavailable,
         ) => Outcome::NonValue,
     };
-    let without_identity = mapping_value(source, snapshot, &outcome, None)?;
+    let without_identity = mapping_value(source, snapshot, &outcome, None, stage)?;
     let canonical_without_identity = canonicalize(&without_identity).map_err(|_| {
-        Refusal::new(
+        Refusal::at_stage(
             ErrorCode::MappingMismatch,
             "mapping preimage is outside the JCS subset",
             Usage::default(),
             Some(source.result_id()),
+            stage,
         )
     })?;
     let mut identity_preimage =
@@ -535,7 +538,7 @@ fn prepare_mapping(source: &ValidatedResult) -> Result<PreparedMapping<'_>> {
     identity_preimage.push(0);
     identity_preimage.extend_from_slice(canonical_without_identity.as_bytes());
     let identity = format!("sha256:{:x}", ByteDigest::of(&identity_preimage));
-    let value = mapping_value(source, snapshot, &outcome, Some(&identity))?;
+    let value = mapping_value(source, snapshot, &outcome, Some(&identity), stage)?;
     Ok(PreparedMapping {
         value,
         identity,
@@ -555,7 +558,11 @@ fn mapping_usage(source: &ValidatedResult) -> Usage {
     }
 }
 
-fn finish_mapping(prepared: PreparedMapping<'_>, limits: Limits) -> Result<MappedResultView<'_>> {
+fn finish_mapping(
+    prepared: PreparedMapping<'_>,
+    limits: Limits,
+    stage: ProtocolStage,
+) -> Result<MappedResultView<'_>> {
     let PreparedMapping {
         value,
         identity,
@@ -565,11 +572,12 @@ fn finish_mapping(prepared: PreparedMapping<'_>, limits: Limits) -> Result<Mappe
     } = prepared;
     let bytes = canonicalize(&value)
         .map_err(|_| {
-            Refusal::new(
+            Refusal::at_stage(
                 ErrorCode::MappingMismatch,
                 "mapping cannot be canonicalized",
                 Usage::default(),
                 Some(source.result_id()),
+                stage,
             )
         })?
         .into_bytes();
@@ -590,7 +598,7 @@ pub fn read<'a>(
     selection: MappingSelection<'_>,
     limits: Limits,
 ) -> Result<MappedResultView<'a>> {
-    validate_selection(selection)?;
+    validate_selection(selection, ProtocolStage::ResultRead)?;
     let effective = limits.effective();
     let observed = validate_offered(bytes, source, effective)?;
     let derived = map(source, selection, effective)?;
@@ -622,7 +630,7 @@ fn read_bounded_unit<'a>(
     limits: Limits,
     resources: &mut ResourceAccountant<'_>,
 ) -> OperationOutcome<MappedResultView<'a>, Refusal> {
-    if let Err(error) = validate_selection(selection) {
+    if let Err(error) = validate_selection(selection, ProtocolStage::ResultRead) {
         return OperationOutcome::DomainError(error);
     }
     let effective = limits.effective();
@@ -653,7 +661,7 @@ fn read_bounded_unit<'a>(
 fn validate_offered(bytes: &[u8], source: &ValidatedResult, limits: Limits) -> Result<Usage> {
     let observed = super::reader::preflight_external(bytes, limits)?;
     let value: Value = serde_json::from_slice(bytes).map_err(|_| {
-        Refusal::new(
+        Refusal::read(
             ErrorCode::MappingMismatch,
             "mapping is not one valid JSON document",
             observed,
@@ -661,7 +669,7 @@ fn validate_offered(bytes: &[u8], source: &ValidatedResult, limits: Limits) -> R
         )
     })?;
     if !super::reader::schema_accepts(&value, SCHEMA_BYTES, &MAPPING_SCHEMA_VALIDATOR) {
-        return Err(Refusal::new(
+        return Err(Refusal::read(
             ErrorCode::MappingMismatch,
             "mapping is not a closed instance of the selected schema",
             observed,
@@ -678,7 +686,7 @@ fn compare_offered<'a>(
     mut derived: MappedResultView<'a>,
 ) -> Result<MappedResultView<'a>> {
     if bytes != derived.bytes {
-        return Err(Refusal::new(
+        return Err(Refusal::read(
             ErrorCode::MappingMismatch,
             "mapping bytes differ from the source-derived canonical view",
             observed,
@@ -689,17 +697,18 @@ fn compare_offered<'a>(
     Ok(derived)
 }
 
-fn validate_selection(selection: MappingSelection<'_>) -> Result<()> {
+fn validate_selection(selection: MappingSelection<'_>, stage: ProtocolStage) -> Result<()> {
     if selection.mapping_contract != CONTRACT
         || selection.mapping_schema_sha256 != SCHEMA_SHA256
         || selection.source_contract != RESULT_CONTRACT
         || selection.source_schema_sha256 != RESULT_SCHEMA_SHA256
     {
-        return Err(Refusal::new(
+        return Err(Refusal::at_stage(
             ErrorCode::ContractMismatch,
             "mapping or source contract/schema selection differs",
             Usage::default(),
             None,
+            stage,
         ));
     }
     Ok(())
@@ -819,6 +828,7 @@ fn mapping_value(
     snapshot: &Snapshot,
     outcome: &Outcome,
     identity: Option<&str>,
+    stage: ProtocolStage,
 ) -> Result<Value> {
     let wire = MappingWire {
         completeness: mapping_completeness_wire(snapshot),
@@ -855,11 +865,12 @@ fn mapping_value(
         truth: snapshot.truth.label(),
     };
     serde_json::to_value(wire).map_err(|_| {
-        Refusal::new(
+        Refusal::at_stage(
             ErrorCode::MappingMismatch,
             "typed mapping view cannot be represented as JSON",
             Usage::default(),
             Some(source.result_id()),
+            stage,
         )
     })
 }

@@ -15,7 +15,7 @@ use quire_protocol::claims::premises::{
 };
 use quire_protocol::claims::Claim;
 use quire_protocol::closure::AssessmentExecution;
-use quire_protocol::refusal::PartialOutput;
+use quire_protocol::refusal::{PartialOutput, ProtocolStage};
 
 fn component(identity: &str) -> Component {
     Component::retained(
@@ -301,6 +301,7 @@ fn tc_005_circular_and_absent_assumption_state_refuse_before_dispatch() {
         failure.envelope().partial_output(),
         PartialOutput::IndependentResultsRetained
     );
+    assert_eq!(failure.envelope().stage(), ProtocolStage::ClaimDispatch);
     assert_eq!(backend.calls, [Claim::Conformance]);
 }
 

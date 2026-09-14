@@ -6,7 +6,7 @@
 use crate::closure::AssessmentExecution;
 use crate::refusal::catalog::{CatalogSelection, CodeEntry, CodeModule, Provenance, RefusalCode};
 use crate::refusal::{
-    AffectedIdentity, OriginatingStage, ProtocolRefusal, RefusalDomain, RetryDecision,
+    AffectedIdentity, ProtocolRefusal, ProtocolStage, RefusalAxis, RefusalDomain, RetryDecision,
     Unavailability,
 };
 use crate::ByteDigest;
@@ -234,7 +234,7 @@ pub struct ClaimFailure {
     code: FailureCode,
     defects: Vec<PremiseDefect>,
     outcome_identity: Box<str>,
-    envelope: Box<ProtocolRefusal>,
+    envelope: ProtocolRefusal,
 }
 
 impl ClaimFailure {
@@ -258,11 +258,14 @@ impl ClaimFailure {
             );
         }
         let outcome_identity: Box<str> = format!("sha256:{:x}", ByteDigest::of(&preimage)).into();
-        let builder = ProtocolRefusal::builder(
-            RefusalCode::of(code.entry()),
+        let refusal_code = RefusalCode::of(code.entry());
+        let builder = ProtocolRefusal::legacy_builder(
+            refusal_code,
             CatalogSelection::local(),
-            OriginatingStage::ResourceExecution,
+            ProtocolStage::ClaimDispatch,
+            RefusalAxis::from_registered_code(refusal_code),
         )
+        .expect("claim codes belong to claim dispatch")
         .identity(AffectedIdentity::retained(request.identity.as_ref()))
         .unavailable_location(Unavailability::NotApplicableToStage);
         let envelope = if retains_independent {
@@ -277,7 +280,7 @@ impl ClaimFailure {
             code,
             defects,
             outcome_identity,
-            envelope: Box::new(envelope),
+            envelope,
         }
     }
 
@@ -302,7 +305,7 @@ impl ClaimFailure {
     /// Complete claim-local refusal envelope.
     #[must_use]
     pub fn envelope(&self) -> &ProtocolRefusal {
-        self.envelope.as_ref()
+        &self.envelope
     }
 }
 
@@ -338,7 +341,7 @@ pub struct Report {
 #[derive(Clone, Debug)]
 pub struct Refusal {
     usage: Usage,
-    envelope: Box<ProtocolRefusal>,
+    envelope: ProtocolRefusal,
 }
 
 impl Refusal {
@@ -351,7 +354,7 @@ impl Refusal {
     /// Complete no-partial-output refusal envelope.
     #[must_use]
     pub fn envelope(&self) -> &ProtocolRefusal {
-        self.envelope.as_ref()
+        &self.envelope
     }
 }
 
@@ -702,17 +705,17 @@ fn checked_increment(
 }
 
 fn resource_refusal(usage: Usage) -> Refusal {
-    let envelope = ProtocolRefusal::builder(
-        RefusalCode::of(&RESOURCE_INCOMPLETE),
+    let refusal_code = RefusalCode::of(&RESOURCE_INCOMPLETE);
+    let envelope = ProtocolRefusal::legacy_builder(
+        refusal_code,
         CatalogSelection::local(),
-        OriginatingStage::ResourceExecution,
+        ProtocolStage::ClaimDispatch,
+        RefusalAxis::from_registered_code(refusal_code),
     )
+    .expect("claim codes belong to claim dispatch")
     .unavailable_location(Unavailability::NotApplicableToStage)
     .emitting_nothing();
-    Refusal {
-        usage,
-        envelope: Box::new(envelope),
-    }
+    Refusal { usage, envelope }
 }
 
 fn push_part(target: &mut Vec<u8>, value: &[u8]) {

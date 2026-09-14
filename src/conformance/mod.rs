@@ -11,7 +11,7 @@ pub mod incremental;
 
 use crate::refusal::catalog::{CatalogSelection, CodeEntry, CodeModule, Provenance, RefusalCode};
 use crate::refusal::{
-    AffectedIdentity, OriginatingStage, ProtocolRefusal, RefusalDomain, RetryDecision,
+    AffectedIdentity, ProtocolRefusal, ProtocolStage, RefusalAxis, RefusalDomain, RetryDecision,
     Unavailability,
 };
 use crate::ByteDigest;
@@ -67,7 +67,7 @@ pub struct Refusal {
     detail: &'static str,
     outcome_identity: String,
     usage: Usage,
-    envelope: Box<ProtocolRefusal>,
+    envelope: ProtocolRefusal,
 }
 
 impl Refusal {
@@ -83,11 +83,14 @@ impl Refusal {
         preimage.push(0);
         preimage.extend_from_slice(discriminator);
         let outcome_identity = format!("sha256:{:x}", ByteDigest::of(&preimage));
-        let mut builder = ProtocolRefusal::builder(
-            RefusalCode::of(code.entry()),
+        let refusal_code = RefusalCode::of(code.entry());
+        let mut builder = ProtocolRefusal::legacy_builder(
+            refusal_code,
             CatalogSelection::local(),
-            OriginatingStage::ResourceExecution,
+            ProtocolStage::Conformance,
+            RefusalAxis::from_registered_code(refusal_code),
         )
+        .expect("conformance codes belong to the conformance stage")
         .unavailable_location(Unavailability::NotApplicableToStage);
         if let Some(identity) = affected {
             builder = builder.identity(AffectedIdentity::retained(identity.as_str().as_bytes()));
@@ -97,7 +100,7 @@ impl Refusal {
             detail,
             outcome_identity,
             usage,
-            envelope: Box::new(builder.emitting_nothing()),
+            envelope: builder.emitting_nothing(),
         }
     }
 
@@ -128,7 +131,7 @@ impl Refusal {
     /// Complete fatal-refusal envelope. No partial report accompanies it.
     #[must_use]
     pub fn envelope(&self) -> &ProtocolRefusal {
-        self.envelope.as_ref()
+        &self.envelope
     }
 }
 

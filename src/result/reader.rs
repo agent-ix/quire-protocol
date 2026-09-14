@@ -9,6 +9,7 @@ use crate::bounds::inventory::{
 };
 use crate::bounds::{SiteId, SiteKind, UnitLabel};
 use crate::digest::jcs::{canonicalize, ResultDigest};
+use crate::refusal::ProtocolStage;
 
 use super::record::{produce, Input, Limits, Usage, ValidatedResult, CONTRACT, SCHEMA_BYTES};
 use super::{ErrorCode, Refusal, Result};
@@ -268,9 +269,9 @@ fn count_array_value(stack: &mut [ScanFrame], fields: &mut usize) {
 /// Strict-read canonical result bytes against independent selections.
 pub fn read(bytes: &[u8], expected: Expected<'_>, limits: Limits) -> Result<ValidatedResult> {
     let effective = limits.effective();
-    let observed = preflight(bytes, effective, true)?;
+    let observed = preflight(bytes, effective, true, ProtocolStage::ResultRead)?;
     let value: Value = serde_json::from_slice(bytes).map_err(|_| {
-        Refusal::new(
+        Refusal::read(
             ErrorCode::InvalidJson,
             "result is not one valid closed JSON value",
             observed,
@@ -278,7 +279,7 @@ pub fn read(bytes: &[u8], expected: Expected<'_>, limits: Limits) -> Result<Vali
         )
     })?;
     let object = value.as_object().ok_or_else(|| {
-        Refusal::new(
+        Refusal::read(
             ErrorCode::InvalidJson,
             "result root is not an object",
             observed,
@@ -288,7 +289,7 @@ pub fn read(bytes: &[u8], expected: Expected<'_>, limits: Limits) -> Result<Vali
     if object.get("contractVersion").and_then(Value::as_str) != Some(CONTRACT)
         || object.get("kind").and_then(Value::as_str) != Some("ProtocolResult")
     {
-        return Err(Refusal::new(
+        return Err(Refusal::read(
             ErrorCode::ContractMismatch,
             "result contractVersion or kind differs from the selected contract",
             observed,
@@ -296,7 +297,7 @@ pub fn read(bytes: &[u8], expected: Expected<'_>, limits: Limits) -> Result<Vali
         ));
     }
     if !schema_accepts(&value, SCHEMA_BYTES, &RESULT_SCHEMA_VALIDATOR) {
-        return Err(Refusal::new(
+        return Err(Refusal::read(
             ErrorCode::InvalidJson,
             "result is not a closed instance of the selected schema",
             observed,
@@ -304,7 +305,7 @@ pub fn read(bytes: &[u8], expected: Expected<'_>, limits: Limits) -> Result<Vali
         ));
     }
     let canonical = canonicalize(&value).map_err(|_| {
-        Refusal::new(
+        Refusal::read(
             ErrorCode::NonCanonical,
             "result contains a JSON number outside the selected JCS subset",
             observed,
@@ -312,7 +313,7 @@ pub fn read(bytes: &[u8], expected: Expected<'_>, limits: Limits) -> Result<Vali
         )
     })?;
     if canonical.as_bytes() != bytes {
-        return Err(Refusal::new(
+        return Err(Refusal::read(
             ErrorCode::NonCanonical,
             "result has duplicate, reordered, trailing, or noncanonical bytes",
             observed,
@@ -323,7 +324,7 @@ pub fn read(bytes: &[u8], expected: Expected<'_>, limits: Limits) -> Result<Vali
         .get("resultId")
         .and_then(Value::as_str)
         .ok_or_else(|| {
-            Refusal::new(
+            Refusal::read(
                 ErrorCode::IdentityMismatch,
                 "resultId is missing or not a string",
                 observed,
@@ -341,7 +342,7 @@ pub fn read(bytes: &[u8], expected: Expected<'_>, limits: Limits) -> Result<Vali
     ]));
     let derived_id = ResultDigest::of_result(&preimage)
         .map_err(|_| {
-            Refusal::new(
+            Refusal::read(
                 ErrorCode::IdentityMismatch,
                 "result identity preimage cannot be canonicalized",
                 observed,
@@ -350,7 +351,7 @@ pub fn read(bytes: &[u8], expected: Expected<'_>, limits: Limits) -> Result<Vali
         })?
         .text();
     if carried_id != derived_id {
-        return Err(Refusal::new(
+        return Err(Refusal::read(
             ErrorCode::IdentityMismatch,
             "resultId differs from the FR-286 preimage",
             observed,
@@ -359,7 +360,7 @@ pub fn read(bytes: &[u8], expected: Expected<'_>, limits: Limits) -> Result<Vali
     }
     let digest = ResultDigest::of_result(&value)
         .map_err(|_| {
-            Refusal::new(
+            Refusal::read(
                 ErrorCode::DigestMismatch,
                 "result digest preimage cannot be canonicalized",
                 observed,
@@ -368,7 +369,7 @@ pub fn read(bytes: &[u8], expected: Expected<'_>, limits: Limits) -> Result<Vali
         })?
         .text();
     if digest != expected.enclosing_digest {
-        return Err(Refusal::new(
+        return Err(Refusal::read(
             ErrorCode::DigestMismatch,
             "enclosing result digest does not match canonical bytes",
             observed,
@@ -377,7 +378,7 @@ pub fn read(bytes: &[u8], expected: Expected<'_>, limits: Limits) -> Result<Vali
     }
     let mut expected_document = produce(expected.input, limits)?;
     if expected_document.result_id() != carried_id {
-        return Err(Refusal::new(
+        return Err(Refusal::read(
             ErrorCode::IdentityMismatch,
             "result identity differs from independently selected facts",
             observed,
@@ -385,7 +386,7 @@ pub fn read(bytes: &[u8], expected: Expected<'_>, limits: Limits) -> Result<Vali
         ));
     }
     if expected_document.bytes() != bytes {
-        return Err(Refusal::new(
+        return Err(Refusal::read(
             ErrorCode::InvalidSelection,
             "result fields differ from independently selected owner facts",
             observed,
@@ -399,18 +400,19 @@ pub fn read(bytes: &[u8], expected: Expected<'_>, limits: Limits) -> Result<Vali
 }
 
 pub(crate) fn preflight_output(bytes: &[u8], limits: Limits, semantic: Usage) -> Result<Usage> {
-    let mut usage = preflight(bytes, limits, false)?;
+    let stage = ProtocolStage::ResultAssembly;
+    let mut usage = preflight(bytes, limits, false, stage)?;
     usage.claims = semantic.claims;
     usage.premises = semantic.premises;
     usage.support_records = semantic.support_records;
     usage.limitations = semantic.limitations;
     usage.lineage_nodes = semantic.lineage_nodes;
-    check_semantic(usage, limits)?;
+    check_semantic(usage, limits, stage)?;
     Ok(usage)
 }
 
 pub(crate) fn preflight_external(bytes: &[u8], limits: Limits) -> Result<Usage> {
-    preflight(bytes, limits, true)
+    preflight(bytes, limits, true, ProtocolStage::ResultRead)
 }
 
 pub(crate) fn schema_accepts(
@@ -430,14 +432,14 @@ pub(crate) fn schema_accepts(
         .is_some_and(|validator| validator.is_valid(instance))
 }
 
-fn preflight(bytes: &[u8], limits: Limits, input: bool) -> Result<Usage> {
+fn preflight(bytes: &[u8], limits: Limits, input: bool, stage: ProtocolStage) -> Result<Usage> {
     let byte_limit = if input {
         limits.max_input_bytes
     } else {
         limits.max_output_bytes
     };
     if bytes.len() > byte_limit {
-        return Err(Refusal::new(
+        return Err(Refusal::at_stage(
             ErrorCode::ResourceIncomplete,
             "wire bytes exceed the effective ceiling",
             Usage {
@@ -445,10 +447,11 @@ fn preflight(bytes: &[u8], limits: Limits, input: bool) -> Result<Usage> {
                 ..Usage::default()
             },
             None,
+            stage,
         ));
     }
     if core::str::from_utf8(bytes).is_err() {
-        return Err(Refusal::new(
+        return Err(Refusal::at_stage(
             ErrorCode::InvalidJson,
             "result bytes are not UTF-8",
             Usage {
@@ -456,6 +459,7 @@ fn preflight(bytes: &[u8], limits: Limits, input: bool) -> Result<Usage> {
                 ..Usage::default()
             },
             None,
+            stage,
         ));
     }
     let mut depth = 0usize;
@@ -506,36 +510,38 @@ fn preflight(bytes: &[u8], limits: Limits, input: bool) -> Result<Usage> {
         ..Usage::default()
     };
     if max_depth > limits.max_depth || max_string > limits.max_string_bytes {
-        return Err(Refusal::new(
+        return Err(Refusal::at_stage(
             ErrorCode::ResourceIncomplete,
             "JSON depth or string size exceeds the effective ceiling",
             usage,
             None,
+            stage,
         ));
     }
     let value: Value = serde_json::from_slice(bytes).map_err(|_| {
-        Refusal::new(
+        Refusal::at_stage(
             ErrorCode::InvalidJson,
             "wire bytes are not valid JSON",
             usage,
             None,
+            stage,
         )
     })?;
-    let visited = visited_fields(&value, limits.max_visited_fields)?;
+    let visited = visited_fields(&value, limits.max_visited_fields, stage)?;
     Ok(Usage {
         visited_fields: visited,
         ..usage
     })
 }
 
-fn visited_fields(root: &Value, limit: usize) -> Result<usize> {
+fn visited_fields(root: &Value, limit: usize, stage: ProtocolStage) -> Result<usize> {
     let mut stack = vec![root];
     let mut visited = 0usize;
     while let Some(value) = stack.pop() {
         match value {
             Value::Array(items) => {
                 let Some(next) = visited.checked_add(items.len()) else {
-                    return Err(Refusal::new(
+                    return Err(Refusal::at_stage(
                         ErrorCode::ResourceIncomplete,
                         "visited-field work cannot be represented",
                         Usage {
@@ -543,6 +549,7 @@ fn visited_fields(root: &Value, limit: usize) -> Result<usize> {
                             ..Usage::default()
                         },
                         None,
+                        stage,
                     ));
                 };
                 visited = next;
@@ -550,7 +557,7 @@ fn visited_fields(root: &Value, limit: usize) -> Result<usize> {
             }
             Value::Object(members) => {
                 let Some(next) = visited.checked_add(members.len()) else {
-                    return Err(Refusal::new(
+                    return Err(Refusal::at_stage(
                         ErrorCode::ResourceIncomplete,
                         "visited-field work cannot be represented",
                         Usage {
@@ -558,6 +565,7 @@ fn visited_fields(root: &Value, limit: usize) -> Result<usize> {
                             ..Usage::default()
                         },
                         None,
+                        stage,
                     ));
                 };
                 visited = next;
@@ -566,7 +574,7 @@ fn visited_fields(root: &Value, limit: usize) -> Result<usize> {
             Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => {}
         }
         if visited > limit {
-            return Err(Refusal::new(
+            return Err(Refusal::at_stage(
                 ErrorCode::ResourceIncomplete,
                 "visited-field work exceeds the effective ceiling",
                 Usage {
@@ -574,24 +582,26 @@ fn visited_fields(root: &Value, limit: usize) -> Result<usize> {
                     ..Usage::default()
                 },
                 None,
+                stage,
             ));
         }
     }
     Ok(visited)
 }
 
-fn check_semantic(usage: Usage, limits: Limits) -> Result<()> {
+fn check_semantic(usage: Usage, limits: Limits, stage: ProtocolStage) -> Result<()> {
     if usage.claims > limits.max_claims
         || usage.premises > limits.max_premises
         || usage.support_records > limits.max_support_records
         || usage.limitations > limits.max_limitations
         || usage.lineage_nodes > limits.max_lineage_nodes
     {
-        return Err(Refusal::new(
+        return Err(Refusal::at_stage(
             ErrorCode::ResourceIncomplete,
             "semantic work exceeds an effective ceiling",
             usage,
             None,
+            stage,
         ));
     }
     Ok(())
