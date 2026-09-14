@@ -68,24 +68,18 @@ The library SHALL derive a typed outcome identity from no display text, locale o
   `ix://agent-ix/quire-specification/FR-241`'s five members — `completed`,
   `refused`, `unsupported`, `resource-incomplete`, `failed` — and that is the
   spelling used.
-- **envelope interior** (referenced, not owned) — the selected diagnostic-catalog
-  identity/revision/digest, the diagnostic code, the typed causes, the
-  originating stage and the location kind. These are upstream's `FR-270` through
-  `FR-274`, referenced through
-  [FR-008](./FR-008-return-typed-refusals.md)'s adopted-vocabulary table and
-  restated here in no form.
+- **envelope interior** — FR-008's local stage/cause vocabulary or an exact
+  retained source cause carrying source contract, code, stage/locus when
+  supplied and opaque payload. FR-270 through FR-274 are used only by an adapter
+  that explicitly selects an accepted diagnostic catalog.
 
 ### Envelope and interior
 
-The refusal **envelope** is this repository's and `FR-008` owns it. This artifact
-types the envelope's **identity** only: which outcomes are the same outcome and
-which are different ones. The envelope's interior is upstream's, and where
-upstream records an open gap — `FR-271` on namespace convention, `FR-272` on
-payload field names, order and spelling, `FR-273` on a producer-stage membership
-its two sources contradict, `FR-274` on discriminator tag and serialized form —
-this artifact cites the gap and supplies no local member list, key or order.
-A local list would author a producer diagnostic vocabulary this repository does
-not own.
+The refusal **envelope**, local stage and local causes are this repository's and
+`FR-008` owns them. This artifact types the envelope's **identity** only: which
+outcomes are the same outcome and which are different ones. Source-owner fields
+stay nested in a retained source cause and are never normalized into Protocol's
+local vocabulary.
 
 Injectivity is nevertheless statable without those gaps closing, because it is a
 property of the mapping from axis to identity and not of the interior's spelling.
@@ -178,12 +172,12 @@ did not complete rather than an empty finding set that reads as clean.
 | FR-014-AC-5 | A resource-incomplete outcome, a typed refusal and a completed assessment with an empty finding set compare pairwise unequal, and none is reported as another. | Test (TC-011, IT-003) |
 | FR-014-AC-6 | No non-success outcome yields an E02 success, and each carries the reason it did not complete. | Test (IT-003) |
 | FR-014-AC-7 | Changing display text, locale or cause rendering changes no typed outcome identity, no equality comparison and no retry decision. | Test (TC-011) |
-| FR-014-AC-8 | No local member list, key or order is supplied for the interior axes upstream records as open, and each such dependency cites the upstream gap. | Inspection |
+| FR-014-AC-8 | Protocol-local causes use only FR-008's closed vocabulary; a source interior uses only its selected accepted contract, and an unknown contract is retained opaque rather than completed from a proposed catalog. | Inspection |
 
 ## Dependencies
 
 - [FR-008](./FR-008-return-typed-refusals.md) owns the refusal envelope, its
-  five-member domain, the partial-output state, and the adopted-vocabulary table
+  seven-member domain, the partial-output state, and the adopted-vocabulary table
   binding the interior to upstream.
 - [NFR-005](../non-functional/NFR-005-retain-composed-acceptance-evidence.md)
   states the per-refusal-axis distinctness rule and the check that fails an
@@ -194,18 +188,12 @@ did not complete rather than an empty finding set that reads as clean.
   canonical result whose finding set may be legitimately empty.
 - [FR-011](./FR-011-consumer-identity-discipline.md) supplies the kind and
   authority axes.
-- `ix://agent-ix/quire-specification/FR-270` through `FR-274` own the envelope's
-  interior; each is referenced, and each open gap is cited rather than closed
-  locally.
+- `ix://agent-ix/quire-specification/FR-270` through `FR-274` are informative
+  source-catalog objects. They neither own nor block Protocol's local envelope;
+  an adapter consumes a source interior only under its exact selected contract.
 
 ## Status
 
-Draft. This artifact records existing meaning structurally and establishes no new
-obligation. The three-way outcome distinction is recorded as a conflict in the
-source material rather than resolved here: SR-046 FND-003 and the
-failure-domain review's FND-010 both record that "incomplete" carries
-unreconciled senses across `NFR-002`, `FR-008` and `IT-003-SC-06`, and that no
-functional requirement introduces incompleteness as a third outcome kind. This
-artifact types the distinction `IT-003-SC-06` depends on and names that gap; it
-does not author the incomplete-reason vocabulary, which originates outside this
-boundary.
+Specified. The five FR-241 semantic dispositions, claim-local construction
+refusal and pre-row resource-incomplete operation outcome are distinct in the
+two-level Assessment outcome algebra. Implementation remains under Task-006.

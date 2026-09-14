@@ -1,31 +1,19 @@
 # quire-protocol
 
-This is the Rust consumer boundary for the accepted A-owned
-`quire.compiled-protocol/1` contract. It does not parse native Quire source or
-create another protocol representation. Call:
+This is the Rust consumer and assessment boundary for the accepted A-owned
+`quire.compiled-protocol/1` and `/2` contracts. It delegates byte admission to
+the exact QSL readers, then owns a distinct identity-preserving linked
+representation and the pure compensation, conformance, claim and result path.
+Admission and linking are separate operations. The root `/2`
+`admit_and_link_v2` name is transitional; the published root `/1`
+`admit_and_link` remains a narrow compatibility facade while normal integrations
+move to versioned intake/model modules.
 
-```rust
-let report = quire_protocol::admit_and_link(bytes, &expected, limits);
-```
-
-`expected` is a `quire_protocol::Expected` built from independently selected
-artifact, contract, baseline, producer, source, dependency, and admitted-model
-inputs. It must be selected before inspecting `bytes`.
-
-To generate the actual four-unit fixture from A's pinned source revision, run:
-
-```console
-cd /path/to/quire-spec-language
-git checkout 84975dd687d38d9b24eae84b7356e3f24cdc7b42
-CARGO_PROFILE_RELEASE_STRIP=symbols CARGO_BUILD_JOBS=1 \
-  cargo run --locked --offline --release --example native_protocol_handoff -- \
-  /tmp/quire-native-handoff
-```
-
-The producer writes `compiled-protocol.json`, original predicate/state/temporal/
-workflow sources, `model-source.json`, and selected dependency bytes. Its
-`expected.json` is an inspection aid only; it does not authorize a consumer
-selection.
+The pinned QSL dependency publishes the default-running `/2` handoff and its
+expected selections. A producer-emitted expectation is evidence, not consumer
+authority: the caller independently selects the artifact, dependency closure,
+profile and version-lock entries before Protocol reads producer values. The
+broader `/1` compatibility corpus remains Task-009 work.
 
 `quire-protocol` is the private, first-party Rust implementation home for the
 selected native Quire finite protocol slice. It will own strict protocol
@@ -35,17 +23,17 @@ canonical protocol result, and the source-bound projection of that result into
 
 ## Status
 
-Repository bootstrap, unified specification review, implementation planning,
-and substantial owner implementation are complete. The crate is still under
-development: no released artifact or qualification claim exists. Implementation
-uses `AGPL-3.0-or-later`; remaining integration work is gated on the exact
-accepted producer contracts named by the plan.
+Repository bootstrap and substantial subsystem kernels are complete. The crate
+is still under development: those kernels are not yet one typed end-to-end
+pipeline, and no qualification claim exists. The complete target architecture
+is [AD-001](spec/assurance/AD-001-protocol-library-boundaries.md).
 
 ## Boundary
 
 This repository owns:
 
-- strict consumption of one selected, versioned protocol representation;
+- strict version-explicit consumption of the selected `/1` and `/2` artifacts;
+- the exact linked representation binding `/2` requirements to QObs runtime values;
 - finite causal protocol and compensation state;
 - bounded batch replay and semantically equivalent settled incremental assessment;
 - canonical `quire.protocol.result/v1-draft.1` production and strict reading;
@@ -53,7 +41,7 @@ This repository owns:
 
 This repository does not own:
 
-- native Quire grammar, parsing, linking, or compiler diagnostics;
+- native Quire grammar, source parsing, compiler linking, or compiler diagnostics;
 - temporal logic syntax or evaluation;
 - observation collection, correlation authority, or telemetry retention;
 - business-action or compensation execution;

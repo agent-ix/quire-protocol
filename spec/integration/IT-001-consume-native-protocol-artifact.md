@@ -11,9 +11,13 @@ relationships:
     type: verifies
   - target: ix://agent-ix/quire-protocol/FR-002
     type: verifies
+  - target: ix://agent-ix/quire-protocol/FR-009
+    type: verifies
   - target: ix://agent-ix/quire-protocol/NFR-002
     type: verifies
   - target: ix://agent-ix/quire-protocol/NFR-007
+    type: verifies
+  - target: ix://agent-ix/quire-protocol/NFR-005
     type: verifies
 ---
 # IT-001: Consume the native compiler protocol artifact
@@ -34,7 +38,8 @@ this test; neither may stand in for the other.
 
 ## Preconditions
 
-The consumer has independently selected and retained the compiler contract,
+The consumer has resolved the exact QSL compiled-protocol contract capability
+through FR-009 and has independently selected and retained the compiler contract,
 baseline, producer, native-source, model-source, and dependency bytes before it
 inspects an offered package. The native compiler publishes versioned
 compiled-protocol contracts. The existing version 1 candidate retains its
@@ -129,8 +134,10 @@ dimension, one unit short of it, and a fresh budget at the exact value.
 
 ## Test Procedure
 
-1. Construct `Expected` only from B-selected retained inputs, then submit the
-   exact producer package through `quire_protocol::admit_and_link`.
+1. Construct `Expected` only from B-selected retained inputs, resolve
+   `quire.compiled-protocol/1`, then submit the exact producer package through
+   `quire_protocol::intake::v1::admit` and
+   `quire_protocol::model::v1::link_static`.
    - IT-001-SC-01: admission retains artifact, contract, baseline, producer,
      native-source, model-source, and dependency identities unchanged; the
      producer's `expected.json` is not read as authorization.
@@ -153,17 +160,18 @@ dimension, one unit short of it, and a fresh budget at the exact value.
    - IT-001-SC-05: the evidence positively identifies the A-owned reader as the
      only native compiler reader and identifies no second parser, formal
      frontend, or foreign runtime in the admitted path.
-6. Submit the exact version 2 bytes and an independently retained version 2 selection,
+6. Resolve `quire.compiled-protocol/2`, then submit the exact version 2 bytes and an independently retained version 2 selection,
    built as `v2::Expected` and `v2::ExpectedTemporal` without reading A's
-   offered bytes, through `quire_protocol::admit_and_link_v2`. Load the bundle
+   offered bytes, through `quire_protocol::intake::v2::admit` and
+   `quire_protocol::model::v2::link`. Load the bundle
    from A's `protocol_artifact::handoff::PUBLISHED_HANDOFF` and use A's exported
    member-name and manifest-format constants rather than B-owned literals. Submit each
    version's bytes at the other version's entry point; and reseal one changed
    version 2 selection axis at a time.
    - IT-001-SC-06: version 2 retains the exact A-provided artifact bytes and external
      artifact reference through linking and returns A's `v2::AdmittedPackage`
-     only for the independently selected version 2 inputs. version 1 bytes at
-     `admit_and_link_v2` and version 2 bytes at `admit_and_link` each return a typed
+     only for the independently selected version 2 inputs. Version 1 bytes at
+     `intake::v2::admit` and version 2 bytes at `intake::v1::admit` each return a typed
      refusal with no auto-detection, upgrade, or downgrade. A changed artifact,
      contract, baseline, producer, source, model, dependency, definition,
      configuration, result, temporal-profile, clock-alternative, or
@@ -172,7 +180,8 @@ dimension, one unit short of it, and a fresh budget at the exact value.
      binding, numeric representation, or numeric domain. Each refusal is
      distinguishable from the others by its typed identity; one shared cause
      across two axes does not discharge this scenario.
-   - IT-001-SC-06a: `admit_and_link` is unchanged by the addition of version 2,
+   - IT-001-SC-06a: the explicit legacy `/1` facade `admit_and_link` is unchanged
+     by the addition of version 2,
      shown by re-running SC-01 through SC-05 on the same version 1 fixture at the
      revision that adds version 2 and obtaining the same admitted identities and the
      same typed refusal per axis as at the revision before it, with
@@ -183,13 +192,12 @@ dimension, one unit short of it, and a fresh budget at the exact value.
      `quire.verification.jcs` slot, and a `quire.verification.jcs` digest
      presented in the `raw-artifact-digest` slot, each return a typed refusal --
      both ordered directions, so that one domain silently absorbing the other
-     cannot pass. Substitution among the producer source, model and
-     configuration digests is **not** exercised: FR-015 selects no upstream
-     member for any of them, and `FR-259`, `FR-261` and `FR-263` each record
-     that no upstream requirement selects one either. Naming those three slots
-     here would require minting the vocabulary FR-015 just withdrew, so this
-     scenario states the gap and its owner (`agent-ix/quire-specification`)
-     instead of covering it. A producer input that B recanonicalized instead of copying
+     cannot pass. Producer source, binding-definition, Producer-interface,
+     configuration and closure definition bytes use the accepted owner
+     selection `raw-artifact-digest`; derived population and membership-rule
+     identities use `quire.verification.jcs`. The scenario crosses those
+     owner-selected labels without introducing a per-slot domain vocabulary. A
+     producer input that B recanonicalized instead of copying
      byte for byte refuses rather than admitting an equivalent form. The
      recanonicalization probe uses a form that is byte-distinguishable from the
      as-delivered form — a pretty-printed JSON re-encoding of the original model
@@ -246,8 +254,8 @@ The A-owned frozen profile and each versioned compiled-protocol artifact contrac
 are accepted. `quire-spec-language` release `v0.2.0` is at
 `6eccb05adf58cb2ed0c6092f5ef8e23d55030028`. Its post-release interface PR #92
 exports the handoff path, all member names, and the mutation-manifest format on
-`main` at `93c411b287ccf4789879ac4ef3094fc921dada58`; this repository pins that
-exact revision. The version 2 reader, its typed per-axis refusals, the independent
+`main`; this repository pins
+`f1700a9264d6d3bcdd07e0f77b70f3dae9ed4c07`. The version 2 reader, its typed per-axis refusals, the independent
 selection records, the original inputs, the 28-case mutation corpus, and the
 published handoff are all present under that dependency source. No environment
 configuration or copied artifact tree is part of the gate.
@@ -273,7 +281,8 @@ this for version 1 and it holds identically for version 2.
 
 The version 1 numeric and handoff commits that were previously reachable only from
 `agent-a/handoff-numeric-domains` are contained in A's `main` and remain
-available through the same `93c411b287ccf4789879ac4ef3094fc921dada58` pin.
+available through the same
+`f1700a9264d6d3bcdd07e0f77b70f3dae9ed4c07` pin.
 
 A prose definition, native source file, emitted sidecar, hand-authored bytes, or
 a version 1 value cannot substitute for either compiled interface because this

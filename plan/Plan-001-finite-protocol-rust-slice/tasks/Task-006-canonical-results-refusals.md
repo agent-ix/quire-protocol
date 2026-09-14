@@ -2,8 +2,8 @@
 id: Task-006
 title: "Produce canonical results and typed refusals"
 type: Task
-status: blocked
-track: A
+status: in_progress
+track: Core
 priority: P0
 relationships:
   - { target: ix://agent-ix/quire-protocol/Task-004, type: depends_on }
@@ -17,12 +17,22 @@ relationships:
 
 ## Scope
 
-Implement the strict canonical result, immutable lineage, RFC 8785 identity, and
-complete typed refusal envelope shared by every public operation.
+Implement the one per-assessment `assessment::Engine` orchestration and
+`AssessmentBundle` commit boundary; connect the implemented strict canonical
+result, immutable lineage and complete Contract-IR view to typed subsystem
+outputs; and complete the refusal envelope shared by every refusing operation.
 
 ## Subtasks
 
 - [ ] Write TC-006 and TC-011 table, topology, diagnostic-catalog, paired-cause, simultaneous-disposition, mutation, and strict-reader cases first.
+- [ ] Construct one Engine only from an exact linked assessment, run every stage
+  into a private candidate, and commit the bundle only after all whole-request
+  invariants pass; exact replay and every failed candidate leave the observable
+  snapshot, canonical serialization and accounting semantics unchanged.
+- [ ] Implement the shared three-member `OperationOutcome<T>`, ordered
+  per-admitted-claim `ClaimOutcome`, and `AssessmentBundle`; keep FR-241 semantic
+  dispositions, claim-local construction refusals and pre-row resource
+  incompleteness non-interchangeable.
 - [ ] Represent truth, adequacy, decision-scope progress/closure,
   surrounding-execution progress/closure, complete-global-conformance closure,
   settlement, support, claim dispositions, limitations, and provenance as
@@ -33,19 +43,23 @@ complete typed refusal envelope shared by every public operation.
 - [ ] Independently omit, duplicate, cross-wire, scope-mutate, and
   identity-mutate every required execution, branch, and workflow global-closure
   premise while holding an independently settled per-obligation truth fixed.
-- [ ] Canonicalize every digest and identity comparison through one RFC 8785 implementation and reject unknown contract versions.
+- [ ] Use the single RFC 8785 implementation only for owner-selected JCS
+  domains; retain componentwise keys and exact producer bytes in their own domains.
+- [ ] Implement and mutation-test the exact reversible
+  `quire.protocol.runtime-reference/1` carrier for opaque runtime identities in
+  string-only result fields.
 - [ ] Make refusal identity independent of rendering while preserving the exact diagnostic catalog, stable domain/source code, originating stage/prerequisites, explicit location availability, paired causes, simultaneous dispositions, and cause order.
 - [ ] Refuse catalog drift or erased source stages and prove that repeated display names cannot invent a missing source location.
 
 ## Deliverables
 
-- Canonical result/refusal types, strict readers, JCS identity layer, lineage validator, TC-006, TC-011, and trace bindings.
+- Per-assessment Engine, AssessmentBundle and outcome algebra; canonical
+  result/refusal types; strict readers; JCS and runtime-reference identity
+  layers; lineage validator; TC-006/TC-011; and trace bindings.
 
 ## Notes
 
 - Unblocks Tasks 007 and 010.
-- C-05 preserves the complete typed A-owned error at the admission boundary,
-  including error families added after the first mapper was written. It does
-  not convert that error into `ProtocolRefusal` or claim FR-008 coverage:
-  selected-catalog validation (C-02) remains blocked by upstream FR-270, and
-  the typed cause contract (C-03) remains blocked by upstream FR-272.
+- Source catalogs remain owner-controlled. Protocol can complete its envelope
+  without inventing a catalog by retaining a known source cause exactly and
+  returning `unsupported-source-contract` for an unknown catalog/version.

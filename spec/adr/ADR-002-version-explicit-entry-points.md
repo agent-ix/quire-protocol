@@ -17,10 +17,11 @@ relationships:
 
 ## Status
 
-Accepted. Both version-explicit entry points and mutual-refusal directions are
-implemented and execute against the pinned published handoff. IT-001 SC-06a's
-complete two-revision version 1 regression comparison remains planned under
-Task-009.
+Accepted. Both contract readers and mutual-refusal directions execute against
+the pinned published handoff through transitional root functions. Task-002
+moves normal integrations to the final versioned modules while preserving the
+frozen `/1` root facade; IT-001 SC-06a's complete two-revision version 1
+comparison remains planned under Task-009.
 
 ## Context
 
@@ -68,8 +69,12 @@ signature and refusal set unchanged.
 ## Decision
 
 Each published compiled-artifact contract version is admitted only through its
-own explicit entry point. `admit_and_link` consumes version 1. A separate
-`admit_and_link_v2` consumes version 2. The library infers no contract version from
+own explicit integration entry point: `intake::v1::admit` plus
+`model::v1::link_static`, or `intake::v2::admit` plus `model::v2::link`. The
+already-published root `admit_and_link` remains a `/1`-only compatibility facade
+with its frozen signature and refusal set; it is not a full-assessment
+integration entry and accepts no other external value. The transitional root
+`admit_and_link_v2` is removed after callers migrate. The library infers no contract version from
 offered bytes, and it does not upgrade, downgrade, repair or substitute one
 version's artifact for another's. Bytes offered at an entry point other than
 their own contract version's return a typed refusal, and the two versions
@@ -96,7 +101,7 @@ the library's answer is a refusal rather than a best effort. That is the
 intended answer, and it is inconvenient.
 
 **Both cross-version refusal directions execute.** IT-001-SC-06 submits version
-1 bytes at `admit_and_link_v2` and version 2 bytes at `admit_and_link`; each
+1 bytes at `intake::v2::admit` and version 2 bytes at `intake::v1::admit`; each
 returns a distinct typed refusal. The version 2 reader, published handoff and
 entry point are pinned through `quire-spec-language` revision `f1700a9`.
 

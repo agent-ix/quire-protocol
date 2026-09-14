@@ -96,7 +96,7 @@ derived from, not as a second definition.
 
 | Noun | Upstream object | Identity kind |
 | --- | --- | --- |
-| Canonical protocol result (source) | `FR-240-canonical-protocol-result` | not declared upstream; see the gaps below |
+| Canonical protocol result (source) | `FR-240-canonical-protocol-result` | exact opaque source identity consumed after strict validation |
 | Derived portable projection result | `FR-249-derived-projection-result` | derived, keyed (canonical result identity and digest, target obligation and execution-binding identities, target contract version, adapter identity and version) |
 | Projection refusal code | `FR-283-projection-refusal-code` | value |
 | Dependence relation | `FR-282-dependence-relation` | value |
@@ -125,40 +125,25 @@ The projection identity and the source-result digest both carry the
 preimages differ and the domain does not. This repository mints no digest domain
 label.
 
-### Where the upstream vocabulary does not yet reach
+### Accepted rulings and remaining external gate
 
-Each gap is recorded in full by the part that depends on it. Summarised:
+Quire Specification FS02 resolved the earlier source-domain gaps. FR-283 assigns
+a recomputed source-result digest mismatch to `invalid-source-result`; FR-284
+closes progress/closure; FR-285 closes participation; and FR-249 declares the
+mapping total for selected source and target revisions. FR-034 and FR-035 adopt
+those rulings exactly.
 
-- **Which refusal code a recomputed-digest mismatch receives is unresolved, and
-  two upstream artifacts assign it differently.** `FR-249` assigns it to
-  `identity-mismatch` and `FR-283` to `invalid-source-result`; `FR-249`'s Open
-  gap states that "No requirement resolves which code a recomputed-digest
-  mismatch receives." Both readings are quoted verbatim in
-  [FR-035](./FR-035-map-source-states-to-e02.md); neither is adopted here.
-  Owner: `quire-specification`.
-- **FR-062's mapping table is declared total over a source axis nobody
-  enumerates.** Participation is unenumerated upstream (`FR-240`), and `FR-249`
-  records that "Totality over an unenumerated source domain is not established
-  here". The four progress/closure axes are no longer part of this gap: `FR-284`
-  declares them. This requirement applies every row the table states and asserts
-  no totality. Recorded by
-  [FR-035](./FR-035-map-source-states-to-e02.md). Owner:
-  `quire-specification`.
 - **Canonical source-result identity kind.** `FR-240` states that "The prose does not state whether that identity is
   authored by the producer or derived from the result's own components, so
   this artifact declares neither." The projection consumes that identity as an exact
   opaque value and declares no kind for it. Recorded by
   [FR-034](./FR-034-derive-e02-projection-identity.md). Owner:
   `quire-specification`.
-- **The portable finding contract was not opened in this pass.**
-  `ix://agent-ix/quire-verification/FR-007` owns the finding set FR-062 forbids
-  losing. That repository is not available to this pass, so no member of its
-  vocabulary is quoted or restated, and the finding set is adopted only as
-  FR-062 names it. Owner: `quire-verification`.
-- **FR-015's selection table does not name the projection preimage.** Extending
-  it is local work, recorded by
-  [FR-034](./FR-034-derive-e02-projection-identity.md), and must not be done by
-  minting a label. Owner: [FR-015](./FR-015-digest-domain-selection.md).
+- **qverify acceptance.** The strict `quire-verification/e02-draft-2` reader and
+  finding vocabulary are implemented, but qverify's interface-decision document
+  still calls cross-repository use provisional. Task-007 remains blocked only on
+  the owner reconciling that acceptance, not on missing E02 code or source
+  vocabularies.
 
 ## Dependencies
 

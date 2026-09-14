@@ -3,7 +3,7 @@ id: Task-007
 title: "Project canonical results to E02"
 type: Task
 status: blocked
-track: A
+track: Producer-Integration
 priority: P0
 relationships:
   - { target: ix://agent-ix/quire-protocol/Task-006, type: depends_on }
@@ -32,3 +32,7 @@ contract, preserving the canonical source and every mapped finding.
 ## Notes
 
 - Unblocks Task-008 and the E02 half of Task-011.
+- qverify implements the exact draft-2 reader, but its owner documentation still
+  calls the cross-repository seam provisional. Do not implement against a
+  substitute; proceed only after `agent-ix/quire-verification#32` reconciles and
+  accepts that revision.

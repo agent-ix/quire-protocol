@@ -20,25 +20,21 @@ relationships:
 
 ## Objective
 
-Verify the F/E-owned observation, decision-scope progress/closure,
-surrounding-execution progress/closure, and temporal decision facts plus the
-B-owned complete-global-conformance closure record through compensation, finite
+Verify QObs-owned observation, decision-scope progress/closure and surrounding-
+execution progress/closure facts plus QSL-owned native-temporal results and the
+Protocol-owned complete-global-conformance closure record through compensation, finite
 conformance, and canonical result production without duplicating producer
 semantics.
 
 ## Target Integration
 
-The observation producer is a Rust interface: `quire-observation` carries
-`ScopeFact` across all four progress/closure axes plus
-`GlobalConformanceClosure`/`GlobalClosureState` at
-`PRODUCER_INTERFACE_VERSION = "1.2.0"`. It is `publish = false` and this crate
-declares no dependency on it, so there is no edge to pin yet.
-
-The temporal producer has **no Rust interface at any state**. E's contribution is
-merged prose in `quire-specification` (FR-090..FR-092, FR-095 and the
-`proposals/quire-v1/definitions/temporal-*` set). FR-009 cannot pin a typed
-temporal producer that does not exist, so that entry is `unresolved` and every
-scenario requiring it is unexecutable.
+QObs publishes the accepted typed Rust runtime facts and topology at revision
+`93bc565`. Protocol's current direct pin is older and must be repinned before
+these scenarios execute. QSL publishes the native-temporal request/result and
+checked activation-guard selection at Protocol's current exact revision
+`f1700a9264d6d3bcdd07e0f77b70f3dae9ed4c07`. Protocol invokes no temporal
+evaluator and does not consume a QCI join result; QCI consumes Protocol's result
+map downstream.
 
 The consumer is the protocol evaluator and canonical result producer.
 
@@ -46,39 +42,33 @@ The consumer is the protocol evaluator and canonical result producer.
 
 | Owner | Supplies | This repository must not |
 | --- | --- | --- |
-| F (observation) | Observation facts, decision-scope and surrounding-execution progress/closure, settlement basis, decision support, completeness | Collect, correlate, or re-derive an observation; infer a missing fact |
-| E (temporal) | The accepted temporal profile and temporal decision facts. No Rust interface exists yet; this entry is `unresolved` | Evaluate a temporal formula or author a second profile |
-| A (compiled protocol) | The linked protocol representation the facts are assessed against | Parse native source or reinterpret an identity |
-| Engineering Assurance | The bounded execution context and the budget each scenario is granted | Grant itself a budget, or continue past an exhausted one |
-| Quoin | Retention of the scenario evidence record after handoff | Retain that record locally, or decide whether it suffices |
+| QObs | Observation facts, decision-scope and surrounding-execution progress/closure, settlement basis, decision support, completeness, and accepted runtime topology | Collect, correlate, or re-derive an observation; infer a missing fact |
+| QSL native temporal | Exact checked native-temporal results and activation-guard selection | Evaluate a temporal formula or author a second profile |
+| QSL compiled protocol | The admitted `/2` definition from which Protocol builds the linked graph | Parse native source or reinterpret an identity |
 | This repository | Compensation state, finite conformance, claim dispatch, canonical result production, typed refusals, version-lock resolution, the complete-global-conformance closure record and its premises, the scenario evidence record up to handoff | — |
 
 Every value crossing a row is consumed with its owner retained. A value this
 repository derives is never attributed to a producer, and a producer value is
 never attributed to this repository.
 
-The complete-global-conformance closure record is **B-authored**, not an
-external producer's. It was specified in `quire-specification` through PR #22
-from `agent-b/global-conformance-closure`, and `quire-research#48` (PT02) is an
-open research ticket that names this repository as the intended implementation
-home. It therefore takes no version-lock entry: there is no external owner to
-assert anything about it. What SC-03 and SC-04 verify is that a scoped closure
-cannot substitute for it, not that it arrived from elsewhere.
+The complete-global-conformance closure record is Protocol-authored, not an
+external producer's. It therefore takes no version-lock entry. SC-03 and SC-04
+verify that a scoped closure cannot substitute for it, not that it arrived from
+QObs, QSL, QCI or a research artifact.
 
 ## Preconditions
 
-Every external producer consumed by this integration resolves through the
-FR-009 version-lock manifest before any fact is read. The A-owned version 2
-compiled-protocol entry is explicitly unresolved: that contract is implemented
-and under final integration but not yet published to a remote, so it cannot be
-pinned. No scenario below depends on that entry, and none may be reported as
-executed by substituting the version 1 entry for it.
+Every external contract consumed by this integration resolves through FR-009
+before any fact is read. QSL `/2` and native-temporal capabilities are pinned at
+`f1700a9`. The QObs entry remains unresolved in Protocol until its direct
+dependency is repinned from `9ac80e93` to accepted revision `93bc565`; while it
+is unresolved these scenarios report unexecutable, not pass or fail.
 
-The observation-output consumer preserves decision-scope and surrounding
-execution progress/closure, settlement basis, decision support, completeness,
-and exact producer identities. PT02 adds an independently typed
-complete-global-conformance closure record with exact execution, branch, and
-workflow premises. The temporal profile is accepted.
+The QObs consumer preserves decision-scope and surrounding-execution
+progress/closure, settlement basis, decision support, completeness, and exact
+producer identities. Protocol derives complete-global-conformance closure from
+the linked graph, accepted QObs/QSL facts and exact execution, branch and
+workflow premises.
 
 ## Inputs
 
@@ -172,25 +162,19 @@ producer revision, and a scenario whose evidence is incomplete claims nothing.
 
 - Priority: P0
 - Target Integration: observation and temporal producers to protocol evaluator
-- Automation: Automated after producer contracts are accepted
+- Automation: Automated after the accepted QObs revision is pinned
 
 ## Dependencies
 
-F-owned FR-115/FR-116, TC-145/TC-146, IT-051 and the output-mapping contract plus
-the E-owned temporal profile must preserve the complete canonical-result input
-shape.
+QSL compiled-protocol `/2` and native-temporal request/result at `f1700a9`, plus
+QObs runtime facts/topology at `93bc565`. Protocol owns global closure and result
+assembly. QCI issue 71 is a downstream consumer and is not a prerequisite.
 
 ## Notes
 
-Quire Specification PR #15 at
-`d8d984b542fe30f65b6e07f4a07b2d1f81d3962b` now specifies the required
-independent decision-scope and surrounding-execution progress/closure axes plus
-the complete-global-conformance closure record and premise mutations through
-**one** F consumer path: it touches FR-116 and TC-146 and leaves FR-115 and
-TC-145 unchanged, so the second consumer path is not yet specified to this
-shape. The content dependency is ready, while the revision
-remains unaccepted until the composed baseline is reviewed and promoted. This
-integration test remains planned.
+The owner contracts are delivered. The remaining enablement is the Protocol
+QObs repin and the typed composition path from linked graph through assessment
+to canonical result. This integration remains planned until Task-010 closes.
 
 ## Traceability
 

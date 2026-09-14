@@ -41,10 +41,12 @@ When any one of FR-026, FR-027, FR-028 and FR-041 is unsatisfied, the evaluator 
 
 ## Inputs
 
-A linked finite protocol, bound observation history, exact assessment request,
-independent decision-scope and surrounding-execution progress/closure facts, the
-complete-global-conformance closure record, resource budget, and evaluator
-identity.
+A constructor-private version-2 linked protocol, the compensation snapshot
+derived from it, bound QObs observation/authority views, accepted QSL native-
+temporal results, the exact assessment request, independent decision-scope and
+surrounding-execution progress/closure facts, the Protocol-owned complete-global-
+conformance closure record, resource budget, and evaluator identity. A caller-
+constructed string model or obligation list is not a production input.
 
 ## Outputs
 
@@ -80,6 +82,12 @@ the surrounding execution nor global conformance (FR-028), and the equality of
 batch and settled-incremental assessment is a property of the admitted facts
 rather than of their arrival (FR-041).
 
+Batch and incremental frontends SHALL invoke one deterministic
+`ConformanceKernel` over the same graph-derived model. Incremental state commits
+only an accepted prefix. Semantic readiness follows authored causal
+prerequisites and exact keys; timestamp, arrival, map and result-identity order
+authorize no work.
+
 ## Acceptance Criteria
 
 | ID | Criteria | Verification |
@@ -87,7 +95,7 @@ rather than of their arrival (FR-041).
 | FR-004-AC-1 | Order invariance over the whole assessment is exactly what [FR-026](./FR-026-admit-every-permitted-observation-order.md) establishes: every permitted split-shipment and compensation interleaving produces the same conformant obligation set, and no other path reorders or re-presents the admitted history to obtain one. | Test (TC-004) |
 | FR-004-AC-2 | Adverse reporting over the whole assessment is exactly what [FR-027](./FR-027-report-adverse-observations-without-repair.md) produces: unexpected, missing, causally misordered, duplicate-effect, and cross-workflow observations identify the exact affected obligation, and no aggregate path repairs one to avoid reporting it. | Test (TC-004) |
 | FR-004-AC-3 | Axis independence over the whole assessment is exactly what [FR-028](./FR-028-keep-progress-and-closure-axes-independent.md) enforces: decision-scope progress/closure, surrounding-execution progress/closure and complete-global-conformance closure remain independent, changing or closing one cannot close another, and a refused, unsupported, resource-incomplete or failed assessment execution cannot become complete global success. | Test (TC-004) |
-| FR-004-AC-4 | Path equivalence over the whole assessment is exactly what [FR-041](./FR-041-agree-across-batch-and-incremental-paths.md) establishes: batch replay and settled incremental assessment are semantically identical for every permutation of the same admitted facts, the incremental path settles a value strictly before the final fact on a history whose earlier prefix already contains every fact that value requires to be decided, and a divergence refuses rather than reporting agreement. | Test (TC-004) |
+| FR-004-AC-4 | Path equivalence over the whole assessment is exactly what [FR-041](./FR-041-agree-across-batch-and-incremental-paths.md) establishes: batch replay and settled incremental assessment use one graph-derived kernel and are semantically identical for every permutation of the same admitted facts, the incremental path settles a value strictly before the final fact on a history whose earlier prefix already contains every fact that value requires to be decided, and a divergence or caller-built substitute model refuses rather than reporting agreement. | Test (TC-004) |
 
 ## Adopted vocabulary
 
@@ -99,10 +107,10 @@ shared mapping the decomposition was derived from, not as a second definition.
 | --- | --- | --- |
 | Authored causal (partial) order | `FR-220-causal-control-graph` | derived |
 | Protocol obligation | `FR-230-protocol-obligation` | derived, keyed (clause subject, semantic trigger-event identity) |
-| Canonical protocol result | `FR-240-canonical-protocol-result` | not established upstream |
+| Canonical protocol result | `FR-240-canonical-protocol-result` | derived, exact FR-286 preimage |
 | Assessment-execution disposition | `FR-241-assessment-execution-disposition` | value |
 | Complete-global-conformance closure state | `FR-247-complete-global-conformance-closure-state` | value |
-| Admitted observation | `FR-260-admitted-observation` | not established upstream |
+| Admitted observation | `FR-260-admitted-observation` | derived under FR-296 |
 
 `FR-241`'s five members — `completed`, `refused`, `unsupported`,
 `resource-incomplete`, `failed` — are exactly the non-success causes this
@@ -110,30 +118,15 @@ requirement's Outputs previously listed in prose, and the Outputs list is now a
 reference to them rather than a second enumeration. `FR-247` supplies the fifth
 closure axis and the `not-required` rule. The parts carry the rest.
 
-### Where the upstream vocabulary does not yet reach
+### Accepted owner rulings
 
-The gaps are recorded once, in the part that depends on each:
-
-- `FR-026` records that an admitted fact set has no upstream key, that the
-  equal-time tie key exists only as a refusal and depends on an `unresolved`
-  temporal producer, that the channel premise key carries an undefined "key
-  scope", and that the authored graph key is not stated to be complete.
-- `FR-041` records that an admitted fact set has no upstream key, that the four
-  progress/closure axes have no member list, that settlement-basis membership is
-  not stated uniformly, and that the canonical result's own identity is
-  undeclared.
-- `FR-027` records that admitted observation, delivery and business effect have
-  no key or order, that "duplicated" has two irreconcilable readings upstream,
-  that a duplicate business effect is undetectable under its declared key and
-  that its disposition is contradicted, and that cross-workflow correlation
-  rests on an unfixed endpoint key.
-- `FR-028` records that input completeness has no member list, that the
-  canonical result's own identity is undeclared, and that closure at a deadline
-  crosses an unresolved half-open/inclusive boundary conflict. The four
-  progress/closure axes it previously listed here are now declared by `FR-284`.
-
-Every one of those is owned by `agent-ix/quire-specification`. None is supplied
-locally.
+QSpec #28/#29/#31/#40 fixes the complete FR-220 graph key, five-component
+FR-216 channel premise, FR-287 runtime identities, FR-296 admitted-observation
+identity, FR-284 progress/closure states, FR-243 settlement membership,
+FR-286 result identity and FR-289 temporal boundary map. The parts below consume
+those exact values; none retains the superseded gaps. FR-027 distinguishes a
+replayed delivery, a distinct delivery and a duplicate business effect through
+their accepted typed identities rather than through arrival position.
 
 ## Dependencies
 

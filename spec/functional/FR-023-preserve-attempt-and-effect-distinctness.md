@@ -73,37 +73,22 @@ under [FR-024](./FR-024-decide-recovery-only-by-authored-relation.md).
 
 | Noun | Upstream object | Identity kind |
 | --- | --- | --- |
-| Compensation attempt | `FR-235-compensation-attempt` | identity kind not established upstream |
+| Compensation attempt | `FR-235-compensation-attempt` | authored FR-287 `compensation-attempt` key |
 | Compensation attempt outcome | `FR-236-compensation-attempt-outcome` | value |
 | Business effect | `FR-226-business-effect` | derived, keyed (static declaration path, workflow instance identity, iteration identity) |
 | Compensation registration | `FR-233-compensation-registration` | derived, keyed (source compensation definition identity, established forward effect identity) |
 
-### Where the upstream vocabulary does not yet reach
+### Accepted identities and remaining owner gate
 
-This requirement's central obligation rests on two identities upstream has not
-established, and it cannot be discharged until they exist.
+Quire Specification #28 defines distinct authored FR-287 keys for compensation
+attempt and business effect. Exact replay of one key is idempotent; a second
+effect key bound to the same singleton occurrence is the duplicate-business-
+effect outcome; reusing one key with different bindings refuses.
 
-- **Compensation attempt identity.** `FR-235`'s open gap states that the prose
-  establishes an attempt has an identity, is distinct from an effect identity,
-  and several things that cannot serve as it, and then that "It does not
-  establish:" its identity kind, its key components, or an order. AC-2 requires
-  two attempts to be retained as two; no stated component separates them.
-  `FR-235` records the same failure: "a failed refund attempt and its successful
-  retry must both be retained, and no stated component separates them." The
-  owner is `agent-ix/quire-specification`.
-- **Duplicate-effect detection.** `FR-226` states that its declared key "is
-  constant across two effect claims at one static node within one workflow
-  instance, so two duplicate effects compare equal under it and the duplicate the
-  evaluator is required to detect is undetectable", and `FR-226-AC-5` states that
-  "the FR-058 duplicate-effect outcome is not reachable from the key alone".
-  AC-1's `duplicate` fact has no key to rest on.
-- **Which outcomes are per-attempt and which are aggregate.** `FR-236`'s open gap
-  states that FR-058 Outputs lists the five outcomes together "without stating
-  which members are admissible per attempt and which are admissible only for the
-  aggregate", and that "`duplicate` in particular labels a business effect rather
-  than an attempt. No requirement partitions the vocabulary, and this artifact
-  does not partition it." AC-1 therefore reports the four facts without asserting
-  which level each belongs to.
+FR-236 still does not partition `failed`, `timed-out`, `duplicate`, `pending`
+and `successful` between per-attempt and aggregate recovery facts. Protocol
+will not guess. The Task-003 adapter consumes the owner-published partition;
+until it is accepted, aggregate/per-attempt mapping cases are unexecutable.
 
 ## Dependencies
 

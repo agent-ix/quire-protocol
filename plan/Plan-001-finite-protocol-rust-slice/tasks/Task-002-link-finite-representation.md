@@ -3,9 +3,11 @@ id: Task-002
 title: "Link the finite protocol representation"
 type: Task
 status: in_progress
-track: A
+track: Core
 priority: P0
 relationships:
+  - { target: ix://agent-ix/quire-protocol/Task-016, type: depends_on }
+  - { target: ix://agent-ix/quire-protocol/Task-013, type: depends_on }
   - { target: ix://agent-ix/quire-protocol/Task-001, type: depends_on }
   - { target: ix://agent-ix/quire-protocol/FR-002, type: references }
   - { target: ix://agent-ix/quire-protocol/TC-002, type: verifies }
@@ -14,8 +16,10 @@ relationships:
 
 ## Scope
 
-Implement the finite identity-preserving graph and all construction-fatal
-validation from the admitted selected profile.
+Own the `intake::{v1,v2}` and `model::{v1,v2}` source modules. Implement the
+finite identity-preserving graph and all construction-fatal validation from the
+admitted selected profile while retaining the frozen root `/1`
+`admit_and_link` facade as the explicit non-integration compatibility exception.
 
 ## Subtasks
 
@@ -27,12 +31,16 @@ validation from the admitted selected profile.
   choice-visibility premises and accumulate independent located diagnostics.
 - [x] Prove legal interleavings preserve the admitted graph and exercise the
   original FR-050..FR-054 static mutation sweep.
-- [ ] Pin the accepted Observation PR #20 boundary and implement one
+- [ ] Pin the accepted Observation PR #21 boundary at `93bc565` and implement one
   version-explicit binding subsystem: an accepted static binding definition
   owns role internality and independently selected slot compatibility; a
   separate runtime set imports FR-287 subjects and FR-262 relationships. Refuse
   old, missing, surplus, duplicate, wrong-kind, incompatible and slot-derived
   bindings without defaults or universal producer-kind spellings.
+- [ ] Introduce the version-explicit intake/model modules, migrate normal
+  integration callers from `admit_and_link{,_v2}`, remove the root `/2` facade,
+  and prove the frozen root `/1` facade delegates without gaining access to any
+  full-assessment external value.
 - [ ] Replace the partial declaration/index identity with a structured FR-288
   definition identity derived from the admitted version-2 package's exact source
   document, declaration handle, formal owner/clause and semantic selection
@@ -64,7 +72,7 @@ validation from the admitted selected profile.
 ## Notes
 
 - The representation is the single shared input to compensation and conformance.
-- Quire Specification PRs #41/#42 and Quire Observation PR #20 are delivered
+- Quire Specification PRs #41/#42 and Quire Observation PRs #20/#21 are delivered
   dependencies. The stale six-premise wording in Spec Language #85 is not a
   dependency: accepted FR-216 defines five components and derives duplication
   permission from delivery cardinality.

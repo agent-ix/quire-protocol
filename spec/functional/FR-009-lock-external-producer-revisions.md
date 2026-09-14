@@ -14,7 +14,7 @@ relationships:
   - target: ix://agent-ix/quire-protocol/US-002
     type: implements
   - target: ix://agent-ix/quire-protocol/FR-008
-    type: depends_on
+    type: references
 ---
 # FR-009: Lock every external producer revision in one manifest
 
@@ -44,7 +44,7 @@ because the indirect service it names is still real.
 
 ## Inputs
 
-- One version-lock manifest. It is B-authored and never producer-supplied. It is
+- One version-lock manifest. It is Protocol-authored and never producer-supplied. It is
   a distinct artifact from any delivery index a producer ships beside its bytes:
   a delivery index is evidence B reads about what was delivered, and it can
   neither supply nor repair a version-lock entry. Each entry is keyed by the pair (owner, contract
@@ -52,22 +52,23 @@ because the indirect service it names is still real.
   assertion that the revision is immutable and published, the content digest of
   the bytes consumed from it where the producer supplies bytes, and its
   resolution status.
-- The external producers: the A-owned compiled-protocol artifact contract at each
-  published version, the E-owned temporal profile, the F-owned observation and
-  output-mapping contracts, the Engineering Assurance typed producer-execution
-  seam, the E02 strict reader, the selected diagnostic catalog whose identity,
-  revision and digest FR-008 binds, and the Quoin evidence interface. The
-  complete-global-conformance closure record is not among them: it is B-authored
-  in `quire-specification` and takes no entry, because no external owner can
-  assert anything about it.
+- The exact external contracts a scenario consumes: QSL compiled-protocol `/1`
+  and `/2`; QSL native-temporal request/result; QObs runtime facts and topology;
+  Engineering Assurance `producer_execution`; qverify
+  `quire-verification/e02-draft-2`; the Quoin Protocol scenario-record intake;
+  and any future source-owner diagnostic catalog an adapter explicitly uses.
+  Contract-IR/QCI result correspondence is not an input: it consumes Protocol's
+  canonical result map downstream. The complete-global-conformance closure
+  record is also not an external entry because Protocol owns its derivation.
 - The set of manifest entries each integration scenario requires, declared by
   that scenario in its own integration test, not by the manifest.
 
 ## Outputs
 
-- One resolved producer set in which every entry required by the integration is
-  pinned and, where it supplies bytes, digest-verified; or one typed refusal
-  naming the entry that is not.
+- One request-bound resolved producer set in which every entry required by the
+  integration is pinned and, where it supplies bytes, digest-verified; or one
+  typed refusal naming the entry that is not. Only the resolver can mint its
+  constructor-private artifact and interface capabilities.
 
 ## Behavior
 
@@ -92,7 +93,11 @@ value is re-read between verification and use.
 Where an entry names an interface rather than an artifact — the Engineering
 Assurance seam, the E02 reader, the Quoin evidence interface — the entry SHALL
 carry the immutable revision and no digest, and the library SHALL NOT synthesize
-a digest for it.
+a digest for it. Each consuming adapter SHALL compile an independently authored
+accepted `(owner, contract version, exact revision)` selection and resolution
+SHALL match the entry against that selection before minting
+`ResolvedInterface<C>`. A manifest claim alone cannot authenticate the linked
+implementation.
 
 ### Entry identity and independence
 
@@ -101,8 +106,10 @@ If two entries share that key, then the library SHALL refuse every integration
 before resolution, because no refusal can name an ambiguous entry.
 The library SHALL NOT let a change to one entry alter the resolved owner,
 revision, digest or status of another entry.
-The manifest SHALL declare no dependency between entries, so resolution needs no
-order and can contain no cycle.
+The manifest SHALL declare no dependency between entries and can contain no
+cycle. Resolution validates required keys in FR-012 lexicographic key order so
+the first causing entry and partial state are deterministic; this comparison
+order carries no causal or owner precedence.
 
 ### Resolution status
 
@@ -121,6 +128,10 @@ supplies its own acceptance context authorizes itself.
 The manifest SHALL NOT declare which scenarios require which entries, because a
 document that declares its own requiredness can unblock a scenario by editing
 itself rather than by a producer change.
+Every resolved capability SHALL retain the resolution/request identity and exact
+manifest key, revision and verified bytes or selected interface. A capability
+from one resolution or request SHALL NOT authorize a different offered value or
+adapter invocation.
 
 ### Bounds
 
@@ -140,13 +151,16 @@ dimension's typed resource-incomplete outcome and SHALL read no producer value.
 | FR-009-AC-5 | Two entries sharing one (owner, contract version) key refuse every integration before resolution; otherwise adding, removing or repinning one entry changes the resolved owner, revision, digest and status of no other, and a manifest carrying two versions of one producer resolves each independently. | Test (TC-013, IT-002, IT-003) |
 | FR-009-AC-6 | Resolution at exactly the granted entry-count, byte and deadline budget completes; one unit short on any dimension returns that dimension's typed resource-incomplete outcome with no producer value read; and the same manifest under a fresh budget completes. | Test (TC-013, IT-002, IT-003) |
 | FR-009-AC-7 | Neither resolution nor digest verification reads a version-control history, spawns a process, or accesses a network, and no entry's digest is computed over anything but the exact delivered bytes. | Test (TC-010, TC-013) |
+| FR-009-AC-8 | Every interface entry matches an adapter-compiled accepted owner, contract version and revision before a private capability is minted; changing only the manifest revision or reusing a capability for another request refuses. | Test (TC-013) |
+| FR-009-AC-9 | Permuting the offered manifest changes neither the resolved set nor the first refusal/partial state: required keys are validated in FR-012 lexicographic order solely for deterministic comparison and reporting. | Test (TC-013) |
 
 ## Dependencies
 
 Local ownership: [FR-001](./FR-001-admit-selected-protocol-profile.md) admits the
 compiled-protocol artifact after its entry resolves, so FR-001 depends on this
 requirement and not the reverse.
-[FR-008](./FR-008-return-typed-refusals.md) owns the refusal envelope,
+[FR-008](./FR-008-return-typed-refusals.md) owns the shared refusal envelope;
+Task-017 establishes its base resolution-domain type before this resolver,
 [NFR-002](../non-functional/NFR-002-enforce-resource-bounds.md) the
 resource-incomplete outcome, and
 [NFR-003](../non-functional/NFR-003-preserve-rust-assurance-boundary.md) the
@@ -159,10 +173,10 @@ this section is not satisfied while any stage above an entry is still moving.
 Entries carrying no dependency on each other is a property of resolution at run
 time; it says nothing about the order in which these gates close.
 
-1. **B, no external dependency.** The manifest schema, the two-status resolution
+1. **Protocol, no external dependency.** The manifest schema, the two-status resolution
    model, digest recomputation over exact delivered bytes, per-key refusal, entry
    independence, sidecar non-authority, and the resolution budget. TC-013
-   verifies all of it on B-owned fixtures. Nothing below can be built until this
+   verifies all of it on Protocol-owned fixtures. Nothing below can be built until this
    exists, and no manifest artifact exists in the tree today.
 2. **Per owner: publication.** An owner publishes an immutable revision and
    records its assertion. Until then that owner's entry is `unresolved`.
@@ -172,31 +186,32 @@ time; it says nothing about the order in which these gates close.
 5. **NFR-005.** A scenario's evidence record retains the resolution state, so it
    cannot exist before stage 3 produces one.
 
-### Entry status today
+### Entry status at the architecture baseline
 
-Every entry is `unresolved`. None can be pinned, and each names why.
+`publish = false` is project policy and is not a blocker. Exact immutable Git
+revisions are valid pins. Status is per contract, not per repository:
 
-| Entry | Gate | Why unresolved |
+| Contract entry | Status | Exact basis or blocker |
 | --- | --- | --- |
-| A version 1 compiled protocol | quire-spec-language#40 | The current pin `5690c2b` is not an ancestor of A's `origin/main`; it exists only on `agent-a/handoff-numeric-domains`. A has no tags and no releases. |
-| A version 2 compiled protocol | quire-spec-language#40 | Implemented and under final integration, present only in an unpushed local worktree. No published revision exists to assert. |
-| E temporal profile | Accepted temporal contract | No Rust interface exists at any state; E's contribution is merged prose in `quire-specification`. |
-| F observation / output mapping | F-owned FR-115/FR-116, TC-145/TC-146, IT-051 | `quire-observation` is a real Rust crate but is `publish = false`, and this crate declares no dependency on it. |
-| Engineering Assurance seam | engineering-assurance#34 | `producer_execution` is merged on `origin/main` but `publish = false`, no release contains it, and the cited acceptance revision is not reachable after its PR was squashed. |
-| E02 strict reader | quire-verification FR-007 | Zero tags, zero releases; the interfaces are declared provisional across repositories and the code sits on a branch. |
-| Diagnostic catalog | quire-specification FR-270 | The only catalog offered is the proposed native diagnostic interpretation, which states of itself "Proposed, not adopted or implemented"; FR-270 calls it source material, not an adopted selection. |
-| Quoin evidence interface | quire-research#62 | Quoin exposes no Rust-callable boundary and contains no `Cargo.toml`; the containment contract is open with every acceptance box unchecked. |
+| QSL `quire.compiled-protocol/1` | `pinned` | Protocol main pins `f1700a9264d6d3bcdd07e0f77b70f3dae9ed4c07`; the typed reader and corpus are present. |
+| QSL `quire.compiled-protocol/2` | `pinned` | The same exact pin exposes the accepted `/2` reader, handoff and activation-guard selection. |
+| QSL native-temporal request/result | `pinned` | The typed owner contract is exposed at the same exact QSL revision; Task-010 records the concrete capability entry. |
+| QObs runtime and authority contracts | `unresolved` in the current build | The accepted owner revision is `93bc565`, but Protocol main still pins `9ac80e93`; Task-002/Task-010 repin before consumption. |
+| Engineering Assurance producer-execution request/result `/v1` | `pinned` as owner contracts | Issue 34 closed through PR 46, merge `d9d30232f9a5314d664d87a86346294325831c62`; Task-011 adds the dependency and scenario entries. |
+| qverify `quire-verification/e02-draft-2` | `unresolved` | The reader exists, but its owner document still calls the cross-repository interface provisional. Owner acceptance is tracked by `agent-ix/quire-verification#32`; Protocol does not infer it from code presence. |
+| Quoin Protocol scenario-record intake | `unresolved` | Quoin is a Rust workspace with an evidence store, but exposes no operation accepting FR-017's scenario record. `agent-ix/quoin#519` owns the intake; existing experiment/operational records are not substitutes. |
+| Adapter-selected diagnostic catalog | scenario-specific | FR-008 local causes need none. An adapter that interprets a source catalog adds its exact accepted contract; the proposed FR-270 catalog cannot be selected. |
 
-Stage 1 is unblocked and owes no external party. Stages 2 through 5 are blocked
-on all seven gates above.
+Stage 1 is unblocked. Stages 2 through 5 can close independently for the pinned
+entries; only scenarios requiring one of the unresolved rows remain
+unexecutable.
 
 ### On the owner's assertion
 
 Making publication an owner-recorded assertion is not the self-authorization
 this requirement forbids elsewhere. The forbidden shape is an *offer* supplying
 the context that accepts it: the producer's own bytes selecting their own
-expected values. Here the assertion sits in a B-authored manifest that a producer
+expected values. Here the assertion sits in a Protocol-authored manifest that a producer
 cannot write, and it is falsifiable independently — an entry whose digest does
 not match its bytes refuses regardless of what the assertion claims. The
-assertion records what B was told, not what B verified, and the table above is
-the record of B not having been told it yet by anyone.
+assertion records what Protocol was told, not what Protocol verified.

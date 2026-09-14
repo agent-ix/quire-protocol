@@ -3,13 +3,16 @@ id: Task-011
 title: "Complete shared assurance and qualification"
 type: Task
 status: blocked
-track: Gate
+track: Qualification
 priority: P0
 relationships:
+  - { target: ix://agent-ix/quire-protocol/Task-007, type: depends_on }
+  - { target: ix://agent-ix/quire-protocol/Task-013, type: depends_on }
   - { target: ix://agent-ix/quire-protocol/Task-014, type: depends_on }
   - { target: ix://agent-ix/quire-protocol/Task-008, type: depends_on }
   - { target: ix://agent-ix/quire-protocol/Task-009, type: depends_on }
   - { target: ix://agent-ix/quire-protocol/Task-010, type: depends_on }
+  - { target: ix://agent-ix/quire-protocol/Task-018, type: depends_on }
   - { target: ix://agent-ix/quire-protocol/StR-001, type: references }
   - { target: ix://agent-ix/quire-protocol/FR-006, type: references }
   - { target: ix://agent-ix/quire-protocol/FR-007, type: references }
@@ -21,14 +24,16 @@ relationships:
 
 ## Scope
 
-Exercise canonical/E02 results through accepted Engineering Assurance and Quoin
-interfaces, then run the complete local assurance gate on one unchanged head.
+Own the final `qualification` adapter module. Exercise canonical/E02 results
+through accepted Engineering Assurance and Quoin interfaces, then run the
+complete local assurance gate on one unchanged head.
 
 ## Subtasks
 
-- [ ] Freeze the accepted Engineering Assurance issue 34, E02, Quoin interface,
-  Quoin containment (`quire-research#62`), and shared Rust language-checker
-  (`quire-research#64`) revisions.
+- [ ] Record delivered Engineering Assurance
+  `producer-execution-request/v1` and `producer-execution-result/v1` entries, accepted E02,
+  the future Quoin Protocol scenario-record intake, and the shared Rust language-
+  checker revision.
 - [ ] Implement IT-003 SC-01 through SC-05 without a local runner, stdout verdict parser, evidence store, catalogue, sufficiency decision, or human disposition path.
 - [ ] Complete TC-010 with the accepted shared Rust checker over tracked sources,
   shebangs, manifests, inline workflow commands, generated templates, runtime
@@ -45,5 +50,7 @@ interfaces, then run the complete local assurance gate on one unchanged head.
 
 ## Notes
 
-- Blocked by Tasks 008 through 010 and the accepted external interfaces.
+- Engineering Assurance #34 is delivered. The remaining external gates are E02
+  owner acceptance reconciliation (`agent-ix/quire-verification#32`) and Quoin's
+  missing Protocol scenario intake (`agent-ix/quoin#519`).
 - Do not trigger hosted CI; any workflow present must expose only manual dispatch.

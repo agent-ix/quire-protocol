@@ -15,17 +15,17 @@ relationships:
 
 ## Status
 
-Accepted. The model is specified and the schema is B-owned and unblocked; no
-manifest artifact exists in the tree today, and every entry the specification
-enumerates is `unresolved`.
+Accepted. The model is specified and the schema is Protocol-owned and unblocked;
+no resolver artifact exists in the tree today. Entry status is evaluated per
+contract, so pinnable and unresolved entries coexist without a third status.
 
 ## Context
 
-[FR-009](../functional/FR-009-lock-external-producer-revisions.md) resolves eight
-external producers through one version-lock manifest. Seven of the eight cannot
-currently be pinned at all. Their gates are open, their code is unpublished or
-`publish = false`, their interfaces self-declare provisional, or in two cases no
-Rust-callable boundary exists in any state.
+[FR-009](../functional/FR-009-lock-external-producer-revisions.md) resolves the
+exact external contracts each scenario requires through one version-lock
+manifest. QSL and Engineering Assurance contracts are pinnable; the current
+QObs dependency is stale; qverify's cross-repository acceptance and Quoin's
+Protocol scenario intake remain unresolved.
 
 That state creates enormous pressure for a third status. Something that means
 "this producer is real, we have looked at it, we are building against its names,
@@ -83,27 +83,18 @@ Three structural rules make the statuses meaningful rather than decorative:
 
 ## Consequences
 
-**Nothing runs, and the specification says so in a table rather than in a
-hedge.** FR-009 carries a per-entry status table naming each of the eight
-entries, its gate, and why it cannot be pinned. That table exists because of
-SR-047 FND-002, which verified the claim entry by entry and found that an
-earlier revision exempted one entry and implied the other six were fine. The
-honest form is worse-looking and correct: A version 1 pinned to a commit that is not
-an ancestor of A's `origin/main`, A version 2 in an unpushed worktree, E with no Rust
-interface at any state, F's crate `publish = false` and undeclared as a
-dependency here, Engineering Assurance's seam in no release with its cited
-acceptance revision unreachable after a squash, E02 with zero tags and zero
-releases, the only offered diagnostic catalog stating of itself that it is
-proposed and not adopted, and Quoin exposing no Rust-callable boundary and
-containing no `Cargo.toml`.
+**Only scenarios requiring an unresolved entry are unexecutable.** FR-009's
+per-contract table is the authority. It does not promote a repository merely
+because code exists, and it does not demote a valid exact Git pin because a crate
+sets `publish = false`.
 
 **The two-status model makes the gate order visible, and it is mostly other
 people's.** FR-009's gate order has five stages. Stage 1 — the manifest schema,
 the two-status resolution model, digest recomputation over exact delivered
 bytes, per-key refusal, entry independence, sidecar non-authority, and the
-resolution budget — is B's and owes no external party. Stages 2 through 5 are
-blocked on all seven external gates. TC-013 exists so that stage 1 has a
-B-runnable evidence path against B's own fixtures, which SR-049 FND-002 had
+resolution budget — is Protocol's and owes no external party. Stages 2 through
+5 apply independently to each scenario's required entries. TC-013 exists so
+that stage 1 has a locally runnable evidence path against Protocol-owned fixtures, which SR-049 FND-002 had
 recorded as missing.
 
 **`unexecutable` has to survive contact with a test harness that knows only pass
@@ -114,15 +105,9 @@ explicitly rather than passing vacuously — and that is a convention, not an
 enforced property. An unexecutable scenario silently reported as an ignored test
 is indistinguishable from a scenario nobody wrote.
 
-**AD-001 still names a status this decision removed.** Its Views section states
-that "no producer value enters a boundary whose entry is absent, unpinned,
-provisional, or digest-mismatched", while FR-009 states that each entry carries
-exactly one status, `pinned` or `unresolved`. SR-047 FND-008 was closed on the
-ground that the "provisional" vocabulary "had already been replaced", and it had
-been in FR-009 — but not in AD-001, where the word survives. **Unresolved.**
-Both readings stand as quoted; AD-001's owner decides whether that clause becomes
-"unresolved" or whether a third status is intended after all. AD-001 is not
-edited here.
+AD-001 now uses the same two-status vocabulary. A provisional owner document is
+the reason an entry is `unresolved`; `provisional` is not a third manifest
+status.
 
 **Resolution has its own budget, because it is otherwise the one unbounded
 input.** SR-049 FND-003 recorded that manifest resolution was unbudgeted:

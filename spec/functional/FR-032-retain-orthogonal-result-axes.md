@@ -116,7 +116,7 @@ requirement does not restate their members.
 | Complete-global-conformance closure | `FR-247-complete-global-conformance-closure-state` | value |
 | Assumptions | `FR-280-assumption-state` | value |
 | Claim strength | `FR-281-claim-strength` | value |
-| Result fact set | `FR-240-canonical-protocol-result` | not declared upstream |
+| Result fact set | `FR-240-canonical-protocol-result` | derived under FR-286 |
 
 `FR-247`'s five members — `closed`, `open`, `incomplete`, `contradicted`,
 `not-required` — are adopted by reference, including the `not-required` rule that
@@ -124,32 +124,14 @@ a claim which is not global conformance carries no global premise set. An earlie
 local enumeration of the same five was replaced by this reference rather than
 reconciled with it.
 
-### Where the upstream vocabulary does not yet reach
+### Accepted owner rulings
 
-- **The four progress/closure axes are declared.** `FR-284-scope-progress-and-closure-state`
-  types them: each of decision-scope progress, decision-scope closure,
-  surrounding-execution progress and surrounding-execution closure carries
-  exactly one of `open` or `closed`, and `FR-284` "mints no new spelling".
-  Adopted by reference; this requirement enumerates no member. Input
-  completeness remains outside that vocabulary with no member list, and is
-  `agent-ix/quire-specification`'s (`FR-258` open gap).
-- **Participation is unenumerated at the source.** `FR-240` records:
-  "Participation is unenumerated at the source." Its Open gap adds that the only
-  enumerated participation vocabulary in the specification is FR-062's E02
-  *target* vocabulary, and that FR-240 "does not adopt a target vocabulary as a
-  source one." Neither does this requirement. Owner: `quire-specification`.
-- **Settlement basis membership is not stated uniformly upstream.**
-  `FR-243-settlement-basis` carries a section headed "Recorded divergence:
-  membership is not stated uniformly", opening: "Four requirements state this
-  vocabulary and one of them lists only four members." Its Open gap states:
-  "FR-091 lists four members where FR-061, FR-094-AC-7 and FR-115 list five. No
-  requirement states whether FR-091's evaluator may emit `unavailable`. Both
-  lists are quoted above; this artifact does not merge them." This requirement
-  cites the axis, not a membership. Owner: `quire-specification`.
-- **Protocol claim kind has no label spellings.** `FR-240` records that FR-060
-  "names these in prose and does not give them label spellings; this artifact
-  does not invent any." This requirement carries the claim as an axis and spells
-  no member.
+QSpec #29/#40 fixes the complete axis set: FR-284's four independent
+`open`/`closed` progress/closure values, FR-295 completeness, FR-285
+participation, FR-243's five settlement bases, FR-290 claim kinds, FR-281 claim
+strength/cardinality and FR-286 result identity. The implementation consumes
+those values through one shared internal domain module and never substitutes a
+target E02 spelling or a local alias.
 
 ## Dependencies
 

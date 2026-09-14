@@ -10,13 +10,13 @@ relationships:
 
 ## Description
 
-Verify FR-009's manifest resolution against B-owned fixtures, without any
+Verify FR-009's manifest resolution against Protocol-owned fixtures, without any
 external producer delivery. Resolution is B's own logic; it must not be provable
 only through an integration that waits on someone else.
 
 ## Preconditions
 
-B-owned manifest fixtures only. No fixture is an artifact emitted by an external
+Protocol-owned manifest fixtures only. No fixture is an artifact emitted by an external
 producer, and no assertion in this test case depends on an external revision
 being published.
 
@@ -28,7 +28,9 @@ entry whose recorded digest differs from the bytes; an entry with status
 `unresolved` and a reason; two entries sharing one (owner, contract version)
 key; two entries for one owner at different contract versions; entries naming an
 interface rather than an artifact, carrying a revision and no digest; and byte
-sequences whose canonical re-encoding differs from their delivered form.
+sequences whose canonical re-encoding differs from their delivered form. Each
+interface fixture has an independently compiled accepted owner/contract/revision
+selection. Multi-error manifests are supplied in every presentation order.
 
 ## Test Procedure
 
@@ -65,6 +67,15 @@ sequences whose canonical re-encoding differs from their delivered form.
    - TC-013-SC-08: resolution reads no version-control history, spawns no
      process and opens no network connection, and the owner's immutability
      assertion is read from the entry rather than checked against a history.
+9. Resolve interface entries against the adapter-compiled accepted selection,
+   then mutate only the manifest revision and reuse a capability with another
+   request/value.
+   - TC-013-SC-09: only the exact compiled selection mints a private capability;
+     the revision mutation and cross-request/value reuse each refuse.
+10. Resolve every permutation of one manifest containing multiple bad required
+    keys.
+    - TC-013-SC-10: every permutation returns the same first causing key and
+      partial state under lexicographic required-key validation.
 
 ## Expected Results
 
@@ -76,19 +87,21 @@ refusal is ambiguous about which entry caused it.
 
 - Priority: P0
 - Type: Property
-- Automation: Automated; B-owned fixtures only, no external dependency
+- Automation: Automated; Protocol-owned fixtures only, no external dependency
 
 ## Traceability
 
-Verifies FR-009-AC-1 through FR-009-AC-7 and contributes to NFR-003.
+Verifies FR-009-AC-1 through FR-009-AC-9 and contributes to NFR-003.
 
-This test case additionally backs criteria on the object requirements FR-012, FR-016, FR-017, FR-018, which cite it as their verification. Those criteria are exercised by the same procedure above; a change here that stops exercising them is a change to their coverage, not only to this test case's.
+This test case additionally backs criteria on the object requirements FR-012,
+FR-016 and FR-018, which cite it as their verification. FR-017 composition is
+owned by TC-016 after final outcomes/resources exist.
 
 This test case additionally backs `NFR-006-AC-6`, `NFR-006-AC-7` and
 `NFR-006-AC-8`, the delivery-surface criteria of
 [NFR-006](../non-functional/NFR-006-fix-the-consumed-dependency-set.md), which
 name it as their verification. Their negative controls — an unenumerated file in
 an otherwise complete delivery root, a member's bytes swapped at the same path,
-and an edited or deleted delivery index — run on the B-owned fixtures above and
+and an edited or deleted delivery index — run on the Protocol-owned fixtures above and
 require no producer delivery. NFR-006's five closure criteria, `NFR-006-AC-1`
 through `NFR-006-AC-5`, verify by inspection and are not backed here.

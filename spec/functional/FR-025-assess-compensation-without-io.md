@@ -64,7 +64,7 @@ only the library's own API surface and declared dependency inventory, as
 This requirement defines no protocol noun. It constrains the execution of the
 requirements that do, and names no subject upstream types.
 
-### Where the upstream vocabulary does not yet reach
+### Protocol-owned containment boundary
 
 No upstream artifact enumerates the capability axes this requirement rejects.
 The five axes named here — network, storage, telemetry, business operation and

@@ -31,9 +31,11 @@ When either FR-029 or FR-030 is unsatisfied for a requested claim, the dispatche
 
 ## Inputs
 
-Exact conformance, monitorability, projection, realizability, refinement, or
-composition requests with admitted fragments, backends, assumptions, budgets,
-and source/derived-artifact identities.
+The exact conformance report produced by FR-004 plus ordered conformance,
+monitorability, projection, realizability, refinement, or composition requests
+with admitted fragments, closed backend selections, assumptions, budgets, and
+source/derived-artifact identities. Production callers SHALL NOT supply an
+arbitrary backend implementation or callback.
 
 ## Outputs
 
@@ -63,6 +65,12 @@ The rule that finite conformance stays available when projection is unsupported
 is FR-029's; the rule that a failed backend is never replaced by an unreviewed
 fallback is FR-030's. Neither is restated here.
 
+The dispatcher SHALL derive finite conformance directly from the supplied
+report. It SHALL invoke only a reviewed built-in backend selected by the closed
+capability table. A claim without such a backend is `unsupported`; a test double
+or caller callback is not a capability. Dispositions preserve request order and
+are never sorted by their result or claim identities.
+
 ## Acceptance Criteria
 
 | ID | Criteria | Verification |
@@ -70,7 +78,7 @@ fallback is FR-030's. Neither is restated here.
 | FR-005-AC-1 | Claim independence over the whole dispatch is exactly what [FR-029](./FR-029-return-one-disposition-per-requested-claim.md) establishes: a monitorable but unprojectable protocol retains its finite conformance result and an independent projection refusal, and no aggregate path derives one claim's disposition from another's. | Test (TC-005) |
 | FR-005-AC-2 | Non-inference over the whole dispatch is exactly what [FR-029](./FR-029-return-one-disposition-per-requested-claim.md)-AC-2 enforces: satisfiable-but-unrealizable and circular-assumption cases cannot produce realizability or composition success. | Test (TC-005) |
 | FR-005-AC-3 | Unsupported handling over the whole dispatch is exactly what [FR-029](./FR-029-return-one-disposition-per-requested-claim.md)-AC-3 enforces: unknown or unimplemented advanced claims return unsupported with exact premises and cannot erase a supported result. | Test (TC-005) |
-| FR-005-AC-4 | Backend failure over the whole dispatch is what [FR-029](./FR-029-return-one-disposition-per-requested-claim.md)-AC-4 and [FR-030](./FR-030-bind-each-disposition-to-its-exact-premises.md)-AC-3 jointly enforce: a selected backend failure returns failed for only that claim and invokes no fallback. | Test (TC-005) |
+| FR-005-AC-4 | Backend failure over the whole dispatch is what [FR-029](./FR-029-return-one-disposition-per-requested-claim.md)-AC-4 and [FR-030](./FR-030-bind-each-disposition-to-its-exact-premises.md)-AC-3 jointly enforce: a selected built-in backend failure returns failed for only that claim and invokes no fallback, while an absent built-in backend is unsupported and cannot be replaced by a caller callback. | Test (TC-005) |
 | FR-005-AC-5 | Premise binding over the whole dispatch is exactly what [FR-030](./FR-030-bind-each-disposition-to-its-exact-premises.md) enforces: every claim disposition retains its exact admitted fragment, backend, assumptions, communication/visibility/environment premises and source/derived-artifact correspondence, and removing or substituting any one refuses that disposition without changing independent results. | Test (TC-005) |
 
 ## Adopted vocabulary
@@ -93,25 +101,14 @@ does not remove an independent supported result, and a failed selected backend
 fails for that exact claim without invoking a fallback or changing independent
 results. The Outputs list is therefore a reference, not a local enumeration.
 
-### Where the upstream vocabulary does not yet reach
+### Accepted owner rulings
 
-The gaps are recorded once, in the part that depends on each:
-
-- `FR-029` records that the six claim kinds this requirement's Inputs name —
-  conformance, monitorability, projection, realizability, refinement,
-  composition — are typed by no upstream object, so "one disposition per exact
-  claim" has no upstream equality over claims; and that `FR-281` does not state
-  whether a claim may carry more than one strength.
-- `FR-030` records that the admitted fragment and the analysis backend are typed
-  by no upstream object either, that `FR-283` and `FR-249` assign a
-  recomputed-digest mismatch to two different refusal codes and neither is
-  authoritative, that two code-spelling conventions coexist with no namespace
-  rule, that role internality has no normative spelling, and that the protocol
-  subject membership is stated four ways.
-
-Every one of those is owned by `agent-ix/quire-specification`. None is supplied
-locally: a locally authored claim-kind, fragment or backend vocabulary would be
-the second locally authored profile `FR-001` exists to refuse.
+QSpec #29/#31/#40 fixes FR-290 claim kinds, FR-281 strength/cardinality, FR-291
+admitted fragments, FR-292 analysis backends, FR-217 role internality,
+FR-210/FR-287 subject membership and FR-283 projection refusal codes. Protocol
+imports those exact values. Production exposes no arbitrary backend callback;
+an advanced claim without an accepted local implementation returns
+`unsupported` and invokes no fallback.
 
 ## Dependencies
 

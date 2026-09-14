@@ -151,16 +151,14 @@ B-authored fixture root can carry an unenumerated file.
   containment that keeps every metric here offline;
   [NFR-004](./NFR-004-define-local-verification-gate.md) owns the gate commands
   AC-5 declines to duplicate.
-- **Downstream**: [TM-001](../tests.md) does not yet carry a row for this
-  requirement, and TC-013's Traceability does not yet name it. Both are
-  outstanding back-edges, not claims of coverage.
+- **Downstream**: [TM-001](../tests.md) carries this requirement and TC-013's
+  Traceability names its delivery-surface criteria. Task-008 performs the final
+  bidirectional source/rights reconciliation after every implementation pin.
 
 ## Status
 
-Draft, and unexecuted. Nothing here asserts a producer result. AC-1 through AC-5
-are static facts over B's own tree and are runnable now; AC-4 is stated knowing
-it fails today, which is the point of writing it. AC-6 through AC-8 run on
-B-owned fixture roots under TC-013 and need no producer delivery, but no pinned
-delivery root exists in the tree: FR-009 reports every entry `unresolved`, so no
-criterion here has been observed against a real producer shipment and none
-claims to have been.
+In progress. The current lock has 132 non-root packages and five git sources;
+Cargo/rights records cover the current exact pins, including QSL `f1700a9`.
+TC-013 owns the runnable delivery-surface controls. Task-002 must repin QObs from
+`9ac80e9` to accepted `93bc565`, and every later pin must update Cargo.lock and
+DEPENDENCIES.md in the same ticket before this requirement can close.

@@ -88,27 +88,14 @@ is itself a positive assertion about closure and completeness.
 exercises: "Substituting O2's trigger, a changed capture or a different
 evaluation anchor refuses the binding."
 
-### Where the upstream vocabulary does not yet reach
+### Accepted owner ruling
 
-- **Whether an unavailable required trigger is an activation value or a
-  completeness value.** `FR-231`'s open gap records three requirements that do
-  not agree, and states that "The selection belongs to an owner ruling, not to
-  this artifact." `FR-055` Behavior reads one axis with two values: "An absent
-  trigger under complete closed input yields inactive; an unavailable required
-  trigger yields activation-unknown or incomplete." `FR-061`, as quoted by
-  `FR-231`, reads two retained facts: "Activation is activation-unknown | Truth
-  is unavailable and completeness is open or incomplete with the missing trigger
-  dependencies." AC-1 above carries FR-003's existing wording unchanged and
-  selects neither reading. The owner is `agent-ix/quire-specification`.
-- **The pre-report state of an obligation.** `FR-231`'s open gap states that
-  "`scope_linked` is authored scaffolding that no requirement establishes", and
-  that no requirement names a state an obligation occupies before its activation
-  is reported. This requirement therefore reports activation without naming a
-  prior state.
-- **The key of a whole-execution-origin obligation instance.** `FR-230`'s open
-  gap records that it is not established whether such an instance carries a
-  trigger-event identity component at all. AC-4's absence comparison rests on a
-  key upstream has not fixed for that case.
+QSpec #40 fixes the rule: a closed complete trigger scope with no admitted
+trigger is `inactive`; an open scope or missing/refused trigger evidence is
+`activation-unknown`. Completeness, execution and progress/closure remain
+independent. A false admitted guard creates no obligation instance and no
+activation value. The implementation imports that ruling and invents no
+pre-report lifecycle state.
 
 ## Dependencies
 

@@ -94,7 +94,7 @@ or removing a manifest case changes no obligation stated here.
   side.
 - **Digest domain** — not applicable to the pair itself. Where a `value` is a
   digest, its domain membership is
-  `FR-015-digest-domain-membership`'s subject, and a digest from one
+  [FR-015](./FR-015-digest-domain-selection.md)'s subject, and a digest from one
   domain presented in another domain's slot is unequal in both directions.
 
 ## Symmetric refusal, asymmetric reason

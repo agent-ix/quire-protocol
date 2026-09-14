@@ -28,14 +28,14 @@ The library SHALL represent an absent refusal component as an explicit absence d
 
 ## Scope
 
-Applies to every value a public operation returns instead of its declared
-success value: the typed refusal envelope of
+Applies to every typed non-success value a public operation returns: the refusal
+envelope of
 [FR-008](../functional/FR-008-return-typed-refusals.md), the
 resource-incomplete outcome of
-[NFR-002](./NFR-002-enforce-resource-bounds.md), and the completed-empty result
-the three-way distinction in
-[FR-014](../functional/FR-014-typed-outcome-identity.md) keeps separate from
-both.
+[NFR-002](./NFR-002-enforce-resource-bounds.md), and FR-241's semantic refused,
+unsupported, failed and resource-incomplete claim rows. The completed-empty
+result is a success but remains pairwise distinct from both under
+[FR-014](../functional/FR-014-typed-outcome-identity.md).
 
 Applies to the **return channel**: what the value carries, and how a caller
 reaches it. It does not apply to logging, telemetry, tracing, metrics, or
@@ -49,7 +49,7 @@ hands back.
 
 Does not apply to:
 
-- Which fields the envelope has. FR-008 owns the five-member domain, the stable
+- Which fields the envelope has. FR-008 owns the seven-member domain, the stable
   source code, the catalog selection, the originating stage and prerequisites,
   the affected identity, the location, the ordered causes, and the partial-output
   state, and this requirement adds no member and renames none.
@@ -57,9 +57,10 @@ Does not apply to:
   its key, and the injectivity of the axis-to-identity mapping. This requirement
   does not restate injectivity; it requires that whatever injectivity FR-014
   obliges be **decidable from the returned value with no input beyond it**.
-- The envelope's interior vocabulary. Upstream `FR-270` through `FR-274` own it,
-  and each open gap is cited in FR-008 and FR-014 rather than closed locally. No
-  member list, key, order or spelling is supplied here.
+- A source envelope's interior vocabulary. Its selected source contract owns
+  that vocabulary. FR-008 owns the complete local stage/cause vocabulary and
+  retains a known source cause exactly; an unknown source contract remains
+  uninterpreted under `unsupported-source-contract`.
 
 ### Boundary against the neighbouring non-functional requirements
 
@@ -168,7 +169,7 @@ mutation cannot be run is recorded as unexecutable rather than as passing.
 | NFR-008-AC-5 | Every envelope component any acceptance criterion relies on is reachable through a public typed accessor on the returned value; making one relied-on accessor private, or moving one component behind a rendered form only, fails the discrimination harness to compile rather than silently weakening a check. | Inspection |
 | NFR-008-AC-6 | An absent location, stage, prerequisite or cause chain compares unequal to a present component of that kind whose content is empty, and is never defaulted to it; a fixture pair differing only in absent-versus-empty that compares equal fails the criterion and names the component. | Test (TC-011) |
 | NFR-008-AC-7 | Two runs on identical inputs return non-success values that compare equal component by component, with the observed elapsed time of a resource-incomplete outcome excluded; a value carrying an allocation address, a wall-clock reading, a locale-dependent rendering or a map-iteration artefact fails the criterion and names that component. The reproduction method is [NFR-001](./NFR-001-reproduce-semantic-results.md)'s and is not restated here. | Test (TC-008) |
-| NFR-008-AC-8 | An owed refusal axis that cannot be observed because its contract version or its diagnostic catalog is `unresolved` under [FR-009](../functional/FR-009-lock-external-producer-revisions.md) is reported unexecutable and counted as zero in the denominators above; reporting such an axis as passing, or omitting it from the denominator, fails this criterion. | Inspection |
+| NFR-008-AC-8 | An owed source-refusal axis that cannot be observed because its selected source contract is `unresolved` under [FR-009](../functional/FR-009-lock-external-producer-revisions.md) is reported unexecutable and counted as zero; local Protocol refusal axes remain executable without an external diagnostic catalog. | Inspection |
 
 ## Dependencies
 
@@ -189,36 +190,18 @@ mutation cannot be run is recorded as unexecutable rather than as passing.
   language and containment; it forbids `unsafe` and it forbids local runners, and
   it forbids neither an out-of-band write nor a panic, which is why AC-3 and AC-4
   are stated here.
-- **Upstream gaps cited, not closed**: `ix://agent-ix/quire-specification/FR-270`
-  through `FR-274` own the envelope's interior. FR-270's catalog is not an adopted
-  selection and is an `unresolved` FR-009 entry; FR-271 through FR-274 each record
-  an open gap that FR-008 and FR-014 enumerate. No member list, key, order or
-  spelling is supplied here.
+- **Source contracts**: `ix://agent-ix/quire-specification/FR-270` through
+  `FR-274` are informative catalog objects. Protocol does not require them for
+  its local envelope. An adapter selects an accepted source diagnostic contract
+  explicitly or preserves it uninterpreted; it never guesses a nearest version.
 - **Downstream**: [TM-001](../tests.md) carries this requirement's row and names
   TC-008/TC-011 as the planned evidence. Neither test's Rust trace attributes
   yet name an NFR-008 criterion, so the matrix plan is not an execution claim.
 
 ## Status
 
-Draft and partially implemented, but unexecuted as a complete requirement.
-Nothing here asserts that every owed refusal axis has been observed.
-
-- C-01's `ProtocolRefusal` envelope and local code registry exist in
-  `src/refusal/`. C-05 separately retains A's complete typed admission `Error`
-  and stable code rather than formatting it. The two are not yet joined:
-  selected-catalog validation is blocked on upstream FR-270, and typed cause
-  construction is blocked on upstream FR-272. The complete returned-value
-  requirement therefore remains planned.
-- AC-3 and AC-4 are the two criteria measurable against the tree today, and both
-  hold so far: `src/` contains no `println!` or `eprintln!` at all, and outside
-  doc comments and `#[cfg(test)]` modules no `panic!`, `unwrap()` or `expect(`.
-  That is a baseline worth recording precisely because it is cheap to lose once
-  the envelope lands — and it was nearly lost by C-13, whose `Diagnostics::first`
-  carried an `expect` asserting an invariant the type did not enforce until the
-  type was reshaped to enforce it.
-- AC-1, AC-2, AC-6 depend on TC-011, which [TM-001](../tests.md) records as
-  planned. AC-7 depends on TC-008, whose reproduction-record slice has executed
-  and whose full mutation matrix has not.
-- AC-8 is the honest denominator: the diagnostic catalog is an `unresolved`
-  FR-009 entry and the version 2 contract version is another, so every axis whose
-  observation depends on either is currently counted as zero.
+In progress. The current refusal envelope/catalog and source-error retention
+exist but are not yet one public outcome surface. Task-017 establishes the
+shared operation/refusal foundation; Task-006 routes every final public path;
+Task-008 closes reproduction and source inventory. No local refusal axis is
+blocked on the proposed QSpec diagnostic catalog.

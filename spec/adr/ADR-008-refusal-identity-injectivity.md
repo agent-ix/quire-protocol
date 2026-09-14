@@ -17,8 +17,8 @@ relationships:
 
 ## Status
 
-Accepted, and the reason the requirement exists is a defect that shipped. FR-014
-itself is marked Draft and records an unresolved conflict in its source material.
+Accepted, and the reason the requirement exists is a defect that shipped.
+FR-014 now records the resolved two-level operation/claim outcome algebra.
 
 ## Context
 
@@ -91,12 +91,13 @@ Three directions are fixed deliberately:
   display text, locale or cause rendering, and changing any of them changes no
   identity, no equality comparison and no retry decision.
 
-Three outcomes are non-equivalent and none is reportable as another: a
-resource-incomplete outcome ([NFR-002](../non-functional/NFR-002-enforce-resource-bounds.md)),
-a typed refusal ([FR-008](../functional/FR-008-return-typed-refusals.md)), and a
-completed assessment whose finding set is legitimately empty
-([FR-006](../functional/FR-006-produce-canonical-protocol-results.md)). Neither
-non-success outcome yields an E02 success.
+The two-level outcome algebra is non-collapsing: an outer resource-incomplete
+outcome ([NFR-002](../non-functional/NFR-002-enforce-resource-bounds.md)), an
+outer or claim-local typed refusal
+([FR-008](../functional/FR-008-return-typed-refusals.md)), every FR-241 semantic
+claim disposition and a completed assessment whose finding set is legitimately
+empty ([FR-006](../functional/FR-006-produce-canonical-protocol-results.md)) are
+pairwise non-interchangeable. No non-success outcome yields an E02 success.
 
 ### The key cannot be the oracle
 
@@ -122,27 +123,19 @@ every scenario's outcome trivially distinct and destroy the collision check.
 
 **Discrimination is B's work, because the producer's codes do not discriminate.**
 The measured fact above is not incidental: A returns one code across three axes.
-FR-008 therefore owns the envelope — its five-member domain, the partial-output
+FR-008 therefore owns the envelope — its seven-member domain, the partial-output
 state, the local `unsupported-source-contract` disposition — while treating the
 interior as upstream's and copying it byte-exactly. SR-027's remediation is a
 B-owned discriminating layer, and SR-027 FND-003 records that it is incomplete:
 per-source, per-dependency and per-model digest slots are unguarded, and only
 the three top-level selection references are covered.
 
-**The obligation rests on upstream vocabularies that carry open gaps.**
-FR-014-AC-1 compares an `FR-271` code and an `FR-272` typed cause. FR-008 records
-that `FR-271` states no convention-to-namespace mapping and places no literal
-code in a selected catalog, that `FR-272` gives its payload components no stable
-field names, total order or spelling convention, that `FR-273`'s producer-stage
-membership is contested between two sources upstream quotes verbatim and prefers
-neither, and that the diagnostic catalog itself is not adopted — FR-270 records
-of the only catalog so far offered that it "states of itself: \"**Proposed, not
-adopted or implemented.**\"" FR-014 argues that injectivity is nevertheless
-statable, because it is a property of the mapping from axis to identity and not
-of the interior's spelling. That argument is sound and it does not make the
-criterion runnable: comparing two interiors requires knowing what an interior
-is, and no adopted artifact supplies that today. Under FR-009 the catalog entry
-is `unresolved`.
+**Local and source interiors remain separate.** Protocol's local refusal paths
+use FR-008's accepted closed causes and stages. A known source response retains
+the exact interior its selected contract publishes; an unknown contract remains
+opaque under `unsupported-source-contract`. The proposed QSpec diagnostic
+catalog is not required by local paths and does not block their injectivity
+tests.
 
 **A new axis is a breaking change to the identity space.** Adding a refusal axis
 requires a distinct interior for it against every existing axis in the same
@@ -162,14 +155,10 @@ code, and a test fails if any A variant published at the pinned revision reaches
 it — but a variant added in a future A revision is caught only after the pin
 moves.
 
-**The three-way outcome distinction is unreconciled upstream of this decision,
-and FR-014 says so rather than resolving it.** FR-014's Status records that
-SR-046 FND-003 and the failure-domain review's FND-010 both find that
-"incomplete" carries unreconciled senses across NFR-002, FR-008 and
-IT-003-SC-06, and that no functional requirement introduces incompleteness as a
-third outcome kind. FR-014 types the distinction IT-003-SC-06 depends on and
-names the gap; it does not author the incomplete-reason vocabulary. **This is
-open**, and the incomplete-reason vocabulary originates outside this boundary.
+**The outcome distinction is explicit.** A pre-row resource-incomplete
+operation outcome, a Protocol refusal, a semantic FR-241 non-success row and a
+completed-empty row are pairwise non-interchangeable. FR-014 and FR-006 record
+the two-level algebra; resource exhaustion is never a refusal cause.
 
 ## Alternatives considered
 

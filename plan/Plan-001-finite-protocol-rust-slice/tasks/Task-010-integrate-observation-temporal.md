@@ -2,8 +2,8 @@
 id: Task-010
 title: "Integrate observation and temporal facts"
 type: Task
-status: blocked
-track: B
+status: in_progress
+track: Producer-Integration
 priority: P0
 relationships:
   - { target: ix://agent-ix/quire-protocol/Task-006, type: depends_on }
@@ -16,14 +16,19 @@ relationships:
 
 ## Scope
 
-Exercise accepted F/E-owned decision-scope and surrounding-execution
-progress/closure, the PT02-owned complete-global-conformance closure record,
-settlement, decision-support, observation, and temporal facts through
-compensation, conformance, and canonical results.
+Exercise accepted QObs decision-scope and surrounding-execution authority facts,
+the Protocol-owned complete-global-conformance closure record, and accepted QSL
+native-temporal results through compensation, conformance and canonical results.
 
 ## Subtasks
 
-- [ ] Freeze exact accepted observation and temporal producer revisions with all canonical-result input dimensions.
+- [ ] Repin QObs to accepted `93bc565` and resolve only the scenario-used
+  `record/v2`, `population/v2`, `explicit-members/v1`, `position-ledger/v1`,
+  `clock-binding/v1`, `capture-environment/v1`, `progress-assertion/v1`,
+  `closure-assertion/v1`, `completeness-assertion/v1` and
+  `result-availability/v1` owner contracts; resolve QSL
+  `quire.native-temporal-request/v1` and `quire.native-temporal-result/v1` at the
+  accepted compiler pin.
 - [ ] Implement IT-002 SC-01 through SC-04 as Rust integration tests.
 - [ ] Preserve producer identities and authorities without deriving missing facts or copying producer semantics.
 - [ ] Exercise decisive and non-decisive open prefixes, missing support,
@@ -39,9 +44,10 @@ compensation, conformance, and canonical results.
 
 ## Notes
 
-- F's complete canonical-result consumer shape is present in Quire Specification
-  PR #15 at `d8d984b542fe30f65b6e07f4a07b2d1f81d3962b`, including all five
-  progress/closure axes and premise mutations. It remains an unaccepted input
-  until the composed baseline is reviewed and promoted.
-- Blocked by Task-006, composed acceptance of that F consumer, and the accepted
-  temporal profile.
+- QObs FR-287/FR-262 and authority facts are delivered; the current Protocol pin
+  is merely stale. QSL supplies the native-temporal request/result owner types.
+- QCI's accepted FR-025 bridge consumes Protocol leaf-result views downstream
+  to construct valuations; QCI #71 then joins QSL-native and TL formula-wide
+  owner results. Neither QCI output is a Protocol production dependency.
+- The remaining production prerequisite is Task-006, not an F-owned result mapper
+  or PT02 producer.
