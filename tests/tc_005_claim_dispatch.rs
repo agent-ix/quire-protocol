@@ -2,8 +2,12 @@
 //! TC-005: exact premise-bound, independent claim dispatch.
 
 use ix_trace_rs::trace;
+use quire_protocol::bounds::inventory::{
+    production_inventory, Budget, BudgetDimension, OperationOutcome, ResourceAccountant,
+};
 use quire_protocol::claims::dispatch::{
-    dispatch, Backend, BackendExecution, BackendReply, ClaimRequest, Decision, FailureCode, Limits,
+    dispatch, dispatch_bounded, Backend, BackendExecution, BackendReply, ClaimRequest, Decision,
+    FailureCode, Limits,
 };
 use quire_protocol::claims::premises::{
     Assumption, AssumptionState, BackendSelection, Component, CorrespondenceAuthority,
@@ -70,6 +74,26 @@ fn request<'a>(
         premises: premise_set(backend),
         correspondence: Some(correspondence),
     }
+}
+
+fn two_requests(correspondence: &dyn CorrespondenceAuthority) -> Vec<ClaimRequest<'_>> {
+    let selection = BackendSelection::retained(b"backend:one".to_vec(), b"v1".to_vec());
+    vec![
+        request(
+            "request:one",
+            Claim::Conformance,
+            "tested",
+            selection.clone(),
+            correspondence,
+        ),
+        request(
+            "request:two",
+            Claim::Projection,
+            "tested",
+            selection,
+            correspondence,
+        ),
+    ]
 }
 
 struct FakeBackend {
@@ -416,6 +440,60 @@ fn tc_005_dispatch_limits_are_checked_before_backend_calls() {
     let refusal = dispatch(&requests, &mut backends, limits).expect_err("one over request bound");
     assert_eq!(refusal.usage().requests, 1);
     assert!(backend.calls.is_empty());
+}
+
+#[trace("TC-005", "TC-009", "NFR-002-AC-1", "NFR-002-AC-4", "FR-016-AC-2")]
+#[test]
+fn tc_009_dispatch_charges_caller_operations_before_backend_calls() {
+    let inventory = production_inventory().expect("production inventory");
+    let correspondence = ExactCorrespondence;
+
+    let requests = two_requests(&correspondence);
+    let mut backend = FakeBackend::new(
+        "backend:one",
+        "v1",
+        vec![Claim::Conformance, Claim::Projection],
+    );
+    let mut backends: [&mut dyn Backend; 1] = [&mut backend];
+    let short = Budget::nothing_granted()
+        .grant(BudgetDimension::Operation, 1)
+        .expect("positive one-short grant");
+    let mut resources = ResourceAccountant::new(short, &inventory);
+    let OperationOutcome::ResourceIncomplete(incomplete) =
+        dispatch_bounded(&requests, &mut backends, Limits::default(), &mut resources)
+    else {
+        panic!("one-short operation budget must be resource-incomplete");
+    };
+    assert_eq!(incomplete.dimension(), BudgetDimension::Operation);
+    assert!(
+        backend.calls.is_empty(),
+        "no backend call started past the grant"
+    );
+    assert_eq!(
+        resources.usage().consumed(BudgetDimension::Operation),
+        0,
+        "multi-dimension preflight is transactional"
+    );
+
+    let requests = two_requests(&correspondence);
+    let mut backend = FakeBackend::new(
+        "backend:one",
+        "v1",
+        vec![Claim::Conformance, Claim::Projection],
+    );
+    let mut backends: [&mut dyn Backend; 1] = [&mut backend];
+    let exact = Budget::nothing_granted()
+        .grant(BudgetDimension::Operation, 2)
+        .expect("positive exact grant");
+    let mut fresh = ResourceAccountant::new(exact, &inventory);
+    let OperationOutcome::Completed(report) =
+        dispatch_bounded(&requests, &mut backends, Limits::default(), &mut fresh)
+    else {
+        panic!("fresh exact operation budget must complete");
+    };
+    assert_eq!(report.dispositions.len(), 2);
+    assert_eq!(backend.calls.len(), 2);
+    assert_eq!(fresh.usage().consumed(BudgetDimension::Operation), 2);
 }
 
 fn empty_fragment(premises: &mut PremiseSet) {

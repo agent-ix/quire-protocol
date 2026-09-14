@@ -11,7 +11,7 @@ use crate::refusal::{
 };
 use crate::ByteDigest;
 
-use crate::bounds::inventory::{BudgetDimension, SourceSite};
+use crate::bounds::inventory::{BudgetDimension, OperationOutcome, ResourceAccountant, SourceSite};
 use crate::bounds::{SiteId, SiteKind};
 
 use super::premises::{self, CorrespondenceAuthority, PremiseDefect, PremiseSet};
@@ -462,6 +462,36 @@ pub fn dispatch(
         dispositions,
         usage,
     })
+}
+
+/// Dispatch under the shared QProtocol caller budget.
+///
+/// The complete input, result, derived-artifact, and operation increments are
+/// charged transactionally before any backend call or result allocation. The
+/// module's immutable owner maxima remain independently enforced by
+/// [`dispatch`]; caller grants can lower work admitted at this boundary but
+/// cannot raise those maxima.
+pub fn dispatch_bounded(
+    requests: &[ClaimRequest<'_>],
+    backends: &mut [&mut dyn Backend],
+    limits: Limits,
+    resources: &mut ResourceAccountant<'_>,
+) -> OperationOutcome<Report, Refusal> {
+    let preflight = preflight(requests, backends.len());
+    let derived = requests
+        .iter()
+        .filter(|request| request.premises.derived_artifact.is_some())
+        .count();
+    let charges = [
+        (super::premises::INPUT_SOURCE.id(), preflight.bytes),
+        (RESULT_SOURCE.id(), requests.len()),
+        (DERIVED_SOURCE.id(), derived),
+        (OPERATION_SOURCE.id(), requests.len()),
+    ];
+    if let Err(error) = resources.charge_all(&charges) {
+        return OperationOutcome::from_charge(error);
+    }
+    OperationOutcome::from_domain(dispatch(requests, backends, limits))
 }
 
 fn request_defects(request: &ClaimRequest<'_>) -> Vec<PremiseDefect> {

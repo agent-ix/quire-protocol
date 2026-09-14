@@ -631,6 +631,66 @@ pub enum ChargeError {
     },
 }
 
+/// Internal accounting fault, structurally separate from budget exhaustion.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum AccountingFault {
+    /// The source site did not survive inventory reconciliation.
+    UnregisteredSite { site: SiteId },
+    /// The usage accumulator itself cannot represent the requested total.
+    CounterOverflow {
+        /// Site being charged.
+        site: SiteId,
+        /// Usage before the failed increment.
+        consumed: usize,
+        /// Requested increment.
+        requested: usize,
+    },
+}
+
+/// One bounded operation's typed outcome.
+///
+/// Resource exhaustion is neither a domain refusal nor an internal accounting
+/// defect. Keeping all four arms at the type boundary prevents a caller from
+/// treating a budget-short run as an assertion about admissibility.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum OperationOutcome<T, E> {
+    /// The operation completed and returned its value.
+    Completed(T),
+    /// The operation reached its own typed domain error or refusal.
+    DomainError(E),
+    /// A caller grant stopped the operation before its excess unit began.
+    ResourceIncomplete(ResourceIncomplete),
+    /// The inventory or accounting mechanism itself is inconsistent.
+    AccountingFault(AccountingFault),
+}
+
+impl<T, E> OperationOutcome<T, E> {
+    pub(crate) fn from_domain(result: Result<T, E>) -> Self {
+        match result {
+            Ok(value) => Self::Completed(value),
+            Err(error) => Self::DomainError(error),
+        }
+    }
+
+    pub(crate) const fn from_charge(error: ChargeError) -> Self {
+        match error {
+            ChargeError::ResourceIncomplete(incomplete) => Self::ResourceIncomplete(incomplete),
+            ChargeError::UnregisteredSite { site } => {
+                Self::AccountingFault(AccountingFault::UnregisteredSite { site })
+            }
+            ChargeError::CounterOverflow {
+                site,
+                consumed,
+                requested,
+            } => Self::AccountingFault(AccountingFault::CounterOverflow {
+                site,
+                consumed,
+                requested,
+            }),
+        }
+    }
+}
+
 impl fmt::Display for ChargeError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -788,6 +848,26 @@ impl<'inventory> ResourceAccountant<'inventory> {
             }
         }
         self.usage.consumed[dimension.index()] = next;
+        Ok(())
+    }
+
+    /// Transactionally charge all pre-work increments for one operation.
+    ///
+    /// If any dimension cannot admit its increment, every earlier tentative
+    /// charge is rolled back. This is accounting rollback only: callers must
+    /// invoke it before any represented work begins.
+    ///
+    /// # Errors
+    ///
+    /// Returns the first charge error in declared order with usage unchanged.
+    pub fn charge_all(&mut self, charges: &[(SiteId, usize)]) -> Result<(), ChargeError> {
+        let before = self.usage;
+        for (site, requested) in charges {
+            if let Err(error) = self.charge(*site, *requested) {
+                self.usage = before;
+                return Err(error);
+            }
+        }
         Ok(())
     }
 }
