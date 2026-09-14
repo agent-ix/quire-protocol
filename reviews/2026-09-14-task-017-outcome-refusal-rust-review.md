@@ -42,6 +42,7 @@ panic-surface, resource, trace or gate-integrity finding.
 | Replacing the original TC-011 file dropped mutation controls for catalog root/domain/grammar drift, quote/comment scanner handling, stale exemptions, inverted spans, identity components and hashing. | medium | Restored the full regression inventory and expanded it with the new outcome, stage/domain, typed-cause, source-contract and collision cases; the focused lane is now 30 tests. |
 | Boxing the now-box-backed `ProtocolRefusal` again in subsystem refusals added a redundant allocation. | low | Store `ProtocolRefusal` directly in conformance, claim and result refusals; the envelope itself owns the single size-stabilizing box. |
 | New tests carried `Task-017` through the runtime trace attribute even though the active Quire model mints requirement/test rows, producing 29 new untracked symbols. | medium | Retained Task-017 in human trace comments and removed it from machine trace attributes; current coverage reports zero Task-017 untracked symbols. |
+| The frozen IT-001 source-module inventory did not admit the new `outcome.rs` module, so the complete local test gate refused the candidate. | medium | Added `outcome.rs` to the exact frozen inventory; the focused IT-001 lane and the repeated complete unchanged-head gate pass. |
 
 ## Rust review
 
