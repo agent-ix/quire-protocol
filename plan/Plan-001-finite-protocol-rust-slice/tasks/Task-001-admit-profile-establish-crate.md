@@ -2,7 +2,7 @@
 id: Task-001
 title: "Admit the selected profile and establish the Rust crate"
 type: Task
-status: blocked
+status: done
 track: A
 priority: P0
 relationships:
@@ -24,13 +24,13 @@ through the contract's lossless numeric wire profile.
 ## Subtasks
 
 - [x] Apply the selected `AGPL-3.0-or-later` license and record its compatibility policy.
-- [ ] Complete dependency compatibility review before adding `Cargo.toml` or source.
-- [ ] Write TC-001 first with the accepted artifact and every one-axis contract,
+- [x] Complete dependency compatibility review before adding `Cargo.toml` or source.
+- [x] Write TC-001 first with the accepted artifact and every one-axis contract,
   producer, identity, state, resealing, feature, unsafe-number,
   non-canonical-number, boundary, invalid-rational, and digest-domain mutation.
-- [ ] Add the minimal Rust crate with forbidden unsafe code, denied warnings, pinned dependencies, and no automatic workflow trigger.
-- [ ] Recompute all accepted-baseline and dependency identities before dependent reads and return the FR-008-compatible typed admission refusal.
-- [ ] Bind every acceptance test to FR-001 and its upstream source obligations with bare `ix-trace-rs` declarations.
+- [x] Add the minimal Rust crate with forbidden unsafe code, denied warnings, pinned dependencies, and no automatic workflow trigger.
+- [x] Recompute all accepted-baseline and dependency identities before dependent reads and return the FR-008-compatible typed admission refusal.
+- [x] Bind every acceptance test to FR-001 and its upstream source obligations with bare `ix-trace-rs` declarations.
 
 ## Deliverables
 
@@ -38,12 +38,30 @@ through the contract's lossless numeric wire profile.
 
 ## Notes
 
-- Blocked by acceptance and exact freeze of the coherent composed baseline, which
-  must carry the integrated FR-061/FR-062 semantics, and by the A-owned
-  versioned compiled-protocol artifact contract and numeric wire profile tracked by
-  [quire-spec-language#40](https://github.com/agent-ix/quire-spec-language/issues/40).
-- No source or dependency manifest may be added while either source gate remains open.
+- The former external blockers are delivered. Quire Specification PR #15
+  accepted the coherent baseline; quire-spec-language `v0.2.0` and the exact
+  pinned post-release revision `7931a0021612d26132ea8bbef3b0cd19b27248e0`
+  publish the versioned readers, lossless numeric profile and default-running
+  version 2 handoff.
+- Task-001 closes TC-001 and FR-001-AC-1 through FR-001-AC-4. Task-009 retains
+  FR-001-AC-5 and IT-001 SC-06a's complete two-revision version 1 comparison;
+  that independent integration remainder does not block the strict admission
+  and finite-link prerequisite used by Task-002.
 - C-05 now retains every A-owned admission error as the exact published `Error`
   value and delegates its stable code to `Error::code`; `Producer` and `/2`
-  errors no longer fall through to a debug string. This is partial admission
-  evidence only and does not complete TC-001 or change this task's status.
+  errors no longer fall through to a debug string. TC-001 verifies that
+  boundary through the current default-running owner corpus.
+
+## Completion Evidence
+
+- `DEPENDENCIES.md`, `Cargo.toml` and `Cargo.lock` agree on the exact direct and
+  transitive revisions and compatible licenses; the crate remains
+  `publish = false`, forbids unsafe code and denies Clippy warnings.
+- The default-running version 2 handoff suite executes 17 tests. It verifies
+  the closed owner inventory, exact admission/linking, all 28 owner-declared
+  mutations, caller-selected baseline identity/revision/digest substitutions,
+  exact numeric round-trip and malformed/boundary refusals, both explicit
+  cross-version refusal directions, and all 13 resource dimensions.
+- Bare `#[trace(...)]` attributes bind TC-001 to FR-001-AC-1 through
+  FR-001-AC-4. `quire coverage --scope .` reports FR-001 at 4/5 and leaves only
+  FR-001-AC-5 to Task-009's two-revision comparison.

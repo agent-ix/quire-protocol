@@ -10,7 +10,7 @@ okf_version: "0.1"
 
 * [Plan-001: Finite native Quire protocol Rust slice](./plan.md) - Plan overview, dependency graph, tests, tracks, and gates.
 * [Implementation chunk register](./chunk-register.md) - Recovered landed, partial, blocked, planned, and not-landed chunk status with pull-request and ticket evidence.
-* [Task-001: Admit the selected profile and establish the Rust crate](./tasks/Task-001-admit-profile-establish-crate.md) - Apply the selected AGPL policy, resolve the accepted-baseline and compiled-artifact gates, and implement strict admission.
+* [Task-001: Admit the selected profile and establish the Rust crate](./tasks/Task-001-admit-profile-establish-crate.md) - Done: exact admission, owner mutation refusal, independent baseline selection and numeric boundaries execute against the pinned published handoff; FR-001-AC-5 remains Task-009 integration work.
 * [Task-002: Link the finite protocol representation](./tasks/Task-002-link-finite-representation.md) - Build the identity-preserving finite graph and located diagnostics.
 * [Task-003: Assess compensation state](./tasks/Task-003-assess-compensation-state.md) - Implement activation, registration, retry, commit, and recovery assessment.
 * [Task-004: Assess finite global conformance](./tasks/Task-004-assess-finite-conformance.md) - Implement bounded batch and incremental conformance.

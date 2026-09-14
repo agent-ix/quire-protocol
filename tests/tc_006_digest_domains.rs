@@ -231,9 +231,9 @@ fn tc_006_producer_reference_in_the_result_slot_refuses() {
 
 /// A JCS protocol-result digest offered where a producer reference belongs.
 ///
-/// Tracing: TC-006, FR-001-AC-4.
+/// Tracing: TC-001, TC-006, FR-001-AC-4.
 #[test]
-#[trace("TC-006", "FR-001-AC-4", "FR-015-AC-3")]
+#[trace("TC-001", "TC-006", "FR-001-AC-4", "FR-015-AC-3")]
 fn tc_006_result_digest_in_a_producer_slot_refuses() {
     let selections = Selections::new();
     let inventory = selections.inventory();
@@ -441,9 +441,9 @@ fn tc_006_no_two_selection_axes_share_a_code() {
 /// published `Producer` and version-2 families at this pin. Retaining the
 /// complete `Error` makes the compulsory catch-all typed and future-safe.
 ///
-/// Tracing: TC-001, Task-001.
+/// Tracing: TC-001, FR-001-AC-2, Task-001.
 #[test]
-#[trace("TC-001", "Task-001")]
+#[trace("TC-001", "FR-001-AC-2", "Task-001")]
 fn tc_001_mapping_retains_every_published_source_error() {
     use quire_protocol::inventory::map::classify_source;
     use quire_protocol::{v2, Error, Invalid, NumberError, Unsupported};

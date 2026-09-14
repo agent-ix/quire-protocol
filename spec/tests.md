@@ -98,10 +98,10 @@ The five words below are not interchangeable, and no total mixes them.
 
   ```
   $ quire coverage --scope .
-  Coverage: 108/329 rows backed (32%)
+  Coverage: 109/329 rows backed (33%)
   ```
 
-  At the 2026-09-14 Task-014 checkpoint, 108 rows are engine-backed.
+  At the 2026-09-14 Task-001 checkpoint, 109 rows are engine-backed.
   NFR-001 is 3 of 3, NFR-002 is 4 of 4, NFR-004 is 10 of 10, and 11 of the 15
   test-case rows have at least one bound symbol. The remaining row-level gaps are enumerated by the
   same machine output and remain implementation work; this figure is not a
@@ -111,19 +111,19 @@ The five words below are not interchangeable, and no total mixes them.
   without being the measurement that criterion asks for:
 
   ```
-  rust: 235/235/235 bound/tagged/candidates (100% read; 100% authored; forms:
+  rust: 237/237/237 bound/tagged/candidates (100% read; 100% authored; forms:
   rust-trace-attribute, rust-trace-line, rust-comment-id, rust-test-name-id,
   rust-doc-comment-id)
   ```
 
-  Every one of the 235 Rust test symbols carries a marker and every marker is
+  Every one of the 237 Rust test symbols carries a marker and every marker is
   read. **`bound` counts symbols, not obligations** — a test carrying five ids is
   one bound candidate, and a test carrying only `Task-009` is a bound candidate
   too. `NFR-003-AC-5` asks for a binding "to each obligation it claims", which is
   a per-relation property this figure does not measure: the next section records
   version 2 support checks carrying `Task-012` without `IT-001`, and
   `tests/it001_native_handoff.rs` under-tagged at 24 traces over 4 criteria. All
-  of that is consistent with 235/235. Read this line as "every test says
+  of that is consistent with 237/237. Read this line as "every test says
   something", never as "every claim is bound".
 
   Separately, and verified by reading the source rather than by this line: every
@@ -205,9 +205,9 @@ The five words below are not interchangeable, and no total mixes them.
   published version 2 handoff but remains engine-unbound at criterion level;
   the lane binds its owning `IT-001` scenario instead.
 
-  The 239 test-backed criteria and 108 engine-bound rows are not contradictory:
+  The 239 test-backed criteria and 109 engine-bound rows are not contradictory:
   the two words have different denominators, and the definitions above say so.
-  **Read 108/329 as the coverage figure.** "Test-backed" says a criterion has
+  **Read 109/329 as the coverage figure.** "Test-backed" says a criterion has
   somewhere to be tested; "engine-bound" says a trace reaches a repository row.
 
   The gap closes by tagging, never by editing this table. A trace attribute is
@@ -221,10 +221,12 @@ The five words below are not interchangeable, and no total mixes them.
 
   - **Deliberately unbound.** The superseded 24-test pre-delivery corpus was
     retired when A's published manifest became the sole version 2 scenario
-    authority. Of the 15 tests in `tests/it001_v2_handoff.rs`, 6 execute IT-001
-    behaviour and carry `IT-001`; the remaining 9 exercise corpus inventory or
-    B's integrity mechanism and carry only `Task-012`. Tagging support checks as
-    integration evidence would still inflate coverage, so they remain unbound.
+    authority. Of the 17 tests in `tests/it001_v2_handoff.rs`, 6 execute IT-001
+    behaviour and carry `IT-001`, 2 independently close TC-001's baseline and
+    numeric controls, and the remaining 9 exercise corpus inventory or B's
+    integrity mechanism and carry only `Task-012`. Tagging support checks as
+    integration evidence would still inflate coverage, so those 9 remain
+    deliberately unbound to a test case or criterion.
   - **Still under-tagged.** Tests that exercise a criterion they do not name.
     `tests/it001_native_handoff.rs` is the largest remaining case, at 24 traces
     over 4 criteria.
@@ -270,19 +272,19 @@ of A's mutation manifest. On the revision named below, the base offer is admitte
 and every mutation refuses with the identity A declares for it.
 
 The exact pin is `quire-spec-language`
-`93c411b287ccf4789879ac4ef3094fc921dada58`, that repository's `main` after
-release `v0.2.0` and PR #92. A exports `PUBLISHED_HANDOFF` plus every member-name
+`7931a0021612d26132ea8bbef3b0cd19b27248e0`, a post-`v0.2.0` revision. A
+exports `PUBLISHED_HANDOFF` plus every member-name
 and manifest-format constant. B loads that owner path directly, verifies all
 109 published members, refuses unlisted or corrupt members, admits the base,
 checks both cross-version directions, submits all 28 declared mutations, and
 probes all 13 `Dimension::ALL` budget members. No environment selector or
-vendored mirror remains, and the lane reports `15 passed; 0 ignored`.
+vendored mirror remains, and the lane reports `17 passed; 0 ignored`.
 
 `FR-009`'s entry-status table records that every version-lock entry is
 `unresolved` today. IT-002 and IT-003 declare FR-009 preconditions, so every one
 of their scenarios is unexecutable. IT-001 declares no manifest precondition, so
 its version 1 lane SC-01..SC-05 remains planned rather than unexecutable. The
-version 2 lane is executable from the exact `93c411b` pin.
+version 2 lane is executable from the exact `7931a00` pin.
 
 ## Functional Requirement Coverage
 
@@ -291,7 +293,7 @@ in Domain Object Coverage instead.
 
 | Functional Req | Acceptance Criteria | Test Cases | Coverage Status |
 | --- | --- | --- | --- |
-| FR-001 | FR-001-AC-1, FR-001-AC-2, FR-001-AC-3, FR-001-AC-4, FR-001-AC-5 | TC-001 (AC-1..AC-4); IT-001 (AC-4, AC-5) | 🚧 Planned — 5 of 5 criteria backed, 0 unbacked. FR-001-AC-5 is integration-backed only: both cross-version directions now execute, while SC-06a's complete version 1 regression comparison remains planned under Task-009 |
+| FR-001 | FR-001-AC-1, FR-001-AC-2, FR-001-AC-3, FR-001-AC-4, FR-001-AC-5 | TC-001 (AC-1..AC-4); IT-001 (AC-4, AC-5) | 🚧 In progress — 4 of 5 criteria are engine-backed. Task-001 and TC-001 close AC-1..AC-4 on the pinned default-running `/2` handoff; AC-5 remains planned because IT-001 SC-06a still owes the complete two-revision version 1 comparison under Task-009 |
 | FR-002 | FR-002-AC-1, FR-002-AC-2, FR-002-AC-3, FR-002-AC-4, FR-002-AC-5 | TC-002 (AC-1..AC-4); IT-001 (AC-5) | 🚧 Planned — 5 of 5 criteria backed, 0 unbacked. FR-002-AC-5 now executes through A's published version 2 handoff: the valid binding set links and all published temporal selection/binding mutations refuse with their declared typed identities. AC-1 remains unresolved by owner ruling on issue #4; AC-3 and AC-4 remain partially implemented for the separately tracked graph/linking gaps. |
 | FR-003 | FR-003-AC-1, FR-003-AC-2, FR-003-AC-3, FR-003-AC-4, FR-003-AC-5, FR-003-AC-6, FR-003-AC-7 | TC-003 (AC-1..AC-7); TC-009 (AC-7) | 🚧 Planned — 7 of 7 criteria test-backed, 0 unbacked, 0 unexecutable. Aggregate view of FR-019..FR-025 |
 | FR-004 | FR-004-AC-1, FR-004-AC-2, FR-004-AC-3, FR-004-AC-4 | TC-004 (AC-1..AC-4) | 🚧 Planned — 4 of 4 criteria test-backed, 0 unbacked, 0 unexecutable (FR-004-AC-3 landed by `tests/tc_004_closure_axes.rs`). Aggregate view of FR-026..FR-028 and FR-041 |
@@ -387,7 +389,7 @@ and 1 is unexecutable.
 | Integration Test | Boundary | Requirements | Status |
 | --- | --- | --- | --- |
 | IT-001 version 1 | Native compiler `quire.compiled-protocol/1` artifact to protocol library | FR-001, FR-002, FR-013, FR-016, NFR-002 | 🚧 Planned — SC-01..SC-05, 5 owed scenarios; fixture lane `#[ignore]`. IT-001 declares no FR-009 manifest precondition, so this lane is planned rather than unexecutable |
-| IT-001 version 2 | Native compiler version 2 artifact to protocol library | FR-001-AC-5, FR-002-AC-5, FR-013-AC-4, NFR-002, NFR-007 | 🚧 In progress — 4 of 5 owed scenarios execute and pass under the default local gate: SC-06's `/2` admission and both cross-version directions, SC-07, SC-08, and SC-09. The exact `93c411b` pin supplies `PUBLISHED_HANDOFF`; all 109 checksummed members, the base admission, all 28 declared typed mutations, both cross-version refusals, and all 13 exact/one-short/fresh budget dimensions execute in 15 non-ignored tests. SC-06a's complete earlier-version SC-01..SC-05 regression comparison remains planned under Task-009. |
+| IT-001 version 2 | Native compiler version 2 artifact to protocol library | FR-001-AC-5, FR-002-AC-5, FR-013-AC-4, NFR-002, NFR-007 | 🚧 In progress — 4 of 5 owed scenarios execute and pass under the default local gate: SC-06's `/2` admission and both cross-version directions, SC-07, SC-08, and SC-09. The exact `7931a00` pin supplies `PUBLISHED_HANDOFF`; all 109 checksummed members, the base admission, all 28 declared typed mutations, independent accepted-baseline substitutions, exact and invalid numeric controls, both cross-version refusals, and all 13 exact/one-short/fresh budget dimensions execute in 17 non-ignored tests. SC-06a's complete earlier-version SC-01..SC-05 regression comparison remains planned under Task-009. |
 | IT-002 | Observation and temporal facts to protocol evaluator/result | FR-003, FR-004, FR-006, FR-009, FR-017, NFR-002, NFR-005 | 🚧 Planned — SC-01, SC-02, SC-03, SC-04, SC-05a..SC-05d, SC-06, SC-07a, SC-07b, SC-08, 12 owed scenarios, all 12 unexecutable and scoring 0 of 12; blocked on accepted F/E producer contracts and on every FR-009 entry being `unresolved` |
 | IT-003 | Protocol result through Engineering Assurance, E02, and Quoin | FR-006, FR-007, FR-009, FR-014, FR-017, FR-039, FR-040, NFR-002, NFR-003, NFR-005 | 🚧 Planned — SC-01..SC-07, SC-08a, SC-08b, SC-09, 10 owed scenarios, all 10 unexecutable and scoring 0 of 10; blocked on Engineering Assurance #34 |
 
@@ -405,7 +407,7 @@ a coverage claim in this matrix.
 
 | Test ID | Title | Type | Priority | Traces To | Status |
 | --- | --- | --- | --- | --- | --- |
-| TC-001 | Admit only the selected protocol profile | Property | P0 | FR-001, FR-013, FR-015 | 🚧 Planned — C-05 now retains every A-owned admission `Error` as its exact typed value and exposes A's stable `Error::code`; this closes the prior debug-string fallback for the published `Producer` and `/2` families. It is one partial admission-boundary control, not a complete TC-001 execution and not an FR-008 envelope claim |
+| TC-001 | Admit only the selected protocol profile | Property | P0 | FR-001, FR-013, FR-015 | ✅ Implemented — 17 default-running version 2 handoff tests cover exact admission/linking, all owner-declared mutations, independent baseline selection, exact and invalid numeric boundaries, both explicit cross-version refusal directions and every resource dimension. It adds no local decoder or refusal vocabulary; FR-001-AC-5 remains IT-001/Task-009 work |
 | TC-002 | Link and discriminate finite protocol structure | Property | P0 | FR-002 | 🚧 Planned — the linked mapping executes in 28 tests in `src/link/mod.rs`, 4 in `src/link/interleaving.rs` and 6 in `tests/tc_002_identities.rs`, tagged `Task-002`, `FR-002-AC-2`, `FR-002-AC-3`, `FR-002-AC-4`, `FR-011-AC-2` or `FR-011-AC-3`, and none claiming FR-002-AC-1. That opening sentence has now been wrong twice, both times by being written once and left. A revision of it counted 20 tests in `src/link/mod.rs` and listed neither `FR-002-AC-2` nor the two `FR-011` tags, while the rest of this same row said `src/link/mod.rs` "goes to 28" and that nine tests carry `FR-002-AC-2` — a row contradicting itself 200 words apart. The counts here are from the tree, and the tag list from `grep`. An earlier revision of this row said "all tagged `Task-002`" while fourteen carried a criterion tag, and said none claimed FR-002-AC-1 while `tc_002_two_packages_do_not_share_identities` did — so `quire coverage` counted FR-002 backed partly on a tag FR-002's own text rules out. The tag is now `Task-002`. The five added by C-13 cover accumulation: every zero-progress repeat reported, every failing channel premise reported, a gating refusal accumulating with nothing, every finding over artifact content carrying its region while the two refusals of the caller's `declaration` argument carry none, and accumulated findings still emitting no linked representation. C-14 added twelve more, in two files: `src/link/mod.rs` goes to 28 and the new `src/link/interleaving.rs` carries 4, for 32 in the unit binary. Nine tagged `FR-002-AC-2` prove the interleaving obligation — over a two-branch parallel fixture, all 924 = C(12,6) linear extensions of the retained causal order are admitted, every one puts each branch named by the parallel's own `join` field before the parallel's exit, dropping a join edge admits a branch completing late, and permuting A's edge table changes nothing; over hand-built graphs, a cycle admits none and the repeat back edge is not an ordering. Two of the nine guard the enumerator's domain: A derives `branch` and `join` edges identically for a `Parallel` and a `Choice`, so an edge set spanning a choice, repeat or await is refused rather than enumerated — ordering a choice's cases would report a run taking both. The sweep is three tests over one 30-axis table: `tc_002_every_refused_axis_is_refused_at_its_source` (7 axes, `FR-002-AC-3`, comparing each finding's `locus` against a fixture whose records each carry a distinct region), `tc_002_every_semantic_axis_changes_the_linked_protocol` (18 axes, `FR-002-AC-4`) and `tc_002_the_unguarded_axes_are_still_unguarded` (5 axes, `Task-002`). The last is deliberately tagged to no criterion: every assertion in it says a mutation is *accepted*, either because A refuses it first or because nobody does, and tagging non-refusal to a refusal criterion is how this row's own history records FR-002 being miscounted before |
 | TC-003 | Assess compensation, retry, commit, and recovery | Property | P0 | FR-003, FR-019, FR-020, FR-021, FR-022, FR-023, FR-024, FR-025 | 🚧 Planned — backs the parent and all seven atomic parts; its Traceability section names only FR-003 today |
 | TC-004 | Assess finite global conformance | Property | P0 | FR-004, FR-026, FR-027, FR-028, FR-041 | 🚧 Planned (FR-004-AC-3 landed; AC-1/AC-2/AC-4 pending the batch and incremental evaluators) |
@@ -426,8 +428,8 @@ a coverage claim in this matrix.
 Row counts, recomputed from the tree. Every matrix row above is counted exactly
 once, and `Blocked` means unexecutable — neither passing nor failing.
 
-Engine-measured binding at the current implementation checkpoint is 108 of 329
-rows (32%) — see **Engine-bound** above. The table below counts matrix rows and
+Engine-measured binding at the current implementation checkpoint is 109 of 329
+rows (33%) — see **Engine-bound** above. The table below counts matrix rows and
 their planned state; it does not measure binding.
 
 | Category | Total | Passed | Failed | Blocked | Planned |
@@ -436,8 +438,8 @@ their planned state; it does not measure binding.
 | Domain object requirement rows | 9 | 0 | 0 | 0 | 9 |
 | Non-functional requirement rows | 8 | 2 | 0 | 0 | 6 |
 | Integration rows | 4 | 0 | 0 | 2 | 2 |
-| Test case rows | 15 | 3 | 0 | 0 | 12 |
-| Overall | 69 | 6 | 0 | 2 | 61 |
+| Test case rows | 15 | 4 | 0 | 0 | 11 |
+| Overall | 69 | 7 | 0 | 2 | 60 |
 
 The Integration count is four because IT-001 carries a separate version 1 and version 2
 row; the two contracts may not substitute for each other, so one row cannot
@@ -452,16 +454,16 @@ fully blocked integration cannot score 100%. These totals follow that rule: the
 denominator is every authored acceptance criterion, and an unexecutable
 criterion is a zero inside it rather than a row removed from it.
 
-Engine-measured binding at the current implementation checkpoint is 108 of 329
-rows (32%) — see **Engine-bound** above. The table below counts matrix rows and
+Engine-measured binding at the current implementation checkpoint is 109 of 329
+rows (33%) — see **Engine-bound** above. The table below counts matrix rows and
 their planned state; it does not measure binding.
 
 | Category | Total | Passed | Failed | Blocked | Planned |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Criteria backed by a test case | 239 | 20 | 0 | 0 | 219 |
+| Criteria backed by a test case | 239 | 24 | 0 | 0 | 215 |
 | Criteria backed only by an integration scenario | 8 | 4 | 0 | 1 | 3 |
 | Criteria with no test case and no integration scenario | 47 | 0 | 0 | 0 | 47 |
-| Overall owed criteria | 294 | 24 | 0 | 1 | 269 |
+| Overall owed criteria | 294 | 28 | 0 | 1 | 265 |
 
 The four passing integration-only criteria are FR-002-AC-5, FR-013-AC-4,
 NFR-007-AC-3 and NFR-007-AC-4. FR-001-AC-5, NFR-007-AC-5 and NFR-007-AC-7 remain

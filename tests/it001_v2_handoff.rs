@@ -21,7 +21,7 @@ mod handoff;
 
 use handoff::{Absence, Handoff, MutationInput};
 
-/// A's mutation corpus as published at the pinned revision `93c411b`, sorted.
+/// A's mutation corpus as published at the pinned revision `7931a00`, sorted.
 ///
 /// Frozen so the corpus cannot shrink unnoticed: every assertion over "every
 /// declared case" is only as strong as the number of cases A declares.
@@ -114,7 +114,7 @@ fn declared_mutation_identities_are_unique() {
 /// SC-06: the published handoff is admitted and linked against B's independent
 /// selection.
 #[test]
-#[trace("IT-001", "Task-012")]
+#[trace("IT-001", "TC-001", "FR-001-AC-1", "Task-001", "Task-012")]
 fn the_published_handoff_is_admitted_and_linked() {
     let loaded = configured();
     let declarations = loaded.declarations();
@@ -135,6 +135,228 @@ fn the_published_handoff_is_admitted_and_linked() {
             "the published handoff was refused with {}: {error}",
             handoff::reported_code(error)
         ),
+    }
+}
+
+/// TC-001: the accepted semantic baseline is selected independently of the
+/// offer. Identity, revision and digest are separate axes, and changing any one
+/// refuses before an admitted package is exposed.
+#[test]
+#[trace("TC-001", "FR-001-AC-3", "Task-001")]
+fn unaccepted_baseline_selections_refuse_without_offer_authority() {
+    let loaded = configured();
+    let declarations = loaded.declarations();
+    let inventories = loaded.inventories(&declarations);
+    let base = loaded.expected(&inventories);
+    base_admits(&loaded, &base);
+
+    let mut wrong_identity = loaded.selection().inherited.baseline.clone();
+    wrong_identity.identity.push_str("-unknown");
+    let mut wrong_revision = loaded.selection().inherited.baseline.clone();
+    wrong_revision.revision.value.push_str("-superseded");
+    let mut wrong_digest = loaded.selection().inherited.baseline.clone();
+    wrong_digest.digest = ByteDigest::of(b"unaccepted draft baseline");
+
+    for (axis, baseline) in [
+        ("identity", wrong_identity),
+        ("revision", wrong_revision),
+        ("digest", wrong_digest),
+    ] {
+        let expected = v2::Expected {
+            inherited: artifact::Expected {
+                baseline: &baseline,
+                ..base.inherited
+            },
+            ..base
+        };
+        let error = quire_protocol::admit_and_link_v2(loaded.offer(), &expected, loaded.limits())
+            .into_result()
+            .unwrap_err();
+        assert_eq!(
+            error.code(),
+            "invalid.selection",
+            "baseline {axis} returned the wrong typed refusal: {error}"
+        );
+    }
+
+    base_admits(&loaded, &base);
+}
+
+/// TC-001: the current owner-published package carries and round-trips every
+/// selected numeric edge, while one-axis invalid representations and values
+/// refuse through A's typed reader rather than being repaired.
+#[test]
+#[trace("TC-001", "FR-001-AC-4", "Task-001")]
+fn numeric_edges_round_trip_and_invalid_forms_refuse_without_repair() {
+    let loaded = configured();
+    let declarations = loaded.declarations();
+    let inventories = loaded.inventories(&declarations);
+    let expected = loaded.expected(&inventories);
+    let admitted = quire_protocol::admit_and_link_v2(loaded.offer(), &expected, loaded.limits())
+        .into_result()
+        .expect("the published numeric control must admit");
+    let encoded = v2::encode_candidate(admitted.package(), loaded.limits())
+        .into_result()
+        .expect("the admitted package must encode under the same limits");
+    assert_eq!(encoded.bytes(), loaded.offer());
+
+    for required in [
+        br#""decimal":"0""#.as_slice(),
+        br#""decimal":"1""#.as_slice(),
+        br#""decimal":"5""#.as_slice(),
+        br#""decimal":"-9223372036854775808""#.as_slice(),
+        br#""decimal":"9223372036854775807""#.as_slice(),
+        br#""numerator":"1","denominator":"1""#.as_slice(),
+        br#""numerator":"1","denominator":"2""#.as_slice(),
+        br#""numerator":"9223372036854775807","denominator":"9223372036854775806""#.as_slice(),
+        br#""numerator":"-9223372036854775808","denominator":"9223372036854775807""#.as_slice(),
+    ] {
+        assert!(
+            contains(loaded.offer(), required),
+            "the published control dropped numeric edge {}",
+            String::from_utf8_lossy(required)
+        );
+    }
+
+    let integer_anchor = br#""original_expression":12,"locus":{"source":1"#;
+    let minimum_anchor = br#""original_expression":33,"locus":{"source":1"#;
+    let rational_anchor = br#""original_expression":1,"locus":{"source":0"#;
+    let wide_anchor = br#""original_expression":8,"locus":{"source":0"#;
+    let cases = [
+        (
+            "leading zero",
+            mutate_after(
+                loaded.offer(),
+                integer_anchor,
+                br#""decimal":"5""#,
+                br#""decimal":"05""#,
+            ),
+            "numeric.non-canonical-decimal",
+        ),
+        (
+            "plus prefix",
+            mutate_after(
+                loaded.offer(),
+                integer_anchor,
+                br#""decimal":"5""#,
+                br#""decimal":"+5""#,
+            ),
+            "numeric.non-canonical-decimal",
+        ),
+        (
+            "negative zero",
+            mutate_after(
+                loaded.offer(),
+                integer_anchor,
+                br#""decimal":"5""#,
+                br#""decimal":"-0""#,
+            ),
+            "numeric.non-canonical-decimal",
+        ),
+        (
+            "decimal float",
+            mutate_after(
+                loaded.offer(),
+                integer_anchor,
+                br#""decimal":"5""#,
+                br#""decimal":"5.0""#,
+            ),
+            "numeric.non-canonical-decimal",
+        ),
+        (
+            "unsafe bare integer",
+            mutate_after(
+                loaded.offer(),
+                integer_anchor,
+                br#"{"kind":"integer","decimal":"5"}"#,
+                b"9007199254740992",
+            ),
+            "invalid.structural-integer",
+        ),
+        (
+            "signed-64 overflow",
+            mutate_after(
+                loaded.offer(),
+                wide_anchor,
+                br#""decimal":"9223372036854775807""#,
+                br#""decimal":"9223372036854775808""#,
+            ),
+            "numeric.component-out-of-range",
+        ),
+        (
+            "non-positive denominator",
+            mutate_after(
+                loaded.offer(),
+                rational_anchor,
+                br#""denominator":"1""#,
+                br#""denominator":"0""#,
+            ),
+            "numeric.non-positive-denominator",
+        ),
+        (
+            "negative denominator",
+            mutate_after(
+                loaded.offer(),
+                rational_anchor,
+                br#""denominator":"1""#,
+                br#""denominator":"-1""#,
+            ),
+            "numeric.non-positive-denominator",
+        ),
+        (
+            "unreduced rational",
+            mutate_after(
+                loaded.offer(),
+                rational_anchor,
+                br#""numerator":"1","denominator":"1""#,
+                br#""numerator":"2","denominator":"2""#,
+            ),
+            "numeric.unreduced-rational",
+        ),
+        (
+            "rational outside the integer field domain",
+            mutate_after(
+                loaded.offer(),
+                integer_anchor,
+                br#"{"kind":"integer","decimal":"5"}"#,
+                br#"{"kind":"rational","numerator":"1","denominator":"1"}"#,
+            ),
+            "invalid.numeric-domain",
+        ),
+        (
+            "below field minimum",
+            mutate_after(
+                loaded.offer(),
+                minimum_anchor,
+                br#""decimal":"1""#,
+                br#""decimal":"0""#,
+            ),
+            "invalid.numeric-domain",
+        ),
+        (
+            "above field maximum",
+            mutate_after(
+                loaded.offer(),
+                integer_anchor,
+                br#""decimal":"5""#,
+                br#""decimal":"6""#,
+            ),
+            "invalid.numeric-domain",
+        ),
+    ];
+
+    for (case, bytes, expected_code) in cases {
+        let mut seal = loaded.reference().clone();
+        seal.digest = ByteDigest::of(&bytes);
+        let expected = loaded.expected_for(&inventories, &seal);
+        let error = quire_protocol::admit_and_link_v2(&bytes, &expected, loaded.limits())
+            .into_result()
+            .unwrap_err();
+        assert_eq!(
+            error.code(),
+            expected_code,
+            "{case} returned the wrong typed refusal: {error}"
+        );
     }
 }
 
@@ -314,7 +536,7 @@ fn every_dimension_refuses_one_short_and_admits_fresh_exact_usage() {
 /// SC-07/SC-08: every declared mutation is refused with the identity A declares
 /// for it, and none is admitted.
 #[test]
-#[trace("IT-001", "Task-012")]
+#[trace("IT-001", "TC-001", "FR-001-AC-2", "Task-001", "Task-012")]
 fn every_declared_mutation_is_refused_with_its_declared_identity() {
     let loaded = configured();
     let declarations = loaded.declarations();
@@ -435,7 +657,7 @@ fn the_mutation_expectation_admits_the_unmutated_offer() {
 /// cannot drop out of the corpus unnoticed.
 ///
 /// The corpus cannot be its own witness: an axis list derived from the cases
-/// always covers the cases. `DECLARED_AXES` is what A published at `93c411b`,
+/// always covers the cases. `DECLARED_AXES` is what A publishes at `7931a00`,
 /// frozen here, so a dropped axis fails and an added one is reported rather
 /// than absorbed.
 #[test]
@@ -468,6 +690,62 @@ fn every_declared_axis_is_exercised() {
 fn configured() -> Handoff {
     Handoff::load()
         .unwrap_or_else(|absence| panic!("the pinned /2 handoff could not be assembled: {absence}"))
+}
+
+fn base_admits(loaded: &Handoff, expected: &v2::Expected<'_>) {
+    quire_protocol::admit_and_link_v2(loaded.offer(), expected, loaded.limits())
+        .into_result()
+        .expect("the unchanged offer must admit under the selected baseline");
+}
+
+fn contains(haystack: &[u8], needle: &[u8]) -> bool {
+    haystack
+        .windows(needle.len())
+        .any(|window| window == needle)
+}
+
+fn mutate_after(bytes: &[u8], anchor: &[u8], before: &[u8], after: &[u8]) -> Vec<u8> {
+    let anchor_positions: Vec<_> = bytes
+        .windows(anchor.len())
+        .enumerate()
+        .filter_map(|(index, window)| (window == anchor).then_some(index))
+        .collect();
+    assert_eq!(
+        anchor_positions.len(),
+        1,
+        "mutation anchor must occur exactly once"
+    );
+    let start = anchor_positions[0];
+    let following = &bytes[start + anchor.len()..];
+    let record_end = [
+        br#"},{"original_expression":"#.as_slice(),
+        br#"}],"temporal":"#.as_slice(),
+    ]
+    .into_iter()
+    .filter_map(|boundary| {
+        following
+            .windows(boundary.len())
+            .position(|window| window == boundary)
+    })
+    .min()
+    .map(|relative| start + anchor.len() + relative)
+    .expect("anchored expression must have a record boundary");
+    let target_positions: Vec<_> = bytes[start..record_end]
+        .windows(before.len())
+        .enumerate()
+        .filter_map(|(index, window)| (window == before).then_some(index))
+        .collect();
+    assert_eq!(
+        target_positions.len(),
+        1,
+        "mutation target must occur exactly once in its anchored expression"
+    );
+    let target = start + target_positions[0];
+    let mut changed = Vec::with_capacity(bytes.len() - before.len() + after.len());
+    changed.extend_from_slice(&bytes[..target]);
+    changed.extend_from_slice(after);
+    changed.extend_from_slice(&bytes[target + before.len()..]);
+    changed
 }
 
 /// The typed error when the outcome is the declared refusal; otherwise what was observed.
