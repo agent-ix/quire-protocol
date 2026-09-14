@@ -983,6 +983,55 @@ struct LinkWork {
     active_instances: usize,
 }
 
+trait IdentityBuilder {
+    type Error;
+
+    fn build<T>(
+        &mut self,
+        identity: &[u8],
+        display: &str,
+        constructor: fn(&[u8], &str) -> T,
+    ) -> Result<T, Self::Error>;
+}
+
+struct UnboundedIdentityBuilder;
+
+impl IdentityBuilder for UnboundedIdentityBuilder {
+    type Error = core::convert::Infallible;
+
+    fn build<T>(
+        &mut self,
+        identity: &[u8],
+        display: &str,
+        constructor: fn(&[u8], &str) -> T,
+    ) -> Result<T, Self::Error> {
+        Ok(constructor(identity, display))
+    }
+}
+
+struct BoundedIdentityBuilder<'resources, 'inventory> {
+    resources: &'resources mut ResourceAccountant<'inventory>,
+}
+
+impl IdentityBuilder for BoundedIdentityBuilder<'_, '_> {
+    type Error = ChargeError;
+
+    fn build<T>(
+        &mut self,
+        identity: &[u8],
+        display: &str,
+        constructor: fn(&[u8], &str) -> T,
+    ) -> Result<T, Self::Error> {
+        crate::ids::charge_storage(identity, display, self.resources)?;
+        Ok(constructor(identity, display))
+    }
+}
+
+enum LinkBuildError<E> {
+    Domain(Diagnostics),
+    Identity(E),
+}
+
 fn link_work(
     declarations: &[Declaration],
     declaration: u32,
@@ -1082,7 +1131,12 @@ fn link_declarations_bounded(
     if let Err(error) = resources.charge_all(&charges) {
         return OperationOutcome::from_charge(error);
     }
-    OperationOutcome::from_domain(link_declarations(declarations, declaration))
+    let mut identities = BoundedIdentityBuilder { resources };
+    match link_declarations_with(declarations, declaration, &mut identities) {
+        Ok(linked) => OperationOutcome::Completed(linked),
+        Err(LinkBuildError::Domain(error)) => OperationOutcome::DomainError(error),
+        Err(LinkBuildError::Identity(error)) => OperationOutcome::from_charge(error),
+    }
 }
 
 /// Link the protocol declared at `declaration` in an admitted package.
@@ -1130,15 +1184,28 @@ fn link_declarations(
     declarations: &[Declaration],
     declaration: u32,
 ) -> Result<LinkedProtocol, Diagnostics> {
+    let mut identities = UnboundedIdentityBuilder;
+    match link_declarations_with(declarations, declaration, &mut identities) {
+        Ok(linked) => Ok(linked),
+        Err(LinkBuildError::Domain(error)) => Err(error),
+        Err(LinkBuildError::Identity(never)) => match never {},
+    }
+}
+
+fn link_declarations_with<B: IdentityBuilder>(
+    declarations: &[Declaration],
+    declaration: u32,
+    identities: &mut B,
+) -> Result<LinkedProtocol, LinkBuildError<B::Error>> {
     // The two gating checks. Neither accumulates with anything, because a
     // declaration that is absent or is not a protocol leaves no tables to walk:
     // every check below reads one of them.
     let index = usize::try_from(declaration).unwrap_or(usize::MAX);
     let declared = declarations.get(index).ok_or_else(|| {
-        Diagnostics::of(LinkRefusal::NoSuchDeclaration {
+        LinkBuildError::Domain(Diagnostics::of(LinkRefusal::NoSuchDeclaration {
             selected: declaration,
             available: declarations.len(),
-        })
+        }))
     })?;
 
     let Body::Protocol {
@@ -1150,10 +1217,12 @@ fn link_declarations(
         ..
     } = &declared.body
     else {
-        return Err(Diagnostics::of(LinkRefusal::NotAProtocol {
-            declaration,
-            found: body_tag(&declared.body),
-        }));
+        return Err(LinkBuildError::Domain(Diagnostics::of(
+            LinkRefusal::NotAProtocol {
+                declaration,
+                found: body_tag(&declared.body),
+            },
+        )));
     };
 
     let mut found = Accumulator::default();
@@ -1167,17 +1236,22 @@ fn link_declarations(
         declared,
     };
 
-    let definition = DefinitionId::new(&scope, &declared.name);
+    let definition = identities
+        .build(&scope, &declared.name, DefinitionId::new)
+        .map_err(LinkBuildError::Identity)?;
 
-    let workflow_instance =
-        linker
-            .sole_requirement(BindingKind::WorkflowInstance)
-            .map(|(index, requirement)| {
-                WorkflowInstanceId::new(
+    let workflow_instance = match linker.sole_requirement(BindingKind::WorkflowInstance) {
+        Some((index, requirement)) => Some(
+            identities
+                .build(
                     &requirement_identity(&scope, declaration, index, requirement),
                     &requirement.name,
+                    WorkflowInstanceId::new,
                 )
-            });
+                .map_err(LinkBuildError::Identity)?,
+        ),
+        None => None,
+    };
 
     // Refusals A does not make. See the module documentation: A's validator
     // covers the edge set, joins, cycles and reference resolution, and these are
@@ -1229,13 +1303,14 @@ fn link_declarations(
             &role.locus,
         ));
         if let Some(requirement) = resolved {
-            role_instances.push((
-                RoleInstanceId::new(
+            let identity = identities
+                .build(
                     &requirement_identity(&scope, declaration, role.instance, requirement),
                     &role.name,
-                ),
-                role.locus.clone(),
-            ));
+                    RoleInstanceId::new,
+                )
+                .map_err(LinkBuildError::Identity)?;
+            role_instances.push((identity, role.locus.clone()));
         }
     }
 
@@ -1244,11 +1319,21 @@ fn link_declarations(
     // requirements of those kinds. Reading them from the binding table rather
     // than inferring them from control bodies keeps each one's identity the
     // producer's, and keeps this linker out of A's control-graph semantics.
-    let participants = linker.all_of(BindingKind::Participant, ParticipantId::new);
-    let components = linker.all_of(BindingKind::Component, ComponentId::new);
-    let endpoints = linker.all_of(BindingKind::Endpoint, EndpointId::new);
-    let attempts = linker.all_of(BindingKind::Attempt, AttemptId::new);
-    let effects = linker.all_of(BindingKind::Effect, EffectId::new);
+    let participants = linker
+        .all_of(BindingKind::Participant, ParticipantId::new, identities)
+        .map_err(LinkBuildError::Identity)?;
+    let components = linker
+        .all_of(BindingKind::Component, ComponentId::new, identities)
+        .map_err(LinkBuildError::Identity)?;
+    let endpoints = linker
+        .all_of(BindingKind::Endpoint, EndpointId::new, identities)
+        .map_err(LinkBuildError::Identity)?;
+    let attempts = linker
+        .all_of(BindingKind::Attempt, AttemptId::new, identities)
+        .map_err(LinkBuildError::Identity)?;
+    let effects = linker
+        .all_of(BindingKind::Effect, EffectId::new, identities)
+        .map_err(LinkBuildError::Identity)?;
 
     let mut linked_channels = BTreeMap::new();
     for (position, channel) in channels.iter().enumerate() {
@@ -1284,27 +1369,42 @@ fn link_declarations(
             continue;
         };
 
-        let identity = ChannelId::new(
-            &channel_identity(&scope, declaration, position, channel.message),
-            &channel.name,
-        );
+        let identity = identities
+            .build(
+                &channel_identity(&scope, declaration, position, channel.message),
+                &channel.name,
+                ChannelId::new,
+            )
+            .map_err(LinkBuildError::Identity)?;
         let linked = LinkedChannel {
-            message: MessageId::new(
-                &requirement_identity(&scope, declaration, channel.message, message),
-                &message.name,
-            ),
-            send: SendId::new(
-                &requirement_identity(&scope, declaration, channel.send, send),
-                &send.name,
-            ),
-            receive: ReceiveId::new(
-                &requirement_identity(&scope, declaration, channel.receive, receive),
-                &receive.name,
-            ),
-            delivery: DeliveryId::new(
-                &requirement_identity(&scope, declaration, channel.delivery_instance, delivery),
-                &delivery.name,
-            ),
+            message: identities
+                .build(
+                    &requirement_identity(&scope, declaration, channel.message, message),
+                    &message.name,
+                    MessageId::new,
+                )
+                .map_err(LinkBuildError::Identity)?,
+            send: identities
+                .build(
+                    &requirement_identity(&scope, declaration, channel.send, send),
+                    &send.name,
+                    SendId::new,
+                )
+                .map_err(LinkBuildError::Identity)?,
+            receive: identities
+                .build(
+                    &requirement_identity(&scope, declaration, channel.receive, receive),
+                    &receive.name,
+                    ReceiveId::new,
+                )
+                .map_err(LinkBuildError::Identity)?,
+            delivery: identities
+                .build(
+                    &requirement_identity(&scope, declaration, channel.delivery_instance, delivery),
+                    &delivery.name,
+                    DeliveryId::new,
+                )
+                .map_err(LinkBuildError::Identity)?,
             premises: channel_premises(channel),
         };
         // The key is checked, and the finding is not dead code.
@@ -1323,12 +1423,17 @@ fn link_declarations(
         // return `Ok` with a channel missing from the representation and no
         // diagnostic anywhere. One `is_some()` on a map insert buys that back,
         // and it is O(1) rather than the quadratic scans that were deleted.
-        if linked_channels.insert(identity.clone(), linked).is_some() {
-            found.record(LinkRefusal::CollidingIdentity {
-                kind: IdentityKind::Channel,
-                identity: identity.identity_bytes().to_vec(),
-                locus: channel.locus.clone(),
-            });
+        match linked_channels.entry(identity) {
+            std::collections::btree_map::Entry::Occupied(existing) => {
+                found.record(LinkRefusal::CollidingIdentity {
+                    kind: IdentityKind::Channel,
+                    identity: existing.key().identity_bytes().to_vec(),
+                    locus: channel.locus.clone(),
+                });
+            }
+            std::collections::btree_map::Entry::Vacant(vacant) => {
+                vacant.insert(linked);
+            }
         }
     }
 
@@ -1352,7 +1457,7 @@ fn link_declarations(
     check_distinct_roles(&role_instances, &mut found);
 
     if let Some(diagnostics) = found.into_diagnostics() {
-        return Err(diagnostics);
+        return Err(LinkBuildError::Domain(diagnostics));
     }
 
     // The loci were carried only so a collision could name the later record's
@@ -1438,7 +1543,12 @@ impl<'a> Linker<'a> {
     }
 
     /// Every requirement of `kind`, built into its own identity newtype.
-    fn all_of<T>(&self, kind: BindingKind, build: fn(&[u8], &str) -> T) -> Vec<T> {
+    fn all_of<T, B: IdentityBuilder>(
+        &self,
+        kind: BindingKind,
+        build: fn(&[u8], &str) -> T,
+        identities: &mut B,
+    ) -> Result<Vec<T>, B::Error> {
         self.declared
             .bindings
             .iter()
@@ -1446,9 +1556,10 @@ impl<'a> Linker<'a> {
             .filter(|(_, requirement)| requirement.kind == kind)
             .map(|(index, requirement)| {
                 let index = u32::try_from(index).unwrap_or(u32::MAX);
-                build(
+                identities.build(
                     &requirement_identity(&self.scope, self.declaration, index, requirement),
                     &requirement.name,
+                    build,
                 )
             })
             .collect()
@@ -3022,6 +3133,80 @@ mod tests {
             ));
             assert_eq!(exact_resources.usage().consumed(dimension), required);
         }
+    }
+
+    #[trace("TC-002", "TC-009", "NFR-002-AC-1", "NFR-002-AC-3", "FR-016-AC-2")]
+    #[test]
+    fn tc_009_link_charges_each_identity_allocation_on_the_real_mapping_path() {
+        let declarations = budget_fixture();
+        let inventory = production_inventory().expect("production inventory");
+
+        let mut measured = ResourceAccountant::new(Budget::nothing_granted(), &inventory);
+        assert!(matches!(
+            link_declarations_bounded(&declarations, 0, &mut measured),
+            OperationOutcome::Completed(_)
+        ));
+        let required = measured
+            .usage()
+            .consumed(BudgetDimension::AccountedAllocation);
+        assert!(
+            required > 1,
+            "the fixture must construct several identities"
+        );
+
+        let short = Budget::nothing_granted()
+            .grant(BudgetDimension::AccountedAllocation, required - 1)
+            .expect("positive one-short allocation grant");
+        let mut short_resources = ResourceAccountant::new(short, &inventory);
+        assert!(matches!(
+            link_declarations_bounded(&declarations, 0, &mut short_resources),
+            OperationOutcome::ResourceIncomplete(value)
+                if value.dimension() == BudgetDimension::AccountedAllocation
+                    && value.site() == crate::ids::ALLOCATION_SOURCE.id()
+                    && value.consumed() == required - 1
+                    && value.requested() == 1
+        ));
+
+        let exact = Budget::nothing_granted()
+            .grant(BudgetDimension::AccountedAllocation, required)
+            .expect("positive exact allocation grant");
+        let mut exact_resources = ResourceAccountant::new(exact, &inventory);
+        assert!(matches!(
+            link_declarations_bounded(&declarations, 0, &mut exact_resources),
+            OperationOutcome::Completed(_)
+        ));
+        assert_eq!(
+            exact_resources
+                .usage()
+                .consumed(BudgetDimension::AccountedAllocation),
+            required
+        );
+
+        let retained = measured.usage().consumed(BudgetDimension::InputByte);
+        assert!(retained > 1, "the fixture must retain identity bytes");
+        let short = Budget::nothing_granted()
+            .grant(BudgetDimension::InputByte, retained - 1)
+            .expect("positive one-short retained-byte grant");
+        let mut short_resources = ResourceAccountant::new(short, &inventory);
+        assert!(matches!(
+            link_declarations_bounded(&declarations, 0, &mut short_resources),
+            OperationOutcome::ResourceIncomplete(value)
+                if value.dimension() == BudgetDimension::InputByte
+                    && value.site() == crate::ids::INPUT_SOURCE.id()
+        ));
+
+        let exact = Budget::nothing_granted()
+            .grant(BudgetDimension::InputByte, retained)
+            .expect("positive exact retained-byte grant");
+        let mut exact_resources = ResourceAccountant::new(exact, &inventory);
+        assert!(matches!(
+            link_declarations_bounded(&declarations, 0, &mut exact_resources),
+            OperationOutcome::Completed(_)
+        ));
+        assert_eq!(
+            exact_resources.usage().consumed(BudgetDimension::InputByte),
+            retained
+        );
     }
 
     /// The protocol body of a fixture under mutation.

@@ -233,6 +233,29 @@ pub(crate) const ALLOCATION_SOURCE: SourceSite = SourceSite::new(
     SiteKind::Allocation,
 );
 
+/// Charge the exact retained identity storage before constructing its buffers.
+///
+/// This is shared by the public bounded constructors and by bounded owner
+/// operations that construct identities internally. Keeping the charge here
+/// prevents those paths from independently reimplementing what one identity
+/// allocation means.
+pub(crate) fn charge_storage(
+    identity: &[u8],
+    display: &str,
+    resources: &mut ResourceAccountant<'_>,
+) -> Result<(), ChargeError> {
+    let retained =
+        identity
+            .len()
+            .checked_add(display.len())
+            .ok_or(ChargeError::CounterOverflow {
+                site: INPUT_SOURCE.id(),
+                consumed: identity.len(),
+                requested: display.len(),
+            })?;
+    resources.charge_all(&[(INPUT_SOURCE.id(), retained), (ALLOCATION_SOURCE.id(), 1)])
+}
+
 /// Faithful `Debug` rendering of identity bytes that are not required to be
 /// UTF-8. Debug output is for humans and takes no part in identity.
 struct Escaped<'bytes>(&'bytes [u8]);
@@ -305,21 +328,7 @@ macro_rules! identities {
                     display: &str,
                     resources: &mut ResourceAccountant<'_>,
                 ) -> OperationOutcome<Self, core::convert::Infallible> {
-                    let retained = match identity.len().checked_add(display.len()) {
-                        Some(retained) => retained,
-                        None => {
-                            return OperationOutcome::from_charge(ChargeError::CounterOverflow {
-                                site: INPUT_SOURCE.id(),
-                                consumed: identity.len(),
-                                requested: display.len(),
-                            })
-                        }
-                    };
-                    let charges = [
-                        (INPUT_SOURCE.id(), retained),
-                        (ALLOCATION_SOURCE.id(), 1),
-                    ];
-                    if let Err(error) = resources.charge_all(&charges) {
+                    if let Err(error) = charge_storage(identity, display, resources) {
                         return OperationOutcome::from_charge(error);
                     }
                     OperationOutcome::Completed(Self::new(identity, display))
