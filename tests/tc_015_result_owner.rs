@@ -822,8 +822,32 @@ fn tc_009_result_output_budget_precedes_canonical_allocation() {
         0
     );
 
+    let retained_string = control.usage().string_bytes;
+    let total_input = required
+        .checked_add(retained_string)
+        .expect("bounded test input");
+    let retained_short = Budget::nothing_granted()
+        .grant(BudgetDimension::InputByte, total_input - 1)
+        .expect("positive retained-string one-short grant");
+    let mut retained_short_resources = ResourceAccountant::new(retained_short, &inventory);
+    assert!(matches!(
+        result::read_bounded(
+            control.bytes(),
+            result::Expected {
+                input: input.clone(),
+                enclosing_digest: control.digest(),
+            },
+            Limits::owner_max(),
+            &mut retained_short_resources,
+        ),
+        OperationOutcome::ResourceIncomplete(value)
+            if value.dimension() == BudgetDimension::InputByte
+                && value.consumed() == required
+                && value.requested() == retained_string
+    ));
+
     let exact = Budget::nothing_granted()
-        .grant(BudgetDimension::InputByte, required)
+        .grant(BudgetDimension::InputByte, total_input)
         .expect("positive exact grant");
     let mut exact_resources = ResourceAccountant::new(exact, &inventory);
     assert!(matches!(
@@ -840,7 +864,7 @@ fn tc_009_result_output_budget_precedes_canonical_allocation() {
     ));
     assert_eq!(
         exact_resources.usage().consumed(BudgetDimension::InputByte),
-        required
+        total_input
     );
 
     let visited = control.usage().visited_fields;
@@ -933,6 +957,27 @@ fn tc_009_result_output_budget_precedes_canonical_allocation() {
             if value.dimension() == BudgetDimension::Operation
                 && value.granted() == depth - 1
                 && value.requested() == depth
+    ));
+
+    let owner_string_short = Limits {
+        max_string_bytes: retained_string - 1,
+        ..Limits::owner_max()
+    };
+    let mut owner_resources = ResourceAccountant::new(Budget::nothing_granted(), &inventory);
+    assert!(matches!(
+        result::read_bounded(
+            control.bytes(),
+            result::Expected {
+                input: input.clone(),
+                enclosing_digest: control.digest(),
+            },
+            owner_string_short,
+            &mut owner_resources,
+        ),
+        OperationOutcome::ResourceIncomplete(value)
+            if value.dimension() == BudgetDimension::InputByte
+                && value.granted() == retained_string - 1
+                && value.requested() == retained_string
     ));
 
     let owner_field_short = Limits {

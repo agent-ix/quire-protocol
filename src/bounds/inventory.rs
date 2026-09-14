@@ -1169,6 +1169,12 @@ const RESULT_INPUT: SourceSite = SourceSite::new(
     BudgetDimension::InputByte,
     SiteKind::Iteration,
 );
+const RESULT_STRING: SourceSite = SourceSite::new(
+    SiteId::new("result/string/retain"),
+    "result::reader::read",
+    BudgetDimension::InputByte,
+    SiteKind::Retention,
+);
 const RESULT_OPERATION: SourceSite = SourceSite::new(
     SiteId::new("result/field/visit"),
     "result::reader::read",
@@ -1221,6 +1227,7 @@ pub const PRODUCTION_SOURCES: &[SourceSite] = &[
     crate::compensation::RETRY_RESULT_SOURCE,
     crate::compensation::RECOVERY_RESULT_SOURCE,
     crate::result::reader::INPUT_SOURCE,
+    crate::result::reader::STRING_SOURCE,
     crate::result::reader::DEPTH_SOURCE,
     crate::result::reader::OPERATION_SOURCE,
 ];
@@ -1439,6 +1446,12 @@ pub const PRODUCTION_ENTRIES: &[InventoryEntry] = &[
         RESULT_INPUT,
         LimitAuthority::ConsumerOwner,
         ChargePoint::BeforeDecode,
+        Termination::InputLength,
+    ),
+    entry(
+        RESULT_STRING,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeRetain,
         Termination::InputLength,
     ),
     entry(

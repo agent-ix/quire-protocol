@@ -17,6 +17,12 @@ pub(crate) const INPUT_SOURCE: SourceSite = SourceSite::new(
     BudgetDimension::InputByte,
     SiteKind::Iteration,
 );
+pub(crate) const STRING_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("result/string/retain"),
+    "result::reader::read",
+    BudgetDimension::InputByte,
+    SiteKind::Retention,
+);
 pub(crate) const OPERATION_SOURCE: SourceSite = SourceSite::new(
     SiteId::new("result/field/visit"),
     "result::reader::read",
@@ -54,13 +60,24 @@ pub fn read_bounded(
     {
         return OperationOutcome::from_charge(error);
     }
-    let (fields, depth) = structural_field_count(bytes);
-    if let Err(error) = resources.charge_with_limit(DEPTH_SOURCE.id(), depth, effective.max_depth) {
+    let observed = structural_usage(bytes);
+    if let Err(error) = resources.charge_with_limit(
+        STRING_SOURCE.id(),
+        observed.string_bytes,
+        effective.max_string_bytes,
+    ) {
         return OperationOutcome::from_charge(error);
     }
     if let Err(error) =
-        resources.charge_with_limit(OPERATION_SOURCE.id(), fields, effective.max_visited_fields)
+        resources.charge_with_limit(DEPTH_SOURCE.id(), observed.depth, effective.max_depth)
     {
+        return OperationOutcome::from_charge(error);
+    }
+    if let Err(error) = resources.charge_with_limit(
+        OPERATION_SOURCE.id(),
+        observed.fields,
+        effective.max_visited_fields,
+    ) {
         return OperationOutcome::from_charge(error);
     }
     OperationOutcome::from_domain(read(bytes, expected, effective))
@@ -72,9 +89,16 @@ enum ScanFrame {
     Object { expects_key: bool },
 }
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(crate) struct StructuralUsage {
+    pub(crate) fields: usize,
+    pub(crate) depth: usize,
+    pub(crate) string_bytes: usize,
+}
+
 /// Count the object-member and array-element visits made by `visited_fields`
 /// without constructing a JSON value or retaining any offered string.
-fn structural_field_count(bytes: &[u8]) -> (usize, usize) {
+pub(crate) fn structural_usage(bytes: &[u8]) -> StructuralUsage {
     const STACK_CAPACITY: usize = Limits::owner_max().max_depth;
 
     let mut stack = [ScanFrame::Array {
@@ -86,15 +110,22 @@ fn structural_field_count(bytes: &[u8]) -> (usize, usize) {
     let mut in_string = false;
     let mut escaped = false;
     let mut in_primitive = false;
+    let mut string_bytes = 0usize;
+    let mut max_string_bytes = 0usize;
 
     for byte in bytes.iter().copied() {
         if in_string {
             if escaped {
                 escaped = false;
+                string_bytes += 1;
             } else if byte == b'\\' {
                 escaped = true;
+                string_bytes += 1;
             } else if byte == b'"' {
                 in_string = false;
+                max_string_bytes = max_string_bytes.max(string_bytes);
+            } else {
+                string_bytes += 1;
             }
             continue;
         }
@@ -109,11 +140,16 @@ fn structural_field_count(bytes: &[u8]) -> (usize, usize) {
             b'"' => {
                 count_parent_value(&mut stack[..stack_len], &mut fields);
                 in_string = true;
+                string_bytes = 0;
             }
             b'{' => {
                 count_array_value(&mut stack[..stack_len], &mut fields);
                 if stack_len == stack.len() {
-                    return (fields, stack_len.saturating_add(1));
+                    return StructuralUsage {
+                        fields,
+                        depth: stack_len + 1,
+                        string_bytes: max_string_bytes,
+                    };
                 }
                 stack[stack_len] = ScanFrame::Object { expects_key: true };
                 stack_len += 1;
@@ -122,7 +158,11 @@ fn structural_field_count(bytes: &[u8]) -> (usize, usize) {
             b'[' => {
                 count_array_value(&mut stack[..stack_len], &mut fields);
                 if stack_len == stack.len() {
-                    return (fields, stack_len.saturating_add(1));
+                    return StructuralUsage {
+                        fields,
+                        depth: stack_len + 1,
+                        string_bytes: max_string_bytes,
+                    };
                 }
                 stack[stack_len] = ScanFrame::Array {
                     expects_value: true,
@@ -145,7 +185,11 @@ fn structural_field_count(bytes: &[u8]) -> (usize, usize) {
             }
         }
     }
-    (fields, max_depth)
+    StructuralUsage {
+        fields,
+        depth: max_depth,
+        string_bytes: max_string_bytes,
+    }
 }
 
 fn count_parent_value(stack: &mut [ScanFrame], fields: &mut usize) {
