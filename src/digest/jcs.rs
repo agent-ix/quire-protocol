@@ -27,6 +27,8 @@ pub enum JcsError {
     /// A JSON number was offered; ECMAScript number serialisation is not
     /// implemented here and is never approximated.
     UnsupportedNumber(String),
+    /// The canonical byte length cannot be represented by `usize`.
+    LengthOverflow,
 }
 
 impl fmt::Display for JcsError {
@@ -34,6 +36,9 @@ impl fmt::Display for JcsError {
         match self {
             Self::UnsupportedNumber(value) => {
                 write!(formatter, "RFC 8785 number serialisation is not implemented in this crate; refused {value}")
+            }
+            Self::LengthOverflow => {
+                formatter.write_str("RFC 8785 canonical byte length overflowed")
             }
         }
     }
@@ -50,6 +55,59 @@ pub fn canonicalize(value: &Value) -> Result<String, JcsError> {
     let mut out = String::new();
     write_value(value, &mut out)?;
     Ok(out)
+}
+
+/// Compute the exact canonical UTF-8 byte length without allocating the output.
+///
+/// Member order does not affect encoded length, so this pass needs no sorting
+/// buffer. A producer can therefore precheck its output-byte ceiling before
+/// the canonical output allocation begins.
+pub fn canonical_len(value: &Value) -> Result<usize, JcsError> {
+    match value {
+        Value::Null | Value::Bool(true) => Ok(4),
+        Value::Bool(false) => Ok(5),
+        Value::Number(number) => Err(JcsError::UnsupportedNumber(number.to_string())),
+        Value::String(text) => string_len(text),
+        Value::Array(items) => {
+            let mut length = 2usize;
+            for (index, item) in items.iter().enumerate() {
+                if index > 0 {
+                    length = checked_add(length, 1)?;
+                }
+                length = checked_add(length, canonical_len(item)?)?;
+            }
+            Ok(length)
+        }
+        Value::Object(members) => {
+            let mut length = 2usize;
+            for (index, (key, member)) in members.iter().enumerate() {
+                if index > 0 {
+                    length = checked_add(length, 1)?;
+                }
+                length = checked_add(length, string_len(key)?)?;
+                length = checked_add(length, 1)?;
+                length = checked_add(length, canonical_len(member)?)?;
+            }
+            Ok(length)
+        }
+    }
+}
+
+fn string_len(text: &str) -> Result<usize, JcsError> {
+    let mut length = 2usize;
+    for character in text.chars() {
+        let encoded = match character {
+            '"' | '\\' | '\u{8}' | '\u{c}' | '\n' | '\r' | '\t' => 2,
+            control if (control as u32) < 0x20 => 6,
+            other => other.len_utf8(),
+        };
+        length = checked_add(length, encoded)?;
+    }
+    Ok(length)
+}
+
+fn checked_add(left: usize, right: usize) -> Result<usize, JcsError> {
+    left.checked_add(right).ok_or(JcsError::LengthOverflow)
 }
 
 fn write_value(value: &Value, out: &mut String) -> Result<(), JcsError> {

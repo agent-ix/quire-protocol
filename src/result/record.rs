@@ -6,10 +6,10 @@ use quire_spec_language::protocol_artifact::{checked_predicate, temporal_subject
 use serde_json::{json, Value};
 
 use crate::assessment::{AxisInputs, GlobalConformanceInput, GlobalPremise};
-use crate::bounds::inventory::{BudgetDimension, SourceSite};
+use crate::bounds::inventory::{BudgetDimension, OperationOutcome, ResourceAccountant, SourceSite};
 use crate::bounds::{SiteId, SiteKind};
 use crate::closure::{AssessmentExecution, ScopeState};
-use crate::digest::jcs::{canonicalize, ResultDigest};
+use crate::digest::jcs::{canonical_len, canonicalize, ResultDigest};
 use crate::ByteDigest;
 
 use super::{global, lineage, ErrorCode, Refusal, Result};
@@ -557,10 +557,55 @@ pub(crate) struct CorrectionSnapshot {
     pub corrected_input_identity: String,
 }
 
+struct Prepared {
+    snapshot: Snapshot,
+    value: Value,
+    result_id: String,
+    semantic_usage: Usage,
+}
+
 /// Produce one canonical FR-286 result or one typed refusal with no partial output.
 pub fn produce(input: Input<'_>, limits: Limits) -> Result<Document> {
     let effective = limits.effective();
+    finish(prepare(input, effective)?, effective)
+}
+
+/// Produce one canonical result under the shared QProtocol caller budget.
+///
+/// The exact canonical byte length is computed without an output buffer, then
+/// checked against both owner and caller ceilings before canonical allocation.
+pub fn produce_bounded(
+    input: Input<'_>,
+    limits: Limits,
+    resources: &mut ResourceAccountant<'_>,
+) -> OperationOutcome<Document, Refusal> {
+    let effective = limits.effective();
+    let prepared = match prepare(input, effective) {
+        Ok(prepared) => prepared,
+        Err(error) => return OperationOutcome::DomainError(error),
+    };
+    let required = match canonical_len(&prepared.value) {
+        Ok(required) => required,
+        Err(_) => {
+            return OperationOutcome::DomainError(refusal(
+                ErrorCode::InvalidSelection,
+                "result cannot determine its canonical output length",
+                Usage::default(),
+                Some(&prepared.result_id),
+            ));
+        }
+    };
+    if let Err(error) =
+        resources.charge_with_limit(OUTPUT_SOURCE.id(), required, effective.max_output_bytes)
+    {
+        return OperationOutcome::from_charge(error);
+    }
+    OperationOutcome::from_domain(finish(prepared, effective))
+}
+
+fn prepare(input: Input<'_>, effective: Limits) -> Result<Prepared> {
     validate_input(&input, effective)?;
+    let semantic_usage = semantic_usage(&input);
     let snapshot = snapshot(&input);
     let mut value = result_value(&input, &snapshot, None);
     let preimage = json!({"identityVersion": IDENTITY_VERSION, "result": value});
@@ -575,6 +620,21 @@ pub fn produce(input: Input<'_>, limits: Limits) -> Result<Document> {
         })?
         .text();
     value = result_value(&input, &snapshot, Some(&result_id));
+    Ok(Prepared {
+        snapshot,
+        value,
+        result_id,
+        semantic_usage,
+    })
+}
+
+fn finish(prepared: Prepared, effective: Limits) -> Result<Document> {
+    let Prepared {
+        snapshot,
+        value,
+        result_id,
+        semantic_usage,
+    } = prepared;
     let canonical = canonicalize(&value).map_err(|_| {
         refusal(
             ErrorCode::InvalidSelection,
@@ -584,7 +644,7 @@ pub fn produce(input: Input<'_>, limits: Limits) -> Result<Document> {
         )
     })?;
     let bytes = canonical.into_bytes();
-    let usage = super::reader::preflight_output(&bytes, effective, semantic_usage(&input))?;
+    let usage = super::reader::preflight_output(&bytes, effective, semantic_usage)?;
     let digest = ResultDigest::of_result(&value)
         .map_err(|_| {
             refusal(

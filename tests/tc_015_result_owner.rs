@@ -12,6 +12,9 @@ use quire_observation::{
     QualifiedObservation, ResourceLimits, ScopeKind, ScopeSelection, Subject, SubjectKind,
     ValueState, Visibility, NATIVE_LINKED_PACKAGE_FORMAT, PRODUCER_INTERFACE_VERSION,
 };
+use quire_protocol::bounds::inventory::{
+    production_inventory, Budget, BudgetDimension, OperationOutcome, ResourceAccountant,
+};
 use quire_protocol::closure::{AssessmentExecution, GlobalConformanceClosure};
 use quire_protocol::result::{
     self, contract_ir, Activation, Adequacy, Assumption, AssumptionState, AxisInputs, Claim,
@@ -746,6 +749,68 @@ fn tc_015_strict_mutations_lineage_and_limits_fail_closed() {
             .code(),
         ErrorCode::ResourceIncomplete
     );
+}
+
+#[test]
+#[trace("TC-009", "TC-015", "NFR-002-AC-1", "FR-016-AC-2", "FR-016-AC-4")]
+fn tc_009_result_output_budget_precedes_canonical_allocation() {
+    let fixture = fixture();
+    let input = base_input(&fixture);
+    let control = result::produce(input.clone(), Limits::owner_max()).expect("control result");
+    let required = control.bytes().len();
+    assert!(required > 1);
+    let inventory = production_inventory().expect("production inventory");
+
+    let short = Budget::nothing_granted()
+        .grant(BudgetDimension::OutputByte, required - 1)
+        .expect("positive one-short grant");
+    let mut short_resources = ResourceAccountant::new(short, &inventory);
+    assert!(matches!(
+        result::produce_bounded(
+            input.clone(),
+            Limits::owner_max(),
+            &mut short_resources
+        ),
+        OperationOutcome::ResourceIncomplete(value)
+            if value.dimension() == BudgetDimension::OutputByte
+                && value.requested() == required
+    ));
+    assert_eq!(
+        short_resources
+            .usage()
+            .consumed(BudgetDimension::OutputByte),
+        0
+    );
+
+    let exact = Budget::nothing_granted()
+        .grant(BudgetDimension::OutputByte, required)
+        .expect("positive exact grant");
+    let mut exact_resources = ResourceAccountant::new(exact, &inventory);
+    let OperationOutcome::Completed(exact_document) =
+        result::produce_bounded(input.clone(), Limits::owner_max(), &mut exact_resources)
+    else {
+        panic!("fresh exact output budget must complete");
+    };
+    assert_eq!(exact_document.bytes(), control.bytes());
+    assert_eq!(
+        exact_resources
+            .usage()
+            .consumed(BudgetDimension::OutputByte),
+        required
+    );
+
+    let owner_short = Limits {
+        max_output_bytes: required - 1,
+        ..Limits::owner_max()
+    };
+    let mut owner_resources = ResourceAccountant::new(Budget::nothing_granted(), &inventory);
+    assert!(matches!(
+        result::produce_bounded(input, owner_short, &mut owner_resources),
+        OperationOutcome::ResourceIncomplete(value)
+            if value.dimension() == BudgetDimension::OutputByte
+                && value.granted() == required - 1
+                && value.requested() == required
+    ));
 }
 
 #[test]
