@@ -449,7 +449,11 @@ pub fn dispatch(
             dispositions.push(unavailable(request, AssessmentExecution::Unsupported));
             continue;
         }
-        usage.backend_calls = usage.backend_calls.saturating_add(1);
+        let Some(backend_calls) = usage.backend_calls.checked_add(1) else {
+            usage.backend_calls = usize::MAX;
+            return Err(resource_refusal(usage));
+        };
+        usage.backend_calls = backend_calls;
         let reply = backend.assess(request.claim, &request.strength, &request.premises);
         if reply.evidence != request.premises {
             dispositions.push(refused(

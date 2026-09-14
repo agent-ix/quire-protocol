@@ -162,13 +162,7 @@ pub struct Registration {
 
 impl Registration {
     fn derive(definition: &Definition) -> Self {
-        let mut preimage = Vec::with_capacity(
-            REGISTRATION_IDENTITY_DOMAIN
-                .len()
-                .saturating_add(definition.identity.identity_bytes().len())
-                .saturating_add(definition.paired_forward_effect.identity_bytes().len())
-                .saturating_add(24),
-        );
+        let mut preimage = Vec::new();
         push_part(&mut preimage, REGISTRATION_IDENTITY_DOMAIN);
         push_part(&mut preimage, definition.identity.identity_bytes());
         push_part(
@@ -282,7 +276,13 @@ impl Registry {
                     .contains_key(&(definition.identity.clone(), effect.clone()))
             })
             .count();
-        let candidate_total = self.registrations.len().saturating_add(new_count);
+        let Some(candidate_total) = self.registrations.len().checked_add(new_count) else {
+            return Err(ResourceRefusal::new(
+                Resource::Registrations,
+                usize::MAX,
+                self.limits.max_registrations,
+            ));
+        };
         precheck(
             Resource::Registrations,
             candidate_total,
@@ -446,7 +446,15 @@ impl AuthoredOrder {
                 next.push(edge.after.clone());
             }
             if let Some(degree) = indegree.get_mut(&edge.after) {
-                *degree = degree.saturating_add(1);
+                let Some(next) = degree.checked_add(1) else {
+                    return Err(ResourceRefusal::new(
+                        Resource::OrderEdges,
+                        usize::MAX,
+                        limits.max_order_edges,
+                    )
+                    .into());
+                };
+                *degree = next;
             }
         }
 
@@ -456,11 +464,22 @@ impl AuthoredOrder {
             .collect();
         let mut visited = 0usize;
         while let Some(node) = ready.pop_front() {
-            visited = visited.saturating_add(1);
+            let Some(next_visited) = visited.checked_add(1) else {
+                return Err(ResourceRefusal::new(
+                    Resource::OrderNodes,
+                    usize::MAX,
+                    limits.max_order_nodes,
+                )
+                .into());
+            };
+            visited = next_visited;
             if let Some(next) = successors.get(&node) {
                 for successor in next {
                     if let Some(degree) = indegree.get_mut(successor) {
-                        *degree = degree.saturating_sub(1);
+                        let Some(next) = degree.checked_sub(1) else {
+                            return Err(OrderRefusal::Invalid(InvalidOrder::Cycle));
+                        };
+                        *degree = next;
                         if *degree == 0 {
                             ready.push_back(successor.clone());
                         }
@@ -751,7 +770,12 @@ impl AttemptLedger {
                 attempt: attempt_identity,
             };
         };
-        let next = self.attempts.len().saturating_add(1);
+        let Some(next) = self.attempts.len().checked_add(1) else {
+            return AttemptAdmission::ResourceLimitExceeded {
+                attempt: attempt_identity,
+                refusal: ResourceRefusal::new(Resource::Attempts, usize::MAX, self.max_attempts),
+            };
+        };
         if next > self.max_attempts {
             return AttemptAdmission::ResourceLimitExceeded {
                 attempt: attempt_identity,

@@ -296,7 +296,15 @@ fn validate_assumptions(assumptions: &[Assumption], defects: &mut Vec<PremiseDef
                 });
                 continue;
             };
-            indegree[dependent] = indegree[dependent].saturating_add(1);
+            let Some(degree) = indegree[dependent].checked_add(1) else {
+                defects.push(PremiseDefect {
+                    axis: PremiseAxis::Assumption,
+                    kind: PremiseDefectKind::CircularDependency,
+                    identity: None,
+                });
+                return;
+            };
+            indegree[dependent] = degree;
             successors[predecessor].push(dependent);
         }
     }
@@ -307,9 +315,25 @@ fn validate_assumptions(assumptions: &[Assumption], defects: &mut Vec<PremiseDef
         .collect();
     let mut visited = 0usize;
     while let Some(index) = ready.pop_front() {
-        visited = visited.saturating_add(1);
+        let Some(next_visited) = visited.checked_add(1) else {
+            defects.push(PremiseDefect {
+                axis: PremiseAxis::Assumption,
+                kind: PremiseDefectKind::CircularDependency,
+                identity: None,
+            });
+            return;
+        };
+        visited = next_visited;
         for successor in &successors[index] {
-            indegree[*successor] = indegree[*successor].saturating_sub(1);
+            let Some(degree) = indegree[*successor].checked_sub(1) else {
+                defects.push(PremiseDefect {
+                    axis: PremiseAxis::Assumption,
+                    kind: PremiseDefectKind::CircularDependency,
+                    identity: None,
+                });
+                return;
+            };
+            indegree[*successor] = degree;
             if indegree[*successor] == 0 {
                 ready.push_back(*successor);
             }

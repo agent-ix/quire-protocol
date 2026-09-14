@@ -293,9 +293,15 @@ fn acyclic(obligations: &[ObservationObligation], by_id: &BTreeMap<ObligationId,
         .collect();
     let mut visited = 0usize;
     while let Some(index) = ready.pop_front() {
-        visited = visited.saturating_add(1);
+        let Some(next_visited) = visited.checked_add(1) else {
+            return false;
+        };
+        visited = next_visited;
         for successor in &successors[index] {
-            indegree[*successor] = indegree[*successor].saturating_sub(1);
+            let Some(degree) = indegree[*successor].checked_sub(1) else {
+                return false;
+            };
+            indegree[*successor] = degree;
             if indegree[*successor] == 0 {
                 ready.push_back(*successor);
             }
