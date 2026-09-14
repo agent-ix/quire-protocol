@@ -3,9 +3,10 @@
 
 use std::collections::BTreeSet;
 
+use crate::assessment::{GlobalConformanceInput, GlobalPremise};
 use crate::closure::GlobalConformanceClosure;
 
-use super::record::{Claim, ClaimKind, GlobalConformanceInput, GlobalPremise, Limits, Usage};
+use super::record::{Claim, ClaimKind, Limits, Usage};
 use super::{ErrorCode, Refusal, Result};
 
 pub(crate) fn validate(

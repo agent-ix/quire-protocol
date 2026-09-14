@@ -19,13 +19,14 @@ use crate::refusal::{
     Unavailability,
 };
 
+pub use crate::assessment::{AxisInputs, GlobalConformanceInput, GlobalPremise, PremiseKind};
 pub use reader::{read, Expected};
 pub use record::{
-    produce, Activation, Adequacy, Assumption, AssumptionState, AxisInputs, Claim, ClaimKind,
-    ClaimStrength, CorrectionInput, CorrectionRelation, DecisionSupport, DependenceRelation,
-    Document, GlobalConformanceInput, GlobalPremise, Input, Limitation, Limits, Participation,
-    PremiseKind, ProtocolAdequacy, ProvenanceRecord, Settlement, SettlementBasis, SupportRef,
-    Truth, Usage, ValidatedResult, CONTRACT, SCHEMA_BYTES, SCHEMA_SHA256,
+    produce, Activation, Adequacy, Assumption, AssumptionState, Claim, ClaimKind, ClaimStrength,
+    CorrectionInput, CorrectionRelation, DecisionSupport, DependenceRelation, Document, Input,
+    Limitation, Limits, Participation, ProtocolAdequacy, ProvenanceRecord, Settlement,
+    SettlementBasis, SupportRef, Truth, Usage, ValidatedResult, CONTRACT, SCHEMA_BYTES,
+    SCHEMA_SHA256,
 };
 
 /// Stable result-owner or mapping refusal cause.

@@ -5,7 +5,8 @@ use quire_observation::authority::{closure as observation_closure, completeness,
 use quire_spec_language::protocol_artifact::{checked_predicate, temporal_subject};
 use serde_json::{json, Value};
 
-use crate::closure::{AssessmentExecution, GlobalConformanceClosure, ScopeState};
+use crate::assessment::{AxisInputs, GlobalConformanceInput, GlobalPremise};
+use crate::closure::{AssessmentExecution, ScopeState};
 use crate::digest::jcs::{canonicalize, ResultDigest};
 use crate::ByteDigest;
 
@@ -370,49 +371,6 @@ pub struct ProvenanceRecord {
     pub input_identity: String,
     pub backend_identity: String,
     pub producer_identity: String,
-}
-
-/// Required global-closure premise kind.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
-pub enum PremiseKind {
-    Execution,
-    Branch,
-    Workflow,
-}
-impl PremiseKind {
-    pub(crate) const fn label(self) -> &'static str {
-        match self {
-            Self::Execution => "execution",
-            Self::Branch => "branch",
-            Self::Workflow => "workflow",
-        }
-    }
-}
-
-/// One exact required global-closure premise.
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub struct GlobalPremise {
-    pub kind: PremiseKind,
-    pub identity: String,
-    pub scope_identity: String,
-    pub authority_identity: String,
-}
-
-/// Global closure state plus independently selected required and carried sets.
-#[derive(Clone, Debug)]
-pub struct GlobalConformanceInput {
-    pub state: GlobalConformanceClosure,
-    pub required_premises: Vec<GlobalPremise>,
-    pub premises: Vec<GlobalPremise>,
-}
-
-/// Four independent QObs owner views retained by the result.
-#[derive(Clone, Copy, Debug)]
-pub struct AxisInputs<'a> {
-    pub decision_scope_progress: &'a progress::View,
-    pub decision_scope_closure: &'a observation_closure::View,
-    pub surrounding_execution_progress: &'a progress::View,
-    pub surrounding_execution_closure: &'a observation_closure::View,
 }
 
 /// Explicit correction relation to the direct predecessor.

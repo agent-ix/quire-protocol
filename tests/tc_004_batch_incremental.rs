@@ -1,0 +1,614 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//! TC-004: bounded batch and genuinely incremental finite conformance.
+
+use ix_trace_rs::trace;
+use quire_protocol::assessment::{AxisInputs, GlobalConformanceInput, GlobalPremise, PremiseKind};
+use quire_protocol::closure::{AssessmentExecution, GlobalConformanceClosure};
+use quire_protocol::conformance::{
+    assess, compare, AdverseKind, BoundObservation, ErrorCode, GlobalDisposition,
+    GlobalPremiseDefectKind, IncompleteCause, Incremental, Limits, Model, ObligationDisposition,
+    ObligationId, ObservationObligation, Request,
+};
+
+#[path = "support/observation_owner.rs"]
+#[allow(dead_code)]
+mod observation_owner;
+
+use observation_owner::{scope_views, scope_views_with_value, ScopeViews};
+
+fn oid(value: &str) -> ObligationId {
+    ObligationId::retained(value)
+}
+
+fn obligation(
+    identity: &str,
+    expected: &quire_observation::authority::observation::View,
+    effect: &str,
+    predecessors: Vec<ObligationId>,
+) -> ObservationObligation {
+    ObservationObligation {
+        identity: oid(identity),
+        expected_observation_identity: expected.payload().observation_identity().into(),
+        subject_kind: expected.payload().subject_kind().into(),
+        subject_identity: expected.payload().subject_identity().into(),
+        workflow_identity: "workflow:one".into(),
+        effect_identity: Some(effect.into()),
+        predecessors,
+        valuation_required: true,
+    }
+}
+
+fn binding<'a>(
+    obligation: &str,
+    observation: &'a quire_observation::authority::observation::View,
+    workflow: &str,
+    effect: &str,
+) -> BoundObservation<'a> {
+    BoundObservation {
+        obligation: oid(obligation),
+        observation,
+        workflow_identity: workflow.into(),
+        effect_identity: Some(effect.into()),
+    }
+}
+
+fn premises(state: GlobalConformanceClosure) -> GlobalConformanceInput {
+    let premises = vec![
+        GlobalPremise {
+            kind: PremiseKind::Execution,
+            identity: "premise:execution".into(),
+            scope_identity: "scope:execution".into(),
+            authority_identity: "authority:execution".into(),
+        },
+        GlobalPremise {
+            kind: PremiseKind::Branch,
+            identity: "premise:branch".into(),
+            scope_identity: "scope:branch".into(),
+            authority_identity: "authority:branch".into(),
+        },
+        GlobalPremise {
+            kind: PremiseKind::Workflow,
+            identity: "premise:workflow".into(),
+            scope_identity: "scope:workflow".into(),
+            authority_identity: "authority:workflow".into(),
+        },
+    ];
+    GlobalConformanceInput {
+        state,
+        required_premises: premises.clone(),
+        premises,
+    }
+}
+
+fn axes<'a>(decision: &'a ScopeViews, surrounding: &'a ScopeViews, closed: bool) -> AxisInputs<'a> {
+    if closed {
+        AxisInputs {
+            decision_scope_progress: &decision.progress_closed,
+            decision_scope_closure: &decision.closure_closed,
+            surrounding_execution_progress: &surrounding.progress_closed,
+            surrounding_execution_closure: &surrounding.closure_closed,
+        }
+    } else {
+        AxisInputs {
+            decision_scope_progress: &decision.progress_open,
+            decision_scope_closure: &decision.closure_open,
+            surrounding_execution_progress: &surrounding.progress_open,
+            surrounding_execution_closure: &surrounding.closure_open,
+        }
+    }
+}
+
+fn request<'a>(
+    model: &'a Model,
+    observations: &'a [BoundObservation<'a>],
+    decision: &'a ScopeViews,
+    surrounding: &'a ScopeViews,
+    global: &'a GlobalConformanceInput,
+    closed: bool,
+) -> Request<'a> {
+    Request {
+        model,
+        observations,
+        axes: axes(decision, surrounding, closed),
+        completeness: if closed {
+            &decision.completeness_complete
+        } else {
+            &decision.completeness_incomplete
+        },
+        global_conformance: global,
+        execution: AssessmentExecution::Completed,
+    }
+}
+
+/// The first obligation settles at its earliest deciding prefix, and the final
+/// incremental report agrees exactly with batch assessment.
+#[trace("TC-004", "FR-004-AC-4", "FR-041-AC-1", "FR-041-AC-2")]
+#[test]
+fn tc_004_incremental_settles_before_final_fact_and_agrees_with_batch() {
+    let decision = scope_views("decision-incremental");
+    let surrounding = scope_views("surrounding-incremental");
+    let first = obligation(
+        "obligation:first",
+        &decision.observation,
+        "effect:first",
+        vec![],
+    );
+    let second = obligation(
+        "obligation:second",
+        &decision.observation,
+        "effect:second",
+        vec![first.identity.clone()],
+    );
+    let model = Model::new(
+        "protocol:incremental",
+        vec![first, second],
+        Limits::default(),
+    )
+    .expect("valid model");
+    let first_binding = binding(
+        "obligation:first",
+        &decision.observation,
+        "workflow:one",
+        "effect:first",
+    );
+    let second_binding = binding(
+        "obligation:second",
+        &decision.observation,
+        "workflow:one",
+        "effect:second",
+    );
+    let open = premises(GlobalConformanceClosure::Open);
+    let closed = premises(GlobalConformanceClosure::Closed);
+    let mut incremental = Incremental::new(model.clone());
+    let prefix = incremental
+        .push(
+            first_binding.clone(),
+            axes(&decision, &surrounding, false),
+            &decision.completeness_incomplete,
+            &open,
+            AssessmentExecution::Completed,
+            Limits::default(),
+        )
+        .expect("first prefix");
+    assert_eq!(
+        prefix.obligations[0].disposition,
+        ObligationDisposition::Conforms
+    );
+    assert_eq!(
+        prefix.obligations[1].disposition,
+        ObligationDisposition::Pending
+    );
+
+    let final_report = incremental
+        .push(
+            second_binding.clone(),
+            axes(&decision, &surrounding, true),
+            &decision.completeness_complete,
+            &closed,
+            AssessmentExecution::Completed,
+            Limits::default(),
+        )
+        .expect("final prefix")
+        .clone();
+    let bindings = [first_binding, second_binding];
+    let batch = assess(
+        request(&model, &bindings, &decision, &surrounding, &closed, true),
+        Limits::default(),
+    )
+    .expect("batch report");
+    assert_eq!(final_report.global, GlobalDisposition::Conforms);
+    compare(&batch, &final_report).expect("batch/incremental agreement");
+}
+
+/// Independent obligations admit every presentation permutation; the exact
+/// retained observation order changes, while semantic values do not.
+#[trace("TC-004", "FR-004-AC-1", "FR-026-AC-1", "FR-026-AC-3")]
+#[test]
+fn tc_004_permitted_presentation_orders_are_semantically_invariant() {
+    let decision = scope_views("decision-order");
+    let surrounding = scope_views("surrounding-order");
+    let model = Model::new(
+        "protocol:order",
+        vec![
+            obligation("obligation:a", &decision.observation, "effect:a", vec![]),
+            obligation("obligation:b", &decision.observation, "effect:b", vec![]),
+        ],
+        Limits::default(),
+    )
+    .expect("valid model");
+    let a = binding(
+        "obligation:a",
+        &decision.observation,
+        "workflow:one",
+        "effect:a",
+    );
+    let b = binding(
+        "obligation:b",
+        &decision.observation,
+        "workflow:one",
+        "effect:b",
+    );
+    let global = premises(GlobalConformanceClosure::Closed);
+    let left_bindings = [a.clone(), b.clone()];
+    let right_bindings = [b, a];
+    let left = assess(
+        request(
+            &model,
+            &left_bindings,
+            &decision,
+            &surrounding,
+            &global,
+            true,
+        ),
+        Limits::default(),
+    )
+    .expect("left order");
+    let right = assess(
+        request(
+            &model,
+            &right_bindings,
+            &decision,
+            &surrounding,
+            &global,
+            true,
+        ),
+        Limits::default(),
+    )
+    .expect("right order");
+    assert_ne!(left.observations, right.observations);
+    compare(&left, &right).expect("same semantic values");
+}
+
+/// Every adverse class is retained distinctly and the admitted owner bytes are
+/// neither removed nor rewritten.
+#[trace("TC-004", "FR-004-AC-2", "FR-027-AC-1", "FR-027-AC-2", "FR-027-AC-5")]
+#[test]
+fn tc_004_reports_all_adverse_kinds_without_repair() {
+    let decision = scope_views("decision-adverse");
+    let surrounding = scope_views("surrounding-adverse");
+    let first = obligation(
+        "obligation:first",
+        &decision.observation,
+        "effect:shared",
+        vec![],
+    );
+    let second = obligation(
+        "obligation:second",
+        &surrounding.observation,
+        "effect:shared",
+        vec![first.identity.clone()],
+    );
+    let missing = obligation(
+        "obligation:missing",
+        &decision.observation,
+        "effect:missing",
+        vec![],
+    );
+    let model = Model::new(
+        "protocol:adverse",
+        vec![first, second, missing],
+        Limits::default(),
+    )
+    .expect("valid model");
+    let bindings = [
+        binding(
+            "obligation:second",
+            &surrounding.observation,
+            "workflow:one",
+            "effect:shared",
+        ),
+        binding(
+            "obligation:first",
+            &surrounding.observation,
+            "workflow:other",
+            "effect:shared",
+        ),
+    ];
+    let global = premises(GlobalConformanceClosure::Closed);
+    let report = assess(
+        request(&model, &bindings, &decision, &surrounding, &global, true),
+        Limits::default(),
+    )
+    .expect("adverse report");
+    let kinds: std::collections::BTreeSet<_> =
+        report.adverse.iter().map(|adverse| adverse.kind).collect();
+    assert_eq!(
+        kinds,
+        [
+            AdverseKind::Unexpected,
+            AdverseKind::Missing,
+            AdverseKind::CausallyMisordered,
+            AdverseKind::DuplicateEffect,
+            AdverseKind::CrossWorkflow,
+        ]
+        .into_iter()
+        .collect()
+    );
+    assert_eq!(report.observations.len(), bindings.len());
+    assert_eq!(
+        report.observations[0].document.bytes,
+        bindings[0].observation.bytes()
+    );
+    assert_eq!(
+        report.observations[1].document.bytes,
+        bindings[1].observation.bytes()
+    );
+}
+
+/// Missing valuation is an explicit incomplete outcome, never a false or
+/// violation result.
+#[trace("TC-004", "FR-027-AC-4")]
+#[test]
+fn tc_004_missing_valuation_is_incomplete_not_false() {
+    let decision = scope_views_with_value("decision-missing-value", false);
+    let surrounding = scope_views("surrounding-missing-value");
+    let model = Model::new(
+        "protocol:missing-value",
+        vec![obligation(
+            "obligation:value",
+            &decision.observation,
+            "effect:value",
+            vec![],
+        )],
+        Limits::default(),
+    )
+    .expect("valid model");
+    let bindings = [binding(
+        "obligation:value",
+        &decision.observation,
+        "workflow:one",
+        "effect:value",
+    )];
+    let global = premises(GlobalConformanceClosure::Closed);
+    let report = assess(
+        request(&model, &bindings, &decision, &surrounding, &global, true),
+        Limits::default(),
+    )
+    .expect("incomplete report");
+    assert_eq!(
+        report.obligations[0].disposition,
+        ObligationDisposition::Incomplete
+    );
+    assert!(matches!(
+        report.incomplete.as_slice(),
+        [IncompleteCause::MissingValuation { .. }]
+    ));
+    assert_eq!(report.global, GlobalDisposition::Unavailable);
+}
+
+/// Resource ceilings discriminate exact/one-over requests, and path divergence
+/// has a stable refusal axis and its own identity.
+#[trace("TC-004", "FR-041-AC-3", "FR-041-AC-4", "NFR-002-AC-2")]
+#[test]
+fn tc_004_bounds_and_path_divergence_are_typed() {
+    let decision = scope_views("decision-refusal");
+    let surrounding = scope_views("surrounding-refusal");
+    let model = Model::new(
+        "protocol:refusal",
+        vec![obligation(
+            "obligation:one",
+            &decision.observation,
+            "effect:one",
+            vec![],
+        )],
+        Limits::default(),
+    )
+    .expect("valid model");
+    let bindings = [binding(
+        "obligation:one",
+        &decision.observation,
+        "workflow:one",
+        "effect:one",
+    )];
+    let global = premises(GlobalConformanceClosure::Closed);
+    let request = || request(&model, &bindings, &decision, &surrounding, &global, true);
+    let report = assess(request(), Limits::default()).expect("at owner maximum");
+    let too_small = Limits {
+        max_bindings: 0,
+        ..Limits::default()
+    };
+    let resource = assess(request(), too_small).expect_err("one binding over caller limit");
+    assert_eq!(resource.code(), ErrorCode::ResourceIncomplete);
+
+    let mut divergent = report.clone();
+    divergent.global = GlobalDisposition::Pending;
+    let divergence = compare(&report, &divergent).expect_err("different value");
+    assert_eq!(divergence.code(), ErrorCode::PathDivergence);
+    assert_ne!(divergence.outcome_identity(), resource.outcome_identity());
+}
+
+/// The conformance layer retains all four owner views and never promotes one
+/// axis, completeness, global closure, or execution into another.
+#[trace("TC-004", "FR-004-AC-3", "FR-028-AC-1", "FR-028-AC-2", "FR-028-AC-3")]
+#[test]
+fn tc_004_all_axis_execution_and_completeness_states_remain_independent() {
+    let decision = scope_views("decision-product");
+    let surrounding = scope_views("surrounding-product");
+    let model = Model::new(
+        "protocol:product",
+        vec![obligation(
+            "obligation:one",
+            &decision.observation,
+            "effect:one",
+            vec![],
+        )],
+        Limits::default(),
+    )
+    .expect("valid model");
+    let bindings = [binding(
+        "obligation:one",
+        &decision.observation,
+        "workflow:one",
+        "effect:one",
+    )];
+    let progress = [&decision.progress_open, &decision.progress_closed];
+    let closure = [&decision.closure_open, &decision.closure_closed];
+    let surrounding_progress = [&surrounding.progress_open, &surrounding.progress_closed];
+    let surrounding_closure = [&surrounding.closure_open, &surrounding.closure_closed];
+    let completeness = [
+        &decision.completeness_complete,
+        &decision.completeness_incomplete,
+        &decision.completeness_contradicted,
+    ];
+    let global_states = [
+        GlobalConformanceClosure::Closed,
+        GlobalConformanceClosure::Open,
+        GlobalConformanceClosure::Incomplete,
+        GlobalConformanceClosure::Contradicted,
+    ];
+    for decision_progress in progress {
+        for decision_closure in closure {
+            for execution_progress in surrounding_progress {
+                for execution_closure in surrounding_closure {
+                    for completeness in completeness {
+                        for global_state in global_states {
+                            for execution in AssessmentExecution::ALL {
+                                let global = premises(global_state);
+                                let report = assess(
+                                    Request {
+                                        model: &model,
+                                        observations: &bindings,
+                                        axes: AxisInputs {
+                                            decision_scope_progress: decision_progress,
+                                            decision_scope_closure: decision_closure,
+                                            surrounding_execution_progress: execution_progress,
+                                            surrounding_execution_closure: execution_closure,
+                                        },
+                                        completeness,
+                                        global_conformance: &global,
+                                        execution,
+                                    },
+                                    Limits::default(),
+                                )
+                                .expect("independent product row");
+                                let expected = if execution != AssessmentExecution::Completed
+                                    || completeness.payload().state()
+                                        != quire_observation::authority::completeness::State::Complete
+                                {
+                                    GlobalDisposition::Unavailable
+                                } else if global_state == GlobalConformanceClosure::Contradicted {
+                                    GlobalDisposition::Violates
+                                } else if decision_progress.payload().state()
+                                    == quire_observation::authority::OpenClosed::Closed
+                                    && decision_closure.payload().state()
+                                        == quire_observation::authority::OpenClosed::Closed
+                                    && execution_progress.payload().state()
+                                        == quire_observation::authority::OpenClosed::Closed
+                                    && execution_closure.payload().state()
+                                        == quire_observation::authority::OpenClosed::Closed
+                                    && global_state == GlobalConformanceClosure::Closed
+                                {
+                                    GlobalDisposition::Conforms
+                                } else {
+                                    GlobalDisposition::Pending
+                                };
+                                assert_eq!(report.global, expected);
+                                assert_eq!(
+                                    report.obligations[0].disposition,
+                                    if execution == AssessmentExecution::Completed {
+                                        ObligationDisposition::Conforms
+                                    } else {
+                                        ObligationDisposition::Unavailable
+                                    }
+                                );
+                                assert_eq!(
+                                    report.premises.decision_scope_progress.bytes,
+                                    decision_progress.bytes()
+                                );
+                                assert_eq!(
+                                    report.premises.decision_scope_closure.bytes,
+                                    decision_closure.bytes()
+                                );
+                                assert_eq!(
+                                    report.premises.surrounding_execution_progress.bytes,
+                                    execution_progress.bytes()
+                                );
+                                assert_eq!(
+                                    report.premises.surrounding_execution_closure.bytes,
+                                    execution_closure.bytes()
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Missing, duplicated, unexpected, and cross-wired global premises withhold
+/// only global success; an independently settled obligation stays settled.
+#[trace("TC-004", "FR-028-AC-4", "FR-028-AC-5")]
+#[test]
+fn tc_004_global_premise_defects_do_not_rewrite_obligation_truth() {
+    let decision = scope_views("decision-premise-defect");
+    let surrounding = scope_views("surrounding-premise-defect");
+    let model = Model::new(
+        "protocol:premise-defect",
+        vec![obligation(
+            "obligation:one",
+            &decision.observation,
+            "effect:one",
+            vec![],
+        )],
+        Limits::default(),
+    )
+    .expect("valid model");
+    let bindings = [binding(
+        "obligation:one",
+        &decision.observation,
+        "workflow:one",
+        "effect:one",
+    )];
+    let mut global = premises(GlobalConformanceClosure::Closed);
+    let missing = global.premises.remove(0);
+    global.premises.push(global.premises[0].clone());
+    global.premises[1].scope_identity = "scope:cross-wired".into();
+    global.premises.push(GlobalPremise {
+        kind: missing.kind,
+        identity: "premise:unexpected".into(),
+        scope_identity: missing.scope_identity,
+        authority_identity: missing.authority_identity,
+    });
+    let report = assess(
+        request(&model, &bindings, &decision, &surrounding, &global, true),
+        Limits::default(),
+    )
+    .expect("global defects are reportable");
+    assert_eq!(
+        report.obligations[0].disposition,
+        ObligationDisposition::Conforms
+    );
+    assert_eq!(report.global, GlobalDisposition::Unavailable);
+    let kinds: std::collections::BTreeSet<_> = report
+        .global_premise_defects
+        .iter()
+        .map(|defect| defect.kind)
+        .collect();
+    assert_eq!(
+        kinds,
+        [
+            GlobalPremiseDefectKind::Missing,
+            GlobalPremiseDefectKind::Duplicate,
+            GlobalPremiseDefectKind::Unexpected,
+            GlobalPremiseDefectKind::CrossWired,
+        ]
+        .into_iter()
+        .collect()
+    );
+
+    let not_required = premises(GlobalConformanceClosure::NotRequired);
+    let refusal = assess(
+        request(
+            &model,
+            &bindings,
+            &decision,
+            &surrounding,
+            &not_required,
+            true,
+        ),
+        Limits::default(),
+    )
+    .expect_err("global conformance cannot be not-required");
+    assert_eq!(refusal.code(), ErrorCode::InvalidPremises);
+}

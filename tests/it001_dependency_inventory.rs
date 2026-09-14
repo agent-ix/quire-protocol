@@ -37,6 +37,7 @@ const SCHEMA_VALIDATOR: &str = "jsonschema";
 /// without being added here fails the lane, so no unlisted module can carry
 /// protocol semantics.
 const LIBRARY_MODULES: &[&str] = &[
+    "assessment.rs",
     "bounds",
     "claims",
     "closure.rs",
