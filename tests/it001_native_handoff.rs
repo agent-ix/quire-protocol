@@ -618,10 +618,20 @@ fn it_001_inventory_identifies_one_b_owned_reader_path() {
         .lines()
         .filter_map(|line| line.split_once('=').map(|(name, _)| name.trim()))
         .collect::<Vec<_>>();
-    assert_eq!(dependencies, ["quire-spec-language", "serde_json"]);
+    assert_eq!(
+        dependencies,
+        [
+            "quire-spec-language",
+            "quire-observation",
+            "serde_json",
+            "serde",
+            "jsonschema"
+        ]
+    );
 
     let consumer = locked_package("quire-protocol");
     assert!(consumer.contains(r#""quire-spec-language""#));
+    assert!(consumer.contains(r#""quire-observation""#));
     assert!(consumer.contains(r#""serde_json""#));
     assert!(!consumer.contains(r#""logos""#));
 }

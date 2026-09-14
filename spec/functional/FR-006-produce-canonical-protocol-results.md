@@ -133,7 +133,7 @@ rather than reconciled.
 The implementation consumes the promoted shared object authority rather than
 retaining earlier gap descriptions. FR-286 fixes the complete derived result
 identity preimage and strict-reader order; FR-284 fixes each of the four
-progress/closure axes to independent `open`/`closed`; FR-287 fixes completeness
+progress/closure axes to independent `open`/`closed`; FR-295 fixes completeness
 to `complete`/`incomplete`/`contradicted`; FR-243 fixes all five settlement
 members; and FR-285 fixes participation to its exact known/unknown form. No
 local aliases or compatibility fallbacks survive these rulings.

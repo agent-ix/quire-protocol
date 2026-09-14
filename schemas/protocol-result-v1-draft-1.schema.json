@@ -1,0 +1,163 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-ix.org/schemas/quire/protocol-result-v1-draft-1.schema.json",
+  "title": "Canonical Protocol Result v1 draft 1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "activation", "assumptions", "claim", "completeness", "contractVersion",
+    "correction", "decisionScopeClosure", "decisionScopeProgress", "decisionSupport",
+    "execution", "globalConformance", "kind", "limitations",
+    "nativeCorrespondenceIdentity", "nativeSubjectIdentity", "observationAdequacy",
+    "participation", "protocolAdequacy", "provenance", "resultId", "settlement",
+    "surroundingExecutionClosure", "surroundingExecutionProgress", "truth"
+  ],
+  "properties": {
+    "activation": { "enum": ["triggered", "inactive", "activation-unknown"] },
+    "assumptions": { "type": "array", "items": { "$ref": "#/$defs/assumption" } },
+    "claim": { "$ref": "#/$defs/claim" },
+    "completeness": { "$ref": "#/$defs/completeness" },
+    "contractVersion": { "const": "quire.protocol.result/v1-draft.1" },
+    "correction": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/correction" }] },
+    "decisionScopeClosure": { "$ref": "#/$defs/axis" },
+    "decisionScopeProgress": { "$ref": "#/$defs/axis" },
+    "decisionSupport": { "type": "array", "items": { "$ref": "#/$defs/support" } },
+    "execution": { "enum": ["completed", "refused", "unsupported", "resource-incomplete", "failed"] },
+    "globalConformance": { "$ref": "#/$defs/global" },
+    "kind": { "const": "ProtocolResult" },
+    "limitations": { "type": "array", "items": { "$ref": "#/$defs/limitation" } },
+    "nativeCorrespondenceIdentity": { "$ref": "#/$defs/nonempty" },
+    "nativeSubjectIdentity": { "$ref": "#/$defs/nonempty" },
+    "observationAdequacy": { "enum": ["adequate", "inadequate", "unknown", "not-assessed"] },
+    "participation": { "oneOf": [{ "$ref": "#/$defs/knownParticipation" }, { "$ref": "#/$defs/unknownParticipation" }] },
+    "protocolAdequacy": { "enum": ["demonstrated", "not-demonstrated", "inapplicable", "unknown"] },
+    "provenance": { "$ref": "#/$defs/provenance" },
+    "resultId": { "$ref": "#/$defs/sha256jcs" },
+    "settlement": { "$ref": "#/$defs/settlement" },
+    "surroundingExecutionClosure": { "$ref": "#/$defs/axis" },
+    "surroundingExecutionProgress": { "$ref": "#/$defs/axis" },
+    "truth": { "enum": ["satisfied", "violated", "pending", "unavailable"] }
+  },
+  "$defs": {
+    "nonempty": { "type": "string", "minLength": 1 },
+    "sha256": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "sha256jcs": { "type": "string", "pattern": "^sha256-jcs:[0-9a-f]{64}$" },
+    "nullableNonempty": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/nonempty" }] },
+    "stringArray": { "type": "array", "items": { "$ref": "#/$defs/nonempty" } },
+    "assumption": {
+      "type": "object", "additionalProperties": false,
+      "required": ["identity", "state"],
+      "properties": { "identity": { "$ref": "#/$defs/nonempty" }, "state": { "enum": ["met", "not-met", "unknown", "not-assessed"] } }
+    },
+    "claim": {
+      "type": "object", "additionalProperties": false,
+      "required": ["admittedFragmentIdentity", "backendIdentity", "kind", "strength"],
+      "properties": {
+        "admittedFragmentIdentity": { "$ref": "#/$defs/nullableNonempty" },
+        "backendIdentity": { "$ref": "#/$defs/nullableNonempty" },
+        "kind": { "enum": ["global-conformance", "monitorability", "local-projection", "refinement", "realizability", "composition"] },
+        "strength": { "oneOf": [{ "type": "null" }, { "enum": ["proven", "bounded-checked", "tested", "observed"] }] }
+      }
+    },
+    "axis": {
+      "type": "object", "additionalProperties": false,
+      "required": ["authorityDigest", "authorityIdentity", "authorityRevision", "contract", "documentDigest", "documentIdentity", "populationIdentity", "schemaSha256", "scopeIdentity", "state"],
+      "properties": {
+        "authorityDigest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "authorityIdentity": { "$ref": "#/$defs/nonempty" },
+        "authorityRevision": { "$ref": "#/$defs/nonempty" },
+        "contract": { "enum": ["quire.observation.progress-assertion/v1", "quire.observation.closure-assertion/v1"] },
+        "documentDigest": { "$ref": "#/$defs/sha256" },
+        "documentIdentity": { "$ref": "#/$defs/nonempty" },
+        "populationIdentity": { "$ref": "#/$defs/nonempty" },
+        "schemaSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "scopeIdentity": { "$ref": "#/$defs/nonempty" },
+        "state": { "enum": ["open", "closed"] }
+      }
+    },
+    "completeness": {
+      "type": "object", "additionalProperties": false,
+      "required": ["boundaryIdentity", "contract", "documentDigest", "documentIdentity", "factIdentities", "populationIdentity", "schemaSha256", "state"],
+      "properties": {
+        "boundaryIdentity": { "$ref": "#/$defs/nonempty" },
+        "contract": { "const": "quire.observation.completeness-assertion/v1" },
+        "documentDigest": { "$ref": "#/$defs/sha256" },
+        "documentIdentity": { "$ref": "#/$defs/nonempty" },
+        "factIdentities": { "$ref": "#/$defs/stringArray" },
+        "populationIdentity": { "$ref": "#/$defs/nonempty" },
+        "schemaSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "state": { "enum": ["complete", "incomplete", "contradicted"] }
+      }
+    },
+    "supportRef": {
+      "type": "object", "additionalProperties": false,
+      "required": ["observationIdentity", "oracleIdentity"],
+      "properties": { "observationIdentity": { "$ref": "#/$defs/nonempty" }, "oracleIdentity": { "$ref": "#/$defs/nonempty" } }
+    },
+    "support": {
+      "type": "object", "additionalProperties": false,
+      "required": ["dependenceGroup", "observationIdentity", "oracleIdentity", "predecessor", "relation"],
+      "properties": {
+        "dependenceGroup": { "$ref": "#/$defs/nullableNonempty" },
+        "observationIdentity": { "$ref": "#/$defs/nonempty" },
+        "oracleIdentity": { "$ref": "#/$defs/nonempty" },
+        "predecessor": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/supportRef" }] },
+        "relation": { "enum": ["independent", "shared", "derived", "unknown"] }
+      }
+    },
+    "premise": {
+      "type": "object", "additionalProperties": false,
+      "required": ["authorityIdentity", "identity", "kind", "scopeIdentity"],
+      "properties": {
+        "authorityIdentity": { "$ref": "#/$defs/nonempty" }, "identity": { "$ref": "#/$defs/nonempty" },
+        "kind": { "enum": ["execution", "branch", "workflow"] }, "scopeIdentity": { "$ref": "#/$defs/nonempty" }
+      }
+    },
+    "global": {
+      "type": "object", "additionalProperties": false,
+      "required": ["premises", "state"],
+      "properties": { "premises": { "type": "array", "items": { "$ref": "#/$defs/premise" } }, "state": { "enum": ["closed", "open", "incomplete", "contradicted", "not-required"] } }
+    },
+    "correction": {
+      "type": "object", "additionalProperties": false,
+      "required": ["contradictedPremiseIdentity", "correctedInputIdentity", "predecessorDigest", "predecessorResultId", "relation"],
+      "properties": {
+        "contradictedPremiseIdentity": { "$ref": "#/$defs/nonempty" }, "correctedInputIdentity": { "$ref": "#/$defs/nonempty" },
+        "predecessorDigest": { "$ref": "#/$defs/sha256jcs" }, "predecessorResultId": { "$ref": "#/$defs/sha256jcs" },
+        "relation": { "enum": ["supersedes", "invalidates"] }
+      }
+    },
+    "limitation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["affectedIdentity", "code"],
+      "properties": { "affectedIdentity": { "$ref": "#/$defs/nonempty" }, "code": { "$ref": "#/$defs/nonempty" } }
+    },
+    "knownParticipation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "participatingRoleInstanceRefs", "requiredRoleInstanceRefs"],
+      "properties": { "kind": { "const": "known" }, "participatingRoleInstanceRefs": { "$ref": "#/$defs/stringArray" }, "requiredRoleInstanceRefs": { "$ref": "#/$defs/stringArray" } }
+    },
+    "unknownParticipation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "missingDependencyRefs", "participatingRoleInstanceRefs", "reasons"],
+      "properties": { "kind": { "const": "unknown" }, "missingDependencyRefs": { "$ref": "#/$defs/stringArray" }, "participatingRoleInstanceRefs": { "$ref": "#/$defs/stringArray" }, "reasons": { "$ref": "#/$defs/stringArray" } }
+    },
+    "provenance": {
+      "type": "object", "additionalProperties": false,
+      "required": ["backendIdentity", "bindingIdentity", "inputIdentity", "modelIdentity", "producerIdentity", "profileIdentity", "protocolIdentity", "requestIdentity", "sourceIdentity"],
+      "properties": {
+        "backendIdentity": { "$ref": "#/$defs/nonempty" }, "bindingIdentity": { "$ref": "#/$defs/nonempty" }, "inputIdentity": { "$ref": "#/$defs/nonempty" },
+        "modelIdentity": { "$ref": "#/$defs/nonempty" }, "producerIdentity": { "$ref": "#/$defs/nonempty" }, "profileIdentity": { "$ref": "#/$defs/nonempty" },
+        "protocolIdentity": { "$ref": "#/$defs/nonempty" }, "requestIdentity": { "$ref": "#/$defs/nonempty" }, "sourceIdentity": { "$ref": "#/$defs/nonempty" }
+      }
+    },
+    "settlement": {
+      "type": "object", "additionalProperties": false,
+      "required": ["basis", "supportingFactIdentities", "supportingProgressIdentities"],
+      "properties": {
+        "basis": { "enum": ["closed-scope", "decisive-witness", "decisive-counterexample", "unsettled", "unavailable"] },
+        "supportingFactIdentities": { "$ref": "#/$defs/stringArray" }, "supportingProgressIdentities": { "$ref": "#/$defs/stringArray" }
+      }
+    }
+  }
+}

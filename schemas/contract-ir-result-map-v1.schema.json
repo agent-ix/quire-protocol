@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-ix.org/schemas/quire/contract-ir-result-map-v1.schema.json",
+  "title": "Protocol Result to Contract IR Mapping v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["completeness", "contract", "correction", "decisionSupport", "execution", "identity", "nativeCorrespondenceIdentity", "nativeSubjectIdentity", "outcome", "progressAndClosure", "schemaSha256", "settlement", "sourceResult", "truth"],
+  "properties": {
+    "contract": { "const": "quire.protocol.contract-ir-result-map/v1" },
+    "identity": { "$ref": "#/$defs/sha256" },
+    "schemaSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "sourceResult": {
+      "type": "object", "additionalProperties": false,
+      "required": ["contract", "digest", "resultId", "schemaSha256"],
+      "properties": {
+        "contract": { "const": "quire.protocol.result/v1-draft.1" },
+        "digest": { "$ref": "#/$defs/sha256jcs" }, "resultId": { "$ref": "#/$defs/sha256jcs" },
+        "schemaSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
+    "nativeCorrespondenceIdentity": { "$ref": "#/$defs/nonempty" },
+    "nativeSubjectIdentity": { "$ref": "#/$defs/nonempty" },
+    "execution": { "enum": ["completed", "refused", "unsupported", "resource-incomplete", "failed"] },
+    "truth": { "enum": ["satisfied", "violated", "pending", "unavailable"] },
+    "outcome": { "oneOf": [{ "$ref": "#/$defs/value" }, { "$ref": "#/$defs/nonValue" }] },
+    "progressAndClosure": { "$ref": "#/$defs/axes" },
+    "completeness": { "$ref": "#/$defs/completeness" },
+    "settlement": { "$ref": "#/$defs/settlement" },
+    "decisionSupport": { "type": "array", "items": { "$ref": "#/$defs/support" } },
+    "correction": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/correction" }] }
+  },
+  "$defs": {
+    "nonempty": { "type": "string", "minLength": 1 },
+    "sha256": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "sha256jcs": { "type": "string", "pattern": "^sha256-jcs:[0-9a-f]{64}$" },
+    "value": { "type": "object", "additionalProperties": false, "required": ["kind", "value"], "properties": { "kind": { "const": "value" }, "value": { "type": "boolean" } } },
+    "nonValue": {
+      "type": "object", "additionalProperties": false,
+      "required": ["completeness", "execution", "kind", "settlement", "truth"],
+      "properties": {
+        "kind": { "const": "non-value" }, "execution": { "enum": ["completed", "refused", "unsupported", "resource-incomplete", "failed"] },
+        "truth": { "enum": ["satisfied", "violated", "pending", "unavailable"] },
+        "settlement": { "enum": ["closed-scope", "decisive-witness", "decisive-counterexample", "unsettled", "unavailable"] },
+        "completeness": { "enum": ["complete", "incomplete", "contradicted"] }
+      }
+    },
+    "axis": {
+      "type": "object", "additionalProperties": false,
+      "required": ["authorityIdentity", "authorityRevision", "documentDigest", "documentIdentity", "scopeIdentity", "state"],
+      "properties": { "authorityIdentity": { "$ref": "#/$defs/nonempty" }, "authorityRevision": { "$ref": "#/$defs/nonempty" }, "documentDigest": { "$ref": "#/$defs/sha256" }, "documentIdentity": { "$ref": "#/$defs/nonempty" }, "scopeIdentity": { "$ref": "#/$defs/nonempty" }, "state": { "enum": ["open", "closed"] } }
+    },
+    "axes": {
+      "type": "object", "additionalProperties": false,
+      "required": ["decisionScopeClosure", "decisionScopeProgress", "surroundingExecutionClosure", "surroundingExecutionProgress"],
+      "properties": { "decisionScopeClosure": { "$ref": "#/$defs/axis" }, "decisionScopeProgress": { "$ref": "#/$defs/axis" }, "surroundingExecutionClosure": { "$ref": "#/$defs/axis" }, "surroundingExecutionProgress": { "$ref": "#/$defs/axis" } }
+    },
+    "completeness": {
+      "type": "object", "additionalProperties": false,
+      "required": ["boundaryIdentity", "documentDigest", "documentIdentity", "factIdentities", "populationIdentity", "state"],
+      "properties": { "boundaryIdentity": { "$ref": "#/$defs/nonempty" }, "documentDigest": { "$ref": "#/$defs/sha256" }, "documentIdentity": { "$ref": "#/$defs/nonempty" }, "factIdentities": { "type": "array", "items": { "$ref": "#/$defs/nonempty" } }, "populationIdentity": { "$ref": "#/$defs/nonempty" }, "state": { "enum": ["complete", "incomplete", "contradicted"] } }
+    },
+    "settlement": {
+      "type": "object", "additionalProperties": false,
+      "required": ["basis", "supportingFactIdentities", "supportingProgressIdentities"],
+      "properties": { "basis": { "enum": ["closed-scope", "decisive-witness", "decisive-counterexample", "unsettled", "unavailable"] }, "supportingFactIdentities": { "type": "array", "items": { "$ref": "#/$defs/nonempty" } }, "supportingProgressIdentities": { "type": "array", "items": { "$ref": "#/$defs/nonempty" } } }
+    },
+    "supportRef": {
+      "type": "object", "additionalProperties": false,
+      "required": ["observationIdentity", "oracleIdentity"],
+      "properties": { "observationIdentity": { "$ref": "#/$defs/nonempty" }, "oracleIdentity": { "$ref": "#/$defs/nonempty" } }
+    },
+    "support": {
+      "type": "object", "additionalProperties": false,
+      "required": ["dependenceGroup", "observationIdentity", "oracleIdentity", "predecessor", "relation"],
+      "properties": {
+        "dependenceGroup": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/nonempty" }] },
+        "observationIdentity": { "$ref": "#/$defs/nonempty" },
+        "oracleIdentity": { "$ref": "#/$defs/nonempty" },
+        "predecessor": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/supportRef" }] },
+        "relation": { "enum": ["independent", "shared", "derived", "unknown"] }
+      }
+    },
+    "correction": {
+      "type": "object", "additionalProperties": false,
+      "required": ["contradictedPremiseIdentity", "correctedInputIdentity", "predecessorDigest", "predecessorResultId", "relation"],
+      "properties": {
+        "contradictedPremiseIdentity": { "$ref": "#/$defs/nonempty" },
+        "correctedInputIdentity": { "$ref": "#/$defs/nonempty" },
+        "predecessorDigest": { "$ref": "#/$defs/sha256jcs" },
+        "predecessorResultId": { "$ref": "#/$defs/sha256jcs" },
+        "relation": { "enum": ["supersedes", "invalidates"] }
+      }
+    }
+  }
+}

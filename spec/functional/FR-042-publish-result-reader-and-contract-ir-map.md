@@ -9,7 +9,7 @@ relationships:
   - { target: ix://agent-ix/quire-protocol/FR-033, type: depends_on }
   - { target: ix://agent-ix/quire-specification/FR-240, type: depends_on }
   - { target: ix://agent-ix/quire-specification/FR-286, type: depends_on }
-  - { target: ix://agent-ix/quire-specification/FR-287, type: depends_on }
+  - { target: ix://agent-ix/quire-specification/FR-295, type: depends_on }
   - { target: ix://agent-ix/tl-syntax/IF-003, type: implements }
   - { target: ix://agent-ix/tl-syntax/VO-005, type: implements }
 ---
@@ -48,7 +48,7 @@ The producer and reader SHALL enforce every FR-061/FR-240/FR-286 field and
 combination in FR-031 through FR-033. The four decision/surrounding progress and
 closure axes each carry only independently selected `open`/`closed` states and
 exact owner assertion references. Completeness is a separate embedded
-`quire.observation.completeness-assertion/v1` selection with one FR-287 state.
+`quire.observation.completeness-assertion/v1` selection with one FR-295 state.
 Truth uses only `satisfied`, `violated`, `pending`, `unavailable`; activation,
 settlement, participation, adequacy, global closure, claim and correction
 lineage retain their separately owned closed values and required premises.
@@ -95,7 +95,7 @@ uses fresh accounting; caller limits may lower but not raise owner maxima.
 | --- | --- | --- |
 | FR-042-AC-1 | Every valid canonical-result combination produces deterministic FR-286 bytes/identity/digest and strict-reads to a constructor-private view; every one-axis forbidden combination refuses. | Test (TC-015) |
 | FR-042-AC-2 | Omission, duplication, reordering, unknown fields/labels/contracts, trailing/noncanonical bytes and every identity, scope, decision-premise or lineage mutation refuse without partial output. | Test (TC-015) |
-| FR-042-AC-3 | Every independent combination of the four open/closed axes and FR-287 completeness remains representable and no axis supplies another. | Test (TC-015) |
+| FR-042-AC-3 | Every independent combination of the four open/closed axes and FR-295 completeness remains representable and no axis supplies another. | Test (TC-015) |
 | FR-042-AC-4 | The exact selected mapping derives true only from completed+satisfied and false only from completed+violated; all other valid rows remain typed non-values with complete source facts. | Test (TC-015) |
 | FR-042-AC-5 | Mapping bytes/read views are fully re-derived from the validated result, and source/mapping identities, vocabularies and schema digests cannot substitute for one another. | Test (TC-015) |
 | FR-042-AC-6 | Exact and one-over limits cover every bounded dimension and refuse before excess retention; no public constructor, callback, parser, evaluator or trust flag bypasses admission. | Test (TC-015) |

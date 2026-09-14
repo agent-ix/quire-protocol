@@ -357,6 +357,8 @@ pub const REGISTRY: &[CodeModule] = &[
     CLOSURE_CODES,
     EXECUTION_CODES,
     BOUNDS_CODES,
+    crate::result::RESULT_CODES,
+    crate::result::contract_ir::MAPPING_CODES,
 ];
 
 /// The registered code with this exact spelling, if any.
