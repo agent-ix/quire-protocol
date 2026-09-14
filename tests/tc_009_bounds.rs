@@ -1312,6 +1312,17 @@ fn tc_009_every_production_site_has_below_at_above_boundary() {
             .grant(source.dimension(), 2)
             .expect("positive grant");
         let mut accountant = ResourceAccountant::new(budget, &inventory);
+        if source.dimension() == BudgetDimension::ElapsedTime {
+            assert_eq!(
+                accountant.charge(source.id(), 1),
+                Err(ChargeError::TemporalDimensionChargedStatically {
+                    site: source.id(),
+                    dimension: BudgetDimension::ElapsedTime,
+                }),
+                "elapsed time must use the monotonic before/after mechanism"
+            );
+            continue;
+        }
         accountant
             .charge(source.id(), 1)
             .expect("below the site's inclusive boundary");
@@ -1648,7 +1659,7 @@ fn tc_009_production_deadline_requires_its_exact_reconciled_site() {
     let wrong_entry = InventoryEntry::new(
         wrong_source,
         LimitAuthority::ConsumerOwner,
-        ChargePoint::BeforeUnit,
+        ChargePoint::AroundUnit,
         Termination::SingleUnit,
         IncompleteCode::BudgetExceeded,
         CALLER_BOUNDARY,

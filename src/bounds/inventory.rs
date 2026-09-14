@@ -329,6 +329,8 @@ pub enum ChargePoint {
     BeforeTraverse,
     /// Before starting a declared indivisible unit.
     BeforeUnit,
+    /// Monotonic observations both before and after an indivisible unit.
+    AroundUnit,
 }
 
 /// Why work at a source site is finite.
@@ -691,6 +693,13 @@ pub enum ChargeError {
         /// Dimension required by this production mechanism.
         required: BudgetDimension,
     },
+    /// A deadline dimension was passed through static additive accounting.
+    TemporalDimensionChargedStatically {
+        /// Static charge site.
+        site: SiteId,
+        /// Deadline dimension that requires monotonic observation.
+        dimension: BudgetDimension,
+    },
 }
 
 /// Internal accounting fault, structurally separate from budget exhaustion.
@@ -738,6 +747,13 @@ pub enum AccountingFault {
         declared: BudgetDimension,
         /// Dimension required by this production mechanism.
         required: BudgetDimension,
+    },
+    /// A deadline dimension was passed through static additive accounting.
+    TemporalDimensionChargedStatically {
+        /// Static charge site.
+        site: SiteId,
+        /// Deadline dimension that requires monotonic observation.
+        dimension: BudgetDimension,
     },
 }
 
@@ -812,6 +828,12 @@ impl<T, E> OperationOutcome<T, E> {
                 declared,
                 required,
             }),
+            ChargeError::TemporalDimensionChargedStatically { site, dimension } => {
+                Self::AccountingFault(AccountingFault::TemporalDimensionChargedStatically {
+                    site,
+                    dimension,
+                })
+            }
         }
     }
 }
@@ -858,6 +880,10 @@ impl fmt::Display for ChargeError {
             } => write!(
                 formatter,
                 "resource site {site} declares {declared} but production requires {required}"
+            ),
+            Self::TemporalDimensionChargedStatically { site, dimension } => write!(
+                formatter,
+                "deadline dimension {dimension} at {site} requires monotonic observation"
             ),
         }
     }
@@ -1109,6 +1135,12 @@ impl<'inventory> ResourceAccountant<'inventory> {
             return Err(ChargeError::UnregisteredSite { site });
         };
         let dimension = entry.source.dimension;
+        if matches!(
+            dimension,
+            BudgetDimension::ElapsedTime | BudgetDimension::ResolutionDeadline
+        ) {
+            return Err(ChargeError::TemporalDimensionChargedStatically { site, dimension });
+        }
         let consumed = self.usage.consumed[dimension.index()];
         let Some(next) = consumed.checked_add(requested) else {
             return Err(ChargeError::CounterOverflow {
@@ -2012,7 +2044,7 @@ pub const PRODUCTION_ENTRIES: &[InventoryEntry] = &[
     entry(
         REQUEST_DEADLINE,
         LimitAuthority::ConsumerOwner,
-        ChargePoint::BeforeUnit,
+        ChargePoint::AroundUnit,
         Termination::SingleUnit,
     ),
     entry(
