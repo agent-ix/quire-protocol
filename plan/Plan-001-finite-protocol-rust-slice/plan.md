@@ -42,7 +42,7 @@ relationships:
 - [ ] **NFR-001**: Reproduce semantic results and canonical bytes.
 - [ ] **NFR-002**: Enforce every authored protocol and caller-supplied resource bound.
 - [ ] **NFR-003**: Preserve the Rust and shared-assurance boundary.
-- [ ] **NFR-004**: Execute the local gate over one unchanged worktree state and
+- [x] **NFR-004**: Execute the local gate over one unchanged worktree state and
   account for every selectable configuration without inventing a feature lane.
 
 ## Dependency Graph
@@ -99,7 +99,7 @@ by downstream integrations; no adapter may introduce another semantic model.
 ### Static and Assurance Test
 
 - [ ] **TC-010** (NFR-003-AC-1..AC-6): use the accepted shared Rust checker to enforce every executable/dependency path, manual workflows, forbidden unsafe code, compiler-checked trace bindings, external Quoin containment, and shared assurance ownership without a local scanner.
-- [ ] **TC-012** (NFR-004-AC-1..AC-10): validate the exact ordered command set,
+- [x] **TC-012** (NFR-004-AC-1..AC-10): validate the exact ordered command set,
   warning channels, Cargo-feature state, conditional-site coverage, isolated
   target directory, and unchanged commit/worktree evidence binding; each
   independent invalid policy state must refuse with its own reason.
@@ -168,7 +168,7 @@ All Cargo work remains serialized on the shared workstation even when source own
 | Task-011 | Gate | StR-001, FR-006, FR-007, NFR-003 | IT-003, TC-010 | blocked |
 | Task-012 | B | FR-001, FR-002, NFR-002 | IT-001 | done |
 | Task-013 | B | FR-009, NFR-005 | TC-013, IT-002, IT-003 | in_progress |
-| Task-014 | Gate-Enablement | NFR-004 | TC-012 | in_progress |
+| Task-014 | Gate-Enablement | NFR-004 | TC-012 | done |
 
 ## Coordination Rules
 

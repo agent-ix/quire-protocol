@@ -2,7 +2,7 @@
 id: Task-014
 title: "Execute the local gate policy"
 type: Task
-status: in_progress
+status: done
 track: Gate-Enablement
 priority: P0
 relationships:
@@ -28,13 +28,14 @@ tracked state, commit and worktree-owned target directory.
   assurance runner or hosted workflow.
 - [x] Update `AGENTS.md` and `README.md` so their commands and configuration
   claims agree with NFR-004 and the implemented tree.
-- [ ] Reconcile TM-001, lifecycle counts, this task, the plan index/log, issue
-  #31 and parent epic #14 against the executing tests.
-- [ ] Run the exact local gate on one committed clean head and record the
+- [x] Reconcile TM-001, lifecycle counts, this task and the plan index/log
+  against the executing tests; issue #31 and epic #14 update at promotion.
+- [x] Run the exact local gate on one committed clean head and record the
   default/no-default/all-features metadata identity plus each manual compiler
   negative control.
-- [ ] Run self `/rust-review` and `/gap-analysis`, fix every finding, admin
-  merge the one-ticket implementation PR, and close issue #31.
+- [x] Run self `/rust-review` and `/gap-analysis` and fix every finding. Promote
+  only through the one-ticket PR that closes #31, then record its merge on the
+  parent epic.
 
 ## Deliverables
 
