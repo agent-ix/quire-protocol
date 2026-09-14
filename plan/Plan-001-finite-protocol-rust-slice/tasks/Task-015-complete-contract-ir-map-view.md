@@ -2,7 +2,7 @@
 id: Task-015
 title: "Complete the structural Contract-IR result-map view"
 type: Task
-status: in_progress
+status: done
 track: A-Enablement
 priority: P0
 relationships:
@@ -20,12 +20,12 @@ owner semantics.
 
 ## Subtasks
 
-- [ ] Extend TC-015 first to require borrowed access to the selected owner
+- [x] Extend TC-015 first to require borrowed access to the selected owner
   contract, schema digest, assertion identity/digest, authority
   identity/revision/digest, scope identity, population identity, and state.
-- [ ] Delegate the four missing accessors directly to the validated source
+- [x] Delegate the four missing accessors directly to the validated source
   `AxisView`, adding no parser, evaluator, trust flag, allocation, or fallback.
-- [ ] Run the exact repository-local Rust gate and reconcile FR-042/TC-015
+- [x] Run the exact repository-local Rust gate and reconcile FR-042/TC-015
   traceability on the unchanged implementation head.
 
 ## Deliverables

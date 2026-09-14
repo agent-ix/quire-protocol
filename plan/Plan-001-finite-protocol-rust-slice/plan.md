@@ -37,7 +37,7 @@ relationships:
 - [ ] **FR-006**: Produce and strictly read canonical protocol results.
 - [ ] **FR-007**: Project canonical results to the selected E02 contract.
 - [ ] **FR-008**: Return typed refusals through every public failure path.
-- [ ] **FR-042**: Publish a complete strict canonical-result reader and exact
+- [x] **FR-042**: Publish a complete strict canonical-result reader and exact
   constructor-private Contract-IR mapping view.
 
 ### Non-Functional Requirements
@@ -98,7 +98,7 @@ by downstream integrations; no adapter may introduce another semantic model.
 - [ ] **TC-008** (NFR-001-AC-1..AC-3): prove byte identity and ordered-outcome identity across admitted-equivalent presentations while independently discriminating every named semantic identity and preserving authored/causal order.
 - [ ] **TC-009** (NFR-002-AC-1..AC-4): bidirectionally reconcile the complete source-bound resource inventory, probe below/at/above every authored maximum and caller limit, kill inventory and guard mutants, and prove zero business/compensation calls.
 - [ ] **TC-011** (FR-008-AC-1..AC-8): enumerate typed refusal fields, exact diagnostic catalogs, source codes/stages/prerequisites, paired and simultaneous causes, unknown versions, location absence, rendering independence, and partial-output rules.
-- [ ] **TC-015** (FR-042-AC-1..AC-6): produce, strict-read and map canonical
+- [x] **TC-015** (FR-042-AC-1..AC-6): produce, strict-read and map canonical
   results while exposing every retained owner-reference field through typed
   borrowed accessors and refusing identity/schema/lineage/resource mutations.
 
@@ -182,7 +182,7 @@ All Cargo work remains serialized on the shared workstation even when source own
 | Task-012 | B | FR-001, FR-002, NFR-002 | IT-001 | done |
 | Task-013 | B | FR-009, NFR-005 | TC-013, IT-002, IT-003 | in_progress |
 | Task-014 | Gate-Enablement | NFR-004 | TC-012 | done |
-| Task-015 | A-Enablement | FR-042 | TC-015 | in_progress |
+| Task-015 | A-Enablement | FR-042 | TC-015 | done |
 
 ## Coordination Rules
 
