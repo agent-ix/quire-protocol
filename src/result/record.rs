@@ -1132,6 +1132,14 @@ fn completeness_label(state: completeness::State) -> &'static str {
 }
 
 fn semantic_usage(input: &Input<'_>) -> Usage {
+    let lineage_nodes = match input
+        .decision_support
+        .len()
+        .checked_add(usize::from(input.correction.is_some()))
+    {
+        Some(lineage_nodes) => lineage_nodes,
+        None => usize::MAX,
+    };
     Usage {
         claims: 1,
         premises: input
@@ -1141,10 +1149,7 @@ fn semantic_usage(input: &Input<'_>) -> Usage {
             .max(input.global_conformance.required_premises.len()),
         support_records: input.decision_support.len(),
         limitations: input.limitations.len(),
-        lineage_nodes: input
-            .decision_support
-            .len()
-            .saturating_add(usize::from(input.correction.is_some())),
+        lineage_nodes,
         ..Usage::default()
     }
 }

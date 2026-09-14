@@ -468,15 +468,17 @@ fn preflight(bytes: &[u8], limits: Limits, input: bool) -> Result<Usage> {
         if in_string {
             if escaped {
                 escaped = false;
-                string_bytes = string_bytes.saturating_add(1);
+                // At most one increment occurs per byte in `bytes`, so this
+                // cannot exceed the slice's representable `usize` length.
+                string_bytes += 1;
             } else if byte == b'\\' {
                 escaped = true;
-                string_bytes = string_bytes.saturating_add(1);
+                string_bytes += 1;
             } else if byte == b'"' {
                 in_string = false;
                 max_string = max_string.max(string_bytes);
             } else {
-                string_bytes = string_bytes.saturating_add(1);
+                string_bytes += 1;
             }
             continue;
         }
@@ -486,7 +488,9 @@ fn preflight(bytes: &[u8], limits: Limits, input: bool) -> Result<Usage> {
                 string_bytes = 0;
             }
             b'{' | b'[' => {
-                depth = depth.saturating_add(1);
+                // Container openings are a subset of the input byte
+                // population, whose length already fits `usize`.
+                depth += 1;
                 max_depth = max_depth.max(depth);
             }
             b'}' | b']' => {
@@ -530,11 +534,33 @@ fn visited_fields(root: &Value, limit: usize) -> Result<usize> {
     while let Some(value) = stack.pop() {
         match value {
             Value::Array(items) => {
-                visited = visited.saturating_add(items.len());
+                let Some(next) = visited.checked_add(items.len()) else {
+                    return Err(Refusal::new(
+                        ErrorCode::ResourceIncomplete,
+                        "visited-field work cannot be represented",
+                        Usage {
+                            visited_fields: usize::MAX,
+                            ..Usage::default()
+                        },
+                        None,
+                    ));
+                };
+                visited = next;
                 stack.extend(items);
             }
             Value::Object(members) => {
-                visited = visited.saturating_add(members.len());
+                let Some(next) = visited.checked_add(members.len()) else {
+                    return Err(Refusal::new(
+                        ErrorCode::ResourceIncomplete,
+                        "visited-field work cannot be represented",
+                        Usage {
+                            visited_fields: usize::MAX,
+                            ..Usage::default()
+                        },
+                        None,
+                    ));
+                };
+                visited = next;
                 stack.extend(members.values());
             }
             Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => {}
