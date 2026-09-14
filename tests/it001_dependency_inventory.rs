@@ -16,7 +16,7 @@ const LIBRARY: &str = include_str!("../src/lib.rs");
 
 /// A's accepted reader, pinned to the exact revision this lane froze.
 const FRONTEND: &str = "quire-spec-language";
-const FRONTEND_REVISION: &str = "04254a31071cc2d4c97e5c0707e1414141e55d89";
+const FRONTEND_REVISION: &str = "93c411b287ccf4789879ac4ef3094fc921dada58";
 
 /// The only non-frontend crate the published library links. It reads members A
 /// has already published and serialises B's own selections through A's

@@ -3,7 +3,8 @@
 `a-four-unit-selections.json` is B's reviewed acceptance selection for IT-001.
 It is derived against the original sources, admitted model, contract and
 dependency bytes produced by `native_protocol_handoff` at `quire-spec-language`
-`04254a31071cc2d4c97e5c0707e1414141e55d89` — A's promoted `main` — and retained
+`93c411b287ccf4789879ac4ef3094fc921dada58` — A's promoted `main` after its
+`v0.2.0` release — and retained
 here as an AGPL-3.0-only compatibility fixture. JSON does not support an SPDX
 header; this provenance record supplies the applicable license notice.
 
@@ -26,8 +27,10 @@ That was demonstrated, not inferred. Regenerating with the documented
 digest and the artifact digest that contains it. Updating this selection
 therefore requires a deliberate B review together with A revision, license, and
 digest provenance — and will keep requiring one on every producer rebuild until
-the selection addresses A's producer by something reproducible. That addressing
-gap is tracked as `agent-ix/quire-spec-language#78`.
+the selection addresses A's producer by something reproducible. That
+build-specific identity remains an explicit limitation of the generated version
+1 lane. It is separate from version 2 handoff addressing, which
+`quire-spec-language#78` resolved with owner-exported constants.
 
 ## Correction: the fixture was an unreproducible hybrid
 
@@ -36,11 +39,12 @@ from two different A revisions, and `quire-spec-language` PR72 — named here as
 the source of `5690c2b` — is closed with `mergedAt: null`. The revision it
 described was never on A's `main`, so no one could reproduce the fixture from
 what this file said. Twenty-three of the lane's twenty-four tests had
-consequently never executed. All twenty-four execute at `04254a3`.
+consequently never executed. All twenty-four execute when the version 1
+producer fixture is supplied against `93c411b`.
 
 ## Regenerating the fixture
 
-From a checkout of `quire-spec-language` at `04254a3`, with its own target
+From a checkout of `quire-spec-language` at `93c411b`, with its own target
 directory:
 
 ```console
@@ -56,7 +60,7 @@ original bytes, never from the producer's `expected.json`:
 | Field | Bytes hashed |
 | --- | --- |
 | `artifact/digest` | `<handoff-dir>/compiled-protocol.json` |
-| `contract/digest` | A's `docs/compiled-protocol-v1.md` at `04254a3` |
+| `contract/digest` | A's `docs/compiled-protocol-v1.md` at `93c411b` |
 | producer identity | `<handoff-dir>/dependencies/0.bin` |
 
 ## Running the IT-001 lane
@@ -72,3 +76,13 @@ CARGO_BUILD_JOBS=1 CARGO_TARGET_DIR=<this-checkout>/target \
 ```
 
 No hosted CI runs this lane; per `AGENTS.md` it is a local check.
+
+## Version 2 published handoff
+
+The version 2 lane needs no environment variable or vendored fixture. It loads
+`protocol_artifact::handoff::PUBLISHED_HANDOFF` from the exactly pinned
+`quire-spec-language` source and imports that module's member-name and
+mutation-format constants. `tests/it001_v2_handoff.rs` verifies the published
+checksums before decoding, then runs the base offer, all 28 published mutations,
+both cross-version submissions, and exact/one-short/fresh probes for every
+`protocol_artifact::Dimension::ALL` member under the default local gate.

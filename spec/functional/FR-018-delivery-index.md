@@ -157,8 +157,8 @@ supplies no upstream key of its own.
   derives no order from a timestamp, a file modification time or an ingestion
   order.
 - **Absence** — every way an index can fail to be assembled is reported, and none
-  is treated as a pass: an unset fixture environment variable, a missing delivery
-  root, an absent index, an index member named but not present, an index that
+  is treated as a pass: a selected delivery root that is missing, an absent
+  index, an index member named but not present, an index that
   does not deserialize into this repository's record shape, a scenario with more
   than one mutation fixture, a repeated binding declaration, and unsorted
   bindings. An absent index compares only to absence; it is never defaulted to an
@@ -190,12 +190,12 @@ or names the owner that has not:
 | --- | --- | --- |
 | FR-018-AC-1 | A delivery index supplies, selects or repairs no version-lock entry, and removing or editing an index changes no resolution outcome. | Test (TC-013) |
 | FR-018-AC-2 | A delivery index reference does not satisfy a comparison expecting `ix://agent-ix/quire-specification/FR-224`, and no member of an index is a transport observation. | Inspection |
-| FR-018-AC-3 | Two indexed bindings naming one `declaration` are reported, and an indexed binding whose `declaration` is lower than its predecessor's is reported, each naming the offending declaration. | Test (IT-001) |
+| FR-018-AC-3 | Two indexed bindings naming one `declaration` are reported, and an indexed binding whose `declaration` is lower than its predecessor's is reported, each naming the offending declaration. | Test (TC-013) |
 | FR-018-AC-4 | The binding cardinality, uniqueness and order this repository enforces are exactly the producer's quoted wire rule, and no stronger declared key or declared total order is asserted over the producer's bindings. | Inspection |
-| FR-018-AC-5 | An unset fixture environment variable, a missing root, an absent index, a missing indexed member, an unreadable index, an ambiguous mutation, a repeated declaration and unsorted bindings are each reported as a distinct absence, and none is treated as a passing lane. | Test (IT-001) |
-| FR-018-AC-6 | An unindexed input role and an unreadable indexed file are distinct outcomes, and neither is collapsed into the other. | Test (IT-001) |
+| FR-018-AC-5 | A selected delivery root that is missing, an absent index, a missing indexed member, an unreadable index, an ambiguous mutation, a repeated declaration and unsorted bindings are each reported as a distinct absence, and none is treated as a passing lane. | Test (TC-013) |
+| FR-018-AC-6 | An unindexed input role and an unreadable indexed file are distinct outcomes, and neither is collapsed into the other. | Test (TC-013) |
 | FR-018-AC-7 | Two indices whose delivery root and producer revision are equal compare equal regardless of offer, inputs, temporal records, limits or mutations, and two differing in either key component compare unequal regardless of identical remaining state. | Analysis |
-| FR-018-AC-8 | The indexed offer bytes are carried through untouched and are byte-equal to the bytes submitted, and no indexed producer input is recanonicalized. | Test (IT-001) |
+| FR-018-AC-8 | The indexed offer bytes are carried through untouched and are byte-equal to the bytes submitted, and no indexed producer input is recanonicalized. | Test (TC-013) |
 | FR-018-AC-9 | No unique key or total order is declared here over `limits`, and the owner of that unsettled question is named rather than supplied. | Inspection |
 
 ## Dependencies
@@ -221,8 +221,9 @@ or names the owner that has not:
 
 ## Status
 
-Draft. This artifact records existing meaning structurally and establishes no new
-obligation. No index exists over a published producer delivery today: `FR-009`
-reports the producer's version 2 entry as `unresolved`, and the producer deliverables
-the lane still owes are enumerated in `tests/support/v2`. That is the current
-state of this object's population, not a defect of this specification.
+Draft. This artifact records planned consumer-owned meaning. The superseded
+pre-delivery index and scenario vocabulary were retired when the version 2 lane
+began consuming A's published `MutationManifest` directly. A's manifest is
+producer-owned and does not instantiate this consumer-authored object; the
+concrete delivery-index population remains with the version-lock work rather
+than being claimed by IT-001's handoff loader.
