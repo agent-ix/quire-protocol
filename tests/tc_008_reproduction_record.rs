@@ -11,6 +11,9 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
 use ix_trace_rs::trace;
+use quire_protocol::bounds::inventory::{
+    production_inventory, Budget, BudgetDimension, OperationOutcome, ResourceAccountant,
+};
 use quire_protocol::repro::{
     CorpusIdentity, ReproductionInputKind, ReproductionInputs, ReproductionRecord,
     ReproductionRefusal, Seed, ToolchainIdentity,
@@ -451,4 +454,66 @@ fn tc_008_reproduction_module_contains_no_default_or_fallback_read() {
         );
     }
     assert!(scanned > 100, "source scan read only {scanned} code lines");
+}
+
+#[test]
+#[trace("TC-008", "TC-009", "NFR-002-AC-1", "NFR-002-AC-3", "Task-008")]
+fn tc_009_reproduction_identities_charge_before_retention() {
+    let inventory = production_inventory().expect("production inventory");
+    let display = "rustc 1.98.0";
+    let retained = TOOLCHAIN_BYTES.len() + display.len();
+
+    let short = Budget::nothing_granted()
+        .grant(BudgetDimension::InputByte, retained - 1)
+        .expect("positive one-short input grant")
+        .grant(BudgetDimension::AccountedAllocation, 1)
+        .expect("positive allocation grant");
+    let mut resources = ResourceAccountant::new(short, &inventory);
+    assert!(matches!(
+        ToolchainIdentity::new_bounded(TOOLCHAIN_BYTES, display, &mut resources),
+        OperationOutcome::ResourceIncomplete(value)
+            if value.dimension() == BudgetDimension::InputByte
+                && value.requested() == retained
+    ));
+    assert_eq!(
+        resources
+            .usage()
+            .consumed(BudgetDimension::AccountedAllocation),
+        0
+    );
+
+    let two_inputs = retained
+        .checked_mul(2)
+        .expect("bounded reproduction fixture");
+    let one_allocation = Budget::nothing_granted()
+        .grant(BudgetDimension::InputByte, two_inputs)
+        .expect("positive two-input grant")
+        .grant(BudgetDimension::AccountedAllocation, 1)
+        .expect("positive one-allocation grant");
+    let mut resources = ResourceAccountant::new(one_allocation, &inventory);
+    assert!(matches!(
+        ToolchainIdentity::new_bounded(TOOLCHAIN_BYTES, display, &mut resources),
+        OperationOutcome::Completed(_)
+    ));
+    assert!(matches!(
+        ToolchainIdentity::new_bounded(TOOLCHAIN_BYTES, display, &mut resources),
+        OperationOutcome::ResourceIncomplete(value)
+            if value.dimension() == BudgetDimension::AccountedAllocation
+                && value.consumed() == 1
+                && value.requested() == 1
+    ));
+
+    let corpus_retained = CORPUS_BYTES.len() + "corpus".len();
+    let exact = Budget::nothing_granted()
+        .grant(BudgetDimension::InputByte, corpus_retained)
+        .expect("positive exact corpus grant")
+        .grant(BudgetDimension::AccountedAllocation, 1)
+        .expect("positive exact allocation grant");
+    let mut fresh = ResourceAccountant::new(exact, &inventory);
+    let OperationOutcome::Completed(identity) =
+        CorpusIdentity::new_bounded(CORPUS_BYTES, "corpus", &mut fresh)
+    else {
+        panic!("fresh exact corpus budget must complete");
+    };
+    assert_eq!(identity.bytes(), CORPUS_BYTES);
 }

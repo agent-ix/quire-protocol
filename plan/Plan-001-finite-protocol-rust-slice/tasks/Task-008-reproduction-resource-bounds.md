@@ -23,12 +23,12 @@ projection path.
 ## Subtasks
 
 - [ ] Write TC-008 equivalent-presentation properties that preserve authored order and independently discriminate every named source/profile/model/protocol/request/binding/input/observation/progress/closure/producer/implementation/backend identity.
-- [ ] Build and bidirectionally reconcile the source-bound resource inventory, including each interface/site, authority, charge point, termination argument, typed incomplete code, and assigned boundary case.
+- [x] Build and bidirectionally reconcile the source-bound resource inventory, including each interface/site, authority, charge point, termination argument, typed incomplete code, and assigned boundary case.
 - [ ] Write TC-009 below/at/above cases for every authored maximum and caller-supplied inventoried definition, graph, role, message, branching, iteration, active-instance, observation, lineage, result, derived-artifact, output, operation, allocation, and deadline limit.
-- [ ] Separate prechecked count/accounted-allocation refusal from monotonic deadline observation and report measured overshoot honestly.
+- [x] Separate prechecked count/accounted-allocation refusal from monotonic deadline observation and report measured overshoot honestly.
 - [ ] Kill every isolated inventory, guard-removal, guard-direction, and identity-canonicalization mutant for the intended reason.
-- [ ] Prove with action-capable doubles that assessment executes no business action or compensation.
-- [ ] Record deterministic seeds, toolchain identities, and corpus identities needed for local reproduction.
+- [x] Prove with action-capable doubles that assessment executes no business action or compensation.
+- [x] Record deterministic seeds, toolchain identities, and corpus identities needed for local reproduction.
 - [ ] Reconcile the completed test symbols against NFR-001-AC-1..AC-3 and NFR-002-AC-1..AC-4 with bare `ix-trace-rs` bindings.
 
 ## Deliverables

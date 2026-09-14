@@ -151,6 +151,24 @@
 use std::fmt;
 use std::hash::{Hash, Hasher};
 
+use crate::bounds::inventory::{
+    BudgetDimension, ChargeError, OperationOutcome, ResourceAccountant, SourceSite,
+};
+use crate::bounds::{SiteId, SiteKind, UnitLabel};
+
+pub(crate) const INPUT_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("reproduction/identity/retain"),
+    "repro::ToolchainIdentity::new/repro::CorpusIdentity::new",
+    BudgetDimension::InputByte,
+    SiteKind::Retention,
+);
+pub(crate) const ALLOCATION_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("reproduction/identity/allocate"),
+    "repro::ToolchainIdentity::new/repro::CorpusIdentity::new",
+    BudgetDimension::AccountedAllocation,
+    SiteKind::Allocation,
+);
+
 /// A run identity: the producer's exact bytes, plus display text that takes no
 /// part in equality, ordering or hashing.
 macro_rules! run_identity {
@@ -178,6 +196,43 @@ macro_rules! run_identity {
                     bytes: bytes.to_vec(),
                     display: display.to_owned(),
                 }
+            }
+
+            #[doc = concat!("Retain the ", $what, " identity under the shared caller budget.")]
+            ///
+            /// Exact identity and display bytes, plus the single abstract
+            /// identity-storage allocation, are charged transactionally before
+            /// either owned buffer is constructed.
+            pub fn new_bounded(
+                bytes: &[u8],
+                display: &str,
+                resources: &mut ResourceAccountant<'_>,
+            ) -> OperationOutcome<Self, core::convert::Infallible> {
+                resources.run_unit(
+                    UnitLabel::new(concat!("repro::", stringify!($name), "::new_bounded")),
+                    |resources| {
+                        let retained = match bytes.len().checked_add(display.len()) {
+                            Some(retained) => retained,
+                            None => {
+                                return OperationOutcome::from_charge(
+                                    ChargeError::CounterOverflow {
+                                        site: INPUT_SOURCE.id(),
+                                        consumed: bytes.len(),
+                                        requested: display.len(),
+                                    },
+                                )
+                            }
+                        };
+                        let charges = [
+                            (INPUT_SOURCE.id(), retained),
+                            (ALLOCATION_SOURCE.id(), 1),
+                        ];
+                        if let Err(error) = resources.charge_all(&charges) {
+                            return OperationOutcome::from_charge(error);
+                        }
+                        OperationOutcome::Completed(Self::new(bytes, display))
+                    }
+                )
             }
 
             /// The producer's exact identity bytes.

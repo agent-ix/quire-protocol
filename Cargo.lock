@@ -672,9 +672,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "quire-contract-ir"
+name = "quire-contract-model"
 version = "0.1.0"
-source = "git+https://github.com/agent-ix/quire-contract-ir?rev=04eb6f849c03be23177d373549c6c272551f957d#04eb6f849c03be23177d373549c6c272551f957d"
+source = "git+https://github.com/agent-ix/quire-contract-ir?rev=53cc03c639e2e26528132d34d96dc56449df78e8#53cc03c639e2e26528132d34d96dc56449df78e8"
 dependencies = [
  "jsonschema",
  "serde",
@@ -685,11 +685,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "quire-observation"
+version = "0.1.0"
+source = "git+https://github.com/agent-ix/quire-observation?rev=9ac80e93f4b68a2c7d5a337f9a448ad10de798fc#9ac80e93f4b68a2c7d5a337f9a448ad10de798fc"
+dependencies = [
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror",
+]
+
+[[package]]
 name = "quire-protocol"
 version = "0.1.0"
 dependencies = [
  "ix-trace-rs",
- "quire-contract-ir",
+ "jsonschema",
+ "quire-contract-model",
+ "quire-observation",
  "quire-spec-language",
  "serde",
  "serde_json",
@@ -698,11 +711,11 @@ dependencies = [
 [[package]]
 name = "quire-spec-language"
 version = "0.2.0"
-source = "git+https://github.com/agent-ix/quire-spec-language?rev=93c411b287ccf4789879ac4ef3094fc921dada58#93c411b287ccf4789879ac4ef3094fc921dada58"
+source = "git+https://github.com/agent-ix/quire-spec-language?rev=4f404454b3d5cfb78dfdc468c76de85c199191e5#4f404454b3d5cfb78dfdc468c76de85c199191e5"
 dependencies = [
  "agent-ix-baseline-producer",
  "logos",
- "quire-contract-ir",
+ "quire-contract-model",
  "serde",
  "serde_json",
  "sha2",

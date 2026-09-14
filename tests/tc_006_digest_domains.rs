@@ -7,14 +7,18 @@
 
 use ix_trace_rs::trace;
 use quire_protocol::{
+    bounds::inventory::{
+        production_inventory, Budget, BudgetDimension, OperationOutcome, ResourceAccountant,
+    },
     digest::{
         jcs::{canonicalize, JcsError, ResultDigest},
         producer::{DigestDomain, DigestSlot, OfferedDomain, ProducerDigestRef},
     },
     inventory::{
-        axis::DivergedSelection, DigestClassification, ResultDigestRefusal, SelectedInventory,
+        axis::DivergedSelection, map::admit_discriminating_bounded, DigestClassification,
+        ResultDigestRefusal, SelectedInventory,
     },
-    wire, ByteDigest, Expected,
+    wire, ByteDigest, Expected, Limits,
 };
 use serde_json::json;
 
@@ -100,6 +104,102 @@ impl Selections {
     fn inventory(&self) -> SelectedInventory {
         SelectedInventory::from_expected(&self.expected()).expect("selections canonicalise")
     }
+}
+
+#[test]
+#[trace("TC-009", "NFR-002-AC-1", "FR-016-AC-2", "FR-016-AC-4")]
+fn tc_009_admission_charges_all_input_bytes_before_decode() {
+    let selections = Selections::new();
+    let bytes = b"{}";
+    let inventory = production_inventory().expect("production inventory");
+    let one_short = Budget::nothing_granted()
+        .grant(BudgetDimension::InputByte, bytes.len() - 1)
+        .expect("positive one-short grant");
+    let mut one_short_resources = ResourceAccountant::new(one_short, &inventory);
+    let incomplete = admit_discriminating_bounded(
+        bytes,
+        &selections.expected(),
+        Limits::default(),
+        &mut one_short_resources,
+    );
+    assert!(matches!(
+        incomplete,
+        OperationOutcome::ResourceIncomplete(value)
+            if value.dimension() == BudgetDimension::InputByte
+                && value.consumed() == 0
+                && value.requested() == bytes.len()
+    ));
+    assert_eq!(
+        one_short_resources
+            .usage()
+            .consumed(BudgetDimension::InputByte),
+        0
+    );
+
+    let mut owner_resources = ResourceAccountant::new(Budget::nothing_granted(), &inventory);
+    let owner_short = Limits {
+        payload_bytes: bytes.len() - 1,
+        ..Limits::default()
+    };
+    let owner_incomplete = admit_discriminating_bounded(
+        bytes,
+        &selections.expected(),
+        owner_short,
+        &mut owner_resources,
+    );
+    assert!(matches!(
+        owner_incomplete,
+        OperationOutcome::ResourceIncomplete(value)
+            if value.dimension() == BudgetDimension::InputByte
+                && value.granted() == bytes.len() - 1
+                && value.requested() == bytes.len()
+    ));
+    assert_eq!(
+        owner_resources.usage().consumed(BudgetDimension::InputByte),
+        0
+    );
+
+    let exact = Budget::nothing_granted()
+        .grant(BudgetDimension::InputByte, bytes.len())
+        .expect("positive exact grant");
+    let mut exact_resources = ResourceAccountant::new(exact, &inventory);
+    let reached_reader = admit_discriminating_bounded(
+        bytes,
+        &selections.expected(),
+        Limits::default(),
+        &mut exact_resources,
+    );
+    assert!(matches!(reached_reader, OperationOutcome::DomainError(_)));
+    assert_eq!(
+        exact_resources.usage().consumed(BudgetDimension::InputByte),
+        bytes.len()
+    );
+
+    let one_allocation = Budget::nothing_granted()
+        .grant(BudgetDimension::AccountedAllocation, 1)
+        .expect("one admitted-package allocation");
+    let mut allocation_resources = ResourceAccountant::new(one_allocation, &inventory);
+    assert!(matches!(
+        admit_discriminating_bounded(
+            bytes,
+            &selections.expected(),
+            Limits::default(),
+            &mut allocation_resources,
+        ),
+        OperationOutcome::DomainError(_)
+    ));
+    assert!(matches!(
+        admit_discriminating_bounded(
+            bytes,
+            &selections.expected(),
+            Limits::default(),
+            &mut allocation_resources,
+        ),
+        OperationOutcome::ResourceIncomplete(value)
+            if value.dimension() == BudgetDimension::AccountedAllocation
+                && value.consumed() == 1
+                && value.requested() == 1
+    ));
 }
 
 /// A producer reference offered where the JCS protocol-result digest belongs.
@@ -271,7 +371,7 @@ fn tc_006_unlabelled_value_is_cross_domain() {
 ///
 /// Tracing: TC-006, FR-006-AC-4.
 #[test]
-#[trace("TC-006", "FR-006-AC-4", "FR-015-AC-2")]
+#[trace("TC-006", "FR-006-AC-4", "FR-015-AC-2", "FR-031-AC-6")]
 fn tc_006_producer_reference_is_opaque_and_copied_exactly() {
     let text = "sha256:0000000000000000000000000000000000000000000000000000000000000001";
     let reference = ProducerDigestRef::copy_exact(DigestDomain::RawArtifact, text)
@@ -289,7 +389,14 @@ fn tc_006_producer_reference_is_opaque_and_copied_exactly() {
 ///
 /// Tracing: TC-006, FR-006-AC-4.
 #[test]
-#[trace("TC-006", "FR-006-AC-4")]
+#[trace(
+    "TC-006",
+    "TC-008",
+    "FR-006-AC-4",
+    "FR-031-AC-4",
+    "NFR-001-AC-1",
+    "NFR-001-AC-3"
+)]
 fn tc_006_jcs_is_member_order_invariant_and_refuses_numbers() {
     let left = json!({ "b": "two", "a": "one", "c": [true, null] });
     let right = json!({ "c": [true, null], "a": "one", "b": "two" });
@@ -301,6 +408,10 @@ fn tc_006_jcs_is_member_order_invariant_and_refuses_numbers() {
         ResultDigest::of_result(&left).expect("canonicalises"),
         ResultDigest::of_result(&right).expect("canonicalises")
     );
+    let digest = ResultDigest::of_result(&left)
+        .expect("canonicalises")
+        .text();
+    assert!(digest.starts_with("sha256-jcs:"));
     assert_eq!(
         canonicalize(&json!({ "n": 1 })),
         Err(JcsError::UnsupportedNumber("1".to_owned()))
@@ -322,19 +433,22 @@ fn tc_006_no_two_selection_axes_share_a_code() {
     }
 }
 
-/// Every A refusal published at the pinned revision is named by B's mapping.
+/// Every A refusal published at the pinned revision survives B's mapping as
+/// the exact typed source value and retains A's stable code.
 ///
-/// A's enums are `#[non_exhaustive]`, so the mapping is forced to carry one
-/// final arm per enum. That arm produces `UnclassifiedSource`, and this test
-/// fails if any currently published A variant reaches it — so the arm can only
-/// ever absorb a genuinely new A variant, loudly, never an existing one.
+/// A's enums are `#[non_exhaustive]`. A debug-string catch-all therefore loses
+/// type identity exactly when A adds a family, and it already loses the
+/// published `Producer` and version-2 families at this pin. Retaining the
+/// complete `Error` makes the compulsory catch-all typed and future-safe.
 ///
-/// Tracing: TC-006, FR-008-AC-1.
+/// Tracing: TC-001, Task-001.
 #[test]
-#[trace("TC-006", "FR-008-AC-1")]
-fn tc_006_classification_names_every_known_source_variant() {
-    use quire_protocol::inventory::map::{classify_source, AdmissionRefusal};
-    use quire_protocol::{Error, Invalid, Unsupported};
+#[trace("TC-001", "Task-001")]
+fn tc_001_mapping_retains_every_published_source_error() {
+    use quire_protocol::inventory::map::classify_source;
+    use quire_protocol::{v2, Error, Invalid, NumberError, Unsupported};
+    use quire_spec_language::linking::composed::producer::ProducerModelRefusal;
+    use quire_spec_language::protocol_artifact::{Dimension, Exhaustion};
 
     const INVALID: [Invalid; 26] = [
         Invalid::Selection,
@@ -375,25 +489,33 @@ fn tc_006_classification_names_every_known_source_variant() {
     ];
 
     for code in INVALID {
-        let refusal = classify_source(&Error::Invalid(code));
-        assert!(
-            !matches!(refusal, AdmissionRefusal::UnclassifiedSource { .. }),
-            "{code:?} is unnamed"
-        );
+        let source = Error::Invalid(code);
+        let refusal = classify_source(source.clone());
+        assert_eq!(refusal.source_error(), Some(&source));
+        assert_eq!(refusal.source_code(), Some(source.code()));
     }
     for code in UNSUPPORTED {
-        let refusal = classify_source(&Error::Unsupported(code));
-        assert!(
-            !matches!(refusal, AdmissionRefusal::UnclassifiedSource { .. }),
-            "{code:?} is unnamed"
-        );
+        let source = Error::Unsupported(code);
+        let refusal = classify_source(source.clone());
+        assert_eq!(refusal.source_error(), Some(&source));
+        assert_eq!(refusal.source_code(), Some(source.code()));
     }
-    assert!(!matches!(
-        classify_source(&Error::Allocation),
-        AdmissionRefusal::UnclassifiedSource { .. }
-    ));
-    assert!(!matches!(
-        classify_source(&Error::Json { line: 1, column: 2 }),
-        AdmissionRefusal::UnclassifiedSource { .. }
-    ));
+    for source in [
+        Error::Allocation,
+        Error::Json { line: 1, column: 2 },
+        Error::Numeric(NumberError::NonPositiveDenominator),
+        Error::Producer(ProducerModelRefusal::Interface),
+        Error::V2(v2::Refusal::OfferOrder),
+        Error::Incomplete(Exhaustion {
+            dimension: Dimension::Entries,
+            used: 8,
+            requested: 1,
+            limit: 8,
+            locus: None,
+        }),
+    ] {
+        let refusal = classify_source(source.clone());
+        assert_eq!(refusal.source_error(), Some(&source));
+        assert_eq!(refusal.source_code(), Some(source.code()));
+    }
 }

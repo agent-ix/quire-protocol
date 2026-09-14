@@ -35,12 +35,11 @@ canonical protocol result, and the source-bound projection of that result into
 
 ## Status
 
-Repository bootstrap, QUOIN specification review, and implementation planning
-are complete. There is no library implementation, released artifact, or
-qualification claim yet. Implementation uses `AGPL-3.0-or-later` and is gated
-on an accepted composed Quire baseline that freezes the reviewed
-protocol/result rule bytes and on the native compiler's accepted
-versioned compiled-protocol artifact contract.
+Repository bootstrap, unified specification review, implementation planning,
+and substantial owner implementation are complete. The crate is still under
+development: no released artifact or qualification claim exists. Implementation
+uses `AGPL-3.0-or-later`; remaining integration work is gated on the exact
+accepted producer contracts named by the plan.
 
 ## Boundary
 

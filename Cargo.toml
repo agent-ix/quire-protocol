@@ -8,16 +8,18 @@ description = "Strict consumer boundary for accepted native Quire protocol packa
 publish = false
 
 [dependencies]
-quire-spec-language = { git = "https://github.com/agent-ix/quire-spec-language", rev = "93c411b287ccf4789879ac4ef3094fc921dada58" }
+quire-spec-language = { git = "https://github.com/agent-ix/quire-spec-language", rev = "4f404454b3d5cfb78dfdc468c76de85c199191e5" }
+quire-observation = { git = "https://github.com/agent-ix/quire-observation", rev = "9ac80e93f4b68a2c7d5a337f9a448ad10de798fc" }
 # Reading the offer's already-published members and serialising B's own
 # selections through A's `Serialize` impls. B adds no schema, grammar or wire
 # decoder of its own: every record shape used here is A's.
 serde_json = "=1.0.151"
+serde = { version = "=1.0.228", features = ["derive"] }
+jsonschema = { version = "=0.17.1", default-features = false, features = ["draft202012"] }
 
 [dev-dependencies]
 ix-trace-rs = { git = "https://github.com/agent-ix/ix-trace-rs", rev = "2ce4ebf47f726b9d76388220545cd0abda8a5cfb" }
-quire-contract-ir = { git = "https://github.com/agent-ix/quire-contract-ir", rev = "04eb6f849c03be23177d373549c6c272551f957d" }
-serde = { version = "=1.0.228", features = ["derive"] }
+quire-contract-ir = { package = "quire-contract-model", git = "https://github.com/agent-ix/quire-contract-ir", rev = "53cc03c639e2e26528132d34d96dc56449df78e8" }
 serde_json = "=1.0.151"
 
 [lints.rust]

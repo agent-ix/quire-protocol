@@ -2,9 +2,9 @@
 //! IT-001 SC-05/Task-009: the dependency and source inventory of this consumer.
 //!
 //! This lane reads B's own manifest, lockfile and library source as data. It
-//! proves, without running the producer, that exactly one native/formal
-//! frontend participates in the protocol path: A's accepted
-//! `quire.compiled-protocol/1` reader.
+//! proves, without running the producers, that the protocol path uses exactly
+//! the selected native/formal frontend plus the promoted observation owner and
+//! B's explicitly admitted serialization/schema carriers.
 
 use std::{collections::BTreeSet, fs, path::Path};
 
@@ -16,19 +16,28 @@ const LIBRARY: &str = include_str!("../src/lib.rs");
 
 /// A's accepted reader, pinned to the exact revision this lane froze.
 const FRONTEND: &str = "quire-spec-language";
-const FRONTEND_REVISION: &str = "93c411b287ccf4789879ac4ef3094fc921dada58";
+const FRONTEND_REVISION: &str = "4f404454b3d5cfb78dfdc468c76de85c199191e5";
+
+/// F's promoted observation owner supplies typed progress, closure and
+/// completeness views. B consumes those views and does not mirror them.
+const OBSERVATION_OWNER: &str = "quire-observation";
 
 /// The only non-frontend crate the published library links. It reads members A
 /// has already published and serialises B's own selections through A's
 /// `Serialize` impls; it carries no schema, grammar or wire decoder. It is named
 /// here so that a second such crate cannot enter unannounced.
 const SERIALISATION: &str = "serde_json";
+const SERIALISATION_DERIVE: &str = "serde";
+
+/// The pinned, local-only closed-schema validator used by hostile-byte readers.
+const SCHEMA_VALIDATOR: &str = "jsonschema";
 
 /// The library's frozen module set, established in one commit by the chunk
 /// facade (C-00). This is an exact set, not a filter: a module that appears
 /// without being added here fails the lane, so no unlisted module can carry
 /// protocol semantics.
 const LIBRARY_MODULES: &[&str] = &[
+    "assessment.rs",
     "bounds",
     "claims",
     "closure.rs",
@@ -129,7 +138,8 @@ const INVENTORY: &[&str] = &[
     "powerfmt",
     "proc-macro2",
     "psm",
-    "quire-contract-ir",
+    "quire-contract-model",
+    "quire-observation",
     "quire-spec-language",
     "quote",
     "r-efi",
@@ -208,26 +218,32 @@ fn declared_packages(section: &str) -> BTreeSet<&str> {
 /// Tracing: IT-001, Task-009.
 #[test]
 #[trace("IT-001", "Task-009")]
-fn it_001_declares_one_protocol_dependency() {
-    // The library links exactly one protocol frontend, and it is A's accepted
-    // reader at the exact frozen revision. The only other linked crate is the
-    // serialisation carrier named above. Nothing else can reach the protocol
-    // path.
+fn it_001_declares_only_selected_owner_dependencies() {
+    // The library links exactly one protocol frontend, the promoted observation
+    // owner, and the three carriers required to emit and strictly validate B's
+    // own closed documents. No alternate parser, evaluator or runtime can enter
+    // the protocol path unannounced.
     assert_eq!(
         declared_packages(manifest_section("[dependencies]")),
-        BTreeSet::from([FRONTEND, SERIALISATION])
+        BTreeSet::from([
+            FRONTEND,
+            OBSERVATION_OWNER,
+            SERIALISATION,
+            SERIALISATION_DERIVE,
+            SCHEMA_VALIDATOR,
+        ])
     );
     assert!(
         manifest_section("[dependencies]").contains(FRONTEND_REVISION),
         "the single protocol dependency must stay pinned to the frozen revision"
     );
 
-    // Development dependencies are harness-only: tracing, the IR types the
-    // harness reconstructs selections with, and the JSON the fixture is stored
-    // in. None of them is reachable from the published library.
+    // Development dependencies are harness-only: tracing, the cycle-free
+    // Contract Model types used to construct the native handoff, and JSON
+    // fixtures. None is reachable from the published library.
     assert_eq!(
         declared_packages(manifest_section("[dev-dependencies]")),
-        BTreeSet::from(["ix-trace-rs", "quire-contract-ir", "serde", "serde_json"])
+        BTreeSet::from(["ix-trace-rs", "quire-contract-ir", "serde_json"])
     );
 }
 
@@ -275,8 +291,9 @@ fn it_001_resolves_one_frontend_in_the_whole_graph() {
 /// Tracing: IT-001, Task-009.
 #[test]
 #[trace("IT-001", "Task-009")]
-fn it_001_library_source_only_delegates() {
-    // The frozen module set, so no unlisted module can carry protocol semantics.
+fn it_001_library_facade_only_delegates_frontend_admission() {
+    // The frozen module set, so no unlisted subsystem can carry protocol
+    // semantics.
     let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
     let mut files = fs::read_dir(&source)
         .expect("library source directory")
@@ -289,10 +306,10 @@ fn it_001_library_source_only_delegates() {
         .collect::<Vec<_>>();
     assert_eq!(files, frozen);
 
-    // Two functions, one per admitted contract, and each whole body is a call
-    // into A's reader for that contract. B adds no parser, decoder, numeric
-    // layer or alternate semantics: every other item in `lib.rs` is a re-export
-    // of an A-owned name.
+    // The crate-root facade has two functions, one per admitted frontend
+    // contract, and each whole body is a call into A's reader for that contract.
+    // B's own result/conformance semantics live in their named modules; the
+    // facade adds no parser, decoder, numeric layer or alternate frontend.
     //
     // This counts `lib.rs` alone, and it is an exact count rather than a
     // ceiling: a third function here would be B doing something to the offered

@@ -21,6 +21,8 @@
 // established here.
 // ---------------------------------------------------------------------------
 
+/// Shared assessment inputs retained from producer-owned facts.
+pub mod assessment;
 /// Count, allocation and deadline guards. Owner chunk: C-29 (submodule: C-30).
 pub mod bounds;
 /// Claim disposition product type and registry. Owner chunk: C-22 (submodules: C-23, C-24).

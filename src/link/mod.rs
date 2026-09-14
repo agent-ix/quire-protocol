@@ -131,10 +131,69 @@ use quire_spec_language::protocol_artifact::{
     AdmittedPackage, NumberWire,
 };
 
+use crate::bounds::inventory::{
+    BudgetDimension, ChargeError, OperationOutcome, ResourceAccountant, SourceSite,
+};
+use crate::bounds::{SiteId, SiteKind, UnitLabel};
 use crate::ids::{
     AttemptId, ChannelId, ComponentId, DefinitionId, DeliveryId, EffectId, EndpointId,
     IdentityKind, MessageId, ParticipantId, ReceiveId, RoleInstanceId, SendId, WorkflowInstanceId,
 };
+
+pub(crate) const DEFINITION_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("link/definition/select"),
+    "link::link",
+    BudgetDimension::Definition,
+    SiteKind::Iteration,
+);
+pub(crate) const NODE_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("link/node/retain"),
+    "link::link",
+    BudgetDimension::Node,
+    SiteKind::Retention,
+);
+pub(crate) const EDGE_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("link/edge/traverse"),
+    "link::link",
+    BudgetDimension::Edge,
+    SiteKind::Traversal,
+);
+pub(crate) const ROLE_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("link/role/retain"),
+    "link::link",
+    BudgetDimension::Role,
+    SiteKind::Retention,
+);
+pub(crate) const MESSAGE_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("link/message/retain"),
+    "link::link",
+    BudgetDimension::Message,
+    SiteKind::Retention,
+);
+pub(crate) const BRANCH_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("link/interleaving/branch/queue"),
+    "link::interleaving",
+    BudgetDimension::Branch,
+    SiteKind::Queue,
+);
+pub(crate) const ITERATION_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("link/repeat/iterate"),
+    "link::control_shape",
+    BudgetDimension::Iteration,
+    SiteKind::Iteration,
+);
+pub(crate) const ACTIVE_INSTANCE_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("link/active-instance/retain"),
+    "link::link",
+    BudgetDimension::ActiveInstance,
+    SiteKind::Retention,
+);
+pub(crate) const GRAPH_ALLOCATION_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("link/graph/allocate"),
+    "link::link",
+    BudgetDimension::AccountedAllocation,
+    SiteKind::Allocation,
+);
 
 // ---------------------------------------------------------------------------
 // Refusals
@@ -918,6 +977,175 @@ impl LinkedProtocol {
 // The linker
 // ---------------------------------------------------------------------------
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct LinkWork {
+    definitions: usize,
+    nodes: usize,
+    edges: usize,
+    roles: usize,
+    messages: usize,
+    branches: usize,
+    iterations: usize,
+    active_instances: usize,
+}
+
+trait IdentityBuilder {
+    type Error;
+
+    fn build<T>(
+        &mut self,
+        identity: &[u8],
+        display: &str,
+        constructor: fn(&[u8], &str) -> T,
+    ) -> Result<T, Self::Error>;
+}
+
+struct UnboundedIdentityBuilder;
+
+impl IdentityBuilder for UnboundedIdentityBuilder {
+    type Error = core::convert::Infallible;
+
+    fn build<T>(
+        &mut self,
+        identity: &[u8],
+        display: &str,
+        constructor: fn(&[u8], &str) -> T,
+    ) -> Result<T, Self::Error> {
+        Ok(constructor(identity, display))
+    }
+}
+
+struct BoundedIdentityBuilder<'resources, 'inventory> {
+    resources: &'resources mut ResourceAccountant<'inventory>,
+}
+
+impl IdentityBuilder for BoundedIdentityBuilder<'_, '_> {
+    type Error = ChargeError;
+
+    fn build<T>(
+        &mut self,
+        identity: &[u8],
+        display: &str,
+        constructor: fn(&[u8], &str) -> T,
+    ) -> Result<T, Self::Error> {
+        crate::ids::charge_storage(identity, display, self.resources)?;
+        Ok(constructor(identity, display))
+    }
+}
+
+enum LinkBuildError<E> {
+    Domain(Diagnostics),
+    Identity(E),
+}
+
+fn link_work(
+    declarations: &[Declaration],
+    declaration: u32,
+) -> Result<Option<LinkWork>, ChargeError> {
+    let index = usize::try_from(declaration).unwrap_or(usize::MAX);
+    let Some(declared) = declarations.get(index) else {
+        return Ok(None);
+    };
+    let Body::Protocol {
+        roles,
+        channels,
+        controls,
+        causal_edges,
+        ..
+    } = &declared.body
+    else {
+        return Ok(None);
+    };
+
+    let mut branches = 0usize;
+    let mut iterations = 0usize;
+    for control in controls {
+        let increment = match &control.operation {
+            ControlOperation::Choice { cases, .. } => cases.len(),
+            ControlOperation::Parallel { branches, .. } => branches.len(),
+            ControlOperation::Repeat { .. } | ControlOperation::Await { .. } => 2,
+            ControlOperation::Sequence { .. }
+            | ControlOperation::Event { .. }
+            | ControlOperation::Check { .. }
+            | ControlOperation::Commit { .. } => 0,
+        };
+        branches = branches
+            .checked_add(increment)
+            .ok_or(ChargeError::CounterOverflow {
+                site: BRANCH_SOURCE.id(),
+                consumed: branches,
+                requested: increment,
+            })?;
+        if matches!(control.operation, ControlOperation::Repeat { .. }) {
+            iterations = iterations
+                .checked_add(1)
+                .ok_or(ChargeError::CounterOverflow {
+                    site: ITERATION_SOURCE.id(),
+                    consumed: iterations,
+                    requested: 1,
+                })?;
+        }
+    }
+    let workflow_instances = declared
+        .bindings
+        .iter()
+        .filter(|requirement| requirement.kind == BindingKind::WorkflowInstance)
+        .count();
+    let active_instances = roles
+        .len()
+        .checked_add(usize::from(workflow_instances == 1))
+        .ok_or(ChargeError::CounterOverflow {
+            site: ACTIVE_INSTANCE_SOURCE.id(),
+            consumed: roles.len(),
+            requested: usize::from(workflow_instances == 1),
+        })?;
+
+    Ok(Some(LinkWork {
+        definitions: declarations.len(),
+        nodes: controls.len(),
+        edges: causal_edges.len(),
+        roles: roles.len(),
+        messages: channels.len(),
+        branches,
+        iterations,
+        active_instances,
+    }))
+}
+
+fn link_declarations_bounded(
+    declarations: &[Declaration],
+    declaration: u32,
+    resources: &mut ResourceAccountant<'_>,
+) -> OperationOutcome<LinkedProtocol, Diagnostics> {
+    let work = match link_work(declarations, declaration) {
+        Ok(Some(work)) => work,
+        Ok(None) => {
+            return OperationOutcome::from_domain(link_declarations(declarations, declaration));
+        }
+        Err(error) => return OperationOutcome::from_charge(error),
+    };
+    let charges = [
+        (GRAPH_ALLOCATION_SOURCE.id(), 1),
+        (DEFINITION_SOURCE.id(), work.definitions),
+        (NODE_SOURCE.id(), work.nodes),
+        (EDGE_SOURCE.id(), work.edges),
+        (ROLE_SOURCE.id(), work.roles),
+        (MESSAGE_SOURCE.id(), work.messages),
+        (BRANCH_SOURCE.id(), work.branches),
+        (ITERATION_SOURCE.id(), work.iterations),
+        (ACTIVE_INSTANCE_SOURCE.id(), work.active_instances),
+    ];
+    if let Err(error) = resources.charge_all(&charges) {
+        return OperationOutcome::from_charge(error);
+    }
+    let mut identities = BoundedIdentityBuilder { resources };
+    match link_declarations_with(declarations, declaration, &mut identities) {
+        Ok(linked) => OperationOutcome::Completed(linked),
+        Err(LinkBuildError::Domain(error)) => OperationOutcome::DomainError(error),
+        Err(LinkBuildError::Identity(error)) => OperationOutcome::from_charge(error),
+    }
+}
+
 /// Link the protocol declared at `declaration` in an admitted package.
 ///
 /// The package has already been admitted by A, which is where the structural
@@ -935,6 +1163,21 @@ pub fn link(package: &AdmittedPackage, declaration: u32) -> Result<LinkedProtoco
     link_declarations(&package.package().declarations, declaration)
 }
 
+/// Link one admitted protocol under the shared QProtocol caller budget.
+///
+/// Every structural population the linker will retain, traverse, queue, or
+/// iterate is charged transactionally before identity construction or graph
+/// mapping begins.
+pub fn link_bounded(
+    package: &AdmittedPackage,
+    declaration: u32,
+    resources: &mut ResourceAccountant<'_>,
+) -> OperationOutcome<LinkedProtocol, Diagnostics> {
+    resources.run_unit(UnitLabel::new("link::link_bounded"), |resources| {
+        link_declarations_bounded(&package.package().declarations, declaration, resources)
+    })
+}
+
 /// The mapping itself, over the declaration table of an already admitted
 /// package.
 ///
@@ -950,15 +1193,28 @@ fn link_declarations(
     declarations: &[Declaration],
     declaration: u32,
 ) -> Result<LinkedProtocol, Diagnostics> {
+    let mut identities = UnboundedIdentityBuilder;
+    match link_declarations_with(declarations, declaration, &mut identities) {
+        Ok(linked) => Ok(linked),
+        Err(LinkBuildError::Domain(error)) => Err(error),
+        Err(LinkBuildError::Identity(never)) => match never {},
+    }
+}
+
+fn link_declarations_with<B: IdentityBuilder>(
+    declarations: &[Declaration],
+    declaration: u32,
+    identities: &mut B,
+) -> Result<LinkedProtocol, LinkBuildError<B::Error>> {
     // The two gating checks. Neither accumulates with anything, because a
     // declaration that is absent or is not a protocol leaves no tables to walk:
     // every check below reads one of them.
     let index = usize::try_from(declaration).unwrap_or(usize::MAX);
     let declared = declarations.get(index).ok_or_else(|| {
-        Diagnostics::of(LinkRefusal::NoSuchDeclaration {
+        LinkBuildError::Domain(Diagnostics::of(LinkRefusal::NoSuchDeclaration {
             selected: declaration,
             available: declarations.len(),
-        })
+        }))
     })?;
 
     let Body::Protocol {
@@ -970,10 +1226,12 @@ fn link_declarations(
         ..
     } = &declared.body
     else {
-        return Err(Diagnostics::of(LinkRefusal::NotAProtocol {
-            declaration,
-            found: body_tag(&declared.body),
-        }));
+        return Err(LinkBuildError::Domain(Diagnostics::of(
+            LinkRefusal::NotAProtocol {
+                declaration,
+                found: body_tag(&declared.body),
+            },
+        )));
     };
 
     let mut found = Accumulator::default();
@@ -987,17 +1245,22 @@ fn link_declarations(
         declared,
     };
 
-    let definition = DefinitionId::new(&scope, &declared.name);
+    let definition = identities
+        .build(&scope, &declared.name, DefinitionId::new)
+        .map_err(LinkBuildError::Identity)?;
 
-    let workflow_instance =
-        linker
-            .sole_requirement(BindingKind::WorkflowInstance)
-            .map(|(index, requirement)| {
-                WorkflowInstanceId::new(
+    let workflow_instance = match linker.sole_requirement(BindingKind::WorkflowInstance) {
+        Some((index, requirement)) => Some(
+            identities
+                .build(
                     &requirement_identity(&scope, declaration, index, requirement),
                     &requirement.name,
+                    WorkflowInstanceId::new,
                 )
-            });
+                .map_err(LinkBuildError::Identity)?,
+        ),
+        None => None,
+    };
 
     // Refusals A does not make. See the module documentation: A's validator
     // covers the edge set, joins, cycles and reference resolution, and these are
@@ -1049,13 +1312,14 @@ fn link_declarations(
             &role.locus,
         ));
         if let Some(requirement) = resolved {
-            role_instances.push((
-                RoleInstanceId::new(
+            let identity = identities
+                .build(
                     &requirement_identity(&scope, declaration, role.instance, requirement),
                     &role.name,
-                ),
-                role.locus.clone(),
-            ));
+                    RoleInstanceId::new,
+                )
+                .map_err(LinkBuildError::Identity)?;
+            role_instances.push((identity, role.locus.clone()));
         }
     }
 
@@ -1064,11 +1328,21 @@ fn link_declarations(
     // requirements of those kinds. Reading them from the binding table rather
     // than inferring them from control bodies keeps each one's identity the
     // producer's, and keeps this linker out of A's control-graph semantics.
-    let participants = linker.all_of(BindingKind::Participant, ParticipantId::new);
-    let components = linker.all_of(BindingKind::Component, ComponentId::new);
-    let endpoints = linker.all_of(BindingKind::Endpoint, EndpointId::new);
-    let attempts = linker.all_of(BindingKind::Attempt, AttemptId::new);
-    let effects = linker.all_of(BindingKind::Effect, EffectId::new);
+    let participants = linker
+        .all_of(BindingKind::Participant, ParticipantId::new, identities)
+        .map_err(LinkBuildError::Identity)?;
+    let components = linker
+        .all_of(BindingKind::Component, ComponentId::new, identities)
+        .map_err(LinkBuildError::Identity)?;
+    let endpoints = linker
+        .all_of(BindingKind::Endpoint, EndpointId::new, identities)
+        .map_err(LinkBuildError::Identity)?;
+    let attempts = linker
+        .all_of(BindingKind::Attempt, AttemptId::new, identities)
+        .map_err(LinkBuildError::Identity)?;
+    let effects = linker
+        .all_of(BindingKind::Effect, EffectId::new, identities)
+        .map_err(LinkBuildError::Identity)?;
 
     let mut linked_channels = BTreeMap::new();
     for (position, channel) in channels.iter().enumerate() {
@@ -1104,27 +1378,42 @@ fn link_declarations(
             continue;
         };
 
-        let identity = ChannelId::new(
-            &channel_identity(&scope, declaration, position, channel.message),
-            &channel.name,
-        );
+        let identity = identities
+            .build(
+                &channel_identity(&scope, declaration, position, channel.message),
+                &channel.name,
+                ChannelId::new,
+            )
+            .map_err(LinkBuildError::Identity)?;
         let linked = LinkedChannel {
-            message: MessageId::new(
-                &requirement_identity(&scope, declaration, channel.message, message),
-                &message.name,
-            ),
-            send: SendId::new(
-                &requirement_identity(&scope, declaration, channel.send, send),
-                &send.name,
-            ),
-            receive: ReceiveId::new(
-                &requirement_identity(&scope, declaration, channel.receive, receive),
-                &receive.name,
-            ),
-            delivery: DeliveryId::new(
-                &requirement_identity(&scope, declaration, channel.delivery_instance, delivery),
-                &delivery.name,
-            ),
+            message: identities
+                .build(
+                    &requirement_identity(&scope, declaration, channel.message, message),
+                    &message.name,
+                    MessageId::new,
+                )
+                .map_err(LinkBuildError::Identity)?,
+            send: identities
+                .build(
+                    &requirement_identity(&scope, declaration, channel.send, send),
+                    &send.name,
+                    SendId::new,
+                )
+                .map_err(LinkBuildError::Identity)?,
+            receive: identities
+                .build(
+                    &requirement_identity(&scope, declaration, channel.receive, receive),
+                    &receive.name,
+                    ReceiveId::new,
+                )
+                .map_err(LinkBuildError::Identity)?,
+            delivery: identities
+                .build(
+                    &requirement_identity(&scope, declaration, channel.delivery_instance, delivery),
+                    &delivery.name,
+                    DeliveryId::new,
+                )
+                .map_err(LinkBuildError::Identity)?,
             premises: channel_premises(channel),
         };
         // The key is checked, and the finding is not dead code.
@@ -1143,12 +1432,17 @@ fn link_declarations(
         // return `Ok` with a channel missing from the representation and no
         // diagnostic anywhere. One `is_some()` on a map insert buys that back,
         // and it is O(1) rather than the quadratic scans that were deleted.
-        if linked_channels.insert(identity.clone(), linked).is_some() {
-            found.record(LinkRefusal::CollidingIdentity {
-                kind: IdentityKind::Channel,
-                identity: identity.identity_bytes().to_vec(),
-                locus: channel.locus.clone(),
-            });
+        match linked_channels.entry(identity) {
+            std::collections::btree_map::Entry::Occupied(existing) => {
+                found.record(LinkRefusal::CollidingIdentity {
+                    kind: IdentityKind::Channel,
+                    identity: existing.key().identity_bytes().to_vec(),
+                    locus: channel.locus.clone(),
+                });
+            }
+            std::collections::btree_map::Entry::Vacant(vacant) => {
+                vacant.insert(linked);
+            }
         }
     }
 
@@ -1172,7 +1466,7 @@ fn link_declarations(
     check_distinct_roles(&role_instances, &mut found);
 
     if let Some(diagnostics) = found.into_diagnostics() {
-        return Err(diagnostics);
+        return Err(LinkBuildError::Domain(diagnostics));
     }
 
     // The loci were carried only so a collision could name the later record's
@@ -1258,7 +1552,12 @@ impl<'a> Linker<'a> {
     }
 
     /// Every requirement of `kind`, built into its own identity newtype.
-    fn all_of<T>(&self, kind: BindingKind, build: fn(&[u8], &str) -> T) -> Vec<T> {
+    fn all_of<T, B: IdentityBuilder>(
+        &self,
+        kind: BindingKind,
+        build: fn(&[u8], &str) -> T,
+        identities: &mut B,
+    ) -> Result<Vec<T>, B::Error> {
         self.declared
             .bindings
             .iter()
@@ -1266,9 +1565,10 @@ impl<'a> Linker<'a> {
             .filter(|(_, requirement)| requirement.kind == kind)
             .map(|(index, requirement)| {
                 let index = u32::try_from(index).unwrap_or(u32::MAX);
-                build(
+                identities.build(
                     &requirement_identity(&self.scope, self.declaration, index, requirement),
                     &requirement.name,
+                    build,
                 )
             })
             .collect()
@@ -1374,6 +1674,10 @@ mod tests {
     };
     use quire_spec_language::protocol_artifact::NumberWire;
     use quire_spec_language::ByteDigest;
+
+    use crate::bounds::inventory::{
+        production_inventory, Budget, BudgetDimension, OperationOutcome, ResourceAccountant,
+    };
 
     use super::interleaving::{interleavings, precedence, Endpoint as Step};
     use super::*;
@@ -2757,6 +3061,178 @@ mod tests {
 
         stamp(&mut declarations);
         declarations
+    }
+
+    fn budget_fixture() -> Vec<Declaration> {
+        let mut declarations = sweep_fixture();
+        let declared = &mut declarations[0];
+        let second_role = u32::try_from(declared.bindings.len()).expect("small fixture");
+        declared.bindings.push(requirement(
+            "the-second-role-instance",
+            BindingKind::RoleInstance,
+        ));
+        let Body::Protocol {
+            roles, controls, ..
+        } = &mut declared.body
+        else {
+            unreachable!("the fixture is a protocol")
+        };
+        roles.push(Role {
+            name: "Seller".to_owned(),
+            model: ExportRef {
+                model: 0,
+                export: 1,
+            },
+            instance: second_role,
+            locus: locus(),
+        });
+        let repeat = controls
+            .iter()
+            .find(|control| matches!(control.operation, ControlOperation::Repeat { .. }))
+            .expect("sweep fixture has a repeat")
+            .clone();
+        controls.push(repeat);
+        stamp(&mut declarations);
+        declarations.push(declarations[0].clone());
+        declarations
+    }
+
+    #[trace("TC-002", "TC-009", "NFR-002-AC-1", "FR-016-AC-2", "FR-016-AC-4")]
+    #[test]
+    fn tc_009_link_charges_every_structural_population_before_mapping() {
+        let declarations = budget_fixture();
+        let work = link_work(&declarations, 0)
+            .expect("budget accounting does not overflow")
+            .expect("budget fixture has a selected protocol");
+        let dimensions = [
+            (BudgetDimension::Definition, work.definitions),
+            (BudgetDimension::Node, work.nodes),
+            (BudgetDimension::Edge, work.edges),
+            (BudgetDimension::Role, work.roles),
+            (BudgetDimension::Message, work.messages),
+            (BudgetDimension::Branch, work.branches),
+            (BudgetDimension::Iteration, work.iterations),
+            (BudgetDimension::ActiveInstance, work.active_instances),
+        ];
+        let inventory = production_inventory().expect("production inventory");
+        for (dimension, required) in dimensions {
+            assert!(required > 1, "{dimension} needs a positive one-short case");
+            let short = Budget::nothing_granted()
+                .grant(dimension, required - 1)
+                .expect("positive one-short grant");
+            let mut short_resources = ResourceAccountant::new(short, &inventory);
+            assert!(matches!(
+                link_declarations_bounded(&declarations, 0, &mut short_resources),
+                OperationOutcome::ResourceIncomplete(value)
+                    if value.dimension() == dimension && value.requested() == required
+            ));
+            assert_eq!(
+                short_resources.usage().consumed(dimension),
+                0,
+                "{dimension} preflight is transactional"
+            );
+
+            let exact = Budget::nothing_granted()
+                .grant(dimension, required)
+                .expect("positive exact grant");
+            let mut exact_resources = ResourceAccountant::new(exact, &inventory);
+            assert!(matches!(
+                link_declarations_bounded(&declarations, 0, &mut exact_resources),
+                OperationOutcome::Completed(_)
+            ));
+            assert_eq!(exact_resources.usage().consumed(dimension), required);
+        }
+    }
+
+    #[trace("TC-002", "TC-009", "NFR-002-AC-1", "NFR-002-AC-3", "FR-016-AC-2")]
+    #[test]
+    fn tc_009_link_charges_each_identity_allocation_on_the_real_mapping_path() {
+        let declarations = budget_fixture();
+        let inventory = production_inventory().expect("production inventory");
+
+        let one_allocation = Budget::nothing_granted()
+            .grant(BudgetDimension::AccountedAllocation, 1)
+            .expect("one preconsumed allocation");
+        let mut graph_resources = ResourceAccountant::new(one_allocation, &inventory);
+        assert!(matches!(
+            DefinitionId::new_bounded(b"already-used", "already used", &mut graph_resources),
+            OperationOutcome::Completed(_)
+        ));
+        assert!(matches!(
+            link_declarations_bounded(&declarations, 0, &mut graph_resources),
+            OperationOutcome::ResourceIncomplete(value)
+                if value.dimension() == BudgetDimension::AccountedAllocation
+                    && value.site() == GRAPH_ALLOCATION_SOURCE.id()
+                    && value.consumed() == 1
+                    && value.requested() == 1
+        ));
+
+        let mut measured = ResourceAccountant::new(Budget::nothing_granted(), &inventory);
+        assert!(matches!(
+            link_declarations_bounded(&declarations, 0, &mut measured),
+            OperationOutcome::Completed(_)
+        ));
+        let required = measured
+            .usage()
+            .consumed(BudgetDimension::AccountedAllocation);
+        assert!(
+            required > 1,
+            "the fixture must construct several identities"
+        );
+
+        let short = Budget::nothing_granted()
+            .grant(BudgetDimension::AccountedAllocation, required - 1)
+            .expect("positive one-short allocation grant");
+        let mut short_resources = ResourceAccountant::new(short, &inventory);
+        assert!(matches!(
+            link_declarations_bounded(&declarations, 0, &mut short_resources),
+            OperationOutcome::ResourceIncomplete(value)
+                if value.dimension() == BudgetDimension::AccountedAllocation
+                    && value.site() == crate::ids::ALLOCATION_SOURCE.id()
+                    && value.consumed() == required - 1
+                    && value.requested() == 1
+        ));
+
+        let exact = Budget::nothing_granted()
+            .grant(BudgetDimension::AccountedAllocation, required)
+            .expect("positive exact allocation grant");
+        let mut exact_resources = ResourceAccountant::new(exact, &inventory);
+        assert!(matches!(
+            link_declarations_bounded(&declarations, 0, &mut exact_resources),
+            OperationOutcome::Completed(_)
+        ));
+        assert_eq!(
+            exact_resources
+                .usage()
+                .consumed(BudgetDimension::AccountedAllocation),
+            required
+        );
+
+        let retained = measured.usage().consumed(BudgetDimension::InputByte);
+        assert!(retained > 1, "the fixture must retain identity bytes");
+        let short = Budget::nothing_granted()
+            .grant(BudgetDimension::InputByte, retained - 1)
+            .expect("positive one-short retained-byte grant");
+        let mut short_resources = ResourceAccountant::new(short, &inventory);
+        assert!(matches!(
+            link_declarations_bounded(&declarations, 0, &mut short_resources),
+            OperationOutcome::ResourceIncomplete(value)
+                if value.dimension() == BudgetDimension::InputByte
+                    && value.site() == crate::ids::INPUT_SOURCE.id()
+        ));
+
+        let exact = Budget::nothing_granted()
+            .grant(BudgetDimension::InputByte, retained)
+            .expect("positive exact retained-byte grant");
+        let mut exact_resources = ResourceAccountant::new(exact, &inventory);
+        assert!(matches!(
+            link_declarations_bounded(&declarations, 0, &mut exact_resources),
+            OperationOutcome::Completed(_)
+        ));
+        assert_eq!(
+            exact_resources.usage().consumed(BudgetDimension::InputByte),
+            retained
+        );
     }
 
     /// The protocol body of a fixture under mutation.

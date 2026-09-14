@@ -128,36 +128,15 @@ including the rule that a claim which is not global conformance carries no
 global premise set. The local enumeration is therefore replaced by the reference
 rather than reconciled.
 
-### Where the upstream vocabulary does not yet reach
+### Accepted upstream rulings
 
-Each gap is recorded in full by the part that depends on it. Summarised:
-
-- **Canonical result identity** — `FR-240-canonical-protocol-result` records
-  that "no requirement states whether the identity is authored by the producer
-  or derived from named components", that no key order over result identities is
-  established, and that "No requirement states whether two results bearing the
-  same result identity and different canonical bytes are admissible." Recorded
-  by [FR-031](./FR-031-canonical-result-identity-and-digest.md) and
-  [FR-033](./FR-033-preserve-result-lineage-integrity.md). Owner:
-  `quire-specification`.
-- **The four progress/closure axes are declared.** `FR-284-scope-progress-and-closure-state`
-  types them: each of decision-scope progress, decision-scope closure,
-  surrounding-execution progress and surrounding-execution closure carries
-  exactly one of `open` or `closed`, and `FR-284` "mints no new spelling".
-  Adopted by reference; this requirement enumerates no member. Input
-  completeness remains outside that vocabulary with no member list, and is
-  `agent-ix/quire-specification`'s (`FR-258` open gap).
-- **Settlement basis membership is not stated uniformly upstream.**
-  `FR-243-settlement-basis` carries a section headed "Recorded divergence:
-  membership is not stated uniformly", opening: "Four requirements state this
-  vocabulary and one of them lists only four members." Its Open gap is explicit
-  about which: "FR-091 lists four members where FR-061, FR-094-AC-7 and FR-115
-  list five. No requirement states whether FR-091's evaluator may emit
-  `unavailable`. Both lists are quoted above; this artifact does not merge them."
-  This requirement cites the axis, not a membership. Recorded by
-  [FR-032](./FR-032-retain-orthogonal-result-axes.md).
-- **Participation is unenumerated at the source** (FR-240). Recorded by
-  [FR-032](./FR-032-retain-orthogonal-result-axes.md).
+The implementation consumes the promoted shared object authority rather than
+retaining earlier gap descriptions. FR-286 fixes the complete derived result
+identity preimage and strict-reader order; FR-284 fixes each of the four
+progress/closure axes to independent `open`/`closed`; FR-295 fixes completeness
+to `complete`/`incomplete`/`contradicted`; FR-243 fixes all five settlement
+members; and FR-285 fixes participation to its exact known/unknown form. No
+local aliases or compatibility fallbacks survive these rulings.
 
 ## Dependencies
 

@@ -215,6 +215,47 @@ use core::cmp::Ordering;
 use core::fmt;
 use core::hash::{Hash, Hasher};
 
+use crate::bounds::inventory::{
+    BudgetDimension, ChargeError, OperationOutcome, ResourceAccountant, SourceSite,
+};
+use crate::bounds::{SiteId, SiteKind, UnitLabel};
+
+pub(crate) const INPUT_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("identity/storage/retain"),
+    "ids::*::new",
+    BudgetDimension::InputByte,
+    SiteKind::Retention,
+);
+pub(crate) const ALLOCATION_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("identity/storage/allocate"),
+    "ids::*::new",
+    BudgetDimension::AccountedAllocation,
+    SiteKind::Allocation,
+);
+
+/// Charge the exact retained identity storage before constructing its buffers.
+///
+/// This is shared by the public bounded constructors and by bounded owner
+/// operations that construct identities internally. Keeping the charge here
+/// prevents those paths from independently reimplementing what one identity
+/// allocation means.
+pub(crate) fn charge_storage(
+    identity: &[u8],
+    display: &str,
+    resources: &mut ResourceAccountant<'_>,
+) -> Result<(), ChargeError> {
+    let retained =
+        identity
+            .len()
+            .checked_add(display.len())
+            .ok_or(ChargeError::CounterOverflow {
+                site: INPUT_SOURCE.id(),
+                consumed: identity.len(),
+                requested: display.len(),
+            })?;
+    resources.charge_all(&[(INPUT_SOURCE.id(), retained), (ALLOCATION_SOURCE.id(), 1)])
+}
+
 /// Faithful `Debug` rendering of identity bytes that are not required to be
 /// UTF-8. Debug output is for humans and takes no part in identity.
 struct Escaped<'bytes>(&'bytes [u8]);
@@ -275,6 +316,27 @@ macro_rules! identities {
                 /// to select, repair or establish this identity.
                 pub fn new(identity: &[u8], display: &str) -> Self {
                     Self { identity: identity.to_vec(), display: display.to_owned() }
+                }
+
+                /// Retain this identity under the shared QProtocol caller budget.
+                ///
+                /// Exact producer and display bytes, plus the single abstract
+                /// identity-storage allocation, are charged transactionally
+                /// before either owned buffer is constructed.
+                pub fn new_bounded(
+                    identity: &[u8],
+                    display: &str,
+                    resources: &mut ResourceAccountant<'_>,
+                ) -> OperationOutcome<Self, core::convert::Infallible> {
+                    resources.run_unit(
+                        UnitLabel::new(concat!("ids::", stringify!($name), "::new_bounded")),
+                        |resources| {
+                            if let Err(error) = charge_storage(identity, display, resources) {
+                                return OperationOutcome::from_charge(error);
+                            }
+                            OperationOutcome::Completed(Self::new(identity, display))
+                        },
+                    )
                 }
 
                 /// The producer's exact identity bytes.
