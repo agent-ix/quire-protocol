@@ -272,7 +272,7 @@ of A's mutation manifest. On the revision named below, the base offer is admitte
 and every mutation refuses with the identity A declares for it.
 
 The exact pin is `quire-spec-language`
-`7931a0021612d26132ea8bbef3b0cd19b27248e0`, a post-`v0.2.0` revision. A
+`f1700a9264d6d3bcdd07e0f77b70f3dae9ed4c07`, a post-`v0.2.0` revision. A
 exports `PUBLISHED_HANDOFF` plus every member-name
 and manifest-format constant. B loads that owner path directly, verifies all
 109 published members, refuses unlisted or corrupt members, admits the base,
@@ -284,7 +284,7 @@ vendored mirror remains, and the lane reports `17 passed; 0 ignored`.
 `unresolved` today. IT-002 and IT-003 declare FR-009 preconditions, so every one
 of their scenarios is unexecutable. IT-001 declares no manifest precondition, so
 its version 1 lane SC-01..SC-05 remains planned rather than unexecutable. The
-version 2 lane is executable from the exact `7931a00` pin.
+version 2 lane is executable from the exact `f1700a9` pin.
 
 ## Functional Requirement Coverage
 
@@ -389,7 +389,7 @@ and 1 is unexecutable.
 | Integration Test | Boundary | Requirements | Status |
 | --- | --- | --- | --- |
 | IT-001 version 1 | Native compiler `quire.compiled-protocol/1` artifact to protocol library | FR-001, FR-002, FR-013, FR-016, NFR-002 | 🚧 Planned — SC-01..SC-05, 5 owed scenarios; fixture lane `#[ignore]`. IT-001 declares no FR-009 manifest precondition, so this lane is planned rather than unexecutable |
-| IT-001 version 2 | Native compiler version 2 artifact to protocol library | FR-001-AC-5, FR-002-AC-5, FR-013-AC-4, NFR-002, NFR-007 | 🚧 In progress — 4 of 5 owed scenarios execute and pass under the default local gate: SC-06's `/2` admission and both cross-version directions, SC-07, SC-08, and SC-09. The exact `7931a00` pin supplies `PUBLISHED_HANDOFF`; all 109 checksummed members, the base admission, all 28 declared typed mutations, independent accepted-baseline substitutions, exact and invalid numeric controls, both cross-version refusals, and all 13 exact/one-short/fresh budget dimensions execute in 17 non-ignored tests. SC-06a's complete earlier-version SC-01..SC-05 regression comparison remains planned under Task-009. |
+| IT-001 version 2 | Native compiler version 2 artifact to protocol library | FR-001-AC-5, FR-002-AC-5, FR-013-AC-4, NFR-002, NFR-007 | 🚧 In progress — 4 of 5 owed scenarios execute and pass under the default local gate: SC-06's `/2` admission and both cross-version directions, SC-07, SC-08, and SC-09. The exact `f1700a9` pin supplies `PUBLISHED_HANDOFF`; all 109 checksummed members, the base admission, all 28 declared typed mutations, independent accepted-baseline substitutions, exact and invalid numeric controls, both cross-version refusals, and all 13 exact/one-short/fresh budget dimensions execute in 17 non-ignored tests. SC-06a's complete earlier-version SC-01..SC-05 regression comparison remains planned under Task-009. |
 | IT-002 | Observation and temporal facts to protocol evaluator/result | FR-003, FR-004, FR-006, FR-009, FR-017, NFR-002, NFR-005 | 🚧 Planned — SC-01, SC-02, SC-03, SC-04, SC-05a..SC-05d, SC-06, SC-07a, SC-07b, SC-08, 12 owed scenarios, all 12 unexecutable and scoring 0 of 12; blocked on accepted F/E producer contracts and on every FR-009 entry being `unresolved` |
 | IT-003 | Protocol result through Engineering Assurance, E02, and Quoin | FR-006, FR-007, FR-009, FR-014, FR-017, FR-039, FR-040, NFR-002, NFR-003, NFR-005 | 🚧 Planned — SC-01..SC-07, SC-08a, SC-08b, SC-09, 10 owed scenarios, all 10 unexecutable and scoring 0 of 10; blocked on Engineering Assurance #34 |
 

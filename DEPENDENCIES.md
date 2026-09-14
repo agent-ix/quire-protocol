@@ -10,9 +10,9 @@ record discharges.
 
 | Crate | Pinned revision | Declared license | Role |
 | --- | --- | --- | --- |
-| `quire-spec-language` | `7931a0021612d26132ea8bbef3b0cd19b27248e0` | `AGPL-3.0-only` | Supplies the accepted `quire.compiled-protocol/1` and `/2` readers, handoff records, owner-exported constants, and the source-compatible FR-051/FR-052 temporal owner authority. Release `v0.2.0` is its ancestor at `6eccb05`. |
+| `quire-spec-language` | `f1700a9264d6d3bcdd07e0f77b70f3dae9ed4c07` | `AGPL-3.0-only` | Supplies the accepted `quire.compiled-protocol/1` and `/2` readers, handoff records, owner-exported constants, the FR-051 checked temporal activation-guard selection, and the source-compatible FR-052 temporal owner authority. Release `v0.2.0` is its ancestor at `6eccb05`. |
 | `agent-ix-baseline-producer` | `404288282402d60de007295ccbafa960532b955e` | `AGPL-3.0-only` | Transitive baseline producer reached through `quire-spec-language`; sourced from `agent-ix/filament-core-data`. |
-| `quire-contract-ir` | `53cc03c639e2e26528132d34d96dc56449df78e8` | `MIT OR Apache-2.0` | Direct test type and the exact transitive contract-IR revision selected by `quire-spec-language` `7931a00`; one identity type is present in the resolved graph. |
+| `quire-contract-ir` | `53cc03c639e2e26528132d34d96dc56449df78e8` | `MIT OR Apache-2.0` | Direct test type and the exact transitive contract-IR revision selected by `quire-spec-language` `f1700a9`; one identity type is present in the resolved graph. |
 | `ix-trace-rs` | `2ce4ebf47f726b9d76388220545cd0abda8a5cfb` | `AGPL-3.0-or-later` | Test-only trace attributes binding tests to acceptance criteria. |
 
 All four are compatible with this repository's `AGPL-3.0-or-later` decision:
@@ -52,6 +52,6 @@ recurring on the transitive edge rather than the direct one.
   owner-supplied assertion for that; `AD-001` and `NFR-003` forbid this
   repository from reaching a network or a version-control system to check it.
 - It does not turn the producer's committed handoff into consumer-owned bytes.
-  `quire-spec-language` `7931a00` supplies both contracts and exports the path
+  `quire-spec-language` `f1700a9` supplies both contracts and exports the path
   within its own exactly pinned crate source. The version 2 scenarios execute
   there under the default local gate; this repository vendors no copy.

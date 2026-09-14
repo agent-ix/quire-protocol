@@ -40,7 +40,7 @@ through the contract's lossless numeric wire profile.
 
 - The former external blockers are delivered. Quire Specification PR #15
   accepted the coherent baseline; quire-spec-language `v0.2.0` and the exact
-  pinned post-release revision `7931a0021612d26132ea8bbef3b0cd19b27248e0`
+  pinned post-release revision `f1700a9264d6d3bcdd07e0f77b70f3dae9ed4c07`
   publish the versioned readers, lossless numeric profile and default-running
   version 2 handoff.
 - Task-001 closes TC-001 and FR-001-AC-1 through FR-001-AC-4. Task-009 retains
