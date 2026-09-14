@@ -130,7 +130,12 @@ pub(crate) fn validate_correction(
     if correction.contradicted_premise_identity.is_empty()
         || correction.corrected_input_identity.is_empty()
         || correction.corrected_input_identity
-            == correction.predecessor.document.snapshot.input_identity
+            == correction
+                .predecessor
+                .document
+                .snapshot
+                .provenance
+                .input_identity
     {
         return invalid(
             "correction must name a retained premise and a different exact input",

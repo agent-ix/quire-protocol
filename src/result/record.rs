@@ -3,12 +3,13 @@
 
 use quire_observation::authority::{closure as observation_closure, completeness, progress};
 use quire_spec_language::protocol_artifact::{checked_predicate, temporal_subject};
+use serde::Serialize;
 use serde_json::{json, Value};
 
 use crate::assessment::{AxisInputs, GlobalConformanceInput, GlobalPremise};
 use crate::bounds::inventory::{BudgetDimension, OperationOutcome, ResourceAccountant, SourceSite};
 use crate::bounds::{SiteId, SiteKind, UnitLabel};
-use crate::closure::{AssessmentExecution, ScopeState};
+use crate::closure::{AssessmentExecution, GlobalConformanceClosure, ScopeState};
 use crate::digest::jcs::{canonical_len, canonicalize, ResultDigest};
 use crate::repro::ReproductionRecord;
 use crate::ByteDigest;
@@ -473,18 +474,22 @@ pub struct Document {
 }
 
 impl Document {
+    /// Complete canonical result bytes.
     #[must_use]
     pub fn bytes(&self) -> &[u8] {
         &self.bytes
     }
+    /// FR-286 result identity derived with `resultId` omitted.
     #[must_use]
     pub fn result_id(&self) -> &str {
         &self.result_id
     }
+    /// Enclosing digest of the complete canonical result.
     #[must_use]
     pub fn digest(&self) -> &str {
         &self.digest
     }
+    /// Work retained while producing the document.
     #[must_use]
     pub const fn usage(&self) -> Usage {
         self.usage
@@ -498,90 +503,319 @@ pub struct ValidatedResult {
 }
 
 impl ValidatedResult {
+    /// Complete canonical bytes accepted by the strict reader.
     #[must_use]
     pub fn bytes(&self) -> &[u8] {
         self.document.bytes()
     }
+    /// Re-derived FR-286 result identity.
     #[must_use]
     pub fn result_id(&self) -> &str {
         self.document.result_id()
     }
+    /// Re-derived enclosing result digest.
     #[must_use]
     pub fn digest(&self) -> &str {
         self.document.digest()
     }
+    /// Work observed while reading the result.
     #[must_use]
     pub const fn usage(&self) -> Usage {
         self.document.usage()
     }
+    /// Whether the selected assessment executed.
     #[must_use]
     pub const fn execution(&self) -> AssessmentExecution {
         self.document.snapshot.execution
     }
+    /// Native truth disposition, never Boolean-normalized.
     #[must_use]
     pub const fn truth(&self) -> Truth {
         self.document.snapshot.truth
     }
+    /// Exact settlement basis.
     #[must_use]
     pub const fn settlement_basis(&self) -> SettlementBasis {
-        self.document.snapshot.settlement_basis
+        self.document.snapshot.settlement.basis
     }
+    /// Complete settlement record and its authorizing identities.
+    #[must_use]
+    pub const fn settlement(&self) -> &Settlement {
+        &self.document.snapshot.settlement
+    }
+    /// Activation state retained independently from truth.
+    #[must_use]
+    pub const fn activation(&self) -> Activation {
+        self.document.snapshot.activation
+    }
+    /// Observation adequacy retained independently from execution and truth.
+    #[must_use]
+    pub const fn observation_adequacy(&self) -> Adequacy {
+        self.document.snapshot.observation_adequacy
+    }
+    /// Protocol adequacy retained independently from observation adequacy.
+    #[must_use]
+    pub const fn protocol_adequacy(&self) -> ProtocolAdequacy {
+        self.document.snapshot.protocol_adequacy
+    }
+    /// Exact claim selection assessed by this result.
+    #[must_use]
+    pub const fn claim(&self) -> &Claim {
+        &self.document.snapshot.claim
+    }
+    /// Assumptions retained in their declared order.
+    #[must_use]
+    pub fn assumptions(&self) -> &[Assumption] {
+        &self.document.snapshot.assumptions
+    }
+    /// Participation state and exact role/dependency identities.
+    #[must_use]
+    pub const fn participation(&self) -> &Participation {
+        &self.document.snapshot.participation
+    }
+    /// Decision support retained in declared causal order.
+    #[must_use]
+    pub fn decision_support(&self) -> &[DecisionSupport] {
+        &self.document.snapshot.decision_support
+    }
+    /// Global-conformance closure state.
+    #[must_use]
+    pub const fn global_conformance_state(&self) -> GlobalConformanceClosure {
+        self.document.snapshot.global_conformance_state
+    }
+    /// Complete global-conformance premise population.
+    #[must_use]
+    pub fn global_premises(&self) -> &[GlobalPremise] {
+        &self.document.snapshot.global_premises
+    }
+    /// Retained limitations in canonical order.
+    #[must_use]
+    pub fn limitations(&self) -> &[Limitation] {
+        &self.document.snapshot.limitations
+    }
+    /// Complete provenance selections, including reproduction inputs.
+    #[must_use]
+    pub const fn provenance(&self) -> &ProvenanceRecord {
+        &self.document.snapshot.provenance
+    }
+    /// Decision-scope progress assertion view.
+    #[must_use]
+    pub const fn decision_scope_progress(&self) -> &AxisView {
+        &self.document.snapshot.axes[0]
+    }
+    /// Decision-scope closure assertion view.
+    #[must_use]
+    pub const fn decision_scope_closure(&self) -> &AxisView {
+        &self.document.snapshot.axes[1]
+    }
+    /// Surrounding-execution progress assertion view.
+    #[must_use]
+    pub const fn surrounding_execution_progress(&self) -> &AxisView {
+        &self.document.snapshot.axes[2]
+    }
+    /// Surrounding-execution closure assertion view.
+    #[must_use]
+    pub const fn surrounding_execution_closure(&self) -> &AxisView {
+        &self.document.snapshot.axes[3]
+    }
+    /// Complete owner-issued completeness assertion view.
+    #[must_use]
+    pub const fn completeness(&self) -> &CompletenessView {
+        &self.document.snapshot.completeness
+    }
+    /// Direct correction predecessor, when this result is a correction.
+    #[must_use]
+    pub const fn correction(&self) -> Option<&CorrectionView> {
+        self.document.snapshot.correction.as_ref()
+    }
+    /// Completeness state retained for source-compatible callers.
     #[must_use]
     pub const fn completeness_state(&self) -> completeness::State {
-        self.document.snapshot.completeness_state
+        self.document.snapshot.completeness.state
     }
+    /// Native temporal-subject identity.
     #[must_use]
     pub fn native_subject_identity(&self) -> &str {
         &self.document.snapshot.native_subject_identity
     }
+    /// Source-bound checked-predicate/correspondence identity.
     #[must_use]
     pub fn native_correspondence_identity(&self) -> &str {
         &self.document.snapshot.native_correspondence_identity
     }
 }
 
+/// Constructor-private owner assertion retained by a validated result.
 #[derive(Clone, Debug)]
-pub(crate) struct OwnerAxis {
-    pub contract: &'static str,
-    pub schema_sha256: &'static str,
-    pub document_identity: String,
-    pub document_digest: String,
-    pub authority_identity: String,
-    pub authority_revision: String,
-    pub authority_digest: String,
-    pub scope_identity: String,
-    pub population_identity: String,
-    pub state: ScopeState,
+pub struct AxisView {
+    pub(crate) contract: &'static str,
+    pub(crate) schema_sha256: &'static str,
+    pub(crate) document_identity: String,
+    pub(crate) document_digest: String,
+    pub(crate) authority_identity: String,
+    pub(crate) authority_revision: String,
+    pub(crate) authority_digest: String,
+    pub(crate) scope_identity: String,
+    pub(crate) population_identity: String,
+    pub(crate) state: ScopeState,
+}
+
+impl AxisView {
+    /// Selected owner contract.
+    #[must_use]
+    pub const fn contract(&self) -> &str {
+        self.contract
+    }
+    /// Selected owner schema digest.
+    #[must_use]
+    pub const fn schema_sha256(&self) -> &str {
+        self.schema_sha256
+    }
+    /// Canonical assertion-document identity.
+    #[must_use]
+    pub fn document_identity(&self) -> &str {
+        &self.document_identity
+    }
+    /// Digest of the canonical assertion bytes.
+    #[must_use]
+    pub fn document_digest(&self) -> &str {
+        &self.document_digest
+    }
+    /// Definition authority identity.
+    #[must_use]
+    pub fn authority_identity(&self) -> &str {
+        &self.authority_identity
+    }
+    /// Definition authority revision.
+    #[must_use]
+    pub fn authority_revision(&self) -> &str {
+        &self.authority_revision
+    }
+    /// Definition authority digest bytes rendered as lowercase hex.
+    #[must_use]
+    pub fn authority_digest(&self) -> &str {
+        &self.authority_digest
+    }
+    /// Exact scope identity.
+    #[must_use]
+    pub fn scope_identity(&self) -> &str {
+        &self.scope_identity
+    }
+    /// Exact population identity.
+    #[must_use]
+    pub fn population_identity(&self) -> &str {
+        &self.population_identity
+    }
+    /// Independent open/closed state.
+    #[must_use]
+    pub const fn state(&self) -> ScopeState {
+        self.state
+    }
+}
+
+/// Constructor-private completeness assertion retained by a validated result.
+#[derive(Clone, Debug)]
+pub struct CompletenessView {
+    pub(crate) document_identity: String,
+    pub(crate) document_digest: String,
+    pub(crate) population_identity: String,
+    pub(crate) boundary_identity: String,
+    pub(crate) fact_identities: Vec<String>,
+    pub(crate) state: completeness::State,
+}
+
+impl CompletenessView {
+    /// Canonical completeness-document identity.
+    #[must_use]
+    pub fn document_identity(&self) -> &str {
+        &self.document_identity
+    }
+    /// Digest of the canonical completeness bytes.
+    #[must_use]
+    pub fn document_digest(&self) -> &str {
+        &self.document_digest
+    }
+    /// Exact population identity.
+    #[must_use]
+    pub fn population_identity(&self) -> &str {
+        &self.population_identity
+    }
+    /// Exact temporal boundary identity.
+    #[must_use]
+    pub fn boundary_identity(&self) -> &str {
+        &self.boundary_identity
+    }
+    /// Facts establishing or contradicting completeness.
+    #[must_use]
+    pub fn fact_identities(&self) -> &[String] {
+        &self.fact_identities
+    }
+    /// Complete, incomplete, or contradicted state.
+    #[must_use]
+    pub const fn state(&self) -> completeness::State {
+        self.state
+    }
+}
+
+/// Constructor-private direct correction edge retained by a validated result.
+#[derive(Clone, Debug)]
+pub struct CorrectionView {
+    pub(crate) relation: CorrectionRelation,
+    pub(crate) predecessor_result_id: String,
+    pub(crate) predecessor_digest: String,
+    pub(crate) contradicted_premise_identity: String,
+    pub(crate) corrected_input_identity: String,
+}
+
+impl CorrectionView {
+    /// Correction relation.
+    #[must_use]
+    pub const fn relation(&self) -> CorrectionRelation {
+        self.relation
+    }
+    /// Direct predecessor result identity.
+    #[must_use]
+    pub fn predecessor_result_id(&self) -> &str {
+        &self.predecessor_result_id
+    }
+    /// Direct predecessor digest.
+    #[must_use]
+    pub fn predecessor_digest(&self) -> &str {
+        &self.predecessor_digest
+    }
+    /// Premise contradicted by the correction.
+    #[must_use]
+    pub fn contradicted_premise_identity(&self) -> &str {
+        &self.contradicted_premise_identity
+    }
+    /// Replacement input identity.
+    #[must_use]
+    pub fn corrected_input_identity(&self) -> &str {
+        &self.corrected_input_identity
+    }
 }
 
 #[derive(Clone, Debug)]
 pub(crate) struct Snapshot {
     pub native_subject_identity: String,
     pub native_correspondence_identity: String,
-    pub input_identity: String,
     pub execution: AssessmentExecution,
     pub truth: Truth,
-    pub settlement_basis: SettlementBasis,
+    pub activation: Activation,
+    pub observation_adequacy: Adequacy,
+    pub protocol_adequacy: ProtocolAdequacy,
+    pub claim: Claim,
+    pub assumptions: Vec<Assumption>,
+    pub participation: Participation,
     pub settlement: Settlement,
-    pub completeness_state: completeness::State,
-    pub completeness_identity: String,
-    pub completeness_digest: String,
-    pub completeness_population_identity: String,
-    pub completeness_boundary_identity: String,
-    pub completeness_fact_identities: Vec<String>,
-    pub axes: [OwnerAxis; 4],
+    pub completeness: CompletenessView,
+    pub axes: [AxisView; 4],
     pub decision_support: Vec<DecisionSupport>,
+    pub global_conformance_state: GlobalConformanceClosure,
     pub global_premises: Vec<GlobalPremise>,
-    pub correction: Option<CorrectionSnapshot>,
-}
-
-#[derive(Clone, Debug)]
-pub(crate) struct CorrectionSnapshot {
-    pub relation: CorrectionRelation,
-    pub predecessor_result_id: String,
-    pub predecessor_digest: String,
-    pub contradicted_premise_identity: String,
-    pub corrected_input_identity: String,
+    pub limitations: Vec<Limitation>,
+    pub provenance: ProvenanceRecord,
+    pub correction: Option<CorrectionView>,
 }
 
 struct Prepared {
@@ -1027,25 +1261,34 @@ fn snapshot(input: &Input<'_>) -> Snapshot {
     Snapshot {
         native_subject_identity: input.temporal_subject.document().identity().to_owned(),
         native_correspondence_identity: input.checked_predicate.document().identity().to_owned(),
-        input_identity: input.provenance.input_identity.clone(),
         execution: input.execution,
         truth: input.truth,
-        settlement_basis: input.settlement.basis,
+        activation: input.activation,
+        observation_adequacy: input.observation_adequacy,
+        protocol_adequacy: input.protocol_adequacy,
+        claim: input.claim.clone(),
+        assumptions: input.assumptions.clone(),
+        participation: input.participation.clone(),
         settlement: input.settlement.clone(),
-        completeness_state: input.completeness.payload().state(),
-        completeness_identity: input.completeness.identity().as_str().to_owned(),
-        completeness_digest: raw_digest(input.completeness.bytes()),
-        completeness_population_identity: input
-            .completeness
-            .payload()
-            .population_identity()
-            .to_owned(),
-        completeness_boundary_identity: input.completeness.payload().boundary_identity().to_owned(),
-        completeness_fact_identities: completeness_facts,
+        completeness: CompletenessView {
+            state: input.completeness.payload().state(),
+            document_identity: input.completeness.identity().as_str().to_owned(),
+            document_digest: raw_digest(input.completeness.bytes()),
+            population_identity: input
+                .completeness
+                .payload()
+                .population_identity()
+                .to_owned(),
+            boundary_identity: input.completeness.payload().boundary_identity().to_owned(),
+            fact_identities: completeness_facts,
+        },
         axes,
         decision_support: input.decision_support.clone(),
+        global_conformance_state: input.global_conformance.state,
         global_premises: input.global_conformance.premises.clone(),
-        correction: input.correction.map(|value| CorrectionSnapshot {
+        limitations: input.limitations.clone(),
+        provenance: input.provenance.clone(),
+        correction: input.correction.map(|value| CorrectionView {
             relation: value.relation,
             predecessor_result_id: value.predecessor.result_id().to_owned(),
             predecessor_digest: value.predecessor.digest().to_owned(),
@@ -1055,8 +1298,8 @@ fn snapshot(input: &Input<'_>) -> Snapshot {
     }
 }
 
-fn progress_axis(view: &progress::View) -> OwnerAxis {
-    OwnerAxis {
+fn progress_axis(view: &progress::View) -> AxisView {
+    AxisView {
         contract: progress::CONTRACT,
         schema_sha256: progress::SCHEMA_SHA256,
         document_identity: view.identity().as_str().to_owned(),
@@ -1070,8 +1313,8 @@ fn progress_axis(view: &progress::View) -> OwnerAxis {
     }
 }
 
-fn closure_axis(view: &observation_closure::View) -> OwnerAxis {
-    OwnerAxis {
+fn closure_axis(view: &observation_closure::View) -> AxisView {
+    AxisView {
         contract: observation_closure::CONTRACT,
         schema_sha256: observation_closure::SCHEMA_SHA256,
         document_identity: view.identity().as_str().to_owned(),
@@ -1092,59 +1335,311 @@ const fn open_closed(state: quire_observation::authority::OpenClosed) -> ScopeSt
     }
 }
 
-fn result_value(input: &Input<'_>, snapshot: &Snapshot, result_id: Option<&str>) -> Result<Value> {
-    let axes = &snapshot.axes;
-    let provenance = provenance_value(&input.provenance)?;
-    let mut value = json!({
-        "activation": input.activation.label(),
-        "assumptions": input.assumptions.iter().map(|a| json!({"identity": a.identity, "state": a.state.label()})).collect::<Vec<_>>(),
-        "claim": claim_value(&input.claim),
-        "completeness": {"boundaryIdentity": snapshot.completeness_boundary_identity, "contract": completeness::CONTRACT, "documentDigest": snapshot.completeness_digest, "documentIdentity": snapshot.completeness_identity, "factIdentities": snapshot.completeness_fact_identities, "populationIdentity": snapshot.completeness_population_identity, "schemaSha256": completeness::SCHEMA_SHA256, "state": completeness_label(snapshot.completeness_state)},
-        "contractVersion": CONTRACT,
-        "correction": snapshot.correction.as_ref().map(correction_value),
-        "decisionScopeClosure": axis_value(&axes[1]),
-        "decisionScopeProgress": axis_value(&axes[0]),
-        "decisionSupport": input.decision_support.iter().map(support_value).collect::<Vec<_>>(),
-        "execution": input.execution.label(),
-        "globalConformance": {"premises": input.global_conformance.premises.iter().map(premise_value).collect::<Vec<_>>(), "state": input.global_conformance.state.label()},
-        "kind": "ProtocolResult",
-        "limitations": input.limitations.iter().map(|l| json!({"affectedIdentity": l.affected_identity, "code": l.code})).collect::<Vec<_>>(),
-        "nativeCorrespondenceIdentity": snapshot.native_correspondence_identity,
-        "nativeSubjectIdentity": snapshot.native_subject_identity,
-        "observationAdequacy": input.observation_adequacy.label(),
-        "participation": participation_value(&input.participation),
-        "protocolAdequacy": input.protocol_adequacy.label(),
-        "provenance": provenance,
-        "resultId": result_id,
-        "settlement": {"basis": input.settlement.basis.label(), "supportingFactIdentities": input.settlement.supporting_fact_identities, "supportingProgressIdentities": input.settlement.supporting_progress_identities},
-        "surroundingExecutionClosure": axis_value(&axes[3]),
-        "surroundingExecutionProgress": axis_value(&axes[2]),
-        "truth": input.truth.label()
-    });
-    if result_id.is_none() {
-        if let Some(object) = value.as_object_mut() {
-            object.remove("resultId");
-        }
-    }
-    Ok(value)
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ResultWire<'a> {
+    activation: &'static str,
+    assumptions: Vec<AssumptionWire<'a>>,
+    claim: ClaimWire<'a>,
+    completeness: CompletenessWire<'a>,
+    contract_version: &'static str,
+    correction: Option<CorrectionWire<'a>>,
+    decision_scope_closure: AxisWire<'a>,
+    decision_scope_progress: AxisWire<'a>,
+    decision_support: Vec<SupportWire<'a>>,
+    execution: &'static str,
+    global_conformance: GlobalWire<'a>,
+    kind: &'static str,
+    limitations: Vec<LimitationWire<'a>>,
+    native_correspondence_identity: &'a str,
+    native_subject_identity: &'a str,
+    observation_adequacy: &'static str,
+    participation: ParticipationWire<'a>,
+    protocol_adequacy: &'static str,
+    provenance: ProvenanceWire<'a>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    result_id: Option<&'a str>,
+    settlement: SettlementWire<'a>,
+    surrounding_execution_closure: AxisWire<'a>,
+    surrounding_execution_progress: AxisWire<'a>,
+    truth: &'static str,
 }
 
-fn axis_value(axis: &OwnerAxis) -> Value {
-    json!({"authorityDigest": axis.authority_digest, "authorityIdentity": axis.authority_identity, "authorityRevision": axis.authority_revision, "contract": axis.contract, "documentDigest": axis.document_digest, "documentIdentity": axis.document_identity, "populationIdentity": axis.population_identity, "schemaSha256": axis.schema_sha256, "scopeIdentity": axis.scope_identity, "state": axis.state.label()})
+#[derive(Serialize)]
+struct AssumptionWire<'a> {
+    identity: &'a str,
+    state: &'static str,
 }
-fn claim_value(claim: &Claim) -> Value {
-    json!({"admittedFragmentIdentity": claim.admitted_fragment_identity, "backendIdentity": claim.backend_identity, "kind": claim.kind.label(), "strength": claim.strength.map(ClaimStrength::label)})
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ClaimWire<'a> {
+    admitted_fragment_identity: Option<&'a str>,
+    backend_identity: Option<&'a str>,
+    kind: &'static str,
+    strength: Option<&'static str>,
 }
-fn support_value(s: &DecisionSupport) -> Value {
-    json!({"dependenceGroup": s.dependence_group, "observationIdentity": s.observation_identity, "oracleIdentity": s.oracle_identity, "predecessor": s.predecessor.as_ref().map(|p| json!({"observationIdentity": p.observation_identity, "oracleIdentity": p.oracle_identity})), "relation": s.relation.label()})
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AxisWire<'a> {
+    authority_digest: &'a str,
+    authority_identity: &'a str,
+    authority_revision: &'a str,
+    contract: &'static str,
+    document_digest: &'a str,
+    document_identity: &'a str,
+    population_identity: &'a str,
+    schema_sha256: &'static str,
+    scope_identity: &'a str,
+    state: &'static str,
 }
-fn premise_value(p: &GlobalPremise) -> Value {
-    json!({"authorityIdentity": p.authority_identity, "identity": p.identity, "kind": p.kind.label(), "scopeIdentity": p.scope_identity})
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CompletenessWire<'a> {
+    boundary_identity: &'a str,
+    contract: &'static str,
+    document_digest: &'a str,
+    document_identity: &'a str,
+    fact_identities: &'a [String],
+    population_identity: &'a str,
+    schema_sha256: &'static str,
+    state: &'static str,
 }
-fn correction_value(c: &CorrectionSnapshot) -> Value {
-    json!({"contradictedPremiseIdentity": c.contradicted_premise_identity, "correctedInputIdentity": c.corrected_input_identity, "predecessorDigest": c.predecessor_digest, "predecessorResultId": c.predecessor_result_id, "relation": c.relation.label()})
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CorrectionWire<'a> {
+    contradicted_premise_identity: &'a str,
+    corrected_input_identity: &'a str,
+    predecessor_digest: &'a str,
+    predecessor_result_id: &'a str,
+    relation: &'static str,
 }
-fn provenance_value(p: &ProvenanceRecord) -> Result<Value> {
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SupportWire<'a> {
+    dependence_group: Option<&'a str>,
+    observation_identity: &'a str,
+    oracle_identity: &'a str,
+    predecessor: Option<SupportRefWire<'a>>,
+    relation: &'static str,
+}
+
+#[derive(Clone, Copy, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SupportRefWire<'a> {
+    observation_identity: &'a str,
+    oracle_identity: &'a str,
+}
+
+#[derive(Serialize)]
+struct GlobalWire<'a> {
+    premises: Vec<PremiseWire<'a>>,
+    state: &'static str,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PremiseWire<'a> {
+    authority_identity: &'a str,
+    identity: &'a str,
+    kind: &'static str,
+    scope_identity: &'a str,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LimitationWire<'a> {
+    affected_identity: &'a str,
+    code: &'a str,
+}
+
+#[derive(Serialize)]
+#[serde(tag = "kind")]
+enum ParticipationWire<'a> {
+    #[serde(rename = "known")]
+    Known {
+        #[serde(rename = "participatingRoleInstanceRefs")]
+        participating_role_instance_refs: &'a [String],
+        #[serde(rename = "requiredRoleInstanceRefs")]
+        required_role_instance_refs: &'a [String],
+    },
+    #[serde(rename = "unknown")]
+    Unknown {
+        #[serde(rename = "missingDependencyRefs")]
+        missing_dependency_refs: &'a [String],
+        #[serde(rename = "participatingRoleInstanceRefs")]
+        participating_role_instance_refs: &'a [String],
+        reasons: &'a [String],
+    },
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProvenanceWire<'a> {
+    backend_identity: &'a str,
+    binding_identity: &'a str,
+    input_identity: &'a str,
+    model_identity: &'a str,
+    producer_identity: &'a str,
+    profile_identity: &'a str,
+    protocol_identity: &'a str,
+    reproduction: ReproductionWire,
+    request_identity: &'a str,
+    source_identity: &'a str,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ReproductionWire {
+    corpus_identity: String,
+    seed: String,
+    toolchain_identity: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SettlementWire<'a> {
+    basis: &'static str,
+    supporting_fact_identities: &'a [String],
+    supporting_progress_identities: &'a [String],
+}
+
+fn result_value(input: &Input<'_>, snapshot: &Snapshot, result_id: Option<&str>) -> Result<Value> {
+    let axes = &snapshot.axes;
+    let wire = ResultWire {
+        activation: input.activation.label(),
+        assumptions: input.assumptions.iter().map(assumption_wire).collect(),
+        claim: claim_wire(&input.claim),
+        completeness: completeness_wire(&snapshot.completeness),
+        contract_version: CONTRACT,
+        correction: snapshot.correction.as_ref().map(correction_wire),
+        decision_scope_closure: axis_wire(&axes[1]),
+        decision_scope_progress: axis_wire(&axes[0]),
+        decision_support: input.decision_support.iter().map(support_wire).collect(),
+        execution: input.execution.label(),
+        global_conformance: global_wire(&input.global_conformance),
+        kind: "ProtocolResult",
+        limitations: input.limitations.iter().map(limitation_wire).collect(),
+        native_correspondence_identity: &snapshot.native_correspondence_identity,
+        native_subject_identity: &snapshot.native_subject_identity,
+        observation_adequacy: input.observation_adequacy.label(),
+        participation: participation_wire(&input.participation),
+        protocol_adequacy: input.protocol_adequacy.label(),
+        provenance: provenance_wire(&input.provenance)?,
+        result_id,
+        settlement: settlement_wire(&input.settlement),
+        surrounding_execution_closure: axis_wire(&axes[3]),
+        surrounding_execution_progress: axis_wire(&axes[2]),
+        truth: input.truth.label(),
+    };
+    serde_json::to_value(wire).map_err(|_| {
+        refusal(
+            ErrorCode::InvalidSelection,
+            "typed result record cannot be represented as JSON",
+            Usage::default(),
+            result_id,
+        )
+    })
+}
+
+fn assumption_wire(assumption: &Assumption) -> AssumptionWire<'_> {
+    AssumptionWire {
+        identity: &assumption.identity,
+        state: assumption.state.label(),
+    }
+}
+
+fn claim_wire(claim: &Claim) -> ClaimWire<'_> {
+    ClaimWire {
+        admitted_fragment_identity: claim.admitted_fragment_identity.as_deref(),
+        backend_identity: claim.backend_identity.as_deref(),
+        kind: claim.kind.label(),
+        strength: claim.strength.map(ClaimStrength::label),
+    }
+}
+
+fn axis_wire(axis: &AxisView) -> AxisWire<'_> {
+    AxisWire {
+        authority_digest: &axis.authority_digest,
+        authority_identity: &axis.authority_identity,
+        authority_revision: &axis.authority_revision,
+        contract: axis.contract,
+        document_digest: &axis.document_digest,
+        document_identity: &axis.document_identity,
+        population_identity: &axis.population_identity,
+        schema_sha256: axis.schema_sha256,
+        scope_identity: &axis.scope_identity,
+        state: axis.state.label(),
+    }
+}
+
+fn completeness_wire(completeness: &CompletenessView) -> CompletenessWire<'_> {
+    CompletenessWire {
+        boundary_identity: &completeness.boundary_identity,
+        contract: completeness::CONTRACT,
+        document_digest: &completeness.document_digest,
+        document_identity: &completeness.document_identity,
+        fact_identities: &completeness.fact_identities,
+        population_identity: &completeness.population_identity,
+        schema_sha256: completeness::SCHEMA_SHA256,
+        state: completeness_label(completeness.state),
+    }
+}
+
+fn correction_wire(correction: &CorrectionView) -> CorrectionWire<'_> {
+    CorrectionWire {
+        contradicted_premise_identity: &correction.contradicted_premise_identity,
+        corrected_input_identity: &correction.corrected_input_identity,
+        predecessor_digest: &correction.predecessor_digest,
+        predecessor_result_id: &correction.predecessor_result_id,
+        relation: correction.relation.label(),
+    }
+}
+
+fn support_wire(support: &DecisionSupport) -> SupportWire<'_> {
+    SupportWire {
+        dependence_group: support.dependence_group.as_deref(),
+        observation_identity: &support.observation_identity,
+        oracle_identity: &support.oracle_identity,
+        predecessor: support
+            .predecessor
+            .as_ref()
+            .map(|predecessor| SupportRefWire {
+                observation_identity: &predecessor.observation_identity,
+                oracle_identity: &predecessor.oracle_identity,
+            }),
+        relation: support.relation.label(),
+    }
+}
+
+fn global_wire(global: &GlobalConformanceInput) -> GlobalWire<'_> {
+    GlobalWire {
+        premises: global.premises.iter().map(premise_wire).collect(),
+        state: global.state.label(),
+    }
+}
+
+fn premise_wire(premise: &GlobalPremise) -> PremiseWire<'_> {
+    PremiseWire {
+        authority_identity: &premise.authority_identity,
+        identity: &premise.identity,
+        kind: premise.kind.label(),
+        scope_identity: &premise.scope_identity,
+    }
+}
+
+fn limitation_wire(limitation: &Limitation) -> LimitationWire<'_> {
+    LimitationWire {
+        affected_identity: &limitation.affected_identity,
+        code: &limitation.code,
+    }
+}
+
+fn provenance_wire(p: &ProvenanceRecord) -> Result<ProvenanceWire<'_>> {
     let toolchain = hex_identity(p.reproduction.toolchain().bytes()).ok_or_else(|| {
         refusal(
             ErrorCode::ResourceIncomplete,
@@ -1167,22 +1662,22 @@ fn provenance_value(p: &ProvenanceRecord) -> Result<Value> {
             None,
         )
     })?;
-    Ok(json!({
-        "backendIdentity": p.backend_identity,
-        "bindingIdentity": p.binding_identity,
-        "inputIdentity": p.input_identity,
-        "modelIdentity": p.model_identity,
-        "producerIdentity": p.producer_identity,
-        "profileIdentity": p.profile_identity,
-        "protocolIdentity": p.protocol_identity,
-        "reproduction": {
-            "corpusIdentity": corpus,
-            "seed": p.reproduction.seed().to_string(),
-            "toolchainIdentity": toolchain,
+    Ok(ProvenanceWire {
+        backend_identity: &p.backend_identity,
+        binding_identity: &p.binding_identity,
+        input_identity: &p.input_identity,
+        model_identity: &p.model_identity,
+        producer_identity: &p.producer_identity,
+        profile_identity: &p.profile_identity,
+        protocol_identity: &p.protocol_identity,
+        reproduction: ReproductionWire {
+            corpus_identity: corpus,
+            seed: p.reproduction.seed().to_string(),
+            toolchain_identity: toolchain,
         },
-        "requestIdentity": p.request_identity,
-        "sourceIdentity": p.source_identity,
-    }))
+        request_identity: &p.request_identity,
+        source_identity: &p.source_identity,
+    })
 }
 
 fn hex_identity(bytes: &[u8]) -> Option<String> {
@@ -1195,21 +1690,32 @@ fn hex_identity(bytes: &[u8]) -> Option<String> {
     }
     Some(encoded)
 }
-fn participation_value(p: &Participation) -> Value {
+fn participation_wire(p: &Participation) -> ParticipationWire<'_> {
     match p {
         Participation::Known {
             required_role_instance_refs,
             participating_role_instance_refs,
-        } => {
-            json!({"kind":"known", "participatingRoleInstanceRefs": participating_role_instance_refs, "requiredRoleInstanceRefs": required_role_instance_refs})
-        }
+        } => ParticipationWire::Known {
+            participating_role_instance_refs,
+            required_role_instance_refs,
+        },
         Participation::Unknown {
             participating_role_instance_refs,
             missing_dependency_refs,
             reasons,
-        } => {
-            json!({"kind":"unknown", "missingDependencyRefs": missing_dependency_refs, "participatingRoleInstanceRefs": participating_role_instance_refs, "reasons": reasons})
-        }
+        } => ParticipationWire::Unknown {
+            missing_dependency_refs,
+            participating_role_instance_refs,
+            reasons,
+        },
+    }
+}
+
+fn settlement_wire(settlement: &Settlement) -> SettlementWire<'_> {
+    SettlementWire {
+        basis: settlement.basis.label(),
+        supporting_fact_identities: &settlement.supporting_fact_identities,
+        supporting_progress_identities: &settlement.supporting_progress_identities,
     }
 }
 fn completeness_label(state: completeness::State) -> &'static str {

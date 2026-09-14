@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Exact, read-only Contract-IR result mapping derived from a validated result.
 
-use serde_json::{json, Value};
+use serde::Serialize;
+use serde_json::Value;
 use std::sync::OnceLock;
 
 use crate::bounds::inventory::{BudgetDimension, OperationOutcome, ResourceAccountant, SourceSite};
@@ -13,8 +14,9 @@ use crate::refusal::{RefusalDomain, RetryDecision};
 use crate::ByteDigest;
 
 use super::record::{
-    CorrectionSnapshot, DecisionSupport, Limits, OwnerAxis, SettlementBasis, Snapshot, Truth,
-    Usage, ValidatedResult, CONTRACT as RESULT_CONTRACT, SCHEMA_SHA256 as RESULT_SCHEMA_SHA256,
+    AxisView, CorrectionView, DecisionSupport, Limits, Settlement, SettlementBasis, Snapshot,
+    Truth, Usage, ValidatedResult, CONTRACT as RESULT_CONTRACT,
+    SCHEMA_SHA256 as RESULT_SCHEMA_SHA256,
 };
 use super::{ErrorCode, Refusal, Result};
 
@@ -157,91 +159,246 @@ impl<'a> MappingSelection<'a> {
 }
 
 /// Complete source facts retained for a non-Boolean mapping row.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct NonValue {
-    execution: AssessmentExecution,
-    truth: Truth,
-    settlement: SettlementBasis,
-    completeness: quire_observation::authority::completeness::State,
+#[derive(Clone, Copy, Debug)]
+pub struct NonValue<'a> {
+    source: &'a ValidatedResult,
 }
 
-impl NonValue {
+impl NonValue<'_> {
+    /// Whether the source assessment executed.
     #[must_use]
     pub const fn execution(&self) -> AssessmentExecution {
-        self.execution
+        self.source.execution()
     }
+    /// Native truth disposition retained without Boolean coercion.
     #[must_use]
     pub const fn truth(&self) -> Truth {
-        self.truth
+        self.source.truth()
     }
+    /// Exact source settlement basis.
     #[must_use]
     pub const fn settlement(&self) -> SettlementBasis {
-        self.settlement
+        self.source.settlement_basis()
     }
+    /// Exact source completeness state.
     #[must_use]
     pub const fn completeness(&self) -> quire_observation::authority::completeness::State {
-        self.completeness
+        self.source.completeness_state()
+    }
+}
+
+/// One progress or closure assertion in the selected mapping view.
+#[derive(Clone, Copy, Debug)]
+pub struct MappedAxisView<'a> {
+    source: &'a AxisView,
+}
+
+impl MappedAxisView<'_> {
+    /// Definition authority identity.
+    #[must_use]
+    pub fn authority_identity(&self) -> &str {
+        self.source.authority_identity()
+    }
+    /// Definition authority revision.
+    #[must_use]
+    pub fn authority_revision(&self) -> &str {
+        self.source.authority_revision()
+    }
+    /// Digest of the canonical owner assertion bytes.
+    #[must_use]
+    pub fn document_digest(&self) -> &str {
+        self.source.document_digest()
+    }
+    /// Canonical owner assertion identity.
+    #[must_use]
+    pub fn document_identity(&self) -> &str {
+        self.source.document_identity()
+    }
+    /// Exact scope identity.
+    #[must_use]
+    pub fn scope_identity(&self) -> &str {
+        self.source.scope_identity()
+    }
+    /// Independent open/closed state.
+    #[must_use]
+    pub const fn state(&self) -> crate::closure::ScopeState {
+        self.source.state()
+    }
+}
+
+/// Completeness assertion facts retained by the selected mapping view.
+#[derive(Clone, Copy, Debug)]
+pub struct MappedCompletenessView<'a> {
+    source: &'a super::record::CompletenessView,
+}
+
+impl MappedCompletenessView<'_> {
+    /// Exact temporal boundary identity.
+    #[must_use]
+    pub fn boundary_identity(&self) -> &str {
+        self.source.boundary_identity()
+    }
+    /// Digest of the canonical completeness assertion bytes.
+    #[must_use]
+    pub fn document_digest(&self) -> &str {
+        self.source.document_digest()
+    }
+    /// Canonical completeness assertion identity.
+    #[must_use]
+    pub fn document_identity(&self) -> &str {
+        self.source.document_identity()
+    }
+    /// Exact fact identities establishing or contradicting completeness.
+    #[must_use]
+    pub fn fact_identities(&self) -> &[String] {
+        self.source.fact_identities()
+    }
+    /// Exact population identity.
+    #[must_use]
+    pub fn population_identity(&self) -> &str {
+        self.source.population_identity()
+    }
+    /// Complete, incomplete, or contradicted state.
+    #[must_use]
+    pub const fn state(&self) -> quire_observation::authority::completeness::State {
+        self.source.state()
     }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 enum Outcome {
     Value(bool),
-    NonValue(NonValue),
+    NonValue,
 }
 
 /// Constructor-private mapping view. It can only be derived from a validated result.
 #[derive(Clone, Debug)]
-pub struct MappedResultView {
+pub struct MappedResultView<'a> {
     bytes: Vec<u8>,
     identity: String,
-    source_result_id: String,
-    source_result_digest: String,
+    source: &'a ValidatedResult,
     outcome: Outcome,
     usage: Usage,
 }
 
-struct PreparedMapping {
+struct PreparedMapping<'a> {
     value: Value,
     identity: String,
-    source_result_id: String,
-    source_result_digest: String,
+    source: &'a ValidatedResult,
     outcome: Outcome,
     semantic_usage: Usage,
 }
 
-impl MappedResultView {
+impl MappedResultView<'_> {
+    /// Canonical bytes of the selected mapping view.
     #[must_use]
     pub fn bytes(&self) -> &[u8] {
         &self.bytes
     }
+    /// Mapping identity, distinct from the source result identity.
     #[must_use]
     pub fn identity(&self) -> &str {
         &self.identity
     }
+    /// Exact source result identity.
     #[must_use]
     pub fn source_result_id(&self) -> &str {
-        &self.source_result_id
+        self.source.result_id()
     }
+    /// Exact source result digest.
     #[must_use]
     pub fn source_result_digest(&self) -> &str {
-        &self.source_result_digest
+        self.source.digest()
+    }
+    /// Native temporal-subject identity retained from the validated source.
+    #[must_use]
+    pub fn native_subject_identity(&self) -> &str {
+        self.source.native_subject_identity()
+    }
+    /// Source-bound checked-predicate/correspondence identity retained from the source.
+    #[must_use]
+    pub fn native_correspondence_identity(&self) -> &str {
+        self.source.native_correspondence_identity()
+    }
+    /// Whether the source assessment executed.
+    #[must_use]
+    pub const fn execution(&self) -> AssessmentExecution {
+        self.source.execution()
+    }
+    /// Native source truth disposition.
+    #[must_use]
+    pub const fn truth(&self) -> Truth {
+        self.source.truth()
     }
     /// Returns a Boolean only for completed+satisfied or completed+violated.
     #[must_use]
     pub const fn value(&self) -> Option<bool> {
         match &self.outcome {
             Outcome::Value(value) => Some(*value),
-            Outcome::NonValue(_) => None,
+            Outcome::NonValue => None,
         }
     }
+    /// Complete source facts when the mapping does not carry a Boolean value.
     #[must_use]
-    pub const fn non_value(&self) -> Option<&NonValue> {
+    pub const fn non_value(&self) -> Option<NonValue<'_>> {
         match &self.outcome {
             Outcome::Value(_) => None,
-            Outcome::NonValue(value) => Some(value),
+            Outcome::NonValue => Some(NonValue {
+                source: self.source,
+            }),
         }
     }
+    /// Decision-scope progress assertion.
+    #[must_use]
+    pub fn decision_scope_progress(&self) -> MappedAxisView<'_> {
+        MappedAxisView {
+            source: self.source.decision_scope_progress(),
+        }
+    }
+    /// Decision-scope closure assertion.
+    #[must_use]
+    pub fn decision_scope_closure(&self) -> MappedAxisView<'_> {
+        MappedAxisView {
+            source: self.source.decision_scope_closure(),
+        }
+    }
+    /// Surrounding-execution progress assertion.
+    #[must_use]
+    pub fn surrounding_execution_progress(&self) -> MappedAxisView<'_> {
+        MappedAxisView {
+            source: self.source.surrounding_execution_progress(),
+        }
+    }
+    /// Surrounding-execution closure assertion.
+    #[must_use]
+    pub fn surrounding_execution_closure(&self) -> MappedAxisView<'_> {
+        MappedAxisView {
+            source: self.source.surrounding_execution_closure(),
+        }
+    }
+    /// Complete owner assertion and fact population.
+    #[must_use]
+    pub fn completeness(&self) -> MappedCompletenessView<'_> {
+        MappedCompletenessView {
+            source: self.source.completeness(),
+        }
+    }
+    /// Settlement and its exact supporting identities.
+    #[must_use]
+    pub const fn settlement(&self) -> &Settlement {
+        self.source.settlement()
+    }
+    /// Decision-support records in declared causal order.
+    #[must_use]
+    pub fn decision_support(&self) -> &[DecisionSupport] {
+        self.source.decision_support()
+    }
+    /// Direct correction predecessor, when present.
+    #[must_use]
+    pub const fn correction(&self) -> Option<&CorrectionView> {
+        self.source.correction()
+    }
+    /// Work observed by mapping or strict reading.
     #[must_use]
     pub const fn usage(&self) -> Usage {
         self.usage
@@ -249,11 +406,11 @@ impl MappedResultView {
 }
 
 /// Derive the exact selected mapping from a validated source result.
-pub fn map(
-    source: &ValidatedResult,
+pub fn map<'a>(
+    source: &'a ValidatedResult,
     selection: MappingSelection<'_>,
     limits: Limits,
-) -> Result<MappedResultView> {
+) -> Result<MappedResultView<'a>> {
     validate_selection(selection)?;
     finish_mapping(prepare_mapping(source)?, limits.effective())
 }
@@ -262,24 +419,24 @@ pub fn map(
 ///
 /// The derived-artifact unit is charged before constructing the view. Its
 /// exact canonical byte length is then charged before allocating output bytes.
-pub fn map_bounded(
-    source: &ValidatedResult,
+pub fn map_bounded<'a>(
+    source: &'a ValidatedResult,
     selection: MappingSelection<'_>,
     limits: Limits,
     resources: &mut ResourceAccountant<'_>,
-) -> OperationOutcome<MappedResultView, Refusal> {
+) -> OperationOutcome<MappedResultView<'a>, Refusal> {
     resources.run_unit(
         UnitLabel::new("result::contract_ir::map_bounded"),
         |resources| map_bounded_unit(source, selection, limits, resources),
     )
 }
 
-fn map_bounded_unit(
-    source: &ValidatedResult,
+fn map_bounded_unit<'a>(
+    source: &'a ValidatedResult,
     selection: MappingSelection<'_>,
     limits: Limits,
     resources: &mut ResourceAccountant<'_>,
-) -> OperationOutcome<MappedResultView, Refusal> {
+) -> OperationOutcome<MappedResultView<'a>, Refusal> {
     if let Err(error) = validate_selection(selection) {
         return OperationOutcome::DomainError(error);
     }
@@ -329,19 +486,21 @@ fn map_bounded_unit(
     OperationOutcome::from_domain(finish_mapping(prepared, effective))
 }
 
-fn prepare_mapping(source: &ValidatedResult) -> Result<PreparedMapping> {
+fn prepare_mapping(source: &ValidatedResult) -> Result<PreparedMapping<'_>> {
     let snapshot = &source.document.snapshot;
     let outcome = match (snapshot.execution, snapshot.truth) {
         (AssessmentExecution::Completed, Truth::Satisfied) => Outcome::Value(true),
         (AssessmentExecution::Completed, Truth::Violated) => Outcome::Value(false),
-        (execution, truth) => Outcome::NonValue(NonValue {
-            execution,
-            truth,
-            settlement: snapshot.settlement_basis,
-            completeness: snapshot.completeness_state,
-        }),
+        (AssessmentExecution::Completed, Truth::Pending | Truth::Unavailable)
+        | (
+            AssessmentExecution::Refused
+            | AssessmentExecution::Unsupported
+            | AssessmentExecution::ResourceIncomplete
+            | AssessmentExecution::Failed,
+            Truth::Satisfied | Truth::Violated | Truth::Pending | Truth::Unavailable,
+        ) => Outcome::NonValue,
     };
-    let without_identity = mapping_value(source, snapshot, &outcome, None);
+    let without_identity = mapping_value(source, snapshot, &outcome, None)?;
     let canonical_without_identity = canonicalize(&without_identity).map_err(|_| {
         Refusal::new(
             ErrorCode::MappingMismatch,
@@ -356,12 +515,11 @@ fn prepare_mapping(source: &ValidatedResult) -> Result<PreparedMapping> {
     identity_preimage.push(0);
     identity_preimage.extend_from_slice(canonical_without_identity.as_bytes());
     let identity = format!("sha256:{:x}", ByteDigest::of(&identity_preimage));
-    let value = mapping_value(source, snapshot, &outcome, Some(&identity));
+    let value = mapping_value(source, snapshot, &outcome, Some(&identity))?;
     Ok(PreparedMapping {
         value,
         identity,
-        source_result_id: source.result_id().to_owned(),
-        source_result_digest: source.digest().to_owned(),
+        source,
         outcome,
         semantic_usage: mapping_usage(source),
     })
@@ -377,12 +535,11 @@ fn mapping_usage(source: &ValidatedResult) -> Usage {
     }
 }
 
-fn finish_mapping(prepared: PreparedMapping, limits: Limits) -> Result<MappedResultView> {
+fn finish_mapping(prepared: PreparedMapping<'_>, limits: Limits) -> Result<MappedResultView<'_>> {
     let PreparedMapping {
         value,
         identity,
-        source_result_id,
-        source_result_digest,
+        source,
         outcome,
         semantic_usage,
     } = prepared;
@@ -392,7 +549,7 @@ fn finish_mapping(prepared: PreparedMapping, limits: Limits) -> Result<MappedRes
                 ErrorCode::MappingMismatch,
                 "mapping cannot be canonicalized",
                 Usage::default(),
-                Some(&source_result_id),
+                Some(source.result_id()),
             )
         })?
         .into_bytes();
@@ -400,20 +557,19 @@ fn finish_mapping(prepared: PreparedMapping, limits: Limits) -> Result<MappedRes
     Ok(MappedResultView {
         bytes,
         identity,
-        source_result_id,
-        source_result_digest,
+        source,
         outcome,
         usage,
     })
 }
 
 /// Strict-read mapping bytes by re-deriving them from the validated source.
-pub fn read(
+pub fn read<'a>(
     bytes: &[u8],
-    source: &ValidatedResult,
+    source: &'a ValidatedResult,
     selection: MappingSelection<'_>,
     limits: Limits,
-) -> Result<MappedResultView> {
+) -> Result<MappedResultView<'a>> {
     validate_selection(selection)?;
     let effective = limits.effective();
     let observed = validate_offered(bytes, source, effective)?;
@@ -426,26 +582,26 @@ pub fn read(
 /// Hostile input structure is charged before JSON allocation. Re-deriving the
 /// selected mapping then charges the same derived-artifact and output sites as
 /// [`map_bounded`].
-pub fn read_bounded(
+pub fn read_bounded<'a>(
     bytes: &[u8],
-    source: &ValidatedResult,
+    source: &'a ValidatedResult,
     selection: MappingSelection<'_>,
     limits: Limits,
     resources: &mut ResourceAccountant<'_>,
-) -> OperationOutcome<MappedResultView, Refusal> {
+) -> OperationOutcome<MappedResultView<'a>, Refusal> {
     resources.run_unit(
         UnitLabel::new("result::contract_ir::read_bounded"),
         |resources| read_bounded_unit(bytes, source, selection, limits, resources),
     )
 }
 
-fn read_bounded_unit(
+fn read_bounded_unit<'a>(
     bytes: &[u8],
-    source: &ValidatedResult,
+    source: &'a ValidatedResult,
     selection: MappingSelection<'_>,
     limits: Limits,
     resources: &mut ResourceAccountant<'_>,
-) -> OperationOutcome<MappedResultView, Refusal> {
+) -> OperationOutcome<MappedResultView<'a>, Refusal> {
     if let Err(error) = validate_selection(selection) {
         return OperationOutcome::DomainError(error);
     }
@@ -495,12 +651,12 @@ fn validate_offered(bytes: &[u8], source: &ValidatedResult, limits: Limits) -> R
     Ok(observed)
 }
 
-fn compare_offered(
+fn compare_offered<'a>(
     bytes: &[u8],
     source: &ValidatedResult,
     observed: Usage,
-    mut derived: MappedResultView,
-) -> Result<MappedResultView> {
+    mut derived: MappedResultView<'a>,
+) -> Result<MappedResultView<'a>> {
     if bytes != derived.bytes {
         return Err(Refusal::new(
             ErrorCode::MappingMismatch,
@@ -529,53 +685,223 @@ fn validate_selection(selection: MappingSelection<'_>) -> Result<()> {
     Ok(())
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct MappingWire<'a> {
+    completeness: MappingCompletenessWire<'a>,
+    contract: &'static str,
+    correction: Option<MappingCorrectionWire<'a>>,
+    decision_support: Vec<MappingSupportWire<'a>>,
+    execution: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    identity: Option<&'a str>,
+    native_correspondence_identity: &'a str,
+    native_subject_identity: &'a str,
+    outcome: OutcomeWire,
+    progress_and_closure: ProgressAndClosureWire<'a>,
+    schema_sha256: &'static str,
+    settlement: MappingSettlementWire<'a>,
+    source_result: SourceResultWire<'a>,
+    truth: &'static str,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SourceResultWire<'a> {
+    contract: &'static str,
+    digest: &'a str,
+    result_id: &'a str,
+    schema_sha256: &'static str,
+}
+
+#[derive(Serialize)]
+#[serde(tag = "kind")]
+enum OutcomeWire {
+    #[serde(rename = "value")]
+    Value { value: bool },
+    #[serde(rename = "non-value", rename_all = "camelCase")]
+    NonValue {
+        completeness: &'static str,
+        execution: &'static str,
+        settlement: &'static str,
+        truth: &'static str,
+    },
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProgressAndClosureWire<'a> {
+    decision_scope_closure: MappingAxisWire<'a>,
+    decision_scope_progress: MappingAxisWire<'a>,
+    surrounding_execution_closure: MappingAxisWire<'a>,
+    surrounding_execution_progress: MappingAxisWire<'a>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct MappingAxisWire<'a> {
+    authority_identity: &'a str,
+    authority_revision: &'a str,
+    document_digest: &'a str,
+    document_identity: &'a str,
+    scope_identity: &'a str,
+    state: &'static str,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct MappingCompletenessWire<'a> {
+    boundary_identity: &'a str,
+    document_digest: &'a str,
+    document_identity: &'a str,
+    fact_identities: &'a [String],
+    population_identity: &'a str,
+    state: &'static str,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct MappingSettlementWire<'a> {
+    basis: &'static str,
+    supporting_fact_identities: &'a [String],
+    supporting_progress_identities: &'a [String],
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct MappingSupportWire<'a> {
+    dependence_group: Option<&'a str>,
+    observation_identity: &'a str,
+    oracle_identity: &'a str,
+    predecessor: Option<MappingSupportRefWire<'a>>,
+    relation: &'static str,
+}
+
+#[derive(Clone, Copy, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct MappingSupportRefWire<'a> {
+    observation_identity: &'a str,
+    oracle_identity: &'a str,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct MappingCorrectionWire<'a> {
+    contradicted_premise_identity: &'a str,
+    corrected_input_identity: &'a str,
+    predecessor_digest: &'a str,
+    predecessor_result_id: &'a str,
+    relation: &'static str,
+}
+
 fn mapping_value(
     source: &ValidatedResult,
     snapshot: &Snapshot,
     outcome: &Outcome,
     identity: Option<&str>,
-) -> Value {
-    let mut value = json!({
-        "completeness": {"boundaryIdentity": snapshot.completeness_boundary_identity, "documentDigest": snapshot.completeness_digest, "documentIdentity": snapshot.completeness_identity, "factIdentities": snapshot.completeness_fact_identities, "populationIdentity": snapshot.completeness_population_identity, "state": completeness_label(snapshot.completeness_state)},
-        "contract": CONTRACT,
-        "correction": snapshot.correction.as_ref().map(correction_value),
-        "decisionSupport": snapshot.decision_support.iter().map(support_value).collect::<Vec<_>>(),
-        "execution": snapshot.execution.label(),
-        "identity": identity,
-        "nativeCorrespondenceIdentity": snapshot.native_correspondence_identity,
-        "nativeSubjectIdentity": snapshot.native_subject_identity,
-        "outcome": outcome_value(outcome),
-        "progressAndClosure": {"decisionScopeClosure": axis_value(&snapshot.axes[1]), "decisionScopeProgress": axis_value(&snapshot.axes[0]), "surroundingExecutionClosure": axis_value(&snapshot.axes[3]), "surroundingExecutionProgress": axis_value(&snapshot.axes[2])},
-        "schemaSha256": SCHEMA_SHA256,
-        "settlement": {"basis": snapshot.settlement_basis.label(), "supportingFactIdentities": snapshot.settlement.supporting_fact_identities, "supportingProgressIdentities": snapshot.settlement.supporting_progress_identities},
-        "sourceResult": {"contract": RESULT_CONTRACT, "digest": source.digest(), "resultId": source.result_id(), "schemaSha256": RESULT_SCHEMA_SHA256},
-        "truth": snapshot.truth.label()
-    });
-    if identity.is_none() {
-        if let Some(object) = value.as_object_mut() {
-            object.remove("identity");
-        }
-    }
-    value
+) -> Result<Value> {
+    let wire = MappingWire {
+        completeness: mapping_completeness_wire(snapshot),
+        contract: CONTRACT,
+        correction: snapshot.correction.as_ref().map(mapping_correction_wire),
+        decision_support: snapshot
+            .decision_support
+            .iter()
+            .map(mapping_support_wire)
+            .collect(),
+        execution: snapshot.execution.label(),
+        identity,
+        native_correspondence_identity: &snapshot.native_correspondence_identity,
+        native_subject_identity: &snapshot.native_subject_identity,
+        outcome: outcome_wire(outcome, snapshot),
+        progress_and_closure: ProgressAndClosureWire {
+            decision_scope_closure: mapping_axis_wire(&snapshot.axes[1]),
+            decision_scope_progress: mapping_axis_wire(&snapshot.axes[0]),
+            surrounding_execution_closure: mapping_axis_wire(&snapshot.axes[3]),
+            surrounding_execution_progress: mapping_axis_wire(&snapshot.axes[2]),
+        },
+        schema_sha256: SCHEMA_SHA256,
+        settlement: MappingSettlementWire {
+            basis: snapshot.settlement.basis.label(),
+            supporting_fact_identities: &snapshot.settlement.supporting_fact_identities,
+            supporting_progress_identities: &snapshot.settlement.supporting_progress_identities,
+        },
+        source_result: SourceResultWire {
+            contract: RESULT_CONTRACT,
+            digest: source.digest(),
+            result_id: source.result_id(),
+            schema_sha256: RESULT_SCHEMA_SHA256,
+        },
+        truth: snapshot.truth.label(),
+    };
+    serde_json::to_value(wire).map_err(|_| {
+        Refusal::new(
+            ErrorCode::MappingMismatch,
+            "typed mapping view cannot be represented as JSON",
+            Usage::default(),
+            Some(source.result_id()),
+        )
+    })
 }
 
-fn outcome_value(outcome: &Outcome) -> Value {
+fn outcome_wire(outcome: &Outcome, snapshot: &Snapshot) -> OutcomeWire {
     match outcome {
-        Outcome::Value(value) => json!({"kind": "value", "value": value}),
-        Outcome::NonValue(value) => {
-            json!({"completeness": completeness_label(value.completeness), "execution": value.execution.label(), "kind": "non-value", "settlement": value.settlement.label(), "truth": value.truth.label()})
-        }
+        Outcome::Value(value) => OutcomeWire::Value { value: *value },
+        Outcome::NonValue => OutcomeWire::NonValue {
+            completeness: completeness_label(snapshot.completeness.state),
+            execution: snapshot.execution.label(),
+            settlement: snapshot.settlement.basis.label(),
+            truth: snapshot.truth.label(),
+        },
     }
 }
 
-fn axis_value(axis: &OwnerAxis) -> Value {
-    json!({"authorityIdentity": axis.authority_identity, "authorityRevision": axis.authority_revision, "documentDigest": axis.document_digest, "documentIdentity": axis.document_identity, "scopeIdentity": axis.scope_identity, "state": axis.state.label()})
+fn mapping_axis_wire(axis: &AxisView) -> MappingAxisWire<'_> {
+    MappingAxisWire {
+        authority_identity: &axis.authority_identity,
+        authority_revision: &axis.authority_revision,
+        document_digest: &axis.document_digest,
+        document_identity: &axis.document_identity,
+        scope_identity: &axis.scope_identity,
+        state: axis.state.label(),
+    }
 }
-fn support_value(s: &DecisionSupport) -> Value {
-    json!({"dependenceGroup": s.dependence_group, "observationIdentity": s.observation_identity, "oracleIdentity": s.oracle_identity, "predecessor": s.predecessor.as_ref().map(|p| json!({"observationIdentity": p.observation_identity, "oracleIdentity": p.oracle_identity})), "relation": s.relation.label()})
+
+fn mapping_completeness_wire(snapshot: &Snapshot) -> MappingCompletenessWire<'_> {
+    MappingCompletenessWire {
+        boundary_identity: &snapshot.completeness.boundary_identity,
+        document_digest: &snapshot.completeness.document_digest,
+        document_identity: &snapshot.completeness.document_identity,
+        fact_identities: &snapshot.completeness.fact_identities,
+        population_identity: &snapshot.completeness.population_identity,
+        state: completeness_label(snapshot.completeness.state),
+    }
 }
-fn correction_value(c: &CorrectionSnapshot) -> Value {
-    json!({"contradictedPremiseIdentity": c.contradicted_premise_identity, "correctedInputIdentity": c.corrected_input_identity, "predecessorDigest": c.predecessor_digest, "predecessorResultId": c.predecessor_result_id, "relation": c.relation.label()})
+
+fn mapping_support_wire(support: &DecisionSupport) -> MappingSupportWire<'_> {
+    MappingSupportWire {
+        dependence_group: support.dependence_group.as_deref(),
+        observation_identity: &support.observation_identity,
+        oracle_identity: &support.oracle_identity,
+        predecessor: support
+            .predecessor
+            .as_ref()
+            .map(|predecessor| MappingSupportRefWire {
+                observation_identity: &predecessor.observation_identity,
+                oracle_identity: &predecessor.oracle_identity,
+            }),
+        relation: support.relation.label(),
+    }
+}
+
+fn mapping_correction_wire(correction: &CorrectionView) -> MappingCorrectionWire<'_> {
+    MappingCorrectionWire {
+        contradicted_premise_identity: &correction.contradicted_premise_identity,
+        corrected_input_identity: &correction.corrected_input_identity,
+        predecessor_digest: &correction.predecessor_digest,
+        predecessor_result_id: &correction.predecessor_result_id,
+        relation: correction.relation.label(),
+    }
 }
 fn completeness_label(state: quire_observation::authority::completeness::State) -> &'static str {
     match state {

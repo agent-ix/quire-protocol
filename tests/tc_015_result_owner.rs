@@ -15,7 +15,7 @@ use quire_observation::{
 use quire_protocol::bounds::inventory::{
     production_inventory, Budget, BudgetDimension, OperationOutcome, ResourceAccountant,
 };
-use quire_protocol::closure::{AssessmentExecution, GlobalConformanceClosure};
+use quire_protocol::closure::{AssessmentExecution, GlobalConformanceClosure, ScopeState};
 use quire_protocol::repro::{CorpusIdentity, ReproductionInputs, Seed, ToolchainIdentity};
 use quire_protocol::result::{
     self, contract_ir, Activation, Adequacy, Assumption, AssumptionState, AxisInputs, Claim,
@@ -815,6 +815,97 @@ fn tc_015_boolean_rows_and_typed_nonvalues_are_exact() {
         .value(),
         None
     );
+}
+
+#[test]
+#[trace(
+    "TC-006",
+    "TC-015",
+    "FR-006-AC-1",
+    "FR-032-AC-3",
+    "FR-042-AC-1",
+    "FR-042-AC-3",
+    "FR-042-AC-5"
+)]
+fn tc_015_validated_and_mapped_views_expose_every_contract_axis_without_json_parsing() {
+    let fixture = fixture();
+    let source = validated(base_input(&fixture));
+
+    assert_eq!(source.execution(), AssessmentExecution::Completed);
+    assert_eq!(source.truth(), Truth::Satisfied);
+    assert_eq!(source.activation(), Activation::Triggered);
+    assert_eq!(source.observation_adequacy(), Adequacy::Adequate);
+    assert_eq!(source.protocol_adequacy(), ProtocolAdequacy::Demonstrated);
+    assert_eq!(source.claim().kind, ClaimKind::GlobalConformance);
+    assert_eq!(source.assumptions().len(), 1);
+    assert!(matches!(
+        source.participation(),
+        Participation::Known { .. }
+    ));
+    assert_eq!(
+        source.global_conformance_state(),
+        GlobalConformanceClosure::Closed
+    );
+    assert_eq!(source.global_premises().len(), 3);
+    assert_eq!(source.limitations().len(), 1);
+    assert_eq!(source.provenance().source_identity, "source:one");
+    assert_eq!(source.decision_scope_progress().state(), ScopeState::Closed);
+    assert_eq!(source.decision_scope_closure().state(), ScopeState::Closed);
+    assert_eq!(
+        source.surrounding_execution_progress().state(),
+        ScopeState::Closed
+    );
+    assert_eq!(
+        source.surrounding_execution_closure().state(),
+        ScopeState::Closed
+    );
+    assert_eq!(
+        source.completeness().state(),
+        authority::completeness::State::Complete
+    );
+    assert_eq!(source.completeness().fact_identities().len(), 1);
+    assert!(source.correction().is_none());
+
+    let mapped = contract_ir::map(
+        &source,
+        contract_ir::MappingSelection::current(),
+        Limits::owner_max(),
+    )
+    .expect("complete typed mapping view");
+    assert_eq!(mapped.execution(), source.execution());
+    assert_eq!(mapped.truth(), source.truth());
+    assert_eq!(
+        mapped.native_subject_identity(),
+        source.native_subject_identity()
+    );
+    assert_eq!(
+        mapped.native_correspondence_identity(),
+        source.native_correspondence_identity()
+    );
+    assert_eq!(
+        mapped.decision_scope_progress().document_identity(),
+        source.decision_scope_progress().document_identity()
+    );
+    assert_eq!(
+        mapped.decision_scope_closure().scope_identity(),
+        source.decision_scope_closure().scope_identity()
+    );
+    assert_eq!(
+        mapped.surrounding_execution_progress().state(),
+        ScopeState::Closed
+    );
+    assert_eq!(
+        mapped.surrounding_execution_closure().state(),
+        ScopeState::Closed
+    );
+    assert_eq!(
+        mapped.completeness().document_identity(),
+        source.completeness().document_identity()
+    );
+    assert_eq!(mapped.completeness().fact_identities().len(), 1);
+    assert_eq!(mapped.settlement().basis, SettlementBasis::ClosedScope);
+    assert_eq!(mapped.decision_support(), source.decision_support());
+    assert!(mapped.correction().is_none());
 }
 
 #[test]
@@ -1729,6 +1820,24 @@ fn tc_015_correction_is_direct_and_preserves_predecessor_bytes() {
     assert_ne!(correction.result_id(), prior_id);
     assert_eq!(predecessor.result_id(), prior_id);
     assert_eq!(predecessor.bytes(), prior_bytes);
+    let edge = correction
+        .correction()
+        .expect("typed direct correction edge");
+    assert_eq!(edge.relation(), CorrectionRelation::Invalidates);
+    assert_eq!(edge.predecessor_result_id(), prior_id);
+    assert_eq!(edge.predecessor_digest(), predecessor.digest());
+    assert_eq!(edge.contradicted_premise_identity(), "premise:branch");
+    assert_eq!(edge.corrected_input_identity(), "input:corrected");
+
+    let mapped = contract_ir::map(
+        &correction,
+        contract_ir::MappingSelection::current(),
+        Limits::owner_max(),
+    )
+    .expect("corrected mapping");
+    let mapped_edge = mapped.correction().expect("mapped direct correction edge");
+    assert_eq!(mapped_edge.predecessor_result_id(), prior_id);
+    assert_eq!(mapped_edge.predecessor_digest(), predecessor.digest());
 }
 
 #[test]

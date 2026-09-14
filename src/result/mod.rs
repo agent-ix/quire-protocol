@@ -22,11 +22,11 @@ use crate::refusal::{
 pub use crate::assessment::{AxisInputs, GlobalConformanceInput, GlobalPremise, PremiseKind};
 pub use reader::{read, read_bounded, Expected};
 pub use record::{
-    produce, produce_bounded, Activation, Adequacy, Assumption, AssumptionState, Claim, ClaimKind,
-    ClaimStrength, CorrectionInput, CorrectionRelation, DecisionSupport, DependenceRelation,
-    Document, Input, Limitation, Limits, Participation, ProtocolAdequacy, ProvenanceRecord,
-    Settlement, SettlementBasis, SupportRef, Truth, Usage, ValidatedResult, CONTRACT, SCHEMA_BYTES,
-    SCHEMA_SHA256,
+    produce, produce_bounded, Activation, Adequacy, Assumption, AssumptionState, AxisView, Claim,
+    ClaimKind, ClaimStrength, CompletenessView, CorrectionInput, CorrectionRelation,
+    CorrectionView, DecisionSupport, DependenceRelation, Document, Input, Limitation, Limits,
+    Participation, ProtocolAdequacy, ProvenanceRecord, Settlement, SettlementBasis, SupportRef,
+    Truth, Usage, ValidatedResult, CONTRACT, SCHEMA_BYTES, SCHEMA_SHA256,
 };
 
 /// Stable result-owner or mapping refusal cause.
