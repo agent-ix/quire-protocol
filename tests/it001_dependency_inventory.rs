@@ -16,7 +16,7 @@ const LIBRARY: &str = include_str!("../src/lib.rs");
 
 /// A's accepted reader, pinned to the exact revision this lane froze.
 const FRONTEND: &str = "quire-spec-language";
-const FRONTEND_REVISION: &str = "4f404454b3d5cfb78dfdc468c76de85c199191e5";
+const FRONTEND_REVISION: &str = "7931a0021612d26132ea8bbef3b0cd19b27248e0";
 
 /// F's promoted observation owner supplies typed progress, closure and
 /// completeness views. B consumes those views and does not mirror them.
@@ -60,7 +60,7 @@ const LIBRARY_MODULES: &[&str] = &[
 const INVENTORY: &[&str] = &[
     // A third repository's crate, reaching B's published library as a normal
     // (not development) dependency of A: `filament-core-data` at
-    // `f79e5a6`, pulled in by `quire-spec-language` at the pinned revision.
+    // `4042882`, pulled in by `quire-spec-language` at the pinned revision.
     // Named rather than left to the alphabet because a hundred-entry sorted
     // list announces nothing, and announcing is what this inventory is for.
     // It is not a frontend and not a decoder -- the one-frontend assertion

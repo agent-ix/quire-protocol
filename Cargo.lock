@@ -5,7 +5,7 @@ version = 4
 [[package]]
 name = "agent-ix-baseline-producer"
 version = "0.0.0"
-source = "git+https://github.com/agent-ix/filament-core-data?rev=f79e5a641b3eac702642282ad6cc84dd48d280dc#f79e5a641b3eac702642282ad6cc84dd48d280dc"
+source = "git+https://github.com/agent-ix/filament-core-data?rev=404288282402d60de007295ccbafa960532b955e#404288282402d60de007295ccbafa960532b955e"
 dependencies = [
  "serde",
  "serde_json",
@@ -711,7 +711,7 @@ dependencies = [
 [[package]]
 name = "quire-spec-language"
 version = "0.2.0"
-source = "git+https://github.com/agent-ix/quire-spec-language?rev=4f404454b3d5cfb78dfdc468c76de85c199191e5#4f404454b3d5cfb78dfdc468c76de85c199191e5"
+source = "git+https://github.com/agent-ix/quire-spec-language?rev=7931a0021612d26132ea8bbef3b0cd19b27248e0#7931a0021612d26132ea8bbef3b0cd19b27248e0"
 dependencies = [
  "agent-ix-baseline-producer",
  "logos",
