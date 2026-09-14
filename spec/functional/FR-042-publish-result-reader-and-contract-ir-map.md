@@ -67,6 +67,12 @@ source result identity/digest, native subject/correspondence identities,
 execution, `value` or `nonValue`, the four independent progress/closure owner
 references and states, completeness owner reference/state/fact identities,
 settlement, exact decision support, and correction relation/direct predecessor.
+Each mapped progress/closure owner reference SHALL expose its selected owner
+contract and schema digest, canonical assertion identity and digest, authority
+identity, revision and digest, scope identity, population identity, and
+independent state through borrowed typed accessors; a downstream structural
+consumer SHALL NOT need to parse the mapping JSON to compare any retained owner
+reference field.
 
 Only a `completed` source result with `satisfied` maps to `value:true`; only a
 `completed` source result with `violated` maps to `value:false`. Every other
@@ -97,7 +103,7 @@ uses fresh accounting; caller limits may lower but not raise owner maxima.
 | FR-042-AC-2 | Omission, duplication, reordering, unknown fields/labels/contracts, trailing/noncanonical bytes and every identity, scope, decision-premise or lineage mutation refuse without partial output. | Test (TC-015) |
 | FR-042-AC-3 | Every independent combination of the four open/closed axes and FR-295 completeness remains representable and no axis supplies another. | Test (TC-015) |
 | FR-042-AC-4 | The exact selected mapping derives true only from completed+satisfied and false only from completed+violated; all other valid rows remain typed non-values with complete source facts. | Test (TC-015) |
-| FR-042-AC-5 | Mapping bytes/read views are fully re-derived from the validated result, and source/mapping identities, vocabularies and schema digests cannot substitute for one another. | Test (TC-015) |
+| FR-042-AC-5 | Mapping bytes/read views are fully re-derived from the validated result; every retained progress/closure owner-reference field is available through borrowed typed accessors without JSON parsing; and source/mapping identities, vocabularies and schema digests cannot substitute for one another. | Test (TC-015) |
 | FR-042-AC-6 | Exact and one-over limits cover every bounded dimension and refuse before excess retention; no public constructor, callback, parser, evaluator or trust flag bypasses admission. | Test (TC-015) |
 
 ## Dependencies

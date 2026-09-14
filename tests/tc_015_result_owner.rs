@@ -993,6 +993,34 @@ fn tc_015_validated_and_mapped_views_expose_every_contract_axis_without_json_par
         source.decision_scope_progress().document_identity()
     );
     assert_eq!(
+        mapped.decision_scope_progress().contract(),
+        source.decision_scope_progress().contract()
+    );
+    assert_eq!(
+        mapped.decision_scope_progress().schema_sha256(),
+        source.decision_scope_progress().schema_sha256()
+    );
+    assert_eq!(
+        mapped.decision_scope_progress().document_digest(),
+        source.decision_scope_progress().document_digest()
+    );
+    assert_eq!(
+        mapped.decision_scope_progress().authority_identity(),
+        source.decision_scope_progress().authority_identity()
+    );
+    assert_eq!(
+        mapped.decision_scope_progress().authority_revision(),
+        source.decision_scope_progress().authority_revision()
+    );
+    assert_eq!(
+        mapped.decision_scope_progress().authority_digest(),
+        source.decision_scope_progress().authority_digest()
+    );
+    assert_eq!(
+        mapped.decision_scope_progress().population_identity(),
+        source.decision_scope_progress().population_identity()
+    );
+    assert_eq!(
         mapped.decision_scope_closure().scope_identity(),
         source.decision_scope_closure().scope_identity()
     );
