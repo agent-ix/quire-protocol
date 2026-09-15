@@ -1,15 +1,21 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! One immutable conformance input assembled from linked static and compensation facts.
 
+use crate::assessment::{AxisInputs, GlobalConformanceInput};
+use crate::closure::AssessmentExecution;
 use crate::compensation::registration::{Registration, Snapshot as CompensationSnapshot};
 use crate::conformance::batch::{
-    Limits as ConformanceLimits, Model, ObligationId, ObservationObligation,
+    assess as assess_batch, BoundObservation, Limits as ConformanceLimits, Model, ObligationId,
+    ObservationObligation, Report, Request,
 };
 use crate::model::v2::{
     CompensationAttemptInput, CompensationEffectInput, DefinitionIdentity,
     LinkedCompensationDefinition, LinkedProtocol,
 };
-use quire_observation::QualifiedSubject;
+use quire_observation::{
+    authority::{completeness, observation},
+    QualifiedSubject,
+};
 use quire_spec_language::protocol_artifact::{
     native_temporal::{request::CaptureView, result::ActivationState, v2 as temporal_v2},
     v3,
@@ -188,6 +194,50 @@ impl ActivatedOccurrence<'_> {
         &self.occurrence
     }
 }
+
+/// One optional admitted QObs fact for a constructor-validated activation
+/// occurrence. `None` retains a known activated obligation with no admitted
+/// observation, allowing the shared batch kernel to report pending or missing
+/// state at the owner-provided boundary.
+#[derive(Clone, Debug)]
+pub struct ActivationFact<'a> {
+    occurrence: ActivatedOccurrence<'a>,
+    observation: Option<&'a observation::View>,
+}
+
+impl ActivationFact<'_> {
+    /// Returns the exact activated occurrence that selects this fact.
+    #[must_use]
+    pub const fn occurrence(&self) -> &ActivatedOccurrence<'_> {
+        &self.occurrence
+    }
+
+    /// Returns the unaltered admitted QObs observation, if present.
+    #[must_use]
+    pub const fn observation(&self) -> Option<&observation::View> {
+        self.observation
+    }
+}
+
+/// Distinguishes activation-input refusal from conformance assessment refusal.
+#[derive(Debug)]
+pub enum ActivatedAssessmentError {
+    /// The graph-derived activation input is not admissible.
+    Kernel(Refusal),
+    /// The shared finite conformance kernel refused the admitted fact set.
+    Conformance(crate::conformance::Refusal),
+}
+
+impl core::fmt::Display for ActivatedAssessmentError {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Kernel(refusal) => write!(formatter, "activation input refused: {refusal:?}"),
+            Self::Conformance(refusal) => refusal.fmt(formatter),
+        }
+    }
+}
+
+impl std::error::Error for ActivatedAssessmentError {}
 
 impl<'a> ActivationRegistry<'a> {
     /// Validates and retains one exact activation, idempotently on replay.
@@ -574,6 +624,65 @@ impl Kernel {
             ConformanceLimits::owner_max(),
         )
         .map_err(|_| Refusal::InvalidDerivedModel)
+    }
+
+    /// Associates an optional admitted observation only with its already
+    /// validated FR-300/QSL occurrence. Callers cannot provide an obligation
+    /// identifier or a workflow/effect correlation separately.
+    #[must_use]
+    pub fn activation_fact<'a>(
+        &self,
+        occurrence: ActivatedOccurrence<'a>,
+        observation: Option<&'a observation::View>,
+    ) -> ActivationFact<'a> {
+        ActivationFact {
+            occurrence,
+            observation,
+        }
+    }
+
+    /// Assess activation-bound QObs facts through the shared deterministic
+    /// batch kernel without admitting a caller-built model or obligation id.
+    pub fn assess_activated(
+        &self,
+        facts: &[ActivationFact<'_>],
+        axes: AxisInputs<'_>,
+        completeness: &completeness::View,
+        global_conformance: &GlobalConformanceInput,
+        execution: AssessmentExecution,
+        limits: ConformanceLimits,
+    ) -> std::result::Result<Report, ActivatedAssessmentError> {
+        let activations = facts
+            .iter()
+            .map(|fact| fact.occurrence.clone())
+            .collect::<Vec<_>>();
+        let model = self
+            .derive_model(&activations)
+            .map_err(ActivatedAssessmentError::Kernel)?;
+        let observations = facts
+            .iter()
+            .zip(model.obligations())
+            .filter_map(|(fact, obligation)| {
+                fact.observation.map(|observation| BoundObservation {
+                    obligation: obligation.identity.clone(),
+                    observation,
+                    workflow_identity: fact.occurrence.occurrence.workflow().as_str().into(),
+                    effect_identity: obligation.effect_identity.clone(),
+                })
+            })
+            .collect::<Vec<_>>();
+        assess_batch(
+            Request {
+                model: &model,
+                observations: &observations,
+                axes,
+                completeness,
+                global_conformance,
+                execution,
+            },
+            limits,
+        )
+        .map_err(ActivatedAssessmentError::Conformance)
     }
 }
 
