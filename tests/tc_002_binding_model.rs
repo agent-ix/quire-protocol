@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! TC-002: versioned static/runtime binding capability admission.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use agent_ix_baseline_producer::StaticProducerBundle;
 use ix_trace_rs::trace;
@@ -16,10 +16,15 @@ use quire_protocol::model::v2::{
 };
 use quire_protocol::wire::{BindingKind, Body, CausalEdge, ControlOperation, EdgeKind, Port};
 use quire_protocol::{
-    assessment::{ClaimRow, Engine},
+    assessment::{BundleRefusal, ClaimRow, Engine},
     claims::Claim,
     outcome::{ClaimOutcome, OperationOutcome},
 };
+use quire_spec_language::protocol_artifact::{
+    native_temporal::{self, request, v2 as temporal_v2},
+    temporal_subject, wire as qsl_wire,
+};
+use quire_spec_language::{temporal, ByteDigest};
 
 // The shared handoff reader carries all public mutation helpers; this focused
 // binding lane exercises only `Handoff`, so the remaining helper surface is
@@ -220,6 +225,121 @@ fn subject(producer: &quire_observation::AdmittedStaticBundle) -> QualifiedSubje
         SubjectKind::new(ORDER_KIND.to_vec()).expect("non-empty kind"),
         SubjectIdentity::new(b"order:42".to_vec()).expect("non-empty identity"),
     )
+}
+
+fn digest(label: &str) -> String {
+    format!("{:x}", ByteDigest::of(label.as_bytes()))
+}
+
+fn evidence(scope: &str, identity: &str) -> native_temporal::EvidenceRef {
+    native_temporal::EvidenceRef::new(
+        "quire.owner-evidence/v1",
+        digest(&format!("schema:{scope}")),
+        identity,
+        digest(&format!("document:{identity}")),
+        format!("authority:{scope}"),
+        "1",
+        digest(&format!("authority:{scope}")),
+        scope,
+        1,
+    )
+}
+
+fn activated_request(
+    package: &quire_spec_language::protocol_artifact::v2::AdmittedPackage,
+    trigger: &[u8],
+) -> temporal_v2::ValidatedRequest {
+    let declaration = package
+        .inherited()
+        .declarations
+        .iter()
+        .enumerate()
+        .find_map(|(index, declaration)| {
+            matches!(declaration.body, Body::Temporal { .. })
+                .then(|| u32::try_from(index).expect("fixture temporal declaration fits"))
+        })
+        .expect("published fixture has one temporal declaration");
+    let selection = temporal_subject::DeclarationSelection::new(declaration);
+    let subject = temporal_subject::derive(package, selection, temporal_subject::Limits::default())
+        .into_result()
+        .expect("derive temporal subject");
+    let subject = temporal_subject::read(
+        subject.bytes(),
+        package,
+        selection,
+        temporal_subject::Limits::default(),
+    )
+    .into_result()
+    .expect("strict-read temporal subject");
+    let leaf = package.inherited().declarations[usize::try_from(declaration).unwrap()]
+        .temporal
+        .iter()
+        .enumerate()
+        .find_map(|(index, node)| {
+            matches!(node.operation, qsl_wire::TemporalOperation::Holds { .. })
+                .then(|| u32::try_from(index).expect("fixture temporal node fits"))
+        })
+        .expect("temporal fixture has a holds leaf");
+    let input = temporal_v2::Input {
+        trigger: temporal_v2::SemanticTriggerIdentity::new(trigger.to_vec())
+            .expect("QObs subject identity is nonempty"),
+        correspondence: evidence("correspondence", "correspondence:engine"),
+        positions: vec![request::ObservedPosition {
+            observation: evidence("observation", "observation:0"),
+            position: temporal::Position {
+                coordinate: 0,
+                order: Some(temporal::OrderKey {
+                    authority: "events".into(),
+                    key: 0,
+                }),
+                valuations: BTreeMap::from([(leaf, true)]),
+            },
+        }],
+        anchor: "origin".into(),
+        triggers: vec![temporal_v2::TriggerInput {
+            receipt: "receipt:1".into(),
+            anchor: "origin".into(),
+            payload: String::new(),
+            guard: None,
+            captures: Vec::new(),
+        }],
+        trigger_evidence: temporal::Evidence::Admitted,
+        trigger_scope: temporal::Closure::Closed,
+        decision_progress: request::ProgressInput {
+            reference: evidence("decision-progress", "decision-progress:1"),
+            watermark: 0,
+        },
+        decision_closure: request::ClosureInput {
+            reference: evidence("decision-closure", "decision-closure:1"),
+            state: temporal::Closure::Closed,
+        },
+        surrounding_progress: request::ProgressInput {
+            reference: evidence("surrounding-progress", "surrounding-progress:1"),
+            watermark: 0,
+        },
+        surrounding_closure: request::ClosureInput {
+            reference: evidence("surrounding-closure", "surrounding-closure:1"),
+            state: temporal::Closure::Open,
+        },
+        execution: temporal::Execution::Completed,
+        completeness: request::CompletenessInput {
+            reference: evidence("completeness", "completeness:1"),
+            state: temporal::Completeness::Complete,
+            facts: vec![evidence("completeness-fact", "fact:observation:0")],
+        },
+        authoritative_origin: true,
+        evicted: Vec::new(),
+    };
+    let document = temporal_v2::produce(&subject, input, native_temporal::Limits::default())
+        .into_result()
+        .expect("produce opaque temporal request");
+    temporal_v2::read(
+        document.bytes(),
+        &subject,
+        native_temporal::Limits::default(),
+    )
+    .into_result()
+    .expect("strict-read opaque temporal request")
 }
 
 fn order_shipment(producer: &quire_observation::AdmittedStaticBundle) -> Relationship {
@@ -986,6 +1106,7 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
     )
     .expect("selected static capability admits");
     let producer = producer();
+    let activation_subject = subject(&producer);
     let runtime = RuntimeBindingSet::new(
         RUNTIME_BINDING_CONTRACT,
         definition.selection(),
@@ -993,7 +1114,7 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
         &producer,
         vec![RuntimeBinding::subject(
             SlotHandle::new(subject_slot),
-            subject(&producer),
+            activation_subject.clone(),
         )],
     )
     .expect("selected runtime capability admits");
@@ -1005,6 +1126,45 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
     let identity = context
         .definition_identity()
         .expect("the admitted static selection has an FR-288 identity");
+
+    let request = activated_request(&package, activation_subject.identity().as_bytes());
+    let activated = Engine::new_activated(
+        context,
+        vec![Claim::Conformance],
+        &activation_subject,
+        &request,
+    )
+    .expect("strict QSL request and QObs subject activate this linked engine");
+    assert_eq!(
+        activated
+            .activation()
+            .expect("event-triggered engine retains its activation binding")
+            .subject(),
+        &activation_subject
+    );
+    assert_eq!(
+        activated
+            .activation()
+            .expect("event-triggered engine retains its activation binding")
+            .request()
+            .semantic_trigger(),
+        activation_subject.identity().as_bytes()
+    );
+    let mismatched_subject = QualifiedSubject::new(
+        &producer,
+        SubjectKind::new(ORDER_KIND.to_vec()).expect("non-empty kind"),
+        SubjectIdentity::new(b"order:43".to_vec()).expect("non-empty identity"),
+    );
+    assert_eq!(
+        Engine::new_activated(
+            context,
+            vec![Claim::Conformance],
+            &mismatched_subject,
+            &request,
+        )
+        .expect_err("different QObs subject cannot reuse a strict temporal request"),
+        BundleRefusal::ActivationSubjectMismatch
+    );
 
     let engine = match Engine::start(context, vec![Claim::Conformance]) {
         OperationOutcome::Completed(engine) => engine,
