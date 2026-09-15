@@ -9,6 +9,9 @@ use quire_observation::authority::{closure as observation_closure, progress};
 use quire_observation::QualifiedSubject;
 use quire_spec_language::protocol_artifact::native_temporal::v2 as temporal_v2;
 
+use crate::claims::dispatch::{
+    self, ClaimRequest, Limits as DispatchLimits, Report as DispatchReport,
+};
 use crate::claims::Claim;
 use crate::closure::GlobalConformanceClosure;
 use crate::compensation::registration::Snapshot as CompensationSnapshot;
@@ -116,6 +119,8 @@ pub enum BundleRefusal {
     DuplicateClaimRow,
     /// A selected claim has neither a canonical row nor a claim-local refusal.
     MissingClaimRow,
+    /// Closed claim dispatch refused before returning the requested population.
+    DispatchRefusal,
     /// The admitted linked context cannot derive its static definition identity.
     InvalidDefinitionIdentity,
     /// The exact linked context cannot produce its static QSL graph.
@@ -153,6 +158,7 @@ bundle_code!(
 );
 bundle_code!(BUNDLE_DUPLICATE_ROW, "assessment.bundle-duplicate-row");
 bundle_code!(BUNDLE_MISSING_ROW, "assessment.bundle-missing-row");
+bundle_code!(BUNDLE_DISPATCH_REFUSAL, "assessment.bundle-dispatch-refusal");
 bundle_code!(
     BUNDLE_INVALID_IDENTITY,
     "assessment.bundle-invalid-identity"
@@ -186,6 +192,7 @@ pub const CODES: CodeModule = CodeModule {
         BUNDLE_UNEXPECTED_CLAIM,
         BUNDLE_DUPLICATE_ROW,
         BUNDLE_MISSING_ROW,
+        BUNDLE_DISPATCH_REFUSAL,
         BUNDLE_INVALID_IDENTITY,
         BUNDLE_INVALID_LINKED_PROTOCOL,
         BUNDLE_INVALID_CONFORMANCE_KERNEL,
@@ -202,6 +209,7 @@ fn outcome_refusal(error: BundleRefusal) -> ProtocolRefusal {
         BundleRefusal::UnexpectedClaim => &BUNDLE_UNEXPECTED_CLAIM,
         BundleRefusal::DuplicateClaimRow => &BUNDLE_DUPLICATE_ROW,
         BundleRefusal::MissingClaimRow => &BUNDLE_MISSING_ROW,
+        BundleRefusal::DispatchRefusal => &BUNDLE_DISPATCH_REFUSAL,
         BundleRefusal::InvalidDefinitionIdentity => &BUNDLE_INVALID_IDENTITY,
         BundleRefusal::InvalidLinkedProtocol => &BUNDLE_INVALID_LINKED_PROTOCOL,
         BundleRefusal::InvalidConformanceKernel => &BUNDLE_INVALID_CONFORMANCE_KERNEL,
@@ -356,6 +364,36 @@ impl<'a> Engine<'a> {
     #[must_use]
     pub const fn activation(&self) -> Option<ActivationBinding<'a>> {
         self.activation
+    }
+
+    /// Dispatch this assessment's exact claim population through the closed
+    /// local conformance capability.
+    ///
+    /// The supplied report is produced by QProtocol's conformance owner; this
+    /// method neither accepts a backend callback nor permits a dispatch request
+    /// to add, omit, or retarget one of this engine's selected claims.
+    pub fn dispatch_conformance(
+        &self,
+        requests: &[ClaimRequest<'_>],
+        report: &crate::conformance::Report,
+        limits: DispatchLimits,
+    ) -> Result<DispatchReport, BundleRefusal> {
+        if requests.len() != self.requested.len()
+            || requests
+                .iter()
+                .any(|request| !self.requested.contains(&request.claim))
+            || self.requested.iter().any(|claim| {
+                requests
+                    .iter()
+                    .filter(|request| request.claim == *claim)
+                    .count()
+                    != 1
+            })
+        {
+            return Err(BundleRefusal::UnexpectedClaim);
+        }
+        dispatch::dispatch_from_conformance(requests, report, limits)
+            .map_err(|_| BundleRefusal::DispatchRefusal)
     }
 
     /// Retain one independent outcome for every selected claim.
