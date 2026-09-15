@@ -11,8 +11,24 @@ use std::collections::BTreeSet;
 
 use quire_spec_language::protocol_artifact::Dimension as CompiledDimension;
 
-use crate::bounds::inventory::BudgetDimension;
+use crate::bounds::inventory::{BudgetDimension, OperationOutcome, ResourceAccountant, SourceSite};
+use crate::bounds::{SiteId, SiteKind};
 use crate::version_lock::{EntryKey, ExactBytes};
+
+/// Exact-byte retention is charged before this consumer keeps a delivery index.
+pub(crate) const INPUT_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("delivery-index/member/retain"),
+    "delivery_index::DeliveryIndex::new_bounded",
+    BudgetDimension::InputByte,
+    SiteKind::Retention,
+);
+/// The bounded assembly creates one retained consumer-owned index value.
+pub(crate) const ALLOCATION_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("delivery-index/index/allocate"),
+    "delivery_index::DeliveryIndex::new_bounded",
+    BudgetDimension::AccountedAllocation,
+    SiteKind::Allocation,
+);
 
 /// Exact consumer-selected root for a delivered producer revision.
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd, Hash)]
@@ -422,6 +438,8 @@ pub enum DeliveryIndexError {
         accountant: EntryKey,
         dimension: LimitDimension,
     },
+    /// Retained byte lengths cannot be represented in the request counter.
+    RetainedBytesOverflow,
 }
 
 impl fmt::Display for DeliveryIndexError {
@@ -467,6 +485,31 @@ impl DeliveryIndex {
             }),
             IndexRead::Present(contents) => Self::new(key, contents),
         }
+    }
+
+    /// Validate and retain one index under a caller-owned resource accountant.
+    ///
+    /// The exact byte count is charged before the index takes ownership of the
+    /// delivered members; allocation is likewise charged before validation can
+    /// retain the completed consumer record. The unbounded [`Self::new`] stays
+    /// available for pure adapters that have not yet begun a request.
+    pub fn new_bounded(
+        key: DeliveryIndexKey,
+        contents: DeliveryIndexContents,
+        resources: &mut ResourceAccountant<'_>,
+    ) -> OperationOutcome<Self, DeliveryIndexError> {
+        let bytes = retained_bytes(&contents);
+        let bytes = match bytes {
+            Ok(value) => value,
+            Err(error) => return OperationOutcome::DomainError(error),
+        };
+        if let Err(error) = resources.charge(INPUT_SOURCE.id(), bytes) {
+            return OperationOutcome::from_charge(error);
+        }
+        if let Err(error) = resources.charge(ALLOCATION_SOURCE.id(), 1) {
+            return OperationOutcome::from_charge(error);
+        }
+        OperationOutcome::from_domain(Self::new(key, contents))
     }
 
     /// Validate and retain one complete delivery index.
@@ -592,4 +635,47 @@ impl DeliveryIndex {
     pub fn mutations(&self) -> &[IndexedMutation] {
         &self.contents.mutations
     }
+}
+
+fn retained_bytes(contents: &DeliveryIndexContents) -> Result<usize, DeliveryIndexError> {
+    let mut total = contents.offer.path.as_bytes().len();
+    for bytes in [
+        contents.offer.bytes.as_bytes(),
+        contents.artifact_reference.as_bytes(),
+        contents.temporal_profile.as_bytes(),
+    ] {
+        total = total
+            .checked_add(bytes.len())
+            .ok_or(DeliveryIndexError::RetainedBytesOverflow)?;
+    }
+    for input in &contents.inputs {
+        for bytes in [
+            input.role.as_bytes(),
+            input.member.path.as_bytes(),
+            input.member.bytes.as_bytes(),
+        ] {
+            total = total
+                .checked_add(bytes.len())
+                .ok_or(DeliveryIndexError::RetainedBytesOverflow)?;
+        }
+    }
+    for binding in &contents.temporal_bindings {
+        for bytes in [binding.owner.as_bytes(), binding.path.as_bytes()] {
+            total = total
+                .checked_add(bytes.len())
+                .ok_or(DeliveryIndexError::RetainedBytesOverflow)?;
+        }
+    }
+    for mutation in &contents.mutations {
+        for bytes in [
+            mutation.fixture.as_bytes(),
+            mutation.scenario.as_bytes(),
+            mutation.path.as_bytes(),
+        ] {
+            total = total
+                .checked_add(bytes.len())
+                .ok_or(DeliveryIndexError::RetainedBytesOverflow)?;
+        }
+    }
+    Ok(total)
 }

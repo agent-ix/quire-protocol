@@ -2,7 +2,9 @@
 //! TC-017: consumer-owned delivery-index validation.
 
 use ix_trace_rs::trace;
-use quire_protocol::bounds::inventory::BudgetDimension;
+use quire_protocol::bounds::inventory::{
+    production_inventory, Budget, BudgetDimension, OperationOutcome, ResourceAccountant,
+};
 use quire_protocol::delivery_index::{
     DeliveryIndex, DeliveryIndexContents, DeliveryIndexError, DeliveryIndexKey, DeliveryRoot,
     IndexRead, IndexedInput, IndexedLimit, IndexedMember, IndexedMutation, InputRole,
@@ -231,4 +233,52 @@ fn tc_017_limit_vocabulary_is_typed_and_ordered_without_substitution() {
         LimitDimension::CompiledProtocol(CompiledDimension::PayloadBytes)
     ));
     assert_ne!(limits[0].dimension(), limits[1].dimension());
+}
+
+#[test]
+#[trace("TC-017", "NFR-002-AC-2")]
+fn tc_017_bounded_assembly_charges_exact_retained_bytes_before_the_index_exists() {
+    let inventory = production_inventory().expect("production sites reconcile");
+    let budget = Budget::nothing_granted()
+        .grant(BudgetDimension::InputByte, 1)
+        .expect("positive byte budget")
+        .grant(BudgetDimension::AccountedAllocation, 1)
+        .expect("positive allocation budget");
+    let mut resources = ResourceAccountant::new(budget, &inventory);
+    let outcome = DeliveryIndex::new_bounded(
+        key(b"delivery-a", b"producer-revision-1"),
+        contents(vec![], vec![], vec![], vec![]),
+        &mut resources,
+    );
+    let OperationOutcome::ResourceIncomplete(incomplete) = outcome else {
+        panic!("the one-byte budget must stop retention before an index exists");
+    };
+    assert_eq!(incomplete.dimension(), BudgetDimension::InputByte);
+    assert_eq!(resources.usage().consumed(BudgetDimension::InputByte), 0);
+    assert_eq!(
+        resources
+            .usage()
+            .consumed(BudgetDimension::AccountedAllocation),
+        0
+    );
+
+    let sufficient = Budget::nothing_granted()
+        .grant(BudgetDimension::InputByte, 4_096)
+        .expect("positive byte budget")
+        .grant(BudgetDimension::AccountedAllocation, 1)
+        .expect("positive allocation budget");
+    let mut fresh = ResourceAccountant::new(sufficient, &inventory);
+    assert!(matches!(
+        DeliveryIndex::new_bounded(
+            key(b"delivery-a", b"producer-revision-1"),
+            contents(vec![], vec![], vec![], vec![]),
+            &mut fresh,
+        ),
+        OperationOutcome::Completed(_)
+    ));
+    assert!(fresh.usage().consumed(BudgetDimension::InputByte) > 1);
+    assert_eq!(
+        fresh.usage().consumed(BudgetDimension::AccountedAllocation),
+        1
+    );
 }
