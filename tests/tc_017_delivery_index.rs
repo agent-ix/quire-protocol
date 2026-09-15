@@ -5,8 +5,8 @@ use ix_trace_rs::trace;
 use quire_protocol::bounds::inventory::BudgetDimension;
 use quire_protocol::delivery_index::{
     DeliveryIndex, DeliveryIndexContents, DeliveryIndexError, DeliveryIndexKey, DeliveryRoot,
-    IndexedInput, IndexedLimit, IndexedMember, IndexedMutation, InputRole, LimitDimension,
-    ProducerRevision, TemporalBindingRecord,
+    IndexRead, IndexedInput, IndexedLimit, IndexedMember, IndexedMutation, InputRole,
+    LimitDimension, MemberReadError, ProducerRevision, TemporalBindingRecord,
 };
 use quire_protocol::version_lock::EntryKey;
 use quire_spec_language::protocol_artifact::Dimension as CompiledDimension;
@@ -187,6 +187,33 @@ fn tc_017_refuses_each_local_ambiguity_without_repair() {
             dimension: LimitDimension::Protocol(BudgetDimension::InputByte),
             ..
         })
+    ));
+}
+
+#[test]
+#[trace("TC-017", "FR-018-AC-5", "FR-018-AC-6")]
+fn tc_017_preserves_every_adapter_absence_as_a_distinct_outcome() {
+    let selected = key(b"delivery-a", b"producer-revision-1");
+    assert!(matches!(
+        DeliveryIndex::observed(selected.clone(), IndexRead::MissingRoot),
+        Err(DeliveryIndexError::MissingRoot(root)) if root.as_bytes() == b"delivery-a"
+    ));
+    assert!(matches!(
+        DeliveryIndex::observed(selected.clone(), IndexRead::MissingIndex),
+        Err(DeliveryIndexError::MissingIndex(root)) if root.as_bytes() == b"delivery-a"
+    ));
+    assert!(matches!(
+        DeliveryIndex::observed(selected, IndexRead::Unreadable(quire_protocol::version_lock::ExactBytes::new(b"invalid json"))),
+        Err(DeliveryIndexError::UnreadableIndex { reason, .. }) if reason.as_bytes() == b"invalid json"
+    ));
+    assert!(matches!(
+        IndexedMember::observed(b"missing.json", Err(MemberReadError::Missing)),
+        Err(DeliveryIndexError::MissingMember(path)) if path.as_bytes() == b"missing.json"
+    ));
+    assert!(matches!(
+        IndexedMember::observed(b"unreadable.json", Err(MemberReadError::Unreadable(quire_protocol::version_lock::ExactBytes::new(b"permission")))),
+        Err(DeliveryIndexError::UnreadableMember { path, reason })
+            if path.as_bytes() == b"unreadable.json" && reason.as_bytes() == b"permission"
     ));
 }
 

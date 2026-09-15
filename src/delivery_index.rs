@@ -97,6 +97,24 @@ impl IndexedMember {
         }
     }
 
+    /// Convert an adapter's member-read result without treating an absence as
+    /// empty bytes. The adapter remains responsible for I/O.
+    pub fn observed(
+        path: &[u8],
+        result: Result<&[u8], MemberReadError>,
+    ) -> Result<Self, DeliveryIndexError> {
+        match result {
+            Ok(bytes) => Ok(Self::new(path, bytes)),
+            Err(MemberReadError::Missing) => {
+                Err(DeliveryIndexError::MissingMember(ExactBytes::new(path)))
+            }
+            Err(MemberReadError::Unreadable(reason)) => Err(DeliveryIndexError::UnreadableMember {
+                path: ExactBytes::new(path),
+                reason,
+            }),
+        }
+    }
+
     /// Path relative to the delivery root.
     #[must_use]
     pub const fn path(&self) -> &ExactBytes {
@@ -108,6 +126,15 @@ impl IndexedMember {
     pub const fn bytes(&self) -> &ExactBytes {
         &self.bytes
     }
+}
+
+/// An adapter-reported member-read state. This module performs no read itself.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum MemberReadError {
+    /// The indexed member was absent under the selected root.
+    Missing,
+    /// The member existed but its bytes could not be read.
+    Unreadable(ExactBytes),
 }
 
 /// A producer input role as named by the selected producer delivery.
@@ -319,6 +346,20 @@ pub struct DeliveryIndexContents {
     mutations: Vec<IndexedMutation>,
 }
 
+/// An adapter-reported index-read state. It is input, never authority for a
+/// version lock or a producer selection.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum IndexRead {
+    /// The selected delivery root did not exist.
+    MissingRoot,
+    /// The root existed but carried no consumer index.
+    MissingIndex,
+    /// The index could not be deserialized or otherwise read.
+    Unreadable(ExactBytes),
+    /// Complete contents read by an outer adapter.
+    Present(DeliveryIndexContents),
+}
+
 impl DeliveryIndexContents {
     /// Build the retained delivery state before validation.
     #[must_use]
@@ -408,6 +449,26 @@ impl PartialEq for DeliveryIndex {
 impl Eq for DeliveryIndex {}
 
 impl DeliveryIndex {
+    /// Convert a selected root's adapter-reported state into a validated index.
+    ///
+    /// No filesystem, transport, manifest, resolver, or version-lock value is
+    /// accepted here. Consequently this conversion cannot affect resolution.
+    pub fn observed(key: DeliveryIndexKey, read: IndexRead) -> Result<Self, DeliveryIndexError> {
+        match read {
+            IndexRead::MissingRoot => {
+                Err(DeliveryIndexError::MissingRoot(key.delivery_root().clone()))
+            }
+            IndexRead::MissingIndex => Err(DeliveryIndexError::MissingIndex(
+                key.delivery_root().clone(),
+            )),
+            IndexRead::Unreadable(reason) => Err(DeliveryIndexError::UnreadableIndex {
+                root: key.delivery_root().clone(),
+                reason,
+            }),
+            IndexRead::Present(contents) => Self::new(key, contents),
+        }
+    }
+
     /// Validate and retain one complete delivery index.
     pub fn new(
         key: DeliveryIndexKey,
