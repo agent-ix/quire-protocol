@@ -9,5 +9,5 @@ pub fn admit(
     expected: &v2::Expected<'_>,
     limits: Limits,
 ) -> Report<v2::AdmittedPackage> {
-    v2::read(bytes, expected, limits)
+    quire_spec_language::protocol_artifact::v2::read(bytes, expected, limits)
 }

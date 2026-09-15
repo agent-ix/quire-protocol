@@ -553,6 +553,9 @@ fn tc_012_every_conditional_site_is_selected_and_phantom_features_refuse() {
                 path: "src/refusal/mod.rs".to_owned(),
             },
             Condition::Test {
+                path: "src/result/mod.rs".to_owned(),
+            },
+            Condition::Test {
                 path: "src/version_lock.rs".to_owned(),
             },
             Condition::Target {

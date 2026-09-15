@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! TC-006/TC-015: complete canonical result owner and Contract-IR mapping.
+//! TC-006/TC-015: in-crate canonical result owner and Contract-IR mapping.
 
 use agent_ix_baseline_producer::StaticProducerBundle;
 use ix_trace_rs::trace;
@@ -44,12 +44,16 @@ use quire_spec_language::protocol_artifact::{
 };
 use serde_json::Value;
 
-#[path = "support/v2_handoff/mod.rs"]
+#[path = "../../tests/support/v2_handoff/mod.rs"]
 #[allow(dead_code, unused_imports)]
 mod handoff;
 
-#[path = "support/observation_owner.rs"]
-#[allow(dead_code)]
+#[path = "../../tests/support/observation_owner.rs"]
+#[allow(
+    clippy::duplicate_mod,
+    dead_code,
+    reason = "the result semantic corpus deliberately owns an independent QObs fixture instance from the conformance corpus"
+)]
 mod observation_owner;
 
 const ORDER_KIND: &str = "ix://agent-ix/commerce/type/Order";
@@ -79,8 +83,10 @@ fn digest(value: u8) -> Digest {
 }
 
 fn producer() -> quire_observation::AdmittedStaticBundle {
-    StaticProducerBundle::admit_json(include_bytes!("fixtures/fcd-static-bundle-1.2.json"))
-        .expect("shared FCD static bundle is admitted")
+    StaticProducerBundle::admit_json(include_bytes!(
+        "../../tests/fixtures/fcd-static-bundle-1.2.json"
+    ))
+    .expect("shared FCD static bundle is admitted")
 }
 
 fn runtime_subject(
@@ -582,22 +588,25 @@ fn base_input<'a>(fixture: &'a Fixture) -> Input<'a> {
     }
 }
 
-fn canonical_row_facts(input: Input<'_>, limits: Limits) -> CanonicalRowFacts<'_> {
+fn canonical_row_facts<'a>(
+    input: Input<'a>,
+    limits: Limits,
+    model_artifact: &'a w::ArtifactRef,
+    runtime_input: &'a QualifiedSubject,
+) -> CanonicalRowFacts<'a> {
     CanonicalRowFacts {
         checked_predicate: input.checked_predicate,
         temporal_subject: input.temporal_subject,
-        axes: input.axes,
-        completeness: input.completeness,
-        truth: input.truth,
         settlement: input.settlement,
         activation: input.activation,
         participation: input.participation,
         observation_adequacy: input.observation_adequacy,
         protocol_adequacy: input.protocol_adequacy,
         decision_support: input.decision_support,
-        global_conformance: input.global_conformance,
         limitations: input.limitations,
-        provenance: input.provenance,
+        model_artifact,
+        runtime_input,
+        reproduction: input.provenance.reproduction,
         correction: input.correction,
         limits,
     }
@@ -853,14 +862,7 @@ fn dispatch_inputs_with_claim_refusal() -> Vec<ClaimRequest<'static>> {
 /// The public Engine boundary constructs and strict-reads owner rows against
 /// its one linked `/2` package; it has no caller-provided result document seam.
 #[test]
-#[trace(
-    "TC-006",
-    "FR-006-AC-1",
-    "FR-006-AC-2",
-    "FR-006-AC-9",
-    "FR-008-AC-1",
-    "Task-006"
-)]
+#[trace("TC-006", "FR-006-AC-1", "FR-006-AC-2", "FR-006-AC-9", "FR-008-AC-1")]
 fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
     let loaded = handoff::Handoff::load().expect("published v2 handoff");
     let declarations = loaded.declarations();
@@ -929,9 +931,20 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
     .expect("selected runtime binding admits");
     let context = LinkedAssessment::new(&package, &definition, &runtime)
         .expect("one exact linked assessment");
+    let definition_identity = context
+        .definition_identity()
+        .expect("linked assessment has exact definition provenance");
+    let selected_model = definition_identity
+        .closure()
+        .models()
+        .first()
+        .expect("published protocol selects a model");
+    let model_artifact = &package.inherited().dependencies
+        [usize::try_from(selected_model.value().artifact).expect("model index fits")]
+    .artifact;
 
     let fixture = fixture();
-    let input = base_input(&fixture);
+    let mut input = base_input(&fixture);
     assert_eq!(input.checked_predicate.package_digest(), package.digest());
     assert_eq!(input.temporal_subject.package_digest(), package.digest());
     let requested = [DispatchClaim::Conformance, DispatchClaim::Monitorability];
@@ -978,6 +991,18 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
         .expect("mapped activation produces an obligation occurrence");
     let decision = observation_owner::scope_views("canonical-engine");
     let surrounding = observation_owner::scope_views("canonical-engine-surrounding");
+    let support_observation = decision
+        .completeness_complete
+        .payload()
+        .facts()
+        .next()
+        .and_then(|fact| fact.observation_identity)
+        .expect("the assessed completeness view retains its available fact")
+        .to_owned();
+    input.settlement.supporting_fact_identities = vec![support_observation.clone()];
+    input.settlement.supporting_progress_identities =
+        vec![decision.progress_closed.identity().as_str().to_owned()];
+    input.decision_support[0].observation_identity = support_observation;
     let fact = engine
         .conformance()
         .activation_fact(activated, Some(&decision.observation));
@@ -1048,6 +1073,10 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
         AssessmentExecution::Completed
     );
     assert_eq!(
+        dispatch.dispositions()[0].decision,
+        Some(quire_protocol::claims::dispatch::Decision::Established)
+    );
+    assert_eq!(
         dispatch.dispositions()[1].claim,
         DispatchClaim::Monitorability
     );
@@ -1079,21 +1108,148 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
     let short_output = Budget::nothing_granted()
         .grant(BudgetDimension::OutputByte, 1)
         .expect("positive one-short output grant");
+    let short_outcome = short_result_engine.assess_activated(
+        &dispatch_requests,
+        std::slice::from_ref(&fact),
+        axes,
+        &decision.completeness_complete,
+        &global,
+        AssessmentExecution::Completed,
+        ConformanceLimits::default(),
+        DispatchLimits::default(),
+        vec![
+            Some(canonical_row_facts(
+                input.clone(),
+                Limits::owner_max(),
+                model_artifact,
+                &subject,
+            )),
+            None,
+        ],
+        short_output,
+    );
+    assert!(
+        matches!(
+            short_outcome,
+            quire_protocol::outcome::OperationOutcome::ResourceIncomplete(ref incomplete)
+                if incomplete.dimension() == BudgetDimension::OutputByte
+        ),
+        "expected output exhaustion, got {short_outcome:?}"
+    );
+    let cumulative_engine = Engine::new(context, requested.to_vec())
+        .expect("the same linked assessment starts an accountant-span control");
+    let cumulative_limit = Budget::nothing_granted()
+        .grant(BudgetDimension::AccountedAllocation, 3)
+        .expect("three allocations reach into result construction");
     assert!(matches!(
-        short_result_engine.construct_canonical_outcome(
-            &dispatch,
+        cumulative_engine.assess_activated(
+            &dispatch_requests,
+            std::slice::from_ref(&fact),
+            axes,
+            &decision.completeness_complete,
+            &global,
+            AssessmentExecution::Completed,
+            ConformanceLimits::default(),
+            DispatchLimits::default(),
             vec![
-                Some(canonical_row_facts(input.clone(), Limits::owner_max())),
+                Some(canonical_row_facts(
+                    input.clone(),
+                    Limits::owner_max(),
+                    model_artifact,
+                    &subject,
+                )),
                 None,
             ],
-            short_output,
+            cumulative_limit,
         ),
         quire_protocol::outcome::OperationOutcome::ResourceIncomplete(incomplete)
-            if incomplete.dimension() == BudgetDimension::OutputByte
+            if incomplete.dimension() == BudgetDimension::AccountedAllocation
+                && incomplete.consumed() == 3
+                && incomplete.requested() == 1
     ));
-    let outcome = engine.construct_canonical_outcome(
-        &dispatch,
-        vec![Some(canonical_row_facts(input, Limits::owner_max())), None],
+    let mut foreign_model = model_artifact.clone();
+    foreign_model.identity.push_str(":foreign");
+    let foreign_model_engine = Engine::new(context, requested.to_vec())
+        .expect("the same linked assessment starts a model-substitution control");
+    let quire_protocol::outcome::OperationOutcome::Completed(foreign_model_bundle) =
+        foreign_model_engine.assess_activated(
+            &dispatch_requests,
+            std::slice::from_ref(&fact),
+            axes,
+            &decision.completeness_complete,
+            &global,
+            AssessmentExecution::Completed,
+            ConformanceLimits::default(),
+            DispatchLimits::default(),
+            vec![
+                Some(canonical_row_facts(
+                    input.clone(),
+                    Limits::owner_max(),
+                    &foreign_model,
+                    &subject,
+                )),
+                None,
+            ],
+            Budget::nothing_granted(),
+        )
+    else {
+        panic!("a foreign row model is a claim-local construction refusal")
+    };
+    assert!(matches!(
+        &foreign_model_bundle.rows()[0].outcome,
+        quire_protocol::outcome::ClaimOutcome::Refused(refusal)
+            if refusal.code().as_str() == "result.invalid-selection"
+    ));
+    let foreign_subject = runtime_subject(&producer, "canonical-engine-foreign");
+    let foreign_input_engine = Engine::new(context, requested.to_vec())
+        .expect("the same linked assessment starts an input-substitution control");
+    let quire_protocol::outcome::OperationOutcome::Completed(foreign_input_bundle) =
+        foreign_input_engine.assess_activated(
+            &dispatch_requests,
+            std::slice::from_ref(&fact),
+            axes,
+            &decision.completeness_complete,
+            &global,
+            AssessmentExecution::Completed,
+            ConformanceLimits::default(),
+            DispatchLimits::default(),
+            vec![
+                Some(canonical_row_facts(
+                    input.clone(),
+                    Limits::owner_max(),
+                    model_artifact,
+                    &foreign_subject,
+                )),
+                None,
+            ],
+            Budget::nothing_granted(),
+        )
+    else {
+        panic!("a foreign runtime input is a claim-local construction refusal")
+    };
+    assert!(matches!(
+        &foreign_input_bundle.rows()[0].outcome,
+        quire_protocol::outcome::ClaimOutcome::Refused(refusal)
+            if refusal.code().as_str() == "result.invalid-selection"
+    ));
+    let outcome = engine.assess_activated(
+        &dispatch_requests,
+        std::slice::from_ref(&fact),
+        axes,
+        &decision.completeness_complete,
+        &global,
+        AssessmentExecution::Completed,
+        ConformanceLimits::default(),
+        DispatchLimits::default(),
+        vec![
+            Some(canonical_row_facts(
+                input,
+                Limits::owner_max(),
+                model_artifact,
+                &subject,
+            )),
+            None,
+        ],
         Budget::nothing_granted(),
     );
     let quire_protocol::outcome::OperationOutcome::Completed(bundle) = outcome else {
@@ -1105,6 +1261,19 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
         panic!("the completed conformance disposition must produce its canonical row")
     };
     assert_eq!(canonical.execution(), AssessmentExecution::Completed);
+    assert_eq!(canonical.truth(), Truth::Satisfied);
+    assert_eq!(
+        canonical.decision_scope_progress().document_identity(),
+        decision.progress_closed.identity().as_str()
+    );
+    assert_eq!(
+        canonical.completeness().document_identity(),
+        decision.completeness_complete.identity().as_str()
+    );
+    assert_eq!(
+        canonical.global_conformance_state(),
+        GlobalConformanceClosure::Closed
+    );
     assert_eq!(canonical.claim().kind, ClaimKind::GlobalConformance);
     assert_eq!(canonical.claim().strength, Some(ClaimStrength::Tested));
     assert_eq!(
@@ -1114,6 +1283,44 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
     assert_eq!(
         canonical.claim().backend_identity.as_deref(),
         Some("qprotocol:conformance")
+    );
+    assert_eq!(
+        canonical.provenance().source_identity,
+        definition_identity.source_document().identity
+    );
+    assert_eq!(
+        canonical.provenance().profile_identity,
+        definition_identity.closure().profile().value().identity
+    );
+    assert_eq!(
+        canonical.provenance().model_identity,
+        model_artifact.identity
+    );
+    assert_eq!(
+        canonical.provenance().protocol_identity,
+        format!(
+            "{}:{}",
+            definition_identity.source_document().identity,
+            definition_identity.declaration_handle()
+        )
+    );
+    assert_eq!(
+        canonical.provenance().request_identity,
+        "request:conformance"
+    );
+    assert_eq!(
+        canonical.provenance().binding_identity,
+        definition_identity.static_binding().identity.as_ref()
+    );
+    runtime_reference::validate_subject(&canonical.provenance().input_identity, &subject)
+        .expect("Engine provenance retains the exact runtime subject carrier");
+    assert_eq!(
+        canonical.provenance().backend_identity,
+        "qprotocol:conformance"
+    );
+    assert_eq!(
+        canonical.provenance().producer_identity,
+        context.definition().producer().bundle_identity
     );
     assert!(canonical.assumptions().is_empty());
     let quire_protocol::outcome::ClaimOutcome::Refused(refusal) = &bundle.rows()[1].outcome else {
@@ -1233,7 +1440,7 @@ fn tc_008_process_locale_does_not_change_canonical_result() {
         )
         .args([
             "--exact",
-            "tc_008_process_locale_does_not_change_canonical_result",
+            "result::tc_006_tests::tc_008_process_locale_does_not_change_canonical_result",
             "--nocapture",
         ])
         .env(child, "1")

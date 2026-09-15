@@ -6,6 +6,13 @@
 //! [`lineage`] validates support and correction edges, and [`contract_ir`]
 //! owns the selected read-only mapping. No module evaluates a predicate or
 //! parses Quire source.
+//!
+//! Canonical production is an Engine-owned transition, not an external
+//! wire-shaped input seam:
+//!
+//! ```compile_fail,E0603
+//! use quire_protocol::result::record::produce;
+//! ```
 
 pub mod contract_ir;
 pub mod global;
@@ -14,6 +21,10 @@ pub mod reader;
 pub mod record;
 /// Reversible opaque runtime-reference carrier for string-only result fields.
 pub mod runtime_reference;
+
+#[cfg(test)]
+#[path = "tc_006_tests.rs"]
+mod tc_006_tests;
 
 use crate::refusal::catalog::{
     CatalogSelection, CodeEntry, CodeModule, Provenance, RefusalCode, RetainedBytes,
@@ -25,12 +36,17 @@ use crate::refusal::{
 
 pub use crate::assessment::{AxisInputs, GlobalConformanceInput, GlobalPremise, PremiseKind};
 pub use reader::{read, read_bounded, Expected};
+#[allow(
+    unused_imports,
+    reason = "the unbounded producer is consumed only by the in-crate semantic corpus; production orchestration uses the bounded producer"
+)]
+pub(crate) use record::{produce, produce_bounded};
 pub use record::{
-    produce, produce_bounded, Activation, Adequacy, Assumption, AssumptionState, AxisView, Claim,
-    ClaimKind, ClaimStrength, CompletenessView, CorrectionInput, CorrectionRelation,
-    CorrectionView, DecisionSupport, DependenceRelation, Document, Input, Limitation, Limits,
-    Participation, ProtocolAdequacy, ProvenanceRecord, Settlement, SettlementBasis, SupportRef,
-    Truth, Usage, ValidatedResult, CONTRACT, SCHEMA_BYTES, SCHEMA_SHA256,
+    Activation, Adequacy, Assumption, AssumptionState, AxisView, Claim, ClaimKind, ClaimStrength,
+    CompletenessView, CorrectionInput, CorrectionRelation, CorrectionView, DecisionSupport,
+    DependenceRelation, Document, Input, Limitation, Limits, Participation, ProtocolAdequacy,
+    ProvenanceRecord, Settlement, SettlementBasis, SupportRef, Truth, Usage, ValidatedResult,
+    CONTRACT, SCHEMA_BYTES, SCHEMA_SHA256,
 };
 
 /// Stable result-owner or mapping refusal cause.

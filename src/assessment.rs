@@ -19,7 +19,8 @@ use quire_spec_language::state::{
 };
 
 use crate::bounds::inventory::{
-    production_inventory, Budget, OperationOutcome as BoundedOutcome, ResourceAccountant,
+    production_inventory, AccountingFault, Budget, BudgetDimension,
+    OperationOutcome as BoundedOutcome, ResourceAccountant, Usage as ResourceAccountantUsage,
 };
 use crate::claims::dispatch::{
     self, ClaimRequest, Limits as DispatchLimits, Report as DispatchReport,
@@ -49,9 +50,10 @@ use crate::refusal::catalog::{
     CatalogSelection, CodeEntry, CodeModule, Provenance, RefusalCode, RetainedBytes,
 };
 use crate::refusal::{
-    Prerequisite, PrerequisiteState, ProtocolCause, ProtocolRefusal, ProtocolStage, RefusalAxis,
-    RefusalDomain, ResourceUsage, RetryDecision, Unavailability,
+    AffectedIdentity, Prerequisite, PrerequisiteState, ProtocolCause, ProtocolRefusal,
+    ProtocolStage, RefusalAxis, RefusalDomain, ResourceUsage, RetryDecision, Unavailability,
 };
+use crate::repro::ReproductionRecord;
 use crate::result::{self, ClaimKind};
 
 /// One claim outcome offered to an assessment bundle.
@@ -69,10 +71,12 @@ pub struct ClaimRow<Row> {
 
 /// Independently owned facts needed to construct one canonical claim row.
 ///
-/// This deliberately omits execution, claim identity/strength/backend, and
-/// assumptions. The Engine derives those fields from its sealed dispatch
-/// report, so a production caller cannot restate a complete result-owner
-/// [`result::Input`] and substitute values for the preceding stages.
+/// This deliberately omits execution, truth, claim identity/strength/backend,
+/// assumptions, progress/closure axes, completeness, and global conformance.
+/// The Engine derives or reuses those fields from the exact conformance and
+/// dispatch stages executed inside the same atomic assessment operation, so a
+/// production caller cannot restate a complete result-owner [`result::Input`]
+/// and substitute values for the preceding stages.
 ///
 /// ```compile_fail,E0603
 /// // The complete row input is an Engine-private transition value.
@@ -86,12 +90,6 @@ pub struct CanonicalRowFacts<'a> {
     /// Strict QSL temporal-subject owner view selected for this assessment.
     pub temporal_subject:
         &'a quire_spec_language::protocol_artifact::temporal_subject::ValidatedTemporalSubject,
-    /// Four independent QObs progress and closure views.
-    pub axes: AxisInputs<'a>,
-    /// Exact QObs completeness view.
-    pub completeness: &'a completeness::View,
-    /// Typed truth disposition supplied by its owner.
-    pub truth: result::Truth,
     /// Typed settlement and exact supporting identities.
     pub settlement: result::Settlement,
     /// Typed activation state.
@@ -104,12 +102,16 @@ pub struct CanonicalRowFacts<'a> {
     pub protocol_adequacy: result::ProtocolAdequacy,
     /// Complete decision-support population.
     pub decision_support: Vec<result::DecisionSupport>,
-    /// Complete global-conformance closure and premise population.
-    pub global_conformance: GlobalConformanceInput,
     /// Exact limitations retained for this claim.
     pub limitations: Vec<result::Limitation>,
-    /// Complete result provenance.
-    pub provenance: result::ProvenanceRecord,
+    /// Exact selected model artifact; the Engine verifies it belongs to its
+    /// immutable semantic selection closure before retaining its identity.
+    pub model_artifact: &'a quire_spec_language::protocol_artifact::wire::ArtifactRef,
+    /// Exact QObs runtime input; the Engine verifies it is one of its admitted
+    /// runtime bindings and derives the reversible result-field carrier.
+    pub runtime_input: &'a QualifiedSubject,
+    /// Caller-selected deterministic inputs needed to reproduce this run.
+    pub reproduction: ReproductionRecord,
     /// Optional validated direct correction edge.
     pub correction: Option<result::CorrectionInput<'a>>,
     /// Result-owner limits, which may lower but never raise owner maxima.
@@ -253,6 +255,13 @@ bundle_code!(
     "assessment-conformance.bundle-invalid-conformance-kernel",
     RefusalDomain::Assessment
 );
+const ASSESSMENT_ACCOUNTING_FAULT: CodeEntry = CodeEntry {
+    provenance: Provenance::Minted,
+    code: "assessment-accounting.fault",
+    domain: RefusalDomain::Assessment,
+    retry: RetryDecision::Never,
+    summary: "the Protocol resource accountant could not represent assessment work",
+};
 bundle_code!(
     BUNDLE_CLAIM_MISMATCH,
     "assessment-result.bundle-claim-mismatch",
@@ -268,6 +277,13 @@ bundle_code!(
     "assessment-result.bundle-dispatch-mismatch",
     RefusalDomain::Result
 );
+const RESULT_ACCOUNTING_FAULT: CodeEntry = CodeEntry {
+    provenance: Provenance::Minted,
+    code: "assessment-result.accounting-fault",
+    domain: RefusalDomain::Result,
+    retry: RetryDecision::Never,
+    summary: "the Protocol resource accountant could not represent result work",
+};
 bundle_code!(
     BUNDLE_ACTIVATION_SUBJECT,
     "assessment-activation.subject-mismatch",
@@ -308,6 +324,14 @@ pub const CONFORMANCE_CODES: CodeModule = CodeModule {
     entries: &[BUNDLE_INVALID_CONFORMANCE_KERNEL],
 };
 
+/// Assessment-stage resource-accounting invariant codes.
+pub const ACCOUNTING_CODES: CodeModule = CodeModule {
+    root: "assessment-accounting",
+    owner: "Task-006",
+    module_path: "quire_protocol::assessment",
+    entries: &[ASSESSMENT_ACCOUNTING_FAULT],
+};
+
 /// Result-assembly assessment codes.
 pub const RESULT_CODES: CodeModule = CodeModule {
     root: "assessment-result",
@@ -317,6 +341,7 @@ pub const RESULT_CODES: CodeModule = CodeModule {
         BUNDLE_CLAIM_MISMATCH,
         BUNDLE_PACKAGE_MISMATCH,
         BUNDLE_DISPATCH_MISMATCH,
+        RESULT_ACCOUNTING_FAULT,
     ],
 };
 
@@ -433,6 +458,141 @@ fn bundle_cause(error: BundleRefusal, code: RefusalCode) -> crate::refusal::Refu
         },
     }
     .into()
+}
+
+#[derive(Clone, Copy)]
+enum AccountingStage {
+    Conformance,
+    ClaimDispatch,
+    ResultAssembly,
+    ResultRead,
+}
+
+impl AccountingStage {
+    const fn protocol_stage(self) -> ProtocolStage {
+        match self {
+            Self::Conformance => ProtocolStage::Conformance,
+            Self::ClaimDispatch => ProtocolStage::ClaimDispatch,
+            Self::ResultAssembly => ProtocolStage::ResultAssembly,
+            Self::ResultRead => ProtocolStage::ResultRead,
+        }
+    }
+
+    const fn entry(self) -> &'static CodeEntry {
+        match self {
+            Self::Conformance | Self::ClaimDispatch => &ASSESSMENT_ACCOUNTING_FAULT,
+            Self::ResultAssembly | Self::ResultRead => &RESULT_ACCOUNTING_FAULT,
+        }
+    }
+
+    const fn prerequisite(self) -> ProtocolStage {
+        match self {
+            Self::Conformance => ProtocolStage::Representation,
+            Self::ClaimDispatch => ProtocolStage::Conformance,
+            Self::ResultAssembly => ProtocolStage::ClaimDispatch,
+            Self::ResultRead => ProtocolStage::ResultAssembly,
+        }
+    }
+}
+
+fn accounting_refusal(
+    fault: AccountingFault,
+    stage: AccountingStage,
+    usage: ResourceAccountantUsage,
+) -> ProtocolRefusal {
+    let (affected, axis) = encode_accounting_fault(fault);
+    let code = RefusalCode::of(stage.entry());
+    let measures = BudgetDimension::ALL
+        .iter()
+        .map(|dimension| (dimension.as_str(), usage.consumed(*dimension)))
+        .collect::<Vec<_>>();
+    ProtocolRefusal::builder(
+        code,
+        CatalogSelection::local(),
+        stage.protocol_stage(),
+        RefusalAxis::new(&axis).expect("the typed accounting-fault axis is non-empty"),
+        ProtocolCause::IncompleteEvidence {
+            evidence: RetainedBytes::new(&axis),
+        }
+        .into(),
+        ResourceUsage::protocol("quire.protocol/assessment-usage/1", &measures),
+    )
+    .expect("the accounting-fault code belongs to its typed stage")
+    .identity(AffectedIdentity::retained(&affected))
+    .prerequisite(Prerequisite::new(
+        stage.prerequisite(),
+        PrerequisiteState::Established,
+    ))
+    .unavailable_location(Unavailability::NotApplicableToStage)
+    .emitting_nothing()
+}
+
+fn encode_accounting_fault(fault: AccountingFault) -> (Vec<u8>, Vec<u8>) {
+    let mut axis = b"accounting-fault\0".to_vec();
+    let affected = match fault {
+        AccountingFault::UnregisteredSite { site } => {
+            axis.extend_from_slice(b"unregistered-site\0");
+            site.as_str().as_bytes().to_vec()
+        }
+        AccountingFault::CounterOverflow {
+            site,
+            consumed,
+            requested,
+        } => {
+            axis.extend_from_slice(b"counter-overflow\0");
+            axis.extend_from_slice(&consumed.to_be_bytes());
+            axis.extend_from_slice(&requested.to_be_bytes());
+            site.as_str().as_bytes().to_vec()
+        }
+        AccountingFault::CounterUnderflow {
+            site,
+            consumed,
+            requested,
+        } => {
+            axis.extend_from_slice(b"counter-underflow\0");
+            axis.extend_from_slice(&consumed.to_be_bytes());
+            axis.extend_from_slice(&requested.to_be_bytes());
+            site.as_str().as_bytes().to_vec()
+        }
+        AccountingFault::ClockRegressed {
+            unit,
+            phase,
+            previous,
+        } => {
+            axis.extend_from_slice(b"clock-regressed\0");
+            axis.extend_from_slice(unit.as_str().as_bytes());
+            axis.push(0);
+            axis.push(match phase {
+                crate::bounds::Phase::BeforeUnit => 0,
+                crate::bounds::Phase::AfterUnit => 1,
+            });
+            axis.extend_from_slice(&previous.as_nanos().to_be_bytes());
+            unit.as_str().as_bytes().to_vec()
+        }
+        AccountingFault::ElapsedTimeOverflow { observed } => {
+            axis.extend_from_slice(b"elapsed-time-overflow\0");
+            axis.extend_from_slice(&observed.as_nanos().to_be_bytes());
+            b"assessment/request/deadline".to_vec()
+        }
+        AccountingFault::SiteDimensionMismatch {
+            site,
+            declared,
+            required,
+        } => {
+            axis.extend_from_slice(b"site-dimension-mismatch\0");
+            axis.extend_from_slice(declared.as_str().as_bytes());
+            axis.push(0);
+            axis.extend_from_slice(required.as_str().as_bytes());
+            site.as_str().as_bytes().to_vec()
+        }
+        AccountingFault::TemporalDimensionChargedStatically { site, dimension } => {
+            axis.extend_from_slice(b"temporal-dimension-charged-statically\0");
+            axis.extend_from_slice(dimension.as_str().as_bytes());
+            site.as_str().as_bytes().to_vec()
+        }
+    };
+    axis.extend_from_slice(&affected);
+    (affected, axis)
 }
 
 /// One non-retargetable assessment request.
@@ -566,7 +726,10 @@ impl<'a> Engine<'a> {
     /// the same graph/compensation kernel that owns the request rather than
     /// accepting a report selected by a caller. The report-taking evaluator is
     /// crate-private and exists only for semantic model tests.
-    #[allow(clippy::too_many_arguments)]
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "the private transition receives each independently owned conformance and dispatch input without a shadow aggregate"
+    )]
     pub fn dispatch_activated(
         &self,
         requests: &[ClaimRequest<'_>],
@@ -579,12 +742,54 @@ impl<'a> Engine<'a> {
         dispatch_limits: DispatchLimits,
         budget: Budget,
     ) -> crate::outcome::OperationOutcome<DispatchReport> {
-        if let Err(error) = validate_dispatch_request(&self.requested, requests) {
-            return crate::outcome::OperationOutcome::Refused(outcome_refusal(error));
-        }
         let inventory = production_inventory()
             .expect("the compile-time Protocol resource inventory must reconcile");
         let mut resources = ResourceAccountant::new(budget, &inventory);
+        match self.dispatch_activated_bounded(
+            requests,
+            facts,
+            axes,
+            completeness,
+            global_conformance,
+            execution,
+            conformance_limits,
+            dispatch_limits,
+            &mut resources,
+        ) {
+            BoundedOutcome::Completed((_, dispatch)) => {
+                crate::outcome::OperationOutcome::Completed(dispatch)
+            }
+            BoundedOutcome::DomainError(refusal) => {
+                crate::outcome::OperationOutcome::Refused(refusal)
+            }
+            BoundedOutcome::ResourceIncomplete(incomplete) => {
+                crate::outcome::OperationOutcome::ResourceIncomplete(incomplete)
+            }
+            BoundedOutcome::AccountingFault(fault) => crate::outcome::OperationOutcome::Refused(
+                accounting_refusal(fault, AccountingStage::ClaimDispatch, resources.usage()),
+            ),
+        }
+    }
+
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "the public orchestration keeps owner inputs typed and separate instead of introducing a caller-built wire-shaped aggregate"
+    )]
+    fn dispatch_activated_bounded(
+        &self,
+        requests: &[ClaimRequest<'_>],
+        facts: &[ActivationFact<'_>],
+        axes: AxisInputs<'_>,
+        completeness: &completeness::View,
+        global_conformance: &GlobalConformanceInput,
+        execution: crate::closure::AssessmentExecution,
+        conformance_limits: ConformanceLimits,
+        dispatch_limits: DispatchLimits,
+        resources: &mut ResourceAccountant<'_>,
+    ) -> BoundedOutcome<(crate::conformance::Report, DispatchReport), ProtocolRefusal> {
+        if let Err(error) = validate_dispatch_request(&self.requested, requests) {
+            return BoundedOutcome::DomainError(outcome_refusal(error));
+        }
         let report = match self.conformance.assess_activated_bounded(
             facts,
             axes,
@@ -592,35 +797,33 @@ impl<'a> Engine<'a> {
             global_conformance,
             execution,
             conformance_limits,
-            &mut resources,
+            resources,
         ) {
             BoundedOutcome::Completed(report) => report,
             BoundedOutcome::DomainError(error) => {
-                return crate::outcome::OperationOutcome::Refused(activated_assessment_refusal(
-                    error,
-                ));
+                return BoundedOutcome::DomainError(activated_assessment_refusal(error));
             }
             BoundedOutcome::ResourceIncomplete(incomplete) => {
-                return crate::outcome::OperationOutcome::ResourceIncomplete(incomplete);
+                return BoundedOutcome::ResourceIncomplete(incomplete);
             }
-            BoundedOutcome::AccountingFault(_) => {
-                return crate::outcome::OperationOutcome::Refused(outcome_refusal(
-                    BundleRefusal::InvalidConformanceKernel,
+            BoundedOutcome::AccountingFault(fault) => {
+                return BoundedOutcome::DomainError(accounting_refusal(
+                    fault,
+                    AccountingStage::Conformance,
+                    resources.usage(),
                 ));
             }
         };
-        match dispatch::dispatch_bounded(requests, &report, dispatch_limits, &mut resources) {
-            BoundedOutcome::Completed(report) => {
-                crate::outcome::OperationOutcome::Completed(report)
-            }
+        match dispatch::dispatch_bounded(requests, &report, dispatch_limits, resources) {
+            BoundedOutcome::Completed(dispatch) => BoundedOutcome::Completed((report, dispatch)),
             BoundedOutcome::DomainError(error) => {
-                crate::outcome::OperationOutcome::Refused(error.envelope().clone())
+                BoundedOutcome::DomainError(error.envelope().clone())
             }
             BoundedOutcome::ResourceIncomplete(incomplete) => {
-                crate::outcome::OperationOutcome::ResourceIncomplete(incomplete)
+                BoundedOutcome::ResourceIncomplete(incomplete)
             }
-            BoundedOutcome::AccountingFault(_) => crate::outcome::OperationOutcome::Refused(
-                outcome_refusal(BundleRefusal::InvalidConformanceKernel),
+            BoundedOutcome::AccountingFault(fault) => BoundedOutcome::DomainError(
+                accounting_refusal(fault, AccountingStage::ClaimDispatch, resources.usage()),
             ),
         }
     }
@@ -1145,7 +1348,7 @@ impl<'a> Engine<'a> {
     /// Retain one independent outcome for every selected claim.
     ///
     /// Generic assembly is internal support for the typed result stage. The
-    /// public path is [`Self::construct_canonical`], which owns production and
+    /// public path is [`Self::assess_activated`], which owns production and
     /// strict reading from the Engine's exact linked assessment.
     pub(crate) fn assemble<Row>(
         self,
@@ -1183,9 +1386,17 @@ impl<'a> Engine<'a> {
         self.assemble(rows)
     }
 
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "the private transition retains each independently owned stage value at the atomic Engine boundary"
+    )]
     fn construct_canonical_bounded(
         self,
         dispatch: &DispatchReport,
+        conformance: &crate::conformance::Report,
+        axes: AxisInputs<'a>,
+        completeness: &'a completeness::View,
+        global_conformance: &GlobalConformanceInput,
         inputs: Vec<Option<CanonicalRowFacts<'a>>>,
         resources: &mut ResourceAccountant<'_>,
     ) -> crate::outcome::OperationOutcome<AssessmentBundle<'a, result::ValidatedResult>> {
@@ -1209,7 +1420,16 @@ impl<'a> Engine<'a> {
                 ) {
                     return crate::outcome::OperationOutcome::Refused(outcome_refusal(error));
                 }
-                match result_input_from_dispatch(disposition, selected) {
+                match result_input_from_dispatch(
+                    disposition,
+                    conformance,
+                    &self.identity,
+                    &self.context,
+                    axes,
+                    completeness,
+                    global_conformance,
+                    selected,
+                ) {
                     Err(refusal) => ClaimOutcome::Refused(refusal.envelope().clone()),
                     Ok((input, limits)) => {
                         match result::produce_bounded(input.clone(), limits, resources) {
@@ -1233,13 +1453,13 @@ impl<'a> Engine<'a> {
                                         incomplete,
                                     );
                                 }
-                                BoundedOutcome::AccountingFault(_) => {
+                                BoundedOutcome::AccountingFault(fault) => {
                                     return crate::outcome::OperationOutcome::Refused(
-                                        dispatch_value_refusal(
-                                            "result read accounting contract is inconsistent",
-                                        )
-                                        .envelope()
-                                        .clone(),
+                                        accounting_refusal(
+                                            fault,
+                                            AccountingStage::ResultRead,
+                                            resources.usage(),
+                                        ),
                                     );
                                 }
                             },
@@ -1251,13 +1471,13 @@ impl<'a> Engine<'a> {
                                     incomplete,
                                 );
                             }
-                            BoundedOutcome::AccountingFault(_) => {
+                            BoundedOutcome::AccountingFault(fault) => {
                                 return crate::outcome::OperationOutcome::Refused(
-                                    dispatch_value_refusal(
-                                        "result assembly accounting contract is inconsistent",
-                                    )
-                                    .envelope()
-                                    .clone(),
+                                    accounting_refusal(
+                                        fault,
+                                        AccountingStage::ResultAssembly,
+                                        resources.usage(),
+                                    ),
                                 );
                             }
                         }
@@ -1285,21 +1505,85 @@ impl<'a> Engine<'a> {
         }
     }
 
-    /// Construct canonical rows through the complete three-member operation
-    /// algebra. Callers provide `Some` facts only for dispositions that reached
-    /// row construction and `None` for claim-local dispatch refusals. The
-    /// Engine derives execution, claim selection, and assumptions from the
-    /// sealed dispatch report before invoking the result owner.
-    pub fn construct_canonical_outcome(
+    /// Run conformance, claim dispatch, canonical result production, and strict
+    /// reading as one non-retargetable assessment operation.
+    ///
+    /// Callers provide `Some` result-owner facts only for dispositions that can
+    /// reach row construction and `None` for claim-local dispatch refusals. The
+    /// Engine derives truth, execution, claim selection, and assumptions and
+    /// reuses the exact progress, closure, completeness, and global-conformance
+    /// values it assessed. One resource accountant spans every stage.
+    ///
+    /// ```compile_fail,E0599
+    /// use quire_protocol::assessment::{CanonicalRowFacts, Engine};
+    /// use quire_protocol::bounds::inventory::Budget;
+    /// use quire_protocol::claims::dispatch::Report;
+    ///
+    /// fn retarget<'a>(
+    ///     engine: Engine<'a>,
+    ///     foreign_report: &Report,
+    ///     facts: Vec<Option<CanonicalRowFacts<'a>>>,
+    /// ) {
+    ///     // Result construction accepts no report produced by another Engine.
+    ///     let _ = engine.construct_canonical_outcome(
+    ///         foreign_report,
+    ///         facts,
+    ///         Budget::nothing_granted(),
+    ///     );
+    /// }
+    /// ```
+    #[allow(clippy::too_many_arguments)]
+    pub fn assess_activated(
         self,
-        dispatch: &DispatchReport,
+        requests: &[ClaimRequest<'_>],
+        facts: &[ActivationFact<'_>],
+        axes: AxisInputs<'a>,
+        completeness: &'a completeness::View,
+        global_conformance: &GlobalConformanceInput,
+        execution: crate::closure::AssessmentExecution,
+        conformance_limits: ConformanceLimits,
+        dispatch_limits: DispatchLimits,
         inputs: Vec<Option<CanonicalRowFacts<'a>>>,
         budget: Budget,
     ) -> crate::outcome::OperationOutcome<AssessmentBundle<'a, result::ValidatedResult>> {
         let inventory = production_inventory()
             .expect("the compile-time Protocol resource inventory must reconcile");
         let mut resources = ResourceAccountant::new(budget, &inventory);
-        self.construct_canonical_bounded(dispatch, inputs, &mut resources)
+        let (conformance, dispatch) = match self.dispatch_activated_bounded(
+            requests,
+            facts,
+            axes,
+            completeness,
+            global_conformance,
+            execution,
+            conformance_limits,
+            dispatch_limits,
+            &mut resources,
+        ) {
+            BoundedOutcome::Completed(value) => value,
+            BoundedOutcome::DomainError(refusal) => {
+                return crate::outcome::OperationOutcome::Refused(refusal);
+            }
+            BoundedOutcome::ResourceIncomplete(incomplete) => {
+                return crate::outcome::OperationOutcome::ResourceIncomplete(incomplete);
+            }
+            BoundedOutcome::AccountingFault(fault) => {
+                return crate::outcome::OperationOutcome::Refused(accounting_refusal(
+                    fault,
+                    AccountingStage::ClaimDispatch,
+                    resources.usage(),
+                ));
+            }
+        };
+        self.construct_canonical_bounded(
+            &dispatch,
+            &conformance,
+            axes,
+            completeness,
+            global_conformance,
+            inputs,
+            &mut resources,
+        )
     }
 }
 
@@ -1492,8 +1776,18 @@ fn observation_position(
         .position(|(_, identity)| identity == observation.payload().observation_identity())
 }
 
+#[allow(
+    clippy::too_many_arguments,
+    reason = "the private transition receives exact owner outputs separately so no caller-built result aggregate can substitute for them"
+)]
 fn result_input_from_dispatch<'a>(
     disposition: &dispatch::Disposition,
+    conformance: &crate::conformance::Report,
+    definition: &DefinitionIdentity,
+    context: &LinkedAssessment<'_>,
+    axes: AxisInputs<'a>,
+    completeness: &'a completeness::View,
+    global_conformance: &GlobalConformanceInput,
     selected: CanonicalRowFacts<'a>,
 ) -> result::Result<(result::Input<'a>, result::Limits)> {
     let strength = match disposition.strength.as_ref() {
@@ -1535,15 +1829,16 @@ fn result_input_from_dispatch<'a>(
             })
         })
         .collect::<result::Result<Vec<_>>>()?;
+    let provenance = provenance_from_dispatch(disposition, definition, context, &selected)?;
     let limits = selected.limits;
     Ok((
         result::Input {
             checked_predicate: selected.checked_predicate,
             temporal_subject: selected.temporal_subject,
-            axes: selected.axes,
-            completeness: selected.completeness,
+            axes,
+            completeness,
             execution: disposition.execution,
-            truth: selected.truth,
+            truth: truth_from_dispatch(disposition, conformance),
             settlement: selected.settlement,
             activation: selected.activation,
             participation: selected.participation,
@@ -1557,13 +1852,62 @@ fn result_input_from_dispatch<'a>(
                 backend_identity: Some(backend_identity),
             },
             decision_support: selected.decision_support,
-            global_conformance: selected.global_conformance,
+            global_conformance: global_conformance.clone(),
             limitations: selected.limitations,
-            provenance: selected.provenance,
+            provenance,
             correction: selected.correction,
         },
         limits,
     ))
+}
+
+fn provenance_from_dispatch(
+    disposition: &dispatch::Disposition,
+    definition: &DefinitionIdentity,
+    context: &LinkedAssessment<'_>,
+    selected: &CanonicalRowFacts<'_>,
+) -> result::Result<result::ProvenanceRecord> {
+    let model_selected = definition.closure().models().iter().any(|model| {
+        context
+            .package()
+            .inherited()
+            .dependencies
+            .get(usize::try_from(model.value().artifact).unwrap_or(usize::MAX))
+            .is_some_and(|dependency| dependency.artifact == *selected.model_artifact)
+    });
+    if !model_selected {
+        return Err(dispatch_value_refusal(
+            "result model provenance is outside the Engine selection closure",
+        ));
+    }
+    let runtime_selected = context.runtime().bindings().iter().any(|binding| {
+        binding
+            .subject_value()
+            .is_some_and(|subject| subject == selected.runtime_input)
+    });
+    if !runtime_selected {
+        return Err(dispatch_value_refusal(
+            "result runtime input is outside the Engine binding set",
+        ));
+    }
+    let input_identity = result::runtime_reference::encode_subject(selected.runtime_input)
+        .map_err(|_| dispatch_value_refusal("result runtime input cannot be represented"))?;
+    Ok(result::ProvenanceRecord {
+        source_identity: definition.source_document().identity.clone(),
+        profile_identity: definition.closure().profile().value().identity.clone(),
+        model_identity: selected.model_artifact.identity.clone(),
+        protocol_identity: format!(
+            "{}:{}",
+            definition.source_document().identity,
+            definition.declaration_handle()
+        ),
+        request_identity: retained_text(disposition.request_identity.as_ref())?,
+        binding_identity: definition.static_binding().identity.to_string(),
+        input_identity,
+        backend_identity: retained_text(disposition.premises.backend.identity.as_ref())?,
+        producer_identity: context.definition().producer().bundle_identity.clone(),
+        reproduction: selected.reproduction.clone(),
+    })
 }
 
 fn retained_text(bytes: &[u8]) -> result::Result<String> {
@@ -1581,6 +1925,31 @@ fn dispatch_value_refusal(detail: &'static str) -> result::Refusal {
         result::Usage::default(),
         None,
     )
+}
+
+const fn truth_from_dispatch(
+    disposition: &dispatch::Disposition,
+    conformance: &crate::conformance::Report,
+) -> result::Truth {
+    use crate::closure::AssessmentExecution;
+    use crate::conformance::GlobalDisposition;
+
+    if !matches!(disposition.execution, AssessmentExecution::Completed) {
+        return result::Truth::Unavailable;
+    }
+    if matches!(disposition.claim, Claim::Conformance) {
+        return match conformance.global {
+            GlobalDisposition::Conforms => result::Truth::Satisfied,
+            GlobalDisposition::Pending => result::Truth::Pending,
+            GlobalDisposition::Violates => result::Truth::Violated,
+            GlobalDisposition::Unavailable => result::Truth::Unavailable,
+        };
+    }
+    match disposition.decision {
+        Some(dispatch::Decision::Established) => result::Truth::Satisfied,
+        Some(dispatch::Decision::NotEstablished) => result::Truth::Violated,
+        None => result::Truth::Unavailable,
+    }
 }
 
 const fn result_claim_kind(claim: Claim) -> ClaimKind {
@@ -1744,17 +2113,23 @@ impl<Row> AssessmentBundle<'_, Row> {
 #[cfg(test)]
 mod tests {
     use super::{
-        claim_from_result_kind, kernel_refusal, outcome_refusal, validate_dispatch_population,
-        validate_input_package, validate_requested, validate_rows, BundleRefusal, ClaimRow,
+        accounting_refusal, claim_from_result_kind, encode_accounting_fault, kernel_refusal,
+        outcome_refusal, validate_dispatch_population, validate_input_package, validate_requested,
+        validate_rows, AccountingStage, BundleRefusal, ClaimRow,
     };
+    use crate::bounds::inventory::{
+        production_inventory, AccountingFault, Budget, BudgetDimension, ResourceAccountant,
+    };
+    use crate::bounds::{Phase, SiteId, UnitLabel};
     use crate::claims::{dispatch::Report as DispatchReport, Claim};
     use crate::conformance::KernelRefusal;
     use crate::outcome::ClaimOutcome;
-    use crate::refusal::{PartialOutput, ProtocolStage, RefusalDomain};
+    use crate::refusal::{AffectedIdentity, PartialOutput, ProtocolStage, RefusalDomain};
     use crate::result::ClaimKind;
     use crate::ByteDigest;
     use ix_trace_rs::trace;
     use std::collections::BTreeSet;
+    use std::time::Duration;
 
     #[test]
     fn assessment_request_requires_one_claim() {
@@ -1911,6 +2286,103 @@ mod tests {
 
     #[test]
     #[trace("TC-011", "FR-008-AC-1", "FR-036-AC-1", "FR-039-AC-1")]
+    fn tc_011_accounting_faults_retain_exact_stage_identity_and_interior() {
+        let site = SiteId::new("assessment/test/accounting");
+        let faults = [
+            AccountingFault::UnregisteredSite { site },
+            AccountingFault::CounterOverflow {
+                site,
+                consumed: 2,
+                requested: 3,
+            },
+            AccountingFault::CounterUnderflow {
+                site,
+                consumed: 5,
+                requested: 7,
+            },
+            AccountingFault::ClockRegressed {
+                unit: UnitLabel::new("assessment-test"),
+                phase: Phase::AfterUnit,
+                previous: Duration::from_nanos(11),
+            },
+            AccountingFault::ElapsedTimeOverflow {
+                observed: Duration::from_nanos(13),
+            },
+            AccountingFault::SiteDimensionMismatch {
+                site,
+                declared: BudgetDimension::InputByte,
+                required: BudgetDimension::OutputByte,
+            },
+            AccountingFault::TemporalDimensionChargedStatically {
+                site,
+                dimension: BudgetDimension::ElapsedTime,
+            },
+        ];
+        let mut interiors = BTreeSet::new();
+        for fault in faults {
+            let (affected, axis) = encode_accounting_fault(fault);
+            assert!(!affected.is_empty());
+            assert!(interiors.insert(axis));
+        }
+
+        let inventory = production_inventory().expect("production inventory reconciles");
+        let usage = ResourceAccountant::new(Budget::nothing_granted(), &inventory).usage();
+        let stages = [
+            (
+                AccountingStage::Conformance,
+                RefusalDomain::Assessment,
+                ProtocolStage::Conformance,
+                ProtocolStage::Representation,
+            ),
+            (
+                AccountingStage::ClaimDispatch,
+                RefusalDomain::Assessment,
+                ProtocolStage::ClaimDispatch,
+                ProtocolStage::Conformance,
+            ),
+            (
+                AccountingStage::ResultAssembly,
+                RefusalDomain::Result,
+                ProtocolStage::ResultAssembly,
+                ProtocolStage::ClaimDispatch,
+            ),
+            (
+                AccountingStage::ResultRead,
+                RefusalDomain::Result,
+                ProtocolStage::ResultRead,
+                ProtocolStage::ResultAssembly,
+            ),
+        ];
+        for (accounting_stage, domain, stage, prerequisite) in stages {
+            let refusal = accounting_refusal(
+                AccountingFault::CounterOverflow {
+                    site,
+                    consumed: 2,
+                    requested: 3,
+                },
+                accounting_stage,
+                usage,
+            );
+            assert_eq!(refusal.domain(), domain);
+            assert_eq!(refusal.stage(), stage);
+            assert_eq!(refusal.prerequisites()[0].stage(), prerequisite);
+            let AffectedIdentity::Retained(identity) = refusal.identity() else {
+                panic!("accounting fault must retain its affected site")
+            };
+            assert_eq!(identity.as_bytes(), site.as_str().as_bytes());
+            assert!(refusal
+                .axis()
+                .as_bytes()
+                .starts_with(b"accounting-fault\0counter-overflow\0"));
+            assert_eq!(
+                refusal.resource_usage().protocol_record().measures().len(),
+                BudgetDimension::ALL.len()
+            );
+        }
+    }
+
+    #[test]
+    #[trace("TC-011", "FR-008-AC-1", "FR-036-AC-1", "FR-039-AC-1")]
     fn tc_011_kernel_refusal_axes_retain_the_exact_activation_failure() {
         let failures = [
             KernelRefusal::ForeignDefinition,
@@ -1992,11 +2464,107 @@ mod tests {
     }
 
     #[test]
-    #[trace("TC-006", "FR-006-AC-1", "FR-006-AC-9", "Task-006")]
+    #[trace("TC-006", "FR-006-AC-1", "FR-006-AC-9")]
     fn dispatch_report_substitution_is_a_compile_time_error() {
         let source = include_str!("claims/dispatch.rs");
         assert!(source.contains("```compile_fail,E0451"));
         assert!(source.contains("let _ = Report { dispositions:"));
+        let assessment = include_str!(concat!("assessment", ".rs"));
+        assert!(assessment.contains("```compile_fail,E0599"));
+        assert!(assessment.contains("engine.construct_canonical_outcome("));
+        let forbidden_public_constructor = ["pub fn construct_", "canonical_outcome("].concat();
+        assert!(!assessment.contains(&forbidden_public_constructor));
+        let result_owner = include_str!("result/record.rs");
+        assert!(result_owner.contains("pub(crate) fn produce("));
+        assert!(result_owner.contains("pub(crate) fn produce_bounded("));
+        assert!(!result_owner.contains("pub fn produce("));
+    }
+
+    #[test]
+    #[trace("TC-011", "FR-008-AC-9")]
+    fn tc_011_refusal_parent_and_children_form_one_complete_decomposition() {
+        let parent = include_str!("../spec/functional/FR-008-return-typed-refusals.md");
+        let children = [
+            (
+                "FR-036",
+                include_str!("../spec/functional/FR-036-carry-complete-refusal-envelope.md"),
+            ),
+            (
+                "FR-037",
+                include_str!("../spec/functional/FR-037-derive-no-refusal-fact-from-text.md"),
+            ),
+            (
+                "FR-038",
+                include_str!("../spec/functional/FR-038-retain-unknown-source-contracts.md"),
+            ),
+            (
+                "FR-039",
+                include_str!("../spec/functional/FR-039-preserve-typed-causes-distinctly.md"),
+            ),
+            (
+                "FR-040",
+                include_str!("../spec/functional/FR-040-emit-no-success-beside-fatal-refusal.md"),
+            ),
+        ];
+
+        let parent_frontmatter = parent
+            .split_once("---\n")
+            .and_then(|(_, remainder)| remainder.split_once("---\n"))
+            .map(|(frontmatter, _)| frontmatter)
+            .expect("FR-008 has YAML frontmatter");
+        let behavior = parent
+            .split_once("## Behavior")
+            .and_then(|(_, remainder)| remainder.split_once("The load-bearing property"))
+            .map(|(behavior, _)| behavior)
+            .expect("FR-008 has its decomposition table");
+        let criteria = parent
+            .split_once("## Acceptance Criteria")
+            .and_then(|(_, remainder)| remainder.split_once("## Owned and adopted vocabulary"))
+            .map(|(criteria, _)| criteria)
+            .expect("FR-008 has acceptance criteria");
+
+        for (child_id, child) in children {
+            let contains =
+                format!("target: ix://agent-ix/quire-protocol/{child_id}\n    type: contains");
+            assert_eq!(parent_frontmatter.matches(&contains).count(), 1);
+
+            let child_frontmatter = child
+                .split_once("---\n")
+                .and_then(|(_, remainder)| remainder.split_once("---\n"))
+                .map(|(frontmatter, _)| frontmatter)
+                .expect("child requirement has YAML frontmatter");
+            assert_eq!(
+                child_frontmatter
+                    .matches("target: ix://agent-ix/quire-protocol/FR-008\n    type: part_of",)
+                    .count(),
+                1
+            );
+            assert_eq!(behavior.matches(&format!("[{child_id}]")).count(), 1);
+
+            for criterion in criteria
+                .split_whitespace()
+                .filter(|word| word.starts_with(child_id) && word.contains("-AC-"))
+            {
+                let criterion = criterion.trim_matches(|character: char| {
+                    !character.is_ascii_alphanumeric() && character != '-'
+                });
+                assert!(
+                    child.contains(&format!("| {criterion} |")),
+                    "{criterion} must be stated by {child_id}"
+                );
+            }
+        }
+
+        for parent_criterion in 1..=8 {
+            let row = criteria
+                .lines()
+                .find(|line| line.starts_with(&format!("| FR-008-AC-{parent_criterion} |")))
+                .expect("each aggregated FR-008 criterion is present");
+            assert!(
+                (36..=40).any(|child| row.contains(&format!("FR-{child:03}-AC-"))),
+                "FR-008-AC-{parent_criterion} must identify its atomic child criterion"
+            );
+        }
     }
 }
 
