@@ -23,16 +23,16 @@ architecture; it does not add or redesign architecture.
 
 ## Subtasks
 
-- [ ] Implement exact (`delivery_root`, `producer_revision`) identity with
+- [x] Implement exact (`delivery_root`, `producer_revision`) identity with
   offer, input, temporal, limit and mutation state excluded from equality.
-- [ ] Retain producer revision, artifact references and every indexed byte
+- [x] Retain producer revision, artifact references and every indexed byte
   sequence without canonicalization, normalization or a synthesized digest.
-- [ ] Enforce the accepted producer binding cardinality, no-repeat and ascending
+- [x] Enforce the accepted producer binding cardinality, no-repeat and ascending
   `declaration` rule without inventing a stronger upstream identity or order.
-- [ ] Return distinct typed outcomes for missing root/index/member, unreadable
+- [x] Return distinct typed outcomes for missing root/index/member, unreadable
   index/member, ambiguous mutation, repeated declaration, unsorted bindings and
   unindexed input role; none is a pass or an empty default.
-- [ ] Key limits by exact accountant owner/contract version and exact typed
+- [x] Key limits by exact accountant owner/contract version and exact typed
   owner dimension, refuse duplicate keys, and retain deterministic non-causal
   ordering without Protocol/compiled-protocol substitution.
 - [ ] Prove with TC-017 that editing or deleting the index
