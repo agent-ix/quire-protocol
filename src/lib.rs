@@ -37,10 +37,14 @@ pub mod conformance;
 pub mod digest;
 /// Protocol identity newtypes. Owner chunk: C-07.
 pub mod ids;
+/// Version-explicit compiled-protocol admission boundaries.
+pub mod intake;
 /// Independently selected inventory and axis discrimination. Owner chunks: C-04, C-05.
 pub mod inventory;
 /// Finite linked-protocol graph and its located diagnostics. Owner chunks: C-12, C-13.
 pub mod link;
+/// Version-explicit full-assessment model capabilities.
+pub mod model;
 /// Closed public operation and claim outcome algebras.
 pub mod outcome;
 /// B-owned typed refusal envelope. Owner chunk: C-01 (submodules: C-02, C-03).
@@ -78,18 +82,5 @@ pub fn admit_and_link(
     expected: &Expected<'_>,
     limits: Limits,
 ) -> Report<AdmittedPackage> {
-    quire_spec_language::protocol_artifact::read(bytes, expected, limits)
-}
-
-/// Reads `bytes` as a `quire.compiled-protocol/2` package, checking it against
-/// the selections in `expected` under `limits`.
-///
-/// Returns the admitted package, or a refusal naming the first check that
-/// failed.
-pub fn admit_and_link_v2(
-    bytes: &[u8],
-    expected: &v2::Expected<'_>,
-    limits: Limits,
-) -> Report<v2::AdmittedPackage> {
-    v2::read(bytes, expected, limits)
+    intake::v1::admit(bytes, expected, limits)
 }

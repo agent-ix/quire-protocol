@@ -31,21 +31,21 @@ admitted selected profile while retaining the frozen root `/1`
   choice-visibility premises and accumulate independent located diagnostics.
 - [x] Prove legal interleavings preserve the admitted graph and exercise the
   original FR-050..FR-054 static mutation sweep.
-- [ ] Pin the accepted Observation PR #21 boundary at `93bc565` and implement one
+- [x] Pin the accepted Observation PR #21 boundary at `93bc565` and implement one
   version-explicit binding subsystem: an accepted static binding definition
   owns role internality and independently selected slot compatibility; a
   separate runtime set imports FR-287 subjects and FR-262 relationships. Refuse
   old, missing, surplus, duplicate, wrong-kind, incompatible and slot-derived
   bindings without defaults or universal producer-kind spellings.
-- [ ] Introduce the version-explicit intake/model modules, migrate normal
+- [x] Introduce the version-explicit intake/model modules, migrate normal
   integration callers from `admit_and_link{,_v2}`, remove the root `/2` facade,
   and prove the frozen root `/1` facade delegates without gaining access to any
   full-assessment external value.
-- [ ] Replace the partial declaration/index identity with a structured FR-288
+- [x] Replace the partial declaration/index identity with a structured FR-288
   definition identity derived from the admitted version-2 package's exact source
   document, declaration handle, formal owner/clause and semantic selection
   closure.
-- [ ] Replace reduced control shapes and numeric fingerprints with complete
+- [x] Replace reduced control shapes and numeric fingerprints with complete
   typed declaration plus accepted static-binding consistency content; refuse
   same-FR-288/different-content through the linker registry while excluding
   concrete runtime values from FR-288.

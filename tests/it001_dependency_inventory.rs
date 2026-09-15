@@ -13,6 +13,9 @@ use ix_trace_rs::trace;
 const MANIFEST: &str = include_str!("../Cargo.toml");
 const LOCKFILE: &str = include_str!("../Cargo.lock");
 const LIBRARY: &str = include_str!("../src/lib.rs");
+const INTAKE_V1: &str = include_str!("../src/intake/v1.rs");
+const INTAKE_V2: &str = include_str!("../src/intake/v2.rs");
+const MODEL_V1: &str = include_str!("../src/model/v1.rs");
 
 /// A's accepted reader, pinned to the exact revision this lane froze.
 const FRONTEND: &str = "quire-spec-language";
@@ -45,9 +48,11 @@ const LIBRARY_MODULES: &[&str] = &[
     "conformance",
     "digest",
     "ids.rs",
+    "intake",
     "inventory",
     "lib.rs",
     "link",
+    "model",
     "outcome.rs",
     "refusal",
     "repro.rs",
@@ -240,11 +245,17 @@ fn it_001_declares_only_selected_owner_dependencies() {
     );
 
     // Development dependencies are harness-only: tracing, the cycle-free
-    // Contract Model types used to construct the native handoff, and JSON
+    // Contract Model types used to construct the native handoff, the exact FCD
+    // static-producer owner that admits shared QObs fixture bytes, and JSON
     // fixtures. None is reachable from the published library.
     assert_eq!(
         declared_packages(manifest_section("[dev-dependencies]")),
-        BTreeSet::from(["ix-trace-rs", "quire-contract-ir", "serde_json"])
+        BTreeSet::from([
+            "agent-ix-baseline-producer",
+            "ix-trace-rs",
+            "quire-contract-ir",
+            "serde_json",
+        ])
     );
 }
 
@@ -307,28 +318,37 @@ fn it_001_library_facade_only_delegates_frontend_admission() {
         .collect::<Vec<_>>();
     assert_eq!(files, frozen);
 
-    // The crate-root facade has two functions, one per admitted frontend
-    // contract, and each whole body is a call into A's reader for that contract.
-    // B's own result/conformance semantics live in their named modules; the
-    // facade adds no parser, decoder, numeric layer or alternate frontend.
+    // The frozen crate-root facade has one `/1` compatibility function. Its
+    // whole body enters the explicit version-1 intake module; the full `/2`
+    // assessment path may not be reintroduced at this root.
     //
     // This counts `lib.rs` alone, and it is an exact count rather than a
-    // ceiling: a third function here would be B doing something to the offered
-    // bytes that neither reader does. The count was 1 until the version 2
-    // delegation landed, which is the increment this assertion was written to
-    // require a reviewer to make deliberately.
+    // ceiling: a second function here would hide a version-selection decision
+    // in the compatibility surface.
     let functions = LIBRARY.match_indices("fn ").count();
     assert_eq!(
-        functions, 2,
-        "the library must expose one delegating function per admitted contract"
+        functions, 1,
+        "the root facade must expose only the frozen version-1 compatibility path"
     );
     assert!(
-        LIBRARY.contains("quire_spec_language::protocol_artifact::read(bytes, expected, limits)"),
-        "the version 1 delegation must be a bare call into A's reader"
+        LIBRARY.contains("intake::v1::admit(bytes, expected, limits)"),
+        "the version-1 facade must delegate directly to its explicit intake module"
     );
     assert!(
-        LIBRARY.contains("v2::read(bytes, expected, limits)"),
-        "the version 2 delegation must be a bare call into A's reader"
+        !LIBRARY.contains("admit_and_link_v2"),
+        "the root facade must not offer a version-2 compatibility alias"
+    );
+    assert!(
+        INTAKE_V1.contains("quire_spec_language::protocol_artifact::read(bytes, expected, limits)"),
+        "the version-1 intake must be a bare call into A's reader"
+    );
+    assert!(
+        INTAKE_V2.contains("v2::read(bytes, expected, limits)"),
+        "the version-2 intake must be a bare call into A's version-2 reader"
+    );
+    assert!(
+        MODEL_V1.contains("crate::link::link(package, declaration)"),
+        "the version-1 model must delegate static linking to the admitted legacy graph"
     );
 
     for line in LIBRARY.lines() {

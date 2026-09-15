@@ -1,16 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Shared strict QObs owner fixtures for protocol integration tests.
 
+use agent_ix_baseline_producer::StaticProducerBundle;
 use quire_observation::authority::{
     self, AuthoritySelection, Context, History, Limits as ObservationLimits, OpenClosed,
     SubjectSelection, TemporalBoundary,
 };
 use quire_observation::{
     admit, AdmissionOutcome, AdmissionRequest, AdmittedRecord, Anchor, ClockRange, Digest,
-    Identity, Member, ObservationBinding, PackageSelection, ProducerSelection,
-    QualifiedObservation, ResourceLimits, ScopeKind, ScopeSelection, Subject, SubjectKind,
-    ValueState, Visibility, NATIVE_LINKED_PACKAGE_FORMAT, PRODUCER_INTERFACE_VERSION,
+    Identity, Member, ObservationBinding, PackageSelection, QualifiedObservation, QualifiedSubject,
+    ResourceLimits, ScopeKind, ScopeSelection, SubjectIdentity, SubjectKind, ValueState,
+    Visibility, NATIVE_LINKED_PACKAGE_FORMAT,
 };
+
+const ORDER_KIND: &str = "ix://agent-ix/commerce/type/Order";
 
 pub struct ScopeViews {
     pub population: authority::population::View,
@@ -30,6 +33,20 @@ fn id(value: impl Into<String>) -> Identity {
 
 fn digest(value: u8) -> Digest {
     Digest::new([value; 32])
+}
+
+fn producer() -> quire_observation::AdmittedStaticBundle {
+    StaticProducerBundle::admit_json(include_bytes!("../fixtures/fcd-static-bundle-1.2.json"))
+        .expect("shared FCD static bundle is admitted")
+}
+
+fn subject(producer: &quire_observation::AdmittedStaticBundle, tag: &str) -> QualifiedSubject {
+    QualifiedSubject::new(
+        producer,
+        SubjectKind::new(ORDER_KIND.as_bytes().to_vec()).expect("non-empty order kind"),
+        SubjectIdentity::new(format!("order:{tag}").into_bytes())
+            .expect("non-empty order identity"),
+    )
 }
 
 pub fn scope_views(tag: &str) -> ScopeViews {
@@ -96,10 +113,8 @@ fn population_view(context: Context<'_>) -> authority::population::View {
 }
 
 fn qualified(tag: &str, valuation_present: bool) -> Box<QualifiedObservation> {
-    let subject = Subject {
-        kind: SubjectKind::Order,
-        identity: id(format!("order:{tag}")),
-    };
+    let producer = producer();
+    let subject = subject(&producer, tag);
     let mut request = AdmissionRequest {
         package: PackageSelection {
             format: NATIVE_LINKED_PACKAGE_FORMAT.to_owned(),
@@ -107,14 +122,7 @@ fn qualified(tag: &str, valuation_present: bool) -> Box<QualifiedObservation> {
             revision: id("1"),
             digest: digest(1),
         },
-        producer: ProducerSelection {
-            interface_version: PRODUCER_INTERFACE_VERSION.to_owned(),
-            document_identity: id(format!("producer:{tag}")),
-            document_digest: digest(2),
-            model_identity: id(format!("model:{tag}")),
-            configuration_identity: id(format!("configuration:{tag}")),
-            configuration_digest: digest(3),
-        },
+        producer,
         binding: ObservationBinding {
             identity: id(format!("binding:{tag}")),
             source_identity: id(format!("source:{tag}")),
@@ -122,7 +130,8 @@ fn qualified(tag: &str, valuation_present: bool) -> Box<QualifiedObservation> {
             signal_identity: id(format!("signal:{tag}")),
             trigger_identity: id(format!("trigger:{tag}")),
             unit: id("unit"),
-            subject_kind: SubjectKind::Order,
+            subject_kind: SubjectKind::new(ORDER_KIND.as_bytes().to_vec())
+                .expect("non-empty order kind"),
             required: valuation_present,
         },
         expected_subject: subject.clone(),
