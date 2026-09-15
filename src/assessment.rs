@@ -77,21 +77,7 @@ impl<'a> Engine<'a> {
         self,
         rows: Vec<ClaimRow<Row>>,
     ) -> Result<AssessmentBundle<'a, Row>, BundleRefusal> {
-        for row in &rows {
-            if !self.requested.contains(&row.claim) {
-                return Err(BundleRefusal::UnexpectedClaim);
-            }
-            if rows.iter().filter(|other| other.claim == row.claim).count() > 1 {
-                return Err(BundleRefusal::DuplicateClaimRow);
-            }
-        }
-        if self
-            .requested
-            .iter()
-            .any(|claim| !rows.iter().any(|row| row.claim == *claim))
-        {
-            return Err(BundleRefusal::MissingClaimRow);
-        }
+        validate_rows(&self.requested, &rows)?;
         Ok(AssessmentBundle {
             context: self.context,
             identity: self.identity,
@@ -108,6 +94,24 @@ fn validate_requested(requested: &[Claim]) -> Result<(), BundleRefusal> {
         if requested[..index].contains(claim) {
             return Err(BundleRefusal::DuplicateRequestedClaim);
         }
+    }
+    Ok(())
+}
+
+fn validate_rows<Row>(requested: &[Claim], rows: &[ClaimRow<Row>]) -> Result<(), BundleRefusal> {
+    for row in rows {
+        if !requested.contains(&row.claim) {
+            return Err(BundleRefusal::UnexpectedClaim);
+        }
+        if rows.iter().filter(|other| other.claim == row.claim).count() > 1 {
+            return Err(BundleRefusal::DuplicateClaimRow);
+        }
+    }
+    if requested
+        .iter()
+        .any(|claim| !rows.iter().any(|row| row.claim == *claim))
+    {
+        return Err(BundleRefusal::MissingClaimRow);
     }
     Ok(())
 }
@@ -140,8 +144,9 @@ impl<Row> AssessmentBundle<'_, Row> {
 
 #[cfg(test)]
 mod tests {
-    use super::{validate_requested, BundleRefusal};
+    use super::{validate_requested, validate_rows, BundleRefusal, ClaimRow};
     use crate::claims::Claim;
+    use crate::outcome::ClaimOutcome;
 
     #[test]
     fn assessment_request_requires_one_claim() {
@@ -160,6 +165,45 @@ mod tests {
     fn assessment_request_keeps_distinct_claims() {
         assert_eq!(
             validate_requested(&[Claim::Conformance, Claim::Monitorability]),
+            Ok(())
+        );
+    }
+
+    fn row(claim: Claim) -> ClaimRow<u8> {
+        ClaimRow {
+            claim,
+            outcome: ClaimOutcome::Canonical(1),
+        }
+    }
+
+    #[test]
+    fn assessment_rows_refuse_unknown_duplicate_and_missing_claims() {
+        let requested = [Claim::Conformance, Claim::Monitorability];
+        assert_eq!(
+            validate_rows(&requested, &[row(Claim::Projection)]),
+            Err(BundleRefusal::UnexpectedClaim)
+        );
+        assert_eq!(
+            validate_rows(
+                &requested,
+                &[row(Claim::Conformance), row(Claim::Conformance)]
+            ),
+            Err(BundleRefusal::DuplicateClaimRow)
+        );
+        assert_eq!(
+            validate_rows(&requested, &[row(Claim::Conformance)]),
+            Err(BundleRefusal::MissingClaimRow)
+        );
+    }
+
+    #[test]
+    fn assessment_rows_keep_one_outcome_per_requested_claim() {
+        let requested = [Claim::Conformance, Claim::Monitorability];
+        assert_eq!(
+            validate_rows(
+                &requested,
+                &[row(Claim::Conformance), row(Claim::Monitorability)]
+            ),
             Ok(())
         );
     }
