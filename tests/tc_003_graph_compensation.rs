@@ -758,6 +758,11 @@ fn tc_003_engine_is_graph_owned_exact_and_transactional() {
         }])
         .expect("the complete graph state remains in the assessment bundle");
     assert_eq!(bundle.compensation().registrations().len(), 2);
+    assert_eq!(
+        bundle.conformance().registrations().len(),
+        2,
+        "assembled conformance retains the exact committed compensation population"
+    );
     assert_eq!(bundle.compensation_state().activations().len(), 2);
     assert_eq!(bundle.compensation_state().activations()[0].view(), &guard);
     assert_eq!(bundle.compensation_state().attempts().len(), 3);
