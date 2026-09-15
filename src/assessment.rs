@@ -451,6 +451,20 @@ impl<'a> Engine<'a> {
         }
         self.assemble_canonical(rows)
     }
+
+    /// Construct canonical rows through the complete three-member operation
+    /// algebra. Whole-assessment cardinality failures cannot retain a bundle;
+    /// individual result-owner failures remain claim-local inside a completed
+    /// bundle.
+    pub fn construct_canonical_outcome(
+        self,
+        inputs: Vec<CanonicalRowInput<'a>>,
+    ) -> crate::outcome::OperationOutcome<AssessmentBundle<'a, result::ValidatedResult>> {
+        match self.construct_canonical(inputs) {
+            Ok(bundle) => crate::outcome::OperationOutcome::Completed(bundle),
+            Err(error) => crate::outcome::OperationOutcome::Refused(outcome_refusal(error)),
+        }
+    }
 }
 
 fn validate_input_claims(
