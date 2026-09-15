@@ -16,8 +16,13 @@ use quire_protocol::model::v2::{
 };
 use quire_protocol::wire::{BindingKind, Body, CausalEdge, ControlOperation, EdgeKind, Port};
 use quire_protocol::{
-    assessment::{BundleRefusal, ClaimRow, Engine},
+    assessment::{
+        AxisInputs, BundleRefusal, ClaimRow, Engine, GlobalConformanceInput, GlobalPremise,
+        PremiseKind,
+    },
     claims::Claim,
+    closure::{AssessmentExecution, GlobalConformanceClosure},
+    conformance::{compare, ActivatedIncremental, Limits as ConformanceLimits},
     outcome::{ClaimOutcome, OperationOutcome},
 };
 use quire_spec_language::protocol_artifact::{
@@ -33,9 +38,53 @@ use quire_spec_language::{temporal, ByteDigest};
 #[path = "support/v2_handoff/mod.rs"]
 mod handoff;
 
+#[path = "support/observation_owner.rs"]
+#[allow(dead_code)]
+mod observation_owner;
+
 const ORDER_KIND: &[u8] = b"ix://agent-ix/commerce/type/Order";
 const SHIPMENT_KIND: &[u8] = b"ix://agent-ix/commerce/type/Shipment";
 const ORDER_SHIPMENT: &str = "ix://agent-ix/commerce/relationship/Order-shipment";
+
+fn closed_global_conformance() -> GlobalConformanceInput {
+    let premises = vec![
+        GlobalPremise {
+            kind: PremiseKind::Execution,
+            identity: "premise:activation:execution".into(),
+            scope_identity: "scope:activation:execution".into(),
+            authority_identity: "authority:activation:execution".into(),
+        },
+        GlobalPremise {
+            kind: PremiseKind::Branch,
+            identity: "premise:activation:branch".into(),
+            scope_identity: "scope:activation:branch".into(),
+            authority_identity: "authority:activation:branch".into(),
+        },
+        GlobalPremise {
+            kind: PremiseKind::Workflow,
+            identity: "premise:activation:workflow".into(),
+            scope_identity: "scope:activation:workflow".into(),
+            authority_identity: "authority:activation:workflow".into(),
+        },
+    ];
+    GlobalConformanceInput {
+        state: GlobalConformanceClosure::Closed,
+        required_premises: premises.clone(),
+        premises,
+    }
+}
+
+fn closed_axes<'a>(
+    decision: &'a observation_owner::ScopeViews,
+    surrounding: &'a observation_owner::ScopeViews,
+) -> AxisInputs<'a> {
+    AxisInputs {
+        decision_scope_progress: &decision.progress_closed,
+        decision_scope_closure: &decision.closure_closed,
+        surrounding_execution_progress: &surrounding.progress_closed,
+        surrounding_execution_closure: &surrounding.closure_closed,
+    }
+}
 
 fn admitted_published_v2() -> quire_spec_language::protocol_artifact::v2::AdmittedPackage {
     let loaded = handoff::Handoff::load().expect("published v2 handoff");
@@ -1409,7 +1458,7 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
         .expect("a mapped activation and QSL occurrence form one derived obligation");
     let derived_model = engine
         .conformance()
-        .derive_model(&[derived_occurrence])
+        .derive_model(&[derived_occurrence.clone()])
         .expect("the production model derives from activation owner facts");
     assert_eq!(derived_model.obligations().len(), 1);
     assert_eq!(
@@ -1424,6 +1473,41 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
         derived_model.obligations()[0].workflow_identity.as_ref(),
         "workflow:one"
     );
+    let decision = observation_owner::scope_views("activation-derived-decision");
+    let surrounding = observation_owner::scope_views("activation-derived-surrounding");
+    let global = closed_global_conformance();
+    let fact = engine
+        .conformance()
+        .activation_fact(derived_occurrence.clone(), None);
+    let batch = engine
+        .conformance()
+        .assess_activated(
+            std::slice::from_ref(&fact),
+            closed_axes(&decision, &surrounding),
+            &decision.completeness_complete,
+            &global,
+            AssessmentExecution::Completed,
+            ConformanceLimits::default(),
+        )
+        .expect("the activation-derived batch frontend has no caller-built model");
+    let mut incremental = ActivatedIncremental::new(
+        engine.conformance(),
+        std::slice::from_ref(&derived_occurrence),
+    )
+    .expect("the activation-derived incremental frontend uses the same derived model");
+    let incremental = incremental
+        .finish(
+            closed_axes(&decision, &surrounding),
+            &decision.completeness_complete,
+            &global,
+            AssessmentExecution::Completed,
+            ConformanceLimits::default(),
+        )
+        .expect(
+            "the activation-derived incremental frontend finishes without a caller-built model",
+        );
+    compare(&batch, incremental)
+        .expect("activation-derived batch and incremental reports agree exactly");
     let other = occurrence_schema
         .nodes()
         .iter()
