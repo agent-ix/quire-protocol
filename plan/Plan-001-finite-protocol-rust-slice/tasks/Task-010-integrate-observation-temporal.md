@@ -19,6 +19,8 @@ relationships:
 Exercise accepted QObs decision-scope and surrounding-execution authority facts,
 the Protocol-owned complete-global-conformance closure record, and accepted QSL
 native-temporal results through compensation, conformance and canonical results.
+The integration also consumes QSL FR-053's versioned opaque-trigger v2 bridge
+before it derives any event-triggered FR-300 obligation binding.
 
 ## Subtasks
 
@@ -28,7 +30,8 @@ native-temporal results through compensation, conformance and canonical results.
   `closure-assertion/v1`, `completeness-assertion/v1` and
   `result-availability/v1` owner contracts; resolve QSL
   `quire.native-temporal-request/v1` and `quire.native-temporal-result/v1` at the
-  accepted compiler pin.
+  accepted compiler pin, then adopt the FR-053 opaque-trigger v2 contracts when
+  their producer implementation is available.
 - [ ] Implement IT-002 SC-01 through SC-04 as Rust integration tests.
 - [ ] Preserve producer identities and authorities without deriving missing facts or copying producer semantics.
 - [ ] Exercise decisive and non-decisive open prefixes, missing support,

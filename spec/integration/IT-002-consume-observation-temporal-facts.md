@@ -32,7 +32,9 @@ QObs publishes the accepted typed Rust runtime facts and topology at revision
 `93bc565`. Protocol's current direct pin is older and must be repinned before
 these scenarios execute. QSL publishes the native-temporal request/result and
 checked activation-guard selection at Protocol's current exact revision
-`f1700a9264d6d3bcdd07e0f77b70f3dae9ed4c07`. Protocol invokes no temporal
+`f1700a9264d6d3bcdd07e0f77b70f3dae9ed4c07`. QSL `844c35f` specifies the
+follow-on native-temporal v2 opaque-trigger interface required before FR-300
+bindings can execute. Protocol invokes no temporal
 evaluator and does not consume a QCI join result; QCI consumes Protocol's result
 map downstream.
 
@@ -167,14 +169,16 @@ producer revision, and a scenario whose evidence is incomplete claims nothing.
 ## Dependencies
 
 QSL compiled-protocol `/2` and native-temporal request/result at `f1700a9`, plus
+the QSL FR-053 opaque-trigger v2 interface specified at `844c35f`, plus
 QObs runtime facts/topology at `93bc565`. Protocol owns global closure and result
 assembly. QCI issue 71 is a downstream consumer and is not a prerequisite.
 
 ## Notes
 
-The owner contracts are delivered. The remaining enablement is the Protocol
-QObs repin and the typed composition path from linked graph through assessment
-to canonical result. This integration remains planned until Task-010 closes.
+The owner contracts are delivered except QSL FR-053's implementation. The
+remaining enablement is that opaque-trigger v2 interface, the Protocol QObs
+repin and the typed composition path from linked graph through assessment to
+canonical result. This integration remains planned until Task-010 closes.
 
 ## Traceability
 

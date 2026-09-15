@@ -112,6 +112,9 @@ pre-report lifecycle state.
 QSpec main `316743b` adds FR-300 and closes the event-triggered bridge: an
 activation binding is the exact source for a dynamic FR-230 instance. This
 library consumes that owner value and does not define a parallel QObs/QSL join.
+QSL `844c35f` adds FR-053: the native-temporal v2 producer retains the semantic
+trigger as opaque bytes, so this consumer can compare it to QObs's qualified
+subject without a string conversion or a caller-authored instance label.
 
 ## Dependencies
 
