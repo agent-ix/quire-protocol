@@ -158,7 +158,10 @@ bundle_code!(
 );
 bundle_code!(BUNDLE_DUPLICATE_ROW, "assessment.bundle-duplicate-row");
 bundle_code!(BUNDLE_MISSING_ROW, "assessment.bundle-missing-row");
-bundle_code!(BUNDLE_DISPATCH_REFUSAL, "assessment.bundle-dispatch-refusal");
+bundle_code!(
+    BUNDLE_DISPATCH_REFUSAL,
+    "assessment.bundle-dispatch-refusal"
+);
 bundle_code!(
     BUNDLE_INVALID_IDENTITY,
     "assessment.bundle-invalid-identity"
