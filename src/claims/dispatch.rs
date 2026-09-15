@@ -95,6 +95,14 @@ const fn min(left: usize, right: usize) -> usize {
     }
 }
 
+/// The only reviewed local capability admitted by this dispatch slice.
+///
+/// Other claim kinds retain their selected backend bytes but return explicit
+/// `Unsupported`: a caller cannot name an alternate backend and thereby turn
+/// an advanced claim into a supported one.
+const CONFORMANCE_BACKEND_ID: &[u8] = b"qprotocol:conformance";
+const CONFORMANCE_BACKEND_VERSION: &[u8] = b"v1";
+
 impl Default for Limits {
     fn default() -> Self {
         OWNER_MAX
@@ -474,6 +482,16 @@ fn request_defects(request: &ClaimRequest<'_>) -> Vec<PremiseDefect> {
             axis: premises::PremiseAxis::AdmittedFragment,
             kind: premises::PremiseDefectKind::Empty,
             identity: (!request.identity.is_empty()).then(|| request.identity.clone()),
+        });
+    }
+    if request.claim == Claim::Conformance
+        && (request.premises.backend.identity.as_ref() != CONFORMANCE_BACKEND_ID
+            || request.premises.backend.version.as_ref() != CONFORMANCE_BACKEND_VERSION)
+    {
+        defects.push(PremiseDefect {
+            axis: premises::PremiseAxis::Backend,
+            kind: premises::PremiseDefectKind::CorrespondenceMismatch,
+            identity: Some(request.premises.backend.identity.clone()),
         });
     }
     defects
