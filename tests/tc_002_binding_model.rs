@@ -1519,7 +1519,7 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
         )
         .expect("the activation-derived path finishes with the admitted QObs fact")
         .clone();
-    compare(&batch, incremental)
+    compare(&batch, &incremental)
         .expect("activation-derived batch and incremental reports agree exactly");
     assert_eq!(
         pushed, incremental,
