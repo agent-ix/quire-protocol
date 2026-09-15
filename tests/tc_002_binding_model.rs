@@ -668,6 +668,14 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
         linked.compensations()[1].identity(),
         "declaration-local compensation handles remain distinct within one definition"
     );
+    let Body::Protocol { channels, .. } = &linked.declaration().body else {
+        unreachable!("the linked declaration was checked as a protocol");
+    };
+    assert_eq!(
+        linked.channels()[0].definition(),
+        &channels[0],
+        "the linked channel retains every owner-declared channel premise"
+    );
     let Body::Protocol { causal_edges, .. } = &linked.declaration().body else {
         unreachable!("the linked declaration was checked as a protocol");
     };

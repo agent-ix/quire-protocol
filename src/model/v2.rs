@@ -1321,6 +1321,7 @@ impl FifoDefinition {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct LinkedChannelDefinition {
     handle: ChannelHandle,
+    definition: quire_spec_language::protocol_artifact::wire::Channel,
     fifo: Option<FifoDefinition>,
 }
 
@@ -1329,6 +1330,16 @@ impl LinkedChannelDefinition {
     pub const fn handle(&self) -> ChannelHandle {
         self.handle
     }
+
+    /// Returns the complete admitted channel definition, including every
+    /// owner-declared endpoint, message, send, receive, delivery, and ordering
+    /// premise. The linked graph never reconstructs these coordinates from the
+    /// channel handle or a FIFO partition.
+    #[must_use]
+    pub const fn definition(&self) -> &quire_spec_language::protocol_artifact::wire::Channel {
+        &self.definition
+    }
+
     #[must_use]
     pub const fn fifo(&self) -> Option<&FifoDefinition> {
         self.fifo.as_ref()
@@ -1510,7 +1521,11 @@ fn build_channels(
                     anchor,
                 } => Some(build_fifo(package, binder, key, anchor, handle)?),
             };
-            Ok(LinkedChannelDefinition { handle, fifo })
+            Ok(LinkedChannelDefinition {
+                handle,
+                definition: channel.clone(),
+                fifo,
+            })
         })
         .collect()
 }
