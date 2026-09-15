@@ -8,6 +8,7 @@ use crate::conformance::batch::{
     assess as assess_batch, BoundObservation, Limits as ConformanceLimits, Model, ObligationId,
     ObservationObligation, Report, Request,
 };
+use crate::conformance::incremental::Incremental;
 use crate::model::v2::{
     CompensationAttemptInput, CompensationEffectInput, DefinitionIdentity,
     LinkedCompensationDefinition, LinkedProtocol,
@@ -56,6 +57,8 @@ pub enum Refusal {
     DuplicateActivatedObligation,
     /// The graph-derived activation population cannot form a finite model.
     InvalidDerivedModel,
+    /// An incremental fact was not selected in this kernel's activation population.
+    UnexpectedActivatedOccurrence,
 }
 
 /// Constructor-private FR-300 join of QSL, linked-graph, and QObs facts.
@@ -238,6 +241,88 @@ impl core::fmt::Display for ActivatedAssessmentError {
 }
 
 impl std::error::Error for ActivatedAssessmentError {}
+
+/// Settled incremental conformance over one fixed activation-derived model.
+///
+/// The complete activation population is fixed before the first prefix, while
+/// QObs facts arrive one at a time. This preserves the existing earliest-prefix
+/// settlement behavior without reopening the caller-built `Model` boundary.
+#[derive(Clone, Debug)]
+pub struct ActivatedIncremental<'a> {
+    model: Model,
+    inner: Incremental<'a>,
+}
+
+impl<'a> ActivatedIncremental<'a> {
+    /// Starts a settled incremental path over the complete admitted activation
+    /// population.
+    pub fn new(kernel: &Kernel, activations: &[ActivatedOccurrence<'a>]) -> Result<Self, Refusal> {
+        let model = kernel.derive_model(activations)?;
+        Ok(Self {
+            inner: Incremental::new(model.clone()),
+            model,
+        })
+    }
+
+    /// Assesses one admitted activation-bound fact as the next prefix member.
+    pub fn push(
+        &mut self,
+        fact: &ActivationFact<'a>,
+        axes: AxisInputs<'a>,
+        completeness: &'a completeness::View,
+        global_conformance: &'a GlobalConformanceInput,
+        execution: AssessmentExecution,
+        limits: ConformanceLimits,
+    ) -> std::result::Result<&Report, ActivatedAssessmentError> {
+        let observation = fact.observation.ok_or(ActivatedAssessmentError::Kernel(
+            Refusal::UnexpectedActivatedOccurrence,
+        ))?;
+        let identity = derived_obligation_id(&fact.occurrence);
+        let obligation = self
+            .model
+            .obligations()
+            .iter()
+            .find(|candidate| candidate.identity == identity)
+            .ok_or(ActivatedAssessmentError::Kernel(
+                Refusal::UnexpectedActivatedOccurrence,
+            ))?;
+        self.inner
+            .push(
+                BoundObservation {
+                    obligation: obligation.identity.clone(),
+                    observation,
+                    workflow_identity: fact.occurrence.occurrence.workflow().as_str().into(),
+                    effect_identity: obligation.effect_identity.clone(),
+                },
+                axes,
+                completeness,
+                global_conformance,
+                execution,
+                limits,
+            )
+            .map_err(ActivatedAssessmentError::Conformance)
+    }
+
+    /// Finishes the retained prefix under final owner-provided axes.
+    pub fn finish(
+        &mut self,
+        axes: AxisInputs<'a>,
+        completeness: &'a completeness::View,
+        global_conformance: &'a GlobalConformanceInput,
+        execution: AssessmentExecution,
+        limits: ConformanceLimits,
+    ) -> std::result::Result<&Report, ActivatedAssessmentError> {
+        self.inner
+            .finish(axes, completeness, global_conformance, execution, limits)
+            .map_err(ActivatedAssessmentError::Conformance)
+    }
+
+    /// Returns the latest settled report, if any prefix has been assessed.
+    #[must_use]
+    pub const fn report(&self) -> Option<&Report> {
+        self.inner.report()
+    }
+}
 
 impl<'a> ActivationRegistry<'a> {
     /// Validates and retains one exact activation, idempotently on replay.
