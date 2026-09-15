@@ -45,7 +45,7 @@ outputs; and complete the refusal envelope shared by every refusing operation.
   premise while holding an independently settled per-obligation truth fixed.
 - [ ] Use the single RFC 8785 implementation only for owner-selected JCS
   domains; retain componentwise keys and exact producer bytes in their own domains.
-- [ ] Implement and mutation-test the exact reversible
+- [x] Implement and mutation-test the exact reversible
   `quire.protocol.runtime-reference/1` carrier for opaque runtime identities in
   string-only result fields.
 - [ ] Make refusal identity independent of rendering while preserving the exact diagnostic catalog, stable domain/source code, originating stage/prerequisites, explicit location availability, paired causes, simultaneous dispositions, and cause order.

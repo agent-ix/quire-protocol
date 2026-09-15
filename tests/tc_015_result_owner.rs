@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! TC-006/TC-015: complete canonical result owner and Contract-IR mapping.
 
+use agent_ix_baseline_producer::StaticProducerBundle;
 use ix_trace_rs::trace;
 use quire_observation::authority::{
     self, AuthoritySelection, Context, History, Limits as ObservationLimits, OpenClosed,
@@ -8,9 +9,9 @@ use quire_observation::authority::{
 };
 use quire_observation::{
     admit, AdmissionOutcome, AdmissionRequest, AdmittedRecord, Anchor, ClockRange, Digest,
-    Identity, Member, ObservationBinding, PackageSelection, ProducerSelection,
-    QualifiedObservation, ResourceLimits, ScopeKind, ScopeSelection, Subject, SubjectKind,
-    ValueState, Visibility, NATIVE_LINKED_PACKAGE_FORMAT, PRODUCER_INTERFACE_VERSION,
+    Identity, Member, ObservationBinding, PackageSelection, QualifiedObservation, QualifiedSubject,
+    ResourceLimits, ScopeKind, ScopeSelection, SubjectIdentity, SubjectKind, ValueState,
+    Visibility, NATIVE_LINKED_PACKAGE_FORMAT,
 };
 use quire_protocol::bounds::inventory::{
     production_inventory, Budget, BudgetDimension, OperationOutcome, ResourceAccountant,
@@ -19,10 +20,10 @@ use quire_protocol::closure::{AssessmentExecution, GlobalConformanceClosure, Sco
 use quire_protocol::refusal::ProtocolStage;
 use quire_protocol::repro::{CorpusIdentity, ReproductionInputs, Seed, ToolchainIdentity};
 use quire_protocol::result::{
-    self, contract_ir, Activation, Adequacy, Assumption, AssumptionState, AxisInputs, Claim,
-    ClaimKind, ClaimStrength, CorrectionInput, CorrectionRelation, DecisionSupport,
-    DependenceRelation, ErrorCode, GlobalConformanceInput, GlobalPremise, Input, Limitation,
-    Limits, Participation, PremiseKind, ProtocolAdequacy, ProvenanceRecord, Settlement,
+    self, contract_ir, runtime_reference, Activation, Adequacy, Assumption, AssumptionState,
+    AxisInputs, Claim, ClaimKind, ClaimStrength, CorrectionInput, CorrectionRelation,
+    DecisionSupport, DependenceRelation, ErrorCode, GlobalConformanceInput, GlobalPremise, Input,
+    Limitation, Limits, Participation, PremiseKind, ProtocolAdequacy, ProvenanceRecord, Settlement,
     SettlementBasis, SupportRef, Truth,
 };
 use quire_protocol::{v2, wire as w, ByteDigest};
@@ -32,6 +33,8 @@ use serde_json::Value;
 #[path = "support/v2_handoff/mod.rs"]
 #[allow(dead_code, unused_imports)]
 mod handoff;
+
+const ORDER_KIND: &str = "ix://agent-ix/commerce/type/Order";
 
 struct Fixture {
     predicate: checked_predicate::ValidatedCheckedPredicate,
@@ -57,12 +60,69 @@ fn digest(value: u8) -> Digest {
     Digest::new([value; 32])
 }
 
+fn producer() -> quire_observation::AdmittedStaticBundle {
+    StaticProducerBundle::admit_json(include_bytes!("fixtures/fcd-static-bundle-1.2.json"))
+        .expect("shared FCD static bundle is admitted")
+}
+
+fn runtime_subject(
+    producer: &quire_observation::AdmittedStaticBundle,
+    tag: &str,
+) -> QualifiedSubject {
+    runtime_subject_bytes(
+        producer,
+        ORDER_KIND.as_bytes().to_vec(),
+        format!("order:{tag}").into_bytes(),
+    )
+}
+
+fn runtime_subject_bytes(
+    producer: &quire_observation::AdmittedStaticBundle,
+    kind: Vec<u8>,
+    identity: Vec<u8>,
+) -> QualifiedSubject {
+    QualifiedSubject::new(
+        producer,
+        SubjectKind::new(kind).expect("non-empty subject kind"),
+        SubjectIdentity::new(identity).expect("non-empty subject identity"),
+    )
+}
+
+fn carrier_payload(encoded: &str) -> Vec<u8> {
+    let payload = encoded
+        .strip_prefix(runtime_reference::PREFIX)
+        .expect("selected runtime-reference prefix");
+    let (pairs, remainder) = payload.as_bytes().as_chunks::<2>();
+    assert!(
+        remainder.is_empty(),
+        "carrier payload has complete hex pairs"
+    );
+    pairs
+        .iter()
+        .map(|pair| {
+            let text = core::str::from_utf8(pair).expect("hex pair is UTF-8");
+            u8::from_str_radix(text, 16).expect("lowercase hex pair")
+        })
+        .collect()
+}
+
+fn carrier(bytes: &[u8]) -> String {
+    format!(
+        "{}{}",
+        runtime_reference::PREFIX,
+        bytes
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>()
+    )
+}
+
 fn fixture() -> Fixture {
     let loaded = handoff::Handoff::load().expect("published v2 handoff");
     let declarations = loaded.declarations();
     let inventories = loaded.inventories(&declarations);
     let expected = loaded.expected(&inventories);
-    let admitted = quire_protocol::admit_and_link_v2(loaded.offer(), &expected, loaded.limits())
+    let admitted = quire_protocol::intake::v2::admit(loaded.offer(), &expected, loaded.limits())
         .into_result()
         .expect("strict v2 package");
     let (predicate_declaration, predicate_root) = checked_leaf(&admitted);
@@ -197,10 +257,8 @@ fn scope_views(tag: &str) -> ScopeViews {
 }
 
 fn qualified(tag: &str) -> Box<QualifiedObservation> {
-    let subject = Subject {
-        kind: SubjectKind::Order,
-        identity: id(format!("order:{tag}")),
-    };
+    let producer = producer();
+    let subject = runtime_subject(&producer, tag);
     let mut request = AdmissionRequest {
         package: PackageSelection {
             format: NATIVE_LINKED_PACKAGE_FORMAT.to_owned(),
@@ -208,14 +266,7 @@ fn qualified(tag: &str) -> Box<QualifiedObservation> {
             revision: id("1"),
             digest: digest(1),
         },
-        producer: ProducerSelection {
-            interface_version: PRODUCER_INTERFACE_VERSION.to_owned(),
-            document_identity: id(format!("producer:{tag}")),
-            document_digest: digest(2),
-            model_identity: id(format!("model:{tag}")),
-            configuration_identity: id(format!("configuration:{tag}")),
-            configuration_digest: digest(3),
-        },
+        producer,
         binding: ObservationBinding {
             identity: id(format!("binding:{tag}")),
             source_identity: id(format!("source:{tag}")),
@@ -223,7 +274,8 @@ fn qualified(tag: &str) -> Box<QualifiedObservation> {
             signal_identity: id(format!("signal:{tag}")),
             trigger_identity: id(format!("trigger:{tag}")),
             unit: id("unit"),
-            subject_kind: SubjectKind::Order,
+            subject_kind: SubjectKind::new(ORDER_KIND.as_bytes().to_vec())
+                .expect("non-empty order kind"),
             required: true,
         },
         expected_subject: subject.clone(),
@@ -2066,4 +2118,76 @@ fn tc_015_schema_bytes_and_digests_are_immutable_and_closed() {
         let value: Value = serde_json::from_slice(schema).expect("schema JSON");
         assert_eq!(value["additionalProperties"], Value::Bool(false));
     }
+}
+
+/// The string-only canonical-result carrier retains QObs runtime-reference
+/// bytes exactly and rejects every non-reversible presentation.
+#[test]
+#[trace("TC-006", "FR-031-AC-7")]
+fn tc_006_runtime_reference_carrier_is_reversible_and_strict() {
+    let producer = producer();
+    let subject = runtime_subject_bytes(
+        &producer,
+        vec![0xff, 0x00, 0x80],
+        vec![0x00, 0xfe, 0x80, 0xff],
+    );
+    let encoded = runtime_reference::encode_subject(&subject).expect("encode runtime subject");
+    runtime_reference::validate_subject(&encoded, &subject).expect("exact round trip");
+
+    assert_eq!(
+        runtime_reference::validate_subject("wrong:00", &subject),
+        Err(runtime_reference::Error::Prefix)
+    );
+    assert_eq!(
+        runtime_reference::validate_subject("quire-runtime-v1:0", &subject),
+        Err(runtime_reference::Error::Hex)
+    );
+    assert_eq!(
+        runtime_reference::validate_subject("quire-runtime-v1:GG", &subject),
+        Err(runtime_reference::Error::Hex)
+    );
+    let uppercase = format!(
+        "{}A{}",
+        runtime_reference::PREFIX,
+        &encoded[runtime_reference::PREFIX.len() + 1..]
+    );
+    assert_eq!(
+        runtime_reference::validate_subject(&uppercase, &subject),
+        Err(runtime_reference::Error::Hex)
+    );
+
+    let value: Value = serde_json::from_slice(&carrier_payload(&encoded)).expect("carrier JSON");
+    let pretty = serde_json::to_vec_pretty(&value).expect("pretty JSON");
+    assert_eq!(
+        runtime_reference::validate_subject(&carrier(&pretty), &subject),
+        Err(runtime_reference::Error::NonCanonical)
+    );
+    let mut missing = value;
+    missing
+        .as_object_mut()
+        .expect("carrier object")
+        .remove("authority");
+    let missing = serde_json::to_vec(&missing).expect("missing-field JSON");
+    assert_eq!(
+        runtime_reference::validate_subject(&carrier(&missing), &subject),
+        Err(runtime_reference::Error::Shape)
+    );
+
+    let mut malformed_kind =
+        serde_json::from_slice::<Value>(&carrier_payload(&encoded)).expect("carrier JSON");
+    malformed_kind
+        .as_object_mut()
+        .expect("carrier object")
+        .insert("kindHex".into(), Value::String("ff0g80".into()));
+    let malformed_kind = serde_json::to_vec(&malformed_kind).expect("malformed-field JSON");
+    assert_eq!(
+        runtime_reference::validate_subject(&carrier(&malformed_kind), &subject),
+        Err(runtime_reference::Error::Hex)
+    );
+
+    let distinct = runtime_subject(&producer, "runtime:other");
+    assert_eq!(
+        runtime_reference::validate_subject(&encoded, &distinct),
+        Err(runtime_reference::Error::Mismatch)
+    );
 }
