@@ -4,6 +4,7 @@
 #![deny(clippy::wildcard_enum_match_arm)]
 
 use crate::closure::AssessmentExecution;
+use crate::conformance::{GlobalDisposition, Report as ConformanceReport};
 use crate::refusal::catalog::{CatalogSelection, CodeEntry, CodeModule, Provenance, RefusalCode};
 use crate::refusal::{
     AffectedIdentity, ProtocolRefusal, ProtocolStage, RefusalAxis, RefusalDomain, RetryDecision,
@@ -32,16 +33,10 @@ pub(crate) const DERIVED_SOURCE: SourceSite = SourceSite::new(
     SiteKind::Retention,
 );
 pub(crate) const OPERATION_SOURCE: SourceSite = SourceSite::new(
-    SiteId::new("claims/backend/invoke"),
-    "claims::dispatch::dispatch",
+    SiteId::new("claims/conformance/dispatch"),
+    "claims::dispatch::dispatch_from_conformance",
     BudgetDimension::Operation,
     SiteKind::Iteration,
-);
-pub(crate) const BACKEND_SOURCE: SourceSite = SourceSite::new(
-    SiteId::new("claims/backend/select"),
-    "claims::dispatch::dispatch",
-    BudgetDimension::Definition,
-    SiteKind::Traversal,
 );
 pub(crate) const COMPONENT_SOURCE: SourceSite = SourceSite::new(
     SiteId::new("claims/premise/component/visit"),
@@ -59,7 +54,6 @@ pub(crate) const ALLOCATION_SOURCE: SourceSite = SourceSite::new(
 /// Immutable dispatch owner maxima.
 pub const OWNER_MAX: Limits = Limits {
     max_requests: 64,
-    max_backends: 64,
     max_components: 100_000,
     max_bytes: 8 * 1024 * 1024,
 };
@@ -69,8 +63,6 @@ pub const OWNER_MAX: Limits = Limits {
 pub struct Limits {
     /// Maximum requested claims.
     pub max_requests: usize,
-    /// Maximum backend implementations inspected.
-    pub max_backends: usize,
     /// Maximum retained components, assumptions, and dependency edges.
     pub max_components: usize,
     /// Maximum exact premise bytes retained across the request.
@@ -89,7 +81,6 @@ impl Limits {
     pub const fn effective(self) -> Self {
         Self {
             max_requests: min(self.max_requests, OWNER_MAX.max_requests),
-            max_backends: min(self.max_backends, OWNER_MAX.max_backends),
             max_components: min(self.max_components, OWNER_MAX.max_components),
             max_bytes: min(self.max_bytes, OWNER_MAX.max_bytes),
         }
@@ -115,14 +106,10 @@ impl Default for Limits {
 pub struct Usage {
     /// Requested claims visited.
     pub requests: usize,
-    /// Backend implementations inspected.
-    pub backends: usize,
     /// Exact premise components and dependency edges visited.
     pub components: usize,
     /// Exact retained premise bytes visited.
     pub bytes: usize,
-    /// Backend invocations completed.
-    pub backend_calls: usize,
 }
 
 /// One exact claim request.
@@ -152,7 +139,7 @@ impl core::fmt::Debug for ClaimRequest<'_> {
     }
 }
 
-/// Backend's completed semantic answer for one exact claim.
+/// Closed dispatcher semantic answer for one exact claim.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum Decision {
     /// This exact claim was established.
@@ -161,53 +148,13 @@ pub enum Decision {
     NotEstablished,
 }
 
-/// Backend execution result. Capability selection happens before this call.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-pub enum BackendExecution {
-    /// Backend completed with an exact claim answer.
-    Completed(Decision),
-    /// Backend refused this exact request.
-    Refused,
-    /// A declared backend budget was exhausted.
-    ResourceIncomplete,
-    /// Selected backend failed; the dispatcher does not try another.
-    Failed,
-}
-
-/// Backend answer plus the exact premise evidence it claims to have used.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct BackendReply {
-    /// Exact execution outcome.
-    pub execution: BackendExecution,
-    /// Exact backend-retained evidence, checked against the request.
-    pub evidence: PremiseSet,
-}
-
-/// Analysis backend seam. Dispatch calls at most one exact selected backend.
-pub trait Backend {
-    /// Exact backend identity and version offered by this implementation.
-    fn selection(&self) -> &premises::BackendSelection;
-
-    /// Whether this exact backend implements this exact claim and strength.
-    fn supports(&self, claim: Claim, strength: &[u8]) -> bool;
-
-    /// Execute one exact supported request.
-    fn assess(&mut self, claim: Claim, strength: &[u8], premises: &PremiseSet) -> BackendReply;
-}
-
 /// Claim-local refusal axis.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum FailureCode {
     /// Request identity, strength, or exact premises are invalid.
     InvalidPremises,
-    /// Backend identity exists but the selected version does not.
-    BackendMismatch,
-    /// More than one backend claims the exact selection.
-    BackendAmbiguous,
     /// The same exact request identity was offered more than once.
     DuplicateRequest,
-    /// Backend returned evidence other than the exact selected premises.
-    EvidenceMismatch,
 }
 
 impl FailureCode {
@@ -220,10 +167,7 @@ impl FailureCode {
     const fn entry(self) -> &'static CodeEntry {
         match self {
             Self::InvalidPremises => &INVALID_PREMISES,
-            Self::BackendMismatch => &BACKEND_MISMATCH,
-            Self::BackendAmbiguous => &BACKEND_AMBIGUOUS,
             Self::DuplicateRequest => &DUPLICATE_REQUEST,
-            Self::EvidenceMismatch => &EVIDENCE_MISMATCH,
         }
     }
 }
@@ -369,28 +313,34 @@ impl std::error::Error for Refusal {}
 /// Dispatch return type.
 pub type Result<T> = std::result::Result<T, Refusal>;
 
-/// Dispatch every exact request independently and invoke no fallback backend.
-pub fn dispatch(
+/// Dispatch the closed locally supported claim set from an authoritative
+/// conformance report.
+///
+/// This production path deliberately exposes no backend callback: finite
+/// conformance is answered only from the report produced by QProtocol's own
+/// conformance owner, while every other claim remains explicitly unsupported.
+/// The legacy backend seam remains only while its migration tests are being
+/// replaced; callers of this entry point cannot substitute an implementation.
+pub fn dispatch_from_conformance(
     requests: &[ClaimRequest<'_>],
-    backends: &mut [&mut dyn Backend],
+    conformance: &ConformanceReport,
     limits: Limits,
 ) -> Result<Report> {
     let effective = limits.effective();
-    let mut usage = preflight(requests, backends.len());
+    let usage = preflight(requests);
     if usage.requests > effective.max_requests
-        || usage.backends > effective.max_backends
         || usage.components > effective.max_components
         || usage.bytes > effective.max_bytes
     {
         return Err(resource_refusal(usage));
     }
+    let retains_independent = requests.len() > 1;
     let mut request_identities = std::collections::BTreeMap::new();
     for request in requests {
         *request_identities
             .entry(request.identity.as_ref())
             .or_insert(0usize) += 1;
     }
-    let retains_independent = requests.len() > 1;
     let mut dispositions = Vec::with_capacity(requests.len());
     for request in requests {
         if request_identities
@@ -415,75 +365,30 @@ pub fn dispatch(
             ));
             continue;
         }
-        let exact: Vec<_> = backends
-            .iter_mut()
-            .enumerate()
-            .filter_map(|(index, backend)| {
-                (backend.selection() == &request.premises.backend).then_some(index)
-            })
-            .collect();
-        if exact.len() > 1 {
-            dispositions.push(refused(
-                request,
-                FailureCode::BackendAmbiguous,
-                Vec::new(),
-                retains_independent,
-            ));
-            continue;
-        }
-        let Some(index) = exact.first().copied() else {
-            let identity_exists = backends
-                .iter()
-                .any(|backend| backend.selection().identity == request.premises.backend.identity);
-            if identity_exists {
-                dispositions.push(refused(
-                    request,
-                    FailureCode::BackendMismatch,
-                    Vec::new(),
-                    retains_independent,
-                ));
-            } else {
+        match request.claim {
+            Claim::Conformance => dispositions.push(Disposition {
+                request_identity: request.identity.clone(),
+                claim: request.claim,
+                strength: request.strength.clone(),
+                execution: conformance.premises.execution,
+                decision: (conformance.premises.execution == AssessmentExecution::Completed)
+                    .then_some(match conformance.global {
+                        GlobalDisposition::Conforms => Decision::Established,
+                        GlobalDisposition::Pending
+                        | GlobalDisposition::Violates
+                        | GlobalDisposition::Unavailable => Decision::NotEstablished,
+                    }),
+                premises: request.premises.clone(),
+                failure: None,
+            }),
+            Claim::Monitorability
+            | Claim::Projection
+            | Claim::Realizability
+            | Claim::Refinement
+            | Claim::Composition => {
                 dispositions.push(unavailable(request, AssessmentExecution::Unsupported));
             }
-            continue;
-        };
-        let backend = &mut backends[index];
-        if !backend.supports(request.claim, &request.strength) {
-            dispositions.push(unavailable(request, AssessmentExecution::Unsupported));
-            continue;
         }
-        let Some(backend_calls) = usage.backend_calls.checked_add(1) else {
-            usage.backend_calls = usize::MAX;
-            return Err(resource_refusal(usage));
-        };
-        usage.backend_calls = backend_calls;
-        let reply = backend.assess(request.claim, &request.strength, &request.premises);
-        if reply.evidence != request.premises {
-            dispositions.push(refused(
-                request,
-                FailureCode::EvidenceMismatch,
-                premises::substitutions(&request.premises, &reply.evidence),
-                retains_independent,
-            ));
-            continue;
-        }
-        let (execution, decision) = match reply.execution {
-            BackendExecution::Completed(decision) => {
-                (AssessmentExecution::Completed, Some(decision))
-            }
-            BackendExecution::Refused => (AssessmentExecution::Refused, None),
-            BackendExecution::ResourceIncomplete => (AssessmentExecution::ResourceIncomplete, None),
-            BackendExecution::Failed => (AssessmentExecution::Failed, None),
-        };
-        dispositions.push(Disposition {
-            request_identity: request.identity.clone(),
-            claim: request.claim,
-            strength: request.strength.clone(),
-            execution,
-            decision,
-            premises: request.premises.clone(),
-            failure: None,
-        });
     }
     Ok(Report {
         dispositions,
@@ -491,32 +396,32 @@ pub fn dispatch(
     })
 }
 
-/// Dispatch under the shared QProtocol caller budget.
+/// Dispatch the closed capability under the shared QProtocol caller budget.
 ///
 /// The complete input, result, derived-artifact, and operation increments are
-/// charged transactionally before any backend call or result allocation. The
+/// charged transactionally before result allocation. The
 /// module's immutable owner maxima remain independently enforced by
-/// [`dispatch`]; caller grants can lower work admitted at this boundary but
+/// [`dispatch_from_conformance`]; caller grants can lower work admitted at this boundary but
 /// cannot raise those maxima.
 pub fn dispatch_bounded(
     requests: &[ClaimRequest<'_>],
-    backends: &mut [&mut dyn Backend],
+    conformance: &ConformanceReport,
     limits: Limits,
     resources: &mut ResourceAccountant<'_>,
 ) -> OperationOutcome<Report, Refusal> {
     resources.run_unit(UnitLabel::new("claims::dispatch_bounded"), |resources| {
-        dispatch_bounded_unit(requests, backends, limits, resources)
+        dispatch_bounded_unit(requests, conformance, limits, resources)
     })
 }
 
 fn dispatch_bounded_unit(
     requests: &[ClaimRequest<'_>],
-    backends: &mut [&mut dyn Backend],
+    conformance: &ConformanceReport,
     limits: Limits,
     resources: &mut ResourceAccountant<'_>,
 ) -> OperationOutcome<Report, Refusal> {
     let effective = limits.effective();
-    let preflight = match preflight_checked(requests, backends.len()) {
+    let preflight = match preflight_checked(requests) {
         Ok(preflight) => preflight,
         Err(error) => return OperationOutcome::from_charge(error),
     };
@@ -530,11 +435,6 @@ fn dispatch_bounded_unit(
             super::premises::INPUT_SOURCE.id(),
             preflight.bytes,
             Some(effective.max_bytes),
-        ),
-        (
-            BACKEND_SOURCE.id(),
-            preflight.backends,
-            Some(effective.max_backends),
         ),
         (
             COMPONENT_SOURCE.id(),
@@ -556,7 +456,7 @@ fn dispatch_bounded_unit(
     if let Err(error) = resources.charge_all_mixed(&charges) {
         return OperationOutcome::from_charge(error);
     }
-    OperationOutcome::from_domain(dispatch(requests, backends, effective))
+    OperationOutcome::from_domain(dispatch_from_conformance(requests, conformance, effective))
 }
 
 fn request_defects(request: &ClaimRequest<'_>) -> Vec<PremiseDefect> {
@@ -605,23 +505,17 @@ fn unavailable(request: &ClaimRequest<'_>, execution: AssessmentExecution) -> Di
     }
 }
 
-fn preflight(requests: &[ClaimRequest<'_>], backends: usize) -> Usage {
-    preflight_checked(requests, backends).unwrap_or(Usage {
+fn preflight(requests: &[ClaimRequest<'_>]) -> Usage {
+    preflight_checked(requests).unwrap_or(Usage {
         requests: requests.len(),
-        backends,
         components: usize::MAX,
         bytes: usize::MAX,
-        ..Usage::default()
     })
 }
 
-fn preflight_checked(
-    requests: &[ClaimRequest<'_>],
-    backends: usize,
-) -> core::result::Result<Usage, ChargeError> {
+fn preflight_checked(requests: &[ClaimRequest<'_>]) -> core::result::Result<Usage, ChargeError> {
     let mut usage = Usage {
         requests: requests.len(),
-        backends,
         ..Usage::default()
     };
     for request in requests {
@@ -744,7 +638,6 @@ const fn defect_kind_tag(kind: premises::PremiseDefectKind) -> &'static str {
         premises::PremiseDefectKind::Duplicate => "duplicate",
         premises::PremiseDefectKind::DanglingDependency => "dangling-dependency",
         premises::PremiseDefectKind::CircularDependency => "circular-dependency",
-        premises::PremiseDefectKind::Substituted => "substituted",
         premises::PremiseDefectKind::CorrespondenceMismatch => "correspondence-mismatch",
     }
 }
@@ -756,33 +649,12 @@ const INVALID_PREMISES: CodeEntry = CodeEntry {
     retry: RetryDecision::AfterSelectionChange,
     summary: "one exact claim premise is missing, duplicated, circular, or invalid",
 };
-const BACKEND_MISMATCH: CodeEntry = CodeEntry {
-    provenance: Provenance::Minted,
-    code: "claims.backend-mismatch",
-    domain: RefusalDomain::Assessment,
-    retry: RetryDecision::AfterSelectionChange,
-    summary: "the selected backend identity exists only at another version",
-};
-const BACKEND_AMBIGUOUS: CodeEntry = CodeEntry {
-    provenance: Provenance::Minted,
-    code: "claims.backend-ambiguous",
-    domain: RefusalDomain::Assessment,
-    retry: RetryDecision::AfterSelectionChange,
-    summary: "more than one backend claims the exact selected identity and version",
-};
 const DUPLICATE_REQUEST: CodeEntry = CodeEntry {
     provenance: Provenance::Minted,
     code: "claims.request-duplicate",
     domain: RefusalDomain::Assessment,
     retry: RetryDecision::AfterSelectionChange,
     summary: "the same exact claim request identity was offered more than once",
-};
-const EVIDENCE_MISMATCH: CodeEntry = CodeEntry {
-    provenance: Provenance::Minted,
-    code: "claims.evidence-mismatch",
-    domain: RefusalDomain::Assessment,
-    retry: RetryDecision::Never,
-    summary: "the backend returned evidence other than the exact selected premises",
 };
 const RESOURCE_INCOMPLETE: CodeEntry = CodeEntry {
     provenance: Provenance::Minted,
@@ -797,12 +669,5 @@ pub const CODES: CodeModule = CodeModule {
     root: "claims",
     owner: "C-23/C-24",
     module_path: "quire_protocol::claims::dispatch",
-    entries: &[
-        INVALID_PREMISES,
-        BACKEND_MISMATCH,
-        BACKEND_AMBIGUOUS,
-        DUPLICATE_REQUEST,
-        EVIDENCE_MISMATCH,
-        RESOURCE_INCOMPLETE,
-    ],
+    entries: &[INVALID_PREMISES, DUPLICATE_REQUEST, RESOURCE_INCOMPLETE],
 };

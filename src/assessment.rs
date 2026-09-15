@@ -1199,11 +1199,15 @@ impl<Row> AssessmentBundle<'_, Row> {
 #[cfg(test)]
 mod tests {
     use super::{
-        claim_from_result_kind, validate_requested, validate_rows, BundleRefusal, ClaimRow,
+        claim_from_result_kind, outcome_refusal, validate_requested, validate_rows, BundleRefusal,
+        ClaimRow,
     };
     use crate::claims::Claim;
     use crate::outcome::ClaimOutcome;
+    use crate::refusal::{PartialOutput, ProtocolStage, RefusalDomain};
     use crate::result::ClaimKind;
+    use ix_trace_rs::trace;
+    use std::collections::BTreeSet;
 
     #[test]
     fn assessment_request_requires_one_claim() {
@@ -1263,6 +1267,36 @@ mod tests {
             ),
             Ok(())
         );
+    }
+
+    /// Every whole-assessment refusal carries a source-bound envelope rather
+    /// than using the absence of a bundle as its identity.
+    #[test]
+    #[trace("TC-011", "FR-008-AC-1", "FR-008-AC-4", "FR-036-AC-1", "FR-040-AC-1")]
+    fn tc_011_assessment_bundle_refusals_are_typed_and_distinct() {
+        let reasons = [
+            BundleRefusal::EmptyRequest,
+            BundleRefusal::DuplicateRequestedClaim,
+            BundleRefusal::UnexpectedClaim,
+            BundleRefusal::DuplicateClaimRow,
+            BundleRefusal::MissingClaimRow,
+            BundleRefusal::InvalidDefinitionIdentity,
+            BundleRefusal::InvalidLinkedProtocol,
+            BundleRefusal::InvalidConformanceKernel,
+            BundleRefusal::CanonicalClaimMismatch,
+            BundleRefusal::ActivationSubjectMismatch,
+            BundleRefusal::ActivationDeclarationMismatch,
+        ];
+        let mut codes = BTreeSet::new();
+        let mut axes = BTreeSet::new();
+        for reason in reasons {
+            let refusal = outcome_refusal(reason);
+            assert_eq!(refusal.domain(), RefusalDomain::Assessment);
+            assert_eq!(refusal.stage(), ProtocolStage::ClaimDispatch);
+            assert_eq!(refusal.partial_output(), PartialOutput::NoneEmitted);
+            assert!(codes.insert(refusal.code().as_str()));
+            assert!(axes.insert(refusal.axis().as_bytes().to_vec()));
+        }
     }
 
     #[test]

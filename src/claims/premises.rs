@@ -151,7 +151,6 @@ pub enum PremiseDefectKind {
     /// Assumption dependencies are circular.
     CircularDependency,
     /// Backend-returned evidence differs from the exact request premises.
-    Substituted,
     /// Derived identity does not validate against the exact selected tuple.
     CorrespondenceMismatch,
 }
@@ -345,42 +344,5 @@ fn validate_assumptions(assumptions: &[Assumption], defects: &mut Vec<PremiseDef
             kind: PremiseDefectKind::CircularDependency,
             identity: None,
         });
-    }
-}
-
-pub(crate) fn substitutions(expected: &PremiseSet, actual: &PremiseSet) -> Vec<PremiseDefect> {
-    let mut defects = Vec::new();
-    if expected.admitted_fragment != actual.admitted_fragment {
-        defects.push(substituted(PremiseAxis::AdmittedFragment));
-    }
-    if expected.backend != actual.backend {
-        defects.push(substituted(PremiseAxis::Backend));
-    }
-    if expected.assumptions != actual.assumptions {
-        defects.push(substituted(PremiseAxis::Assumption));
-    }
-    if expected.communication != actual.communication {
-        defects.push(substituted(PremiseAxis::Communication));
-    }
-    if expected.visibility != actual.visibility {
-        defects.push(substituted(PremiseAxis::Visibility));
-    }
-    if expected.environment != actual.environment {
-        defects.push(substituted(PremiseAxis::Environment));
-    }
-    if expected.sources != actual.sources {
-        defects.push(substituted(PremiseAxis::Source));
-    }
-    if expected.derived_artifact != actual.derived_artifact {
-        defects.push(substituted(PremiseAxis::DerivedArtifact));
-    }
-    defects
-}
-
-fn substituted(axis: PremiseAxis) -> PremiseDefect {
-    PremiseDefect {
-        axis,
-        kind: PremiseDefectKind::Substituted,
-        identity: None,
     }
 }
