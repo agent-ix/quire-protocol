@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! TC-005: exact premise-bound dispatch through QProtocol's closed capability.
 
+use std::collections::HashSet;
+
 use ix_trace_rs::trace;
 use quire_protocol::assessment::GlobalConformanceInput;
 use quire_protocol::bounds::inventory::{
@@ -329,6 +331,7 @@ fn tc_005_every_premise_axis_refuses_without_erasing_a_sibling() {
         (PremiseAxis::Source, remove_source),
         (PremiseAxis::DerivedArtifact, remove_derived_tuple),
     ];
+    let mut refusal_axes = HashSet::new();
     for (axis, mutate) in mutations {
         let correspondence = ExactCorrespondence;
         let good = request("request:good", Claim::Conformance, &correspondence);
@@ -350,7 +353,12 @@ fn tc_005_every_premise_axis_refuses_without_erasing_a_sibling() {
             .expect("claim refusal");
         assert_eq!(failure.code(), FailureCode::InvalidPremises);
         assert!(failure.defects().iter().any(|defect| defect.axis == axis));
+        assert!(
+            refusal_axes.insert(failure.envelope().axis().as_bytes().to_vec()),
+            "each independently failing premise axis needs a distinct refusal axis"
+        );
     }
+    assert_eq!(refusal_axes.len(), mutations.len());
 }
 
 /// The closed supported backend is not replaceable by an alternate caller

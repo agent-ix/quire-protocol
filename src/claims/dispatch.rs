@@ -227,7 +227,7 @@ impl ClaimFailure {
             refusal_code,
             CatalogSelection::local(),
             ProtocolStage::ClaimDispatch,
-            RefusalAxis::from_registered_code(refusal_code),
+            RefusalAxis::new(&preimage).expect("code-prefixed claim axis is non-empty"),
             first_cause,
             refusal_usage(usage),
         )
