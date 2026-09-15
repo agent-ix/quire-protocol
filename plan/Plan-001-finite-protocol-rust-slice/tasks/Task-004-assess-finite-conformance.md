@@ -2,7 +2,7 @@
 id: Task-004
 title: "Assess finite global conformance"
 type: Task
-status: in_progress
+status: done
 track: Core
 priority: P0
 relationships:
@@ -45,3 +45,4 @@ uses one shared deterministic kernel for both public frontends.
 ## Notes
 
 - Unblocks Task-005.
+- SR-110/SR-111 record the passing scoped Rust review and gap analysis.

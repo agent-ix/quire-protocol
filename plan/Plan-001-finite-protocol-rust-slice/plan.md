@@ -106,7 +106,7 @@ shared result-domain values. Each has one Protocol owner and no adapter-local co
   relationship replay/ambiguity, causal interleavings and fatal refusals.
 - [x] **TC-003**: graph-derived compensation, activation, commit, retry, recovery,
   replay, transactionality and zero business calls.
-- [ ] **TC-004**: graph-derived batch/incremental agreement across legal semantic
+- [x] **TC-004**: graph-derived batch/incremental agreement across legal semantic
   permutations, progress/closure and contradiction states.
 - [ ] **TC-005**: conformance-derived ordered claim dispositions, exact retained
   premises and no callback fallback.
@@ -215,7 +215,7 @@ track names are subsystems and are not agent assignments; Agent B remains on TL.
 | Task-001 | Core | FR-001 | TC-001 | done |
 | Task-002 | Core | FR-002 | TC-002 | done; PR #67 / `2a3ef19` |
 | Task-003 | Core | FR-003 | TC-003 | done; graph-owned Engine bridge and exact QSL/QObs evidence |
-| Task-004 | Core | FR-004 | TC-004 | in_progress; standalone kernel exists |
+| Task-004 | Core | FR-004 | TC-004 | done; strict FR-300 activation-derived frontends share the graph/compensation kernel |
 | Task-005 | Core | FR-005 | TC-005 | in_progress; standalone kernel exists |
 | Task-006 | Core | FR-006, FR-008 | TC-006, TC-011 | in_progress; result/map slice landed |
 | Task-007 | Producer Integration | FR-007 | TC-007 | blocked on E02 owner acceptance reconciliation |
