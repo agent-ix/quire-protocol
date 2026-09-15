@@ -31,6 +31,8 @@ relationships:
     type: references
   - target: ix://agent-ix/quire-specification/FR-260
     type: references
+  - target: ix://agent-ix/quire-specification/FR-300
+    type: depends_on
 ---
 # FR-004: Assess finite global conformance
 
@@ -42,8 +44,9 @@ When any one of FR-026, FR-027, FR-028 and FR-041 is unsatisfied, the evaluator 
 ## Inputs
 
 A constructor-private version-2 linked protocol, the compensation snapshot
-derived from it, bound QObs observation/authority views, accepted QSL native-
-temporal results, the exact assessment request, independent decision-scope and
+derived from it, complete accepted FR-300 event-triggered activation bindings,
+bound QObs observation/authority views, accepted QSL native-temporal results,
+the exact assessment request, independent decision-scope and
 surrounding-execution progress/closure facts, the Protocol-owned complete-global-
 conformance closure record, resource budget, and evaluator identity. A caller-
 constructed string model or obligation list is not a production input.
@@ -88,6 +91,14 @@ only an accepted prefix. Semantic readiness follows authored causal
 prerequisites and exact keys; timestamp, arrival, map and result-identity order
 authorize no work.
 
+The kernel SHALL derive each event-triggered FR-230 obligation only from a
+validated FR-300 binding whose qualified definition and declaration-local
+control belong to its linked graph. It SHALL retain the binding's exact clause
+subject and semantic trigger identity as the obligation key and SHALL refuse
+missing, foreign, cross-control, cross-subject, cross-trigger or contradictory
+bindings. Neither frontend accepts a caller-built `Model`, obligation identity or
+observation-to-obligation association.
+
 ## Acceptance Criteria
 
 | ID | Criteria | Verification |
@@ -111,6 +122,7 @@ shared mapping the decomposition was derived from, not as a second definition.
 | Assessment-execution disposition | `FR-241-assessment-execution-disposition` | value |
 | Complete-global-conformance closure state | `FR-247-complete-global-conformance-closure-state` | value |
 | Admitted observation | `FR-260-admitted-observation` | derived under FR-296 |
+| Protocol-obligation activation binding | `FR-300-obligation-activation-binding` | value; sole event-triggered bridge |
 
 `FR-241`'s five members — `completed`, `refused`, `unsupported`,
 `resource-incomplete`, `failed` — are exactly the non-success causes this
@@ -127,6 +139,11 @@ FR-286 result identity and FR-289 temporal boundary map. The parts below consume
 those exact values; none retains the superseded gaps. FR-027 distinguishes a
 replayed delivery, a distinct delivery and a duplicate business effect through
 their accepted typed identities rather than through arrival position.
+
+QSpec main `316743b` adds FR-300, which fixes the previously missing mapping
+from selected linked control and admitted trigger to a dynamic FR-230 instance.
+Protocol consumes that complete binding rather than deriving a runtime identity
+from a QSL table coordinate or an observation field.
 
 ## Dependencies
 

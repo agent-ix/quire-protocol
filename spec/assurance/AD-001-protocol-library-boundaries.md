@@ -85,7 +85,7 @@ contract resolution
                                              |
 QObs runtime subjects/relationships --------+----> compensation
 QObs authority facts -----------------------+          |
-QSL native-temporal results ----------------+          v
+QSL native-temporal results + FR-300 bindings -+        v
                                          conformance kernel
                                              |
                                              v
@@ -254,8 +254,12 @@ conversion. Test-only relation doubles remain crate-private and cannot enter a
 production Engine.
 
 One deterministic `ConformanceKernel` derives obligations from the linked graph
-and consumes the compensation snapshot, QObs authority facts and QSL native-
-temporal results. Batch and incremental APIs are frontends over that kernel.
+and consumes the compensation snapshot, QObs authority facts, QSL native-
+temporal results and complete QSpec FR-300 activation bindings. The binding is
+validated against the exact linked definition/control before its clause subject
+and semantic trigger derive an FR-230 obligation; a table coordinate, timestamp,
+arrival order or caller-built model cannot substitute. Batch and incremental APIs
+are frontends over that kernel.
 Incremental readiness follows authored causal prerequisites and exact semantic
 keys, never timestamp, arrival or map order. Replaying an accepted prefix is
 idempotent; a late contradiction creates the specified immutable correction or

@@ -27,8 +27,8 @@ production construction of compensation identities.
 - [ ] Write TC-003 activation, state-transition, relation, idempotence, and
   adverse-path cases first.
 - [ ] Derive triggered, inactive and activation-unknown only from exact
-  workflow/role/effect/predicate/capture/anchor identities and the applicable
-  progress, closure and completeness authority.
+  QSpec FR-300 activation bindings and the applicable progress, closure and
+  completeness authority; refuse any caller-built or cross-linked substitute.
 - [ ] Preserve delivery, attempt, effect, registration, commit, and recovery identities as distinct types.
 - [ ] Register compensation only after the paired successful effect, preserve one
   registration when that exact effect is replayed, and enforce authored finite

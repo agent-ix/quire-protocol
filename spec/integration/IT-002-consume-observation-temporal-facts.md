@@ -43,7 +43,7 @@ The consumer is the protocol evaluator and canonical result producer.
 | Owner | Supplies | This repository must not |
 | --- | --- | --- |
 | QObs | Observation facts, decision-scope and surrounding-execution progress/closure, settlement basis, decision support, completeness, and accepted runtime topology | Collect, correlate, or re-derive an observation; infer a missing fact |
-| QSL native temporal | Exact checked native-temporal results and activation-guard selection | Evaluate a temporal formula or author a second profile |
+| QSL native temporal | Exact checked native-temporal results, activation-guard selection, and complete FR-300 event-triggered activation bindings | Evaluate a temporal formula, reconstruct an obligation bridge, or author a second profile |
 | QSL compiled protocol | The admitted `/2` definition from which Protocol builds the linked graph | Parse native source or reinterpret an identity |
 | This repository | Compensation state, finite conformance, claim dispatch, canonical result production, typed refusals, version-lock resolution, the complete-global-conformance closure record and its premises, the scenario evidence record up to handoff | — |
 
@@ -72,7 +72,7 @@ workflow premises.
 
 ## Inputs
 
-Complete and open valid histories, a decisive witness, a decisive
+Complete and open valid histories, complete valid FR-300 activation bindings, a decisive witness, a decisive
 counterexample, a non-decisive prefix, missing support, each
 complete-global-conformance closure state and premise set, changed closure,
 mis-correlated observation, duplicate delivery, and late contradiction.
@@ -82,7 +82,7 @@ mis-correlated observation, duplicate delivery, and late contradiction.
 1. Submit complete and open histories through the accepted typed interfaces.
    - IT-002-SC-01: producer facts retain their exact identities and authorities.
 2. Assess compensation and finite conformance.
-   - IT-002-SC-02: every outcome follows only the selected protocol and temporal premises.
+   - IT-002-SC-02: every outcome follows only the selected protocol and temporal premises; each event-triggered obligation reaches Protocol through one complete FR-300 binding, while a missing, foreign, cross-control, cross-subject, cross-trigger or contradictory binding refuses and no caller-built obligation is accepted.
 3. Produce canonical results for decisive and non-decisive open prefixes.
    - IT-002-SC-03: settlement, pending state, support, decision-scope
      progress/closure, surrounding-execution progress/closure, and
