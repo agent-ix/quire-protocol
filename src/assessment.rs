@@ -553,14 +553,12 @@ impl<'a> Engine<'a> {
                     created |= registration_candidate.ensure(&self.identity, &input).1;
                 }
                 // The candidate registrations are derived exclusively from
-                // this Engine's immutable linked graph and runtime capability,
-                // which are the exact invariants `ConformanceKernel::new`
-                // checks. Rebuild before either state is committed so the
-                // conformance and compensation snapshots cannot diverge.
-                let conformance =
-                    ConformanceKernel::new(&self.linked, &registration_candidate, &[], &[]).expect(
-                        "engine-derived compensation registrations belong to its fixed graph",
-                    );
+                // this Engine's immutable linked/runtime capability. Replace
+                // only that owned population before either state is committed,
+                // so the conformance and compensation snapshots cannot diverge.
+                let conformance = self
+                    .conformance
+                    .with_engine_compensation(&registration_candidate);
                 self.compensation = registration_candidate;
                 self.compensation_state = state_candidate;
                 self.conformance = conformance;

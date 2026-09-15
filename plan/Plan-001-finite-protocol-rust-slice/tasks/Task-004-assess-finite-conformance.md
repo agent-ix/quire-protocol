@@ -35,7 +35,7 @@ uses one shared deterministic kernel for both public frontends.
 - [x] Keep decision-scope progress/closure, surrounding-execution
   progress/closure, complete-global-conformance closure, and open, incomplete,
   unsupported, failed and exhausted outcomes independently observable.
-- [ ] Ensure decisive open-subject results require the selected temporal rule and all declared decision support.
+- [x] Ensure decisive open-subject results require the selected temporal rule and all declared decision support.
 - [x] Exercise every boundary with deterministic scheduling and no hidden wall-clock ordering premise.
 
 ## Deliverables

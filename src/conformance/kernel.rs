@@ -501,6 +501,26 @@ impl Kernel {
         })
     }
 
+    /// Replaces only the Engine-derived registration population while retaining
+    /// this already-validated linked graph and its static conformance values.
+    ///
+    /// This is crate-private because an Engine derives the snapshot from its
+    /// own immutable linked/runtime capability. Public callers must still use
+    /// [`Self::new`], which validates every registration against the supplied
+    /// graph before retaining it.
+    #[must_use]
+    pub(crate) fn with_engine_compensation(&self, compensation: &CompensationSnapshot) -> Self {
+        Self {
+            definition: self.definition.clone(),
+            obligations: self.obligations.clone(),
+            causal_edges: self.causal_edges.clone(),
+            compensations: self.compensations.clone(),
+            registrations: compensation.registrations().to_vec(),
+            attempts: self.attempts.clone(),
+            effects: self.effects.clone(),
+        }
+    }
+
     /// Returns the exact linked static identity governing this kernel.
     #[must_use]
     pub const fn definition(&self) -> &DefinitionIdentity {
