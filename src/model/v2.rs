@@ -9,7 +9,9 @@
 
 use std::collections::BTreeSet;
 
-use quire_observation::{AdmittedStaticBundle, QualifiedSubject, Relationship, SubjectKind};
+use quire_observation::{
+    AdmittedBundleKey, AdmittedStaticBundle, QualifiedSubject, Relationship, SubjectKind,
+};
 use quire_spec_language::protocol_artifact::{
     v2 as artifact_v2,
     wire::{ArtifactRef, BindingKind, Body, Requirement},
@@ -115,6 +117,7 @@ pub struct StaticSlot {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct StaticBindingDefinition {
     selection: StaticSelection,
+    producer: AdmittedBundleKey,
     declaration_handle: u32,
     roles: Vec<RoleClassification>,
     slots: Vec<StaticSlot>,
@@ -142,6 +145,7 @@ impl StaticBindingDefinition {
     pub fn new(
         contract: &str,
         selection: StaticSelection,
+        producer: AdmittedBundleKey,
         declaration_handle: u32,
         roles: Vec<RoleClassification>,
         slots: Vec<StaticSlot>,
@@ -178,6 +182,7 @@ impl StaticBindingDefinition {
         }
         Ok(Self {
             selection,
+            producer,
             declaration_handle,
             roles,
             slots,
@@ -188,6 +193,12 @@ impl StaticBindingDefinition {
     #[must_use]
     pub const fn selection(&self) -> &StaticSelection {
         &self.selection
+    }
+
+    /// Returns the exact selected QObs producer authority.
+    #[must_use]
+    pub const fn producer(&self) -> &AdmittedBundleKey {
+        &self.producer
     }
 
     /// Returns the exact selected version-2 declaration coordinate.
@@ -278,6 +289,9 @@ pub enum RuntimeRefusal {
     UnsupportedContract,
     /// The runtime set targets a different static binding selection.
     ForeignStaticSelection,
+    /// The supplied static bundle differs from the producer selected by the
+    /// static binding definition.
+    ForeignStaticProducer,
     /// One binding names no selected static slot.
     UnknownSlot(SlotHandle),
     /// More than one offered value names one static slot.
@@ -324,6 +338,9 @@ impl RuntimeBindingSet {
         }
         if target != definition.selection() {
             return Err(RuntimeRefusal::ForeignStaticSelection);
+        }
+        if producer.key() != definition.producer() {
+            return Err(RuntimeRefusal::ForeignStaticProducer);
         }
         let mut admitted = Vec::with_capacity(bindings.len());
         for binding in bindings {

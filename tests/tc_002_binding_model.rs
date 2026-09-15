@@ -42,6 +42,7 @@ fn definition() -> StaticBindingDefinition {
     StaticBindingDefinition::new(
         STATIC_BINDING_CONTRACT,
         selection(),
+        producer().key().clone(),
         3,
         vec![RoleClassification {
             role_handle: 7,
@@ -133,6 +134,7 @@ fn tc_002_binding_contract_and_slot_mutations_refuse_without_a_runtime_set() {
         StaticBindingDefinition::new(
             "quire.protocol.binding-definition/0",
             selection(),
+            producer().key().clone(),
             3,
             vec![],
             vec![]
@@ -238,6 +240,7 @@ fn tc_002_runtime_relationships_are_not_subjects_or_stringly_slots() {
     let definition = StaticBindingDefinition::new(
         STATIC_BINDING_CONTRACT,
         selection(),
+        producer.key().clone(),
         3,
         vec![],
         vec![StaticSlot {
@@ -271,6 +274,7 @@ fn tc_002_runtime_relationships_are_not_subjects_or_stringly_slots() {
     let wrong_endpoint_definition = StaticBindingDefinition::new(
         STATIC_BINDING_CONTRACT,
         selection(),
+        producer.key().clone(),
         3,
         vec![],
         vec![StaticSlot {
@@ -322,8 +326,15 @@ fn tc_002_relationship_replay_is_idempotent_and_distinct_keys_are_not_collapsed(
     let producer = producer();
     let relationship = order_shipment(&producer);
     let relationship_definition = |slots| {
-        StaticBindingDefinition::new(STATIC_BINDING_CONTRACT, selection(), 3, vec![], slots)
-            .expect("complete relationship slots")
+        StaticBindingDefinition::new(
+            STATIC_BINDING_CONTRACT,
+            selection(),
+            producer.key().clone(),
+            3,
+            vec![],
+            slots,
+        )
+        .expect("complete relationship slots")
     };
     let compatibility = || SlotCompatibility::Relationship {
         declaration_identity: ORDER_SHIPMENT.into(),
@@ -449,6 +460,7 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
     let definition = StaticBindingDefinition::new(
         STATIC_BINDING_CONTRACT,
         selection(),
+        producer().key().clone(),
         declaration_handle,
         roles
             .iter()
@@ -549,6 +561,7 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
     let contradictory_definition = StaticBindingDefinition::new(
         STATIC_BINDING_CONTRACT,
         selection(),
+        producer.key().clone(),
         declaration_handle,
         contradictory_roles,
         vec![StaticSlot {
