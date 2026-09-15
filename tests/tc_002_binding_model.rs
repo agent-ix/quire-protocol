@@ -2105,12 +2105,19 @@ fn tc_002_effect_projection_requires_an_owner_effect_slot() {
 
     let engine = Engine::new(context, vec![Claim::Conformance])
         .expect("the linked effect context starts a non-retargetable assessment");
+    let Body::Protocol { controls, .. } = &engine.linked().declaration().body else {
+        panic!("the linked assessment retains the selected protocol declaration")
+    };
     assert_eq!(engine.compensation_inputs().len(), 2);
     // Task-002 projects eligible exact inputs; Task-003 alone may turn them
     // into state after the admitted activation guard completes true.
     assert!(engine.compensation().registrations().is_empty());
     assert!(engine.conformance().registrations().is_empty());
-    assert!(engine.conformance().obligations().is_empty());
+    assert_eq!(
+        engine.conformance().obligations().len(),
+        controls.len(),
+        "the conformance kernel retains every linked control without turning compensation inputs into registrations"
+    );
     assert_eq!(
         engine.conformance().compensations(),
         engine.linked().compensations()
@@ -2124,7 +2131,14 @@ fn tc_002_effect_projection_requires_an_owner_effect_slot() {
         engine.linked().compensations()[0].definition()
     );
     assert!(engine.conformance().compensation(u32::MAX).is_none());
-    assert!(engine.conformance().obligation(0).is_none());
+    assert_eq!(
+        engine
+            .conformance()
+            .obligation(0)
+            .expect("the first linked control is a conformance obligation")
+            .operation(),
+        &controls[0].operation
+    );
     assert!(engine.conformance().obligation(u32::MAX).is_none());
     assert_eq!(
         engine.conformance().causal_edges(),
@@ -2139,7 +2153,7 @@ fn tc_002_effect_projection_requires_an_owner_effect_slot() {
     );
     assert!(engine.compensation().registrations().is_empty());
     assert!(engine.conformance().registrations().is_empty());
-    assert!(engine.conformance().obligations().is_empty());
+    assert_eq!(engine.conformance().obligations().len(), controls.len());
     assert_eq!(
         engine.conformance().compensations(),
         engine.linked().compensations()
