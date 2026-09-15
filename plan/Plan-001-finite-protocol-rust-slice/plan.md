@@ -66,6 +66,11 @@ relationships:
   Reason: the shared outcome/refusal foundation must exist before resolver
   failures; external values then enter version-explicit adapters only after the
   resolver mints request-bound constructor-private capabilities.
+- `Task-013 -> Task-019 -> Task-009, Task-008`
+  Reason: the consumer delivery index must prove that it cannot influence the
+  resolver, then exist before complete delivery metadata is consumed and before
+  the final source/reproduction sweep. Task-019 may run in parallel with the
+  finite-linker serial core after Task-013.
 - `Task-002 -> Task-003 -> Task-004 -> Task-005 -> Task-006`
   Reason: linked graph, compensation snapshot, conformance report, claim
   dispositions and canonical result assembly form the serial semantic core.
@@ -74,7 +79,7 @@ relationships:
 - `Task-006 -> Task-007, Task-010`
   Reason: both E02 projection and observation/native-temporal integration require
   validated canonical result assembly; Task-010 consumes QSL/QObs, not QCI.
-- `Task-007 + Task-009 + Task-010 + Task-013 -> Task-008`
+- `Task-007 + Task-009 + Task-010 + Task-013 + Task-019 -> Task-008`
   Reason: the final resource/reproduction sweep can close only after every public
   path and external-contract site exists.
 - `Task-006 + Task-008 + Task-013 -> Task-018`
@@ -117,11 +122,15 @@ shared result-domain values. Each has one Protocol owner and no adapter-local co
 - [ ] **TC-011**: exact-stage refusal envelopes, local/source causes, unsupported
   catalogs, partial-output rules and simultaneous causes.
 - [x] **TC-012**: exact local gate policy and every independent gate defect.
-- [ ] **TC-013**: bounded two-state manifest resolution, private capability
-  construction, interface authenticity and deterministic first-cause reporting.
+- [x] **TC-013**: the resolver slice executes bounded two-state manifest
+  resolution, private capability construction, interface authenticity and
+  deterministic first-cause reporting; Task-019 owns the remaining
+  delivery-index controls.
 - [x] **TC-014**: consumer identity discipline.
 - [x] **TC-015**: canonical reader and complete structural Contract-IR result view.
 - [ ] **TC-016**: final scenario-evidence composition and cross-record refusal-axis distinctness.
+- [ ] **TC-017**: exact consumer delivery-index identity/state, typed absence,
+  byte retention, binding/limit rules and version-lock non-authority.
 
 ### Integration tests
 
@@ -150,6 +159,9 @@ shared result-domain values. Each has one Protocol owner and no adapter-local co
   002–006 consume them while replacing their standalone kernel transports.
 - **Core-1 = Task-013** Version-lock enablement — exit: exact manifest
   resolution mints only bounded request-bound private capabilities.
+- **Boundary index = Task-019** Consumer delivery record — exit: the exact
+  FR-018 index executes while remaining unable to supply, repair or widen a
+  version-lock entry. It may run in parallel with Core-2 after Task-013.
 - **Core-2 = Task-002** Exact finite linker — exit: `/2` produces one complete
   typed graph or an exact fatal refusal with no approximate identity/content.
 - **Core-3 = Task-003** Compensation bridge — exit: compensation consumes only
@@ -184,10 +196,10 @@ shared result-domain values. Each has one Protocol owner and no adapter-local co
 
 ```text
 Task-016 -> Task-017 -> Task-013 -> Task-002 -> Task-003 -> Task-004 -> Task-005 -> Task-006
-                            |                                  |          |
-                            `-> Task-009                       |          +-> Task-007
-                                                               `-> Task-010
-Task-007 + Task-009 + Task-010 + Task-013 -> Task-008 -> Task-018 -> Task-011
+                            |       |                          |          |
+                            |       `-> Task-009               |          +-> Task-007
+                            `-> Task-019                       `-> Task-010
+Task-007 + Task-009 + Task-010 + Task-013 + Task-019 -> Task-008 -> Task-018 -> Task-011
 Task-015 (done) -> QCI FR-025; QCI #71/PR #78 done (external)
 ```
 
@@ -211,12 +223,13 @@ track names are subsystems and are not agent assignments; Agent B remains on TL.
 | Task-010 | Producer Integration | FR-003, FR-004, FR-006 | IT-002 | in_progress; QObs delivered, core bridge remains |
 | Task-011 | Qualification | StR-001, FR-006, FR-007, NFR-003 | IT-003, TC-010 | blocked on E02/Quoin and predecessors |
 | Task-012 | Producer Integration | FR-001, FR-002, NFR-002 | IT-001 | done |
-| Task-013 | Core | FR-009 | TC-013 | in_progress; PR #50 must be narrowed/rebased |
+| Task-013 | Core | FR-009, FR-012, FR-016, NFR-006 | TC-013 | done; PR #50, SR-103/SR-104 pass |
 | Task-014 | Qualification | NFR-004 | TC-012 | done |
 | Task-015 | Producer Integration | FR-042 | TC-015 | done |
 | Task-016 | Architecture Gate | AD-001, FR-001..FR-009 | TC-002..TC-013 | done; SR-089..SR-100 pass under #61 |
 | Task-017 | Cross-cutting Foundation | FR-008, FR-014, FR-016 | TC-011 | done; 30 focused tests and SR-101/SR-102 pass under #62 |
 | Task-018 | Qualification | FR-017, NFR-005 | TC-016 | planned |
+| Task-019 | Producer Integration | FR-018, NFR-006 | TC-017 | planned; issue #66 corrects previously unowned implementation |
 
 ## Coordination Rules
 

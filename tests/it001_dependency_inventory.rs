@@ -57,6 +57,8 @@ const LIBRARY_MODULES: &[&str] = &[
     "refusal",
     "repro.rs",
     "result",
+    "version_lock",
+    "version_lock.rs",
 ];
 
 /// Every package the resolved graph is permitted to contain, B's own crate
