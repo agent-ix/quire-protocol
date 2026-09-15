@@ -97,10 +97,10 @@ The five words below are not interchangeable, and no total mixes them.
 
   ```
   $ quire coverage --scope .
-  Coverage: 144/342 rows backed (42%)
+  Coverage: 149/342 rows backed (44%)
   ```
 
-  At the 2026-09-14 Task-013 checkpoint, 144 rows are engine-backed.
+  At the 2026-09-15 Task-003 checkpoint, 149 rows are engine-backed.
   NFR-001 is 3 of 3, NFR-002 is 4 of 4, NFR-004 is 10 of 10, and 12 of the 17
   test-case rows have at least one bound symbol. The remaining row-level gaps are enumerated by the
   same machine output and remain implementation work; this figure is not a
@@ -110,20 +110,21 @@ The five words below are not interchangeable, and no total mixes them.
   without being the measurement that criterion asks for:
 
   ```
-  rust: 247/247/247 bound/tagged/candidates (100% read; 100% authored; forms:
+  rust: 265/265/271 bound/tagged/candidates (98% read; 98% authored; forms:
   rust-trace-attribute, rust-trace-line, rust-comment-id, rust-test-name-id,
   rust-doc-comment-id)
   ```
 
-  Every one of the 247 Rust test symbols carries a marker and every marker is
-  read. **`bound` counts symbols, not obligations** — a test carrying five ids is
+  Every tagged Rust test symbol is read; six current candidates remain untagged
+  and unbound outside Task-003. **`bound` counts symbols, not obligations** — a test carrying five ids is
   one bound candidate, and a test carrying only `Task-009` is a bound candidate
   too. `NFR-003-AC-5` asks for a binding "to each obligation it claims", which is
   a per-relation property this figure does not measure: the next section records
   version 2 support checks carrying `Task-012` without `IT-001`, and
   `tests/it001_native_handoff.rs` under-tagged at 24 traces over 4 criteria. All
-  of that is consistent with 237/237. Read this line as "every test says
-  something", never as "every claim is bound".
+  of that is consistent with the current census. Read this line as "every
+  tagged test says something the engine can read", never as "every test is
+  tagged" or "every claim is bound".
 
   Separately, and verified by reading the source rather than by this line: every
   marker is a **bare** `#[trace(...)]` over an imported `ix_trace_rs::trace`.
@@ -204,9 +205,9 @@ The five words below are not interchangeable, and no total mixes them.
   published version 2 handoff but remains engine-unbound at criterion level;
   the lane binds its owning `IT-001` scenario instead.
 
-  The 265 test-backed criteria and 144 engine-bound rows are not contradictory:
+  The 265 test-backed criteria and 149 engine-bound rows are not contradictory:
   the two words have different denominators, and the definitions above say so.
-  **Read 144/342 as the coverage figure.** "Test-backed" says a criterion has
+  **Read 149/342 as the coverage figure.** "Test-backed" says a criterion has
   somewhere to be tested; "engine-bound" says a trace reaches a repository row.
 
   The gap closes by tagging, never by editing this table. A trace attribute is
@@ -295,7 +296,7 @@ in Domain Object Coverage instead.
 | --- | --- | --- | --- |
 | FR-001 | FR-001-AC-1, FR-001-AC-2, FR-001-AC-3, FR-001-AC-4, FR-001-AC-5 | TC-001 (AC-1..AC-4); IT-001 (AC-4, AC-5) | 🚧 In progress — 4 of 5 criteria are engine-backed. Task-001 and TC-001 close AC-1..AC-4 on the pinned default-running `/2` handoff; AC-5 remains planned because IT-001 SC-06a still owes the complete two-revision version 1 comparison under Task-009 |
 | FR-002 | FR-002-AC-1, FR-002-AC-2, FR-002-AC-3, FR-002-AC-4, FR-002-AC-5 | TC-002 (AC-1..AC-4); IT-001 (AC-5) | ✅ Implemented — PR #67 (`2a3ef19`) delivered the complete version-2 linker, componentwise FR-288 content, exact QObs runtime bindings, typed numeric/expression retention, FIFO premises and FR-262 replay/contradiction handling. IT-001 retains the separate native-integration obligation. |
-| FR-003 | FR-003-AC-1, FR-003-AC-2, FR-003-AC-3, FR-003-AC-4, FR-003-AC-5, FR-003-AC-6, FR-003-AC-7 | TC-003 (AC-1..AC-7); TC-009 (AC-7) | ✅ Implemented — Task-003 connects the landed pure kernels to one graph-owned Engine. Exact QSL guard/retry/recovery reports and QObs subjects/position ledgers drive replay-safe transactional registration, attempts, effects, selected commit ordering and full/partial recovery; production exposes no recovery callback. Aggregate view of FR-019..FR-025. |
+| FR-003 | FR-003-AC-1, FR-003-AC-2, FR-003-AC-3, FR-003-AC-4, FR-003-AC-5, FR-003-AC-6, FR-003-AC-7 | TC-003 (AC-1..AC-7); TC-009 (AC-7) | ✅ Implemented — Task-003 connects the landed pure kernels to one graph-owned Engine. Exact QSL guard/retry/recovery inputs and reports plus QObs subjects/observation/position views are retained in replay-safe transactional registration, attempt/effect, selected-commit ordering and full/partial-recovery state; production exposes no recovery callback. Aggregate view of FR-019..FR-025. |
 | FR-004 | FR-004-AC-1, FR-004-AC-2, FR-004-AC-3, FR-004-AC-4 | TC-004 (AC-1..AC-4) | 🚧 In progress — batch and incremental kernels plus closure-axis tests exist. Task-004 still must derive one model from the linked graph, consume the compensation snapshot and route both frontends through one kernel. Aggregate view of FR-026..FR-028 and FR-041. |
 | FR-005 | FR-005-AC-1, FR-005-AC-2, FR-005-AC-3, FR-005-AC-4, FR-005-AC-5 | TC-005 (AC-1..AC-5) | 🚧 In progress — closed dispositions, premise validation and dispatch tests exist. Task-005 still must require the conformance report and seal the arbitrary backend callback/fallback path. Aggregate view of FR-029 and FR-030. |
 | FR-006 | FR-006-AC-1..FR-006-AC-9 | TC-006 (AC-1..AC-9); TC-011 (AC-9) | 🚧 In progress — canonical production, strict reading, lineage and the complete borrowed Contract-IR view execute. Task-006 owns the per-assessment Engine, AssessmentBundle, two-level outcome algebra and typed upstream assembly. Aggregate view of FR-031..FR-033. |
@@ -306,8 +307,8 @@ in Domain Object Coverage instead.
 | FR-020 | FR-020-AC-1..AC-5 | TC-003 (AC-1..AC-5) | ✅ Implemented — registration retains the complete FR-288/compensation-handle/FR-287 key and exact replay adds nothing. |
 | FR-021 | FR-021-AC-1..AC-4 | TC-003 (AC-1..AC-4) | ✅ Implemented — strict QObs observation and position-ledger views preserve all three commit-ordering violations distinctly. |
 | FR-022 | FR-022-AC-1..AC-5 | TC-003 (AC-1..AC-5) | ✅ Implemented — the initial attempt counts, the authored finite bound admits exactly, and one-over refuses transactionally. |
-| FR-023 | FR-023-AC-1..AC-5 | TC-003 (AC-1..AC-5) | ✅ Implemented — attempts, effects and their closed outcome domains remain separately typed and retained. |
-| FR-024 | FR-024-AC-1..AC-6 | TC-003 (AC-1..AC-6); TC-009 (AC-6) | ✅ Implemented — admitted QSL expressions independently report full and partial recovery, missing/resource outcomes remain non-success, and the callback is compile-fail absent from production. |
+| FR-023 | FR-023-AC-1..AC-5 | TC-003 (AC-1..AC-5) | ✅ Implemented — attempts, independently established related effects and their closed outcome domains remain separately typed and retained. |
+| FR-024 | FR-024-AC-1..AC-6 | TC-003 (AC-1..AC-6); TC-009 (AC-6) | ✅ Implemented — admitted QSL expressions independently report full and partial recovery while retaining the exact operand view; missing/resource outcomes remain non-success, and the callback is compile-fail absent from production. |
 | FR-025 | FR-025-AC-1..AC-3 | TC-003, TC-009 (AC-1..AC-3) | ✅ Implemented — capability mutations refuse before assessment and action-capable doubles remain at zero calls. |
 | FR-026 | FR-026-AC-1..AC-3 | TC-004 (AC-1, AC-2); none for FR-026-AC-3 | 🚧 Planned — 2 of 3 criteria test-backed. Unbacked: FR-026-AC-3 (Inspection) |
 | FR-027 | FR-027-AC-1..AC-5 | TC-004 (AC-1..AC-4); none for FR-027-AC-5 | 🚧 Planned — 4 of 5 criteria test-backed. Unbacked: FR-027-AC-5 (Analysis) |

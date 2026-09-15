@@ -73,25 +73,6 @@ pub struct Snapshot {
 }
 
 impl Snapshot {
-    /// Derives registrations from exact QSL/QObs pairs.
-    ///
-    /// Equal complete keys are exact replay of one registration. A distinct
-    /// compensation handle or a distinct QObs effect remains a distinct key.
-    #[must_use]
-    pub fn from_inputs(
-        definition: &DefinitionIdentity,
-        inputs: &[CompensationRegistrationInput<'_>],
-    ) -> Self {
-        let mut registrations = Vec::with_capacity(inputs.len());
-        for input in inputs {
-            let registration = Registration::from_input(definition, input);
-            if !registrations.contains(&registration) {
-                registrations.push(registration);
-            }
-        }
-        Self { registrations }
-    }
-
     /// Returns every distinct derived registration in QSL declaration order.
     #[must_use]
     pub fn registrations(&self) -> &[Registration] {

@@ -34,9 +34,8 @@ use crate::compensation::{
 };
 use crate::conformance::Kernel as ConformanceKernel;
 use crate::model::v2::{
-    link as link_v2, CompensationAttemptInput, CompensationEffectInput,
-    CompensationRegistrationInput, DefinitionIdentity, DefinitionRegistry, LinkedAssessment,
-    LinkedProtocol, RuntimeBinding, SlotCompatibility, SlotHandle,
+    link as link_v2, CompensationRegistrationInput, DefinitionIdentity, DefinitionRegistry,
+    LinkedAssessment, LinkedProtocol, RuntimeBinding, SlotCompatibility, SlotHandle,
 };
 use crate::outcome::ClaimOutcome;
 use crate::refusal::catalog::{CatalogSelection, CodeEntry, CodeModule, Provenance, RefusalCode};
@@ -361,8 +360,6 @@ pub struct Engine<'a> {
     compensation: CompensationSnapshot,
     compensation_state: CompensationState,
     conformance: ConformanceKernel,
-    compensation_attempts: Vec<CompensationAttemptInput<'a>>,
-    compensation_effects: Vec<CompensationEffectInput<'a>>,
     activation: Option<ActivationBinding<'a>>,
     requested: Vec<Claim>,
 }
@@ -417,15 +414,8 @@ impl<'a> Engine<'a> {
         // A registration is committed only after its exact admitted guard has
         // completed true through `activate_compensation`.
         let compensation = CompensationSnapshot::default();
-        let compensation_attempts = Vec::new();
-        let compensation_effects = Vec::new();
-        let conformance = ConformanceKernel::new(
-            &linked,
-            &compensation,
-            &compensation_attempts,
-            &compensation_effects,
-        )
-        .map_err(|_| BundleRefusal::InvalidConformanceKernel)?;
+        let conformance = ConformanceKernel::new(&linked, &compensation, &[], &[])
+            .map_err(|_| BundleRefusal::InvalidConformanceKernel)?;
         Ok(Self {
             context,
             identity,
@@ -434,8 +424,6 @@ impl<'a> Engine<'a> {
             compensation,
             compensation_state: CompensationState::default(),
             conformance,
-            compensation_attempts,
-            compensation_effects,
             activation,
             requested,
         })
@@ -468,25 +456,11 @@ impl<'a> Engine<'a> {
         &self.compensation
     }
 
-    /// Returns the owned graph-derived attempt, effect, commit, ordering and
-    /// recovery state committed by this non-retargetable request.
+    /// Returns the owned graph-derived activation, attempt, effect, commit,
+    /// ordering and recovery state committed by this non-retargetable request.
     #[must_use]
     pub const fn compensation_state(&self) -> &CompensationState {
         &self.compensation_state
-    }
-
-    /// Returns distinct admitted compensation attempts without treating an
-    /// attempt as either a forward or compensating effect.
-    #[must_use]
-    pub fn compensation_attempts(&self) -> &[CompensationAttemptInput<'a>] {
-        &self.compensation_attempts
-    }
-
-    /// Returns distinct admitted compensation effects without deriving one
-    /// from an attempt, transport result, or registration.
-    #[must_use]
-    pub fn compensation_effects(&self) -> &[CompensationEffectInput<'a>] {
-        &self.compensation_effects
     }
 
     /// Returns the immutable activation pair where this assessment is event-triggered.
@@ -551,27 +525,42 @@ impl<'a> Engine<'a> {
             BooleanEvaluation::False(report) => CompensationOutcome::GuardFalse(report),
             BooleanEvaluation::Source(report) => CompensationOutcome::Source(report),
             BooleanEvaluation::Unsupported(report) => CompensationOutcome::Unsupported(report),
-            BooleanEvaluation::True(_report) => {
-                let matching = self
+            BooleanEvaluation::True(report) => {
+                let mut matching = self
                     .compensation_inputs
                     .iter()
                     .filter(|input| input.compensation_handle() == compensation_handle)
                     .copied()
-                    .collect::<Vec<_>>();
-                if matching.is_empty() {
-                    return CompensationOutcome::Unavailable(CompensationMissing::ForwardEffect);
+                    .peekable();
+                if matching.peek().is_none() {
+                    return CompensationOutcome::UnavailableAfterEvaluation {
+                        missing: CompensationMissing::ForwardEffect,
+                        report,
+                    };
                 }
-                let mut candidate = self.compensation.clone();
+                let mut registration_candidate = self.compensation.clone();
+                let mut state_candidate = self.compensation_state.clone();
+                let activation = match state_candidate.retain_activation(
+                    compensation_handle,
+                    view.clone(),
+                    report,
+                ) {
+                    Ok(transition) => transition,
+                    Err(error) => return CompensationOutcome::Refused(error),
+                };
                 let mut created = false;
-                for input in &matching {
-                    created |= candidate.ensure(&self.identity, input).1;
+                for input in matching {
+                    created |= registration_candidate.ensure(&self.identity, &input).1;
                 }
-                self.compensation = candidate;
-                CompensationOutcome::Completed(if created {
-                    CompensationTransition::Applied
-                } else {
-                    CompensationTransition::Replay
-                })
+                self.compensation = registration_candidate;
+                self.compensation_state = state_candidate;
+                CompensationOutcome::Completed(
+                    if created || activation == CompensationTransition::Applied {
+                        CompensationTransition::Applied
+                    } else {
+                        CompensationTransition::Replay
+                    },
+                )
             }
         }
     }
@@ -581,12 +570,15 @@ impl<'a> Engine<'a> {
     ///
     /// The initial attempt counts as position one and needs no retry relation.
     /// Every later distinct attempt must make the admitted retry expression
-    /// complete true. Exact replay is a no-op; changed replay and one-over-bound
-    /// candidates leave the prior snapshot unchanged.
+    /// complete true. An offered related effect must already be retained as an
+    /// independently established compensation effect for this registration.
+    /// Exact replay is a no-op; changed replay and one-over-bound candidates
+    /// leave the prior snapshot unchanged.
     pub fn admit_compensation_attempt(
         &mut self,
         compensation_handle: u32,
         binding: &RuntimeBinding,
+        established_effect: Option<&RuntimeBinding>,
         outcome: Option<AttemptOutcome>,
         retry_view: Option<&StateView>,
         limits: state_evaluation::Limits,
@@ -604,11 +596,58 @@ impl<'a> Engine<'a> {
             Ok(subject) => subject,
             Err(error) => return CompensationOutcome::Refused(error),
         };
+        let established_effect = match established_effect {
+            Some(binding) => {
+                let slot = SlotHandle::new(definition.definition().effect_instance);
+                let subject =
+                    match self.runtime_subject(slot, BindingKind::CompensationEffect, binding) {
+                        Ok(subject) => subject,
+                        Err(error) => return CompensationOutcome::Refused(error),
+                    };
+                let Some(effect) = self.compensation_state.effect(&subject) else {
+                    return CompensationOutcome::Unavailable(
+                        CompensationMissing::CompensationEffect,
+                    );
+                };
+                if effect.registration() != &registration {
+                    return CompensationOutcome::Refused(CompensationRefusal::ConflictingReplay);
+                }
+                Some(subject)
+            }
+            None => None,
+        };
         if let Some(existing) = self.compensation_state.attempt(&subject) {
-            return if existing.registration() == &registration && existing.outcome() == outcome {
-                CompensationOutcome::Completed(CompensationTransition::Replay)
-            } else {
-                CompensationOutcome::Refused(CompensationRefusal::ConflictingReplay)
+            if existing.registration() != &registration
+                || existing.established_effect() != established_effect.as_ref()
+                || existing.outcome() != outcome
+            {
+                return CompensationOutcome::Refused(CompensationRefusal::ConflictingReplay);
+            }
+            if existing.retry().is_none() {
+                return CompensationOutcome::Completed(CompensationTransition::Replay);
+            }
+            let empty = StateView::default();
+            let view = retry_view.unwrap_or(&empty);
+            return match evaluate_boolean(
+                self.context.package(),
+                self.identity.declaration_handle(),
+                definition.definition().retry.clone(),
+                view,
+                limits,
+            ) {
+                BooleanEvaluation::True(report)
+                    if existing.retry_view() == Some(view) && existing.retry() == Some(&report) =>
+                {
+                    CompensationOutcome::Completed(CompensationTransition::Replay)
+                }
+                BooleanEvaluation::True(_) => {
+                    CompensationOutcome::Refused(CompensationRefusal::ConflictingReplay)
+                }
+                BooleanEvaluation::False(report) => CompensationOutcome::Refused(
+                    CompensationRefusal::RetryNotAuthorized(Box::new(report)),
+                ),
+                BooleanEvaluation::Source(report) => CompensationOutcome::Source(report),
+                BooleanEvaluation::Unsupported(report) => CompensationOutcome::Unsupported(report),
             };
         }
 
@@ -635,8 +674,8 @@ impl<'a> Engine<'a> {
             });
         }
 
-        let retry = if retained == 0 {
-            None
+        let (retry_view, retry) = if retained == 0 {
+            (None, None)
         } else {
             let empty = StateView::default();
             let view = retry_view.unwrap_or(&empty);
@@ -647,9 +686,11 @@ impl<'a> Engine<'a> {
                 view,
                 limits,
             ) {
-                BooleanEvaluation::True(report) => Some(report),
-                BooleanEvaluation::False(_) => {
-                    return CompensationOutcome::Refused(CompensationRefusal::RetryNotAuthorized)
+                BooleanEvaluation::True(report) => (Some(view.clone()), Some(report)),
+                BooleanEvaluation::False(report) => {
+                    return CompensationOutcome::Refused(CompensationRefusal::RetryNotAuthorized(
+                        Box::new(report),
+                    ))
                 }
                 BooleanEvaluation::Source(report) => return CompensationOutcome::Source(report),
                 BooleanEvaluation::Unsupported(report) => {
@@ -659,7 +700,14 @@ impl<'a> Engine<'a> {
         };
 
         let mut candidate = self.compensation_state.clone();
-        candidate.push_attempt(registration, subject, outcome, retry);
+        candidate.push_attempt(
+            registration,
+            subject,
+            established_effect,
+            outcome,
+            retry_view,
+            retry,
+        );
         self.compensation_state = candidate;
         CompensationOutcome::Completed(CompensationTransition::Applied)
     }
@@ -794,7 +842,7 @@ impl<'a> Engine<'a> {
             }
         };
         let mut candidate = self.compensation_state.clone();
-        match candidate.retain_recovery(registration, report) {
+        match candidate.retain_recovery(registration, view.clone(), report) {
             Ok(transition) => {
                 self.compensation_state = candidate;
                 CompensationOutcome::Completed(transition)
@@ -889,7 +937,14 @@ impl<'a> Engine<'a> {
             violations.push(OrderingViolation::CompensationAfterCommit);
         }
         let mut candidate = self.compensation_state.clone();
-        match candidate.retain_ordering(registration, violations) {
+        match candidate.retain_ordering(
+            registration,
+            forward.clone(),
+            effect.clone(),
+            commit.cloned(),
+            positions.clone(),
+            violations,
+        ) {
             Ok(transition) => {
                 self.compensation_state = candidate;
                 CompensationOutcome::Completed(transition)
@@ -967,8 +1022,6 @@ impl<'a> Engine<'a> {
             compensation: self.compensation,
             compensation_state: self.compensation_state,
             conformance: self.conformance,
-            compensation_attempts: self.compensation_attempts,
-            compensation_effects: self.compensation_effects,
             rows,
         })
     }
@@ -1233,8 +1286,6 @@ pub struct AssessmentBundle<'a, Row> {
     compensation: CompensationSnapshot,
     compensation_state: CompensationState,
     conformance: ConformanceKernel,
-    compensation_attempts: Vec<CompensationAttemptInput<'a>>,
-    compensation_effects: Vec<CompensationEffectInput<'a>>,
     rows: Vec<ClaimRow<Row>>,
 }
 
@@ -1274,16 +1325,6 @@ impl<Row> AssessmentBundle<'_, Row> {
     #[must_use]
     pub const fn compensation_state(&self) -> &CompensationState {
         &self.compensation_state
-    }
-    /// Distinct admitted compensation attempts retained with this bundle.
-    #[must_use]
-    pub fn compensation_attempts(&self) -> &[CompensationAttemptInput<'_>] {
-        &self.compensation_attempts
-    }
-    /// Distinct admitted compensation effects retained with this bundle.
-    #[must_use]
-    pub fn compensation_effects(&self) -> &[CompensationEffectInput<'_>] {
-        &self.compensation_effects
     }
     /// One ordered outcome for every requested claim.
     #[must_use]

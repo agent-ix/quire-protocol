@@ -6,8 +6,9 @@
 //! their owner type so incomplete, refused, exhausted, and unsupported
 //! outcomes cannot be approximated as Boolean protocol facts.
 
+use quire_observation::authority::{observation as observation_record, position};
 use quire_observation::QualifiedSubject;
-use quire_spec_language::state::EvaluationReport;
+use quire_spec_language::state::{EvaluationReport, StateView};
 
 use super::algebra::{AttemptOutcome, EffectDisposition, OrderingViolation};
 use super::registration::Registration;
@@ -69,7 +70,10 @@ pub enum Refusal {
         attempted: usize,
     },
     /// The admitted retry expression completed false for this candidate.
-    RetryNotAuthorized,
+    ///
+    /// The complete owner report is retained in the refusal so its limits,
+    /// usage, accounting version, and Boolean verdict are not approximated.
+    RetryNotAuthorized(Box<EvaluationReport>),
     /// The admitted QSL retry bound is not a positive signed-64 integer.
     InvalidRetryBound,
     /// The admitted compensation selects `commit never`.
@@ -91,6 +95,15 @@ pub enum Outcome {
     GuardFalse(EvaluationReport),
     /// Required owner evidence is absent and no success was fabricated.
     Unavailable(MissingEvidence),
+    /// Owner evaluation completed, but a required graph fact was absent.
+    ///
+    /// The complete report is preserved even though no graph mutation occurs.
+    UnavailableAfterEvaluation {
+        /// The graph fact required to complete the transition.
+        missing: MissingEvidence,
+        /// QSL's exact completed owner report.
+        report: EvaluationReport,
+    },
     /// QSL returned its exact incomplete, refused, or exhausted result.
     Source(EvaluationReport),
     /// QSL completed with a non-Boolean value at a Boolean compensation site.
@@ -99,12 +112,42 @@ pub enum Outcome {
     Refused(Refusal),
 }
 
+/// One completed-true QSL activation retained for a compensation definition.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Activation {
+    compensation_handle: u32,
+    view: StateView,
+    report: EvaluationReport,
+}
+
+impl Activation {
+    /// Returns QSL's declaration-local compensation coordinate.
+    #[must_use]
+    pub const fn compensation_handle(&self) -> u32 {
+        self.compensation_handle
+    }
+
+    /// Returns the exact state view evaluated for this activation.
+    #[must_use]
+    pub const fn view(&self) -> &StateView {
+        &self.view
+    }
+
+    /// Returns QSL's complete owner-accounted guard report.
+    #[must_use]
+    pub const fn report(&self) -> &EvaluationReport {
+        &self.report
+    }
+}
+
 /// One exact admitted compensation attempt.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Attempt {
     registration: Registration,
     subject: QualifiedSubject,
+    established_effect: Option<QualifiedSubject>,
     outcome: Option<AttemptOutcome>,
+    retry_view: Option<StateView>,
     retry: Option<EvaluationReport>,
 }
 
@@ -121,10 +164,22 @@ impl Attempt {
         &self.subject
     }
 
+    /// Returns the independently established related effect, when present.
+    #[must_use]
+    pub const fn established_effect(&self) -> Option<&QualifiedSubject> {
+        self.established_effect.as_ref()
+    }
+
     /// Returns the exact FR-236 outcome, or absence when unestablished.
     #[must_use]
     pub const fn outcome(&self) -> Option<AttemptOutcome> {
         self.outcome
+    }
+
+    /// Returns the exact QSL state view for an authored retry relation.
+    #[must_use]
+    pub const fn retry_view(&self) -> Option<&StateView> {
+        self.retry_view.as_ref()
     }
 
     /// Returns QSL's exact retry-expression report for a retry.
@@ -187,6 +242,7 @@ impl Commit {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Recovery {
     registration: Registration,
+    view: StateView,
     report: EvaluationReport,
 }
 
@@ -195,6 +251,12 @@ impl Recovery {
     #[must_use]
     pub const fn registration(&self) -> &Registration {
         &self.registration
+    }
+
+    /// Returns the exact QSL state view containing the evaluated operands.
+    #[must_use]
+    pub const fn view(&self) -> &StateView {
+        &self.view
     }
 
     /// Returns QSL's complete owner-accounted evaluation report.
@@ -208,6 +270,10 @@ impl Recovery {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Ordering {
     registration: Registration,
+    forward: observation_record::View,
+    effect: observation_record::View,
+    commit: Option<observation_record::View>,
+    positions: position::View,
     violations: Vec<OrderingViolation>,
 }
 
@@ -216,6 +282,30 @@ impl Ordering {
     #[must_use]
     pub const fn registration(&self) -> &Registration {
         &self.registration
+    }
+
+    /// Returns the exact forward-effect observation assessed.
+    #[must_use]
+    pub const fn forward(&self) -> &observation_record::View {
+        &self.forward
+    }
+
+    /// Returns the exact compensation-effect observation assessed.
+    #[must_use]
+    pub const fn effect(&self) -> &observation_record::View {
+        &self.effect
+    }
+
+    /// Returns the exact selected commit observation, when one was authored.
+    #[must_use]
+    pub const fn commit(&self) -> Option<&observation_record::View> {
+        self.commit.as_ref()
+    }
+
+    /// Returns the exact owner position ledger used for causal comparison.
+    #[must_use]
+    pub const fn positions(&self) -> &position::View {
+        &self.positions
     }
 
     /// Returns all distinct violations in stable requirement order.
@@ -228,6 +318,7 @@ impl Ordering {
 /// Owned externally observable state for one non-retargetable Engine.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Snapshot {
+    activations: Vec<Activation>,
     attempts: Vec<Attempt>,
     effects: Vec<Effect>,
     commits: Vec<Commit>,
@@ -236,6 +327,12 @@ pub struct Snapshot {
 }
 
 impl Snapshot {
+    /// Returns completed-true activation reports in accepted operation order.
+    #[must_use]
+    pub fn activations(&self) -> &[Activation] {
+        &self.activations
+    }
+
     /// Returns distinct attempts in accepted operation order.
     #[must_use]
     pub fn attempts(&self) -> &[Attempt] {
@@ -273,6 +370,31 @@ impl Snapshot {
             .count()
     }
 
+    pub(crate) fn retain_activation(
+        &mut self,
+        compensation_handle: u32,
+        view: StateView,
+        report: EvaluationReport,
+    ) -> Result<Transition, Refusal> {
+        if let Some(existing) = self
+            .activations
+            .iter()
+            .find(|activation| activation.compensation_handle == compensation_handle)
+        {
+            return if existing.view == view && existing.report == report {
+                Ok(Transition::Replay)
+            } else {
+                Err(Refusal::ConflictingReplay)
+            };
+        }
+        self.activations.push(Activation {
+            compensation_handle,
+            view,
+            report,
+        });
+        Ok(Transition::Applied)
+    }
+
     pub(crate) fn attempt(&self, subject: &QualifiedSubject) -> Option<&Attempt> {
         self.attempts
             .iter()
@@ -295,13 +417,17 @@ impl Snapshot {
         &mut self,
         registration: Registration,
         subject: QualifiedSubject,
+        established_effect: Option<QualifiedSubject>,
         outcome: Option<AttemptOutcome>,
+        retry_view: Option<StateView>,
         retry: Option<EvaluationReport>,
     ) {
         self.attempts.push(Attempt {
             registration,
             subject,
+            established_effect,
             outcome,
+            retry_view,
             retry,
         });
     }
@@ -329,6 +455,7 @@ impl Snapshot {
     pub(crate) fn retain_recovery(
         &mut self,
         registration: Registration,
+        view: StateView,
         report: EvaluationReport,
     ) -> Result<Transition, Refusal> {
         if let Some(existing) = self
@@ -336,7 +463,7 @@ impl Snapshot {
             .iter()
             .find(|recovery| recovery.registration == registration)
         {
-            return if existing.report == report {
+            return if existing.view == view && existing.report == report {
                 Ok(Transition::Replay)
             } else {
                 Err(Refusal::ConflictingReplay)
@@ -344,6 +471,7 @@ impl Snapshot {
         }
         self.recoveries.push(Recovery {
             registration,
+            view,
             report,
         });
         Ok(Transition::Applied)
@@ -352,6 +480,10 @@ impl Snapshot {
     pub(crate) fn retain_ordering(
         &mut self,
         registration: Registration,
+        forward: observation_record::View,
+        effect: observation_record::View,
+        commit: Option<observation_record::View>,
+        positions: position::View,
         violations: Vec<OrderingViolation>,
     ) -> Result<Transition, Refusal> {
         if let Some(existing) = self
@@ -359,7 +491,12 @@ impl Snapshot {
             .iter()
             .find(|ordering| ordering.registration == registration)
         {
-            return if existing.violations == violations {
+            return if existing.forward == forward
+                && existing.effect == effect
+                && existing.commit == commit
+                && existing.positions == positions
+                && existing.violations == violations
+            {
                 Ok(Transition::Replay)
             } else {
                 Err(Refusal::ConflictingReplay)
@@ -367,6 +504,10 @@ impl Snapshot {
         }
         self.orderings.push(Ordering {
             registration,
+            forward,
+            effect,
+            commit,
+            positions,
             violations,
         });
         Ok(Transition::Applied)

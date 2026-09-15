@@ -1605,8 +1605,6 @@ fn tc_002_effect_projection_requires_an_owner_effect_slot() {
         engine.conformance().causal_edges(),
         engine.linked().causal_edges()
     );
-    assert!(engine.compensation_attempts().is_empty());
-    assert!(engine.compensation_effects().is_empty());
     assert!(engine.conformance().attempts().is_empty());
     assert!(engine.conformance().effects().is_empty());
     let bundle = engine
@@ -1631,8 +1629,6 @@ fn tc_002_effect_projection_requires_an_owner_effect_slot() {
         bundle.conformance().causal_edges(),
         bundle.linked().causal_edges()
     );
-    assert!(bundle.compensation_attempts().is_empty());
-    assert!(bundle.compensation_effects().is_empty());
     assert!(bundle.conformance().attempts().is_empty());
     assert!(bundle.conformance().effects().is_empty());
 }
