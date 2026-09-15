@@ -254,12 +254,26 @@ fn tc_017_limit_vocabulary_is_typed_and_ordered_without_substitution() {
 #[trace("TC-017", "NFR-002-AC-2")]
 fn tc_017_bounded_assembly_charges_exact_retained_bytes_before_the_index_exists() {
     let inventory = production_inventory().expect("production sites reconcile");
+    let bounded_contents = || {
+        contents(
+            vec![],
+            vec![],
+            vec![IndexedLimit::new(
+                accountant("owner", "contract/1"),
+                LimitDimension::Protocol(BudgetDimension::InputByte),
+                1,
+            )],
+            vec![],
+        )
+    };
     let exact_retained_bytes = b"delivery-a".len()
         + b"producer-revision-1".len()
         + b"offer.json".len()
         + b"{\n  \"exact\": true\n}\n".len()
         + b"artifact-ref:producer/2".len()
-        + b"temporal.json".len();
+        + b"temporal.json".len()
+        + b"owner".len()
+        + b"contract/1".len();
     let budget = Budget::nothing_granted()
         .grant(BudgetDimension::InputByte, exact_retained_bytes - 1)
         .expect("positive byte budget")
@@ -268,7 +282,7 @@ fn tc_017_bounded_assembly_charges_exact_retained_bytes_before_the_index_exists(
     let mut resources = ResourceAccountant::new(budget, &inventory);
     let outcome = DeliveryIndex::new_bounded(
         key(b"delivery-a", b"producer-revision-1"),
-        contents(vec![], vec![], vec![], vec![]),
+        bounded_contents(),
         &mut resources,
     );
     let OperationOutcome::ResourceIncomplete(incomplete) = outcome else {
@@ -292,7 +306,7 @@ fn tc_017_bounded_assembly_charges_exact_retained_bytes_before_the_index_exists(
     assert!(matches!(
         DeliveryIndex::new_bounded(
             key(b"delivery-a", b"producer-revision-1"),
-            contents(vec![], vec![], vec![], vec![]),
+            bounded_contents(),
             &mut fresh,
         ),
         OperationOutcome::Completed(_)
