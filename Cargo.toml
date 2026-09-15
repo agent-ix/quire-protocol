@@ -8,7 +8,7 @@ description = "Strict consumer boundary for accepted native Quire protocol packa
 publish = false
 
 [dependencies]
-quire-spec-language = { git = "https://github.com/agent-ix/quire-spec-language", rev = "b2598b50706ea615716abf51194dd58d3929c2f7" }
+quire-spec-language = { git = "https://github.com/agent-ix/quire-spec-language", rev = "fc77da208a8ac80edbcc92669c417c8c8db80b15" }
 quire-observation = { git = "https://github.com/agent-ix/quire-observation", rev = "93bc565072fb05d1ecf29f15725b75c0a77378fb" }
 # Reading the offer's already-published members and serialising B's own
 # selections through A's `Serialize` impls. B adds no schema, grammar or wire
