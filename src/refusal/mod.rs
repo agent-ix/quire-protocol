@@ -885,6 +885,18 @@ impl ProtocolRefusal {
         rendered
     }
 
+    /// Retain this exact refusal while recording that an enclosing assessment
+    /// kept independently authorized sibling results.
+    ///
+    /// Only the enclosing assessment may make this transition: it does not
+    /// mint a cause, change the originating stage, or make a failed operation
+    /// appear completed.
+    #[must_use]
+    pub(crate) fn with_independent_results_retained(mut self) -> Self {
+        self.0.partial_output = PartialOutput::IndependentResultsRetained;
+        self
+    }
+
     /// Whether two refusals carry the same producer-supplied interior.
     ///
     /// The refusal axis and rendering are deliberately excluded. Integrations
