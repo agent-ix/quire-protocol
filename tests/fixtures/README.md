@@ -3,7 +3,7 @@
 `a-four-unit-selections.json` is B's reviewed acceptance selection for IT-001.
 It is derived against the original sources, admitted model, contract and
 dependency bytes produced by `native_protocol_handoff` at `quire-spec-language`
-`f1700a9264d6d3bcdd07e0f77b70f3dae9ed4c07` — the QSL revision pinned by this
+`6c8c401bb807a417215fae7593ef27fd9bab051e` — the QSL revision pinned by this
 crate — and retained
 here as an AGPL-3.0-only compatibility fixture. JSON does not support an SPDX
 header; this provenance record supplies the applicable license notice.
@@ -13,73 +13,47 @@ this local fixture before it reads `compiled-protocol.json`, then independently
 loads the corresponding source, model, producer, and dependency bytes from the
 actual producer directory.
 
-## The fixture is build-specific, and that is a defect
+QSL #112 replaced the ambient build-specific address with the committed,
+owner-exported `PUBLISHED_V1_HANDOFF` and member-name constants. QSL #114 then
+gave `Service` and `Provider` distinct admitted model authorities. The selected
+version-1 package digest is
+`sha256:fb00f406798997dae14c6de1b5e61c184c354f5470aa926dde8813e707e50cce`.
+Protocol retains its own reviewed selection snapshot, but obtains the offered
+bytes and every selected dependency from QSL's exactly pinned crate source.
+It neither vendors the handoff nor invokes the producer during tests.
 
-An earlier revision of this file said the producer ELF digest "is not a durable
-fixture pin". That was false in a way worth stating rather than deleting: the
-fixture pins that digest in two places, and it is transitively inside the
-artifact digest as well. Rebuilding A's producer under a different toolchain,
-profile or strip setting changes all three values, so this fixture is pinned to
-one *build* of A, not to one *revision* of A.
+## Running the IT-001 version-1 lane
 
-That was demonstrated, not inferred. Regenerating with the documented
-`CARGO_PROFILE_RELEASE_STRIP=symbols` recipe changed both the producer ELF
-digest and the artifact digest that contains it. Updating this selection
-therefore requires a deliberate B review together with A revision, license, and
-digest provenance — and will keep requiring one on every producer rebuild until
-the selection addresses A's producer by something reproducible. That
-build-specific identity remains an explicit limitation of the generated version
-1 lane. It is separate from version 2 handoff addressing, which
-`quire-spec-language#78` resolved with owner-exported constants.
-
-## Correction: the fixture was an unreproducible hybrid
-
-Before the regeneration recorded below, this fixture combined digests derived
-from two different A revisions, and `quire-spec-language` PR72 — named here as
-the source of `5690c2b` — is closed with `mergedAt: null`. The revision it
-described was never on A's `main`, so no one could reproduce the fixture from
-what this file said. Twenty-three of the lane's twenty-four tests had
-consequently never executed. All twenty-three currently selected cases execute
-when the version 1 producer fixture is supplied against `f1700a9`.
-
-## Regenerating the fixture
-
-From a checkout of `quire-spec-language` at `f1700a9`, with its own target
-directory:
+The complete lane is default-running and needs no environment variable:
 
 ```console
-CARGO_PROFILE_RELEASE_STRIP=symbols CARGO_BUILD_JOBS=1 \
-  CARGO_TARGET_DIR=<a-checkout>/target \
-  cargo run --locked --offline --release \
-  --example native_protocol_handoff -- <handoff-dir>
+CARGO_BUILD_JOBS=1 flock /tmp/quire-heavy-check.lock \
+  cargo test --locked --offline --target-dir target-codex-backends \
+  --test it001_native_handoff -- --test-threads=1
 ```
 
-Three digests in `a-four-unit-selections.json` are then rederived from their own
-original bytes, never from the producer's `expected.json`:
+It admits through `intake::v1::admit`, executes the local
+`model::v1::link_static` boundary, retains every selected identity, checks the
+positive reader/dependency inventory, and runs the independent refusal and
+numeric-boundary controls. No hosted CI runs this lane.
 
-| Field | Bytes hashed |
-| --- | --- |
-| `artifact/digest` | `<handoff-dir>/compiled-protocol.json` |
-| `contract/digest` | A's `docs/compiled-protocol-v1.md` at `f1700a9` |
-| producer identity | `<handoff-dir>/dependencies/0.bin` |
+## SC-06a historical compatibility evidence
 
-## Running the IT-001 lane
-
-The lane is `#[ignore]`d by default because it consumes A's real producer
-output, which is generated rather than vendored:
-
-```console
-CARGO_BUILD_JOBS=1 CARGO_TARGET_DIR=<this-checkout>/target \
-  QUIRE_PROTOCOL_A_FIXTURE=<handoff-dir> \
-  flock /tmp/quire-heavy-check.lock \
-  cargo test --locked --test it001_native_handoff -- --ignored --test-threads=1
-```
-
-No hosted CI runs this lane; per `AGENTS.md` it is a local check.
+The same committed version-1 test and selection blobs were executed at the
+actual Protocol revision before version 2 (`0e5ec29207d0339e829dfbc6b660fd40e857d563`)
+and the revision adding it (`5ce9070e7fb74b3a292c96c9478859b1c5fa3231`).
+Their matching QSL revisions were `5690c2b29c155ec72e21f5a7bb00fe1146b6f71a`
+and `d03e4ca560eb34463db5e541b2db5947d628b620`. Both isolated local runs passed
+all 23 historical SC-01..SC-05 cases with no failure or ignore. The Protocol
+test blob was `96b7ecc816b43ea2328c032d8c5b843ef000cc29` and the selection blob was
+`309af51873ef103a2331edf6e361aad85170b6d0` at both revisions. Source analysis
+shows the `/1` facade signature and body unchanged; the QSL `/1` public error,
+invalid, unsupported, expectation, limit and admitted-package definitions were
+unchanged while the new `/2` module was added separately.
 
 ## Version 2 published handoff
 
-The version 2 lane needs no environment variable or vendored fixture. It loads
+The version 2 lane also needs no environment variable or vendored fixture. It loads
 `protocol_artifact::handoff::PUBLISHED_HANDOFF` from the exactly pinned
 `quire-spec-language` source and imports that module's member-name and
 mutation-format constants. `tests/it001_v2_handoff.rs` verifies the published

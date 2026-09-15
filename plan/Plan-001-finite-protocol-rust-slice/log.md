@@ -7,6 +7,36 @@ description: "Chronological log of changes to the Plan-001 bundle."
 
 ## History
 
+* **2026-09-15** — Completed the Task-009 / issue #11 candidate against QSL
+  `6c8c401bb807a417215fae7593ef27fd9bab051e`. QSL #112 supplies the committed
+  owner-addressed `/1` handoff and #114 supplies distinct Service/Provider model
+  authorities. Protocol imports A's public selection/dependency types and member
+  constants, retains its independently reviewed selection before reading the
+  offer, and invokes neither a producer nor an ambient fixture. All 24 current
+  IT-001 version-1 tests run by default: the corpus admits through
+  `intake::v1::admit`, reaches `model::v1::link_static`, preserves four sources,
+  seven declarations, two role instances and one channel, and keeps every
+  numeric, digest, identity, feature and referenced-binding refusal explicit.
+  A paired version-1/version-2 test additionally changes each of the eight
+  inherited `Expected` selections and proves both readers refuse every axis;
+  version-2-only temporal axes remain separate in A's 28-case manifest.
+  The positive source/dependency inventory identifies exactly one A reader per
+  versioned intake and no B parser/frontend module. SC-06a was executed as the
+  required two-revision comparison rather than inferred from the current run:
+  the identical historical 23-case corpus passed 23/23 at Protocol `0e5ec292`
+  with QSL `5690c2b2` and 23/23 at Protocol `5ce9070e` with QSL `d03e4ca5`.
+  The historical test blob `96b7ecc816b43ea2328c032d8c5b843ef000cc29`
+  and selection blob `309af51873ef103a2331edf6e361aad85170b6d0` match
+  across both revisions; the root `/1` signature/body and QSL `/1` refusal types
+  are unchanged. The current mutual-refusal test now carries the exact
+  FR-001-AC-5 and NFR-007-AC-3/AC-4 trace tags. `quire coverage` reports
+  150/342 rows and 265/265/271 Rust symbols bound/tagged/candidates; it still
+  reports FR-001 as 4/5 because the installed traceability model deliberately
+  cannot mint IT scenario IDs pending `quire-rs#244`, so the separately counted
+  integration-only credit remains backed by the executed IT-001 and SC-06a
+  evidence rather than being mislabeled engine-bound. PR-time review, final
+  unchanged-head gate and promotion evidence remain before issue closure.
+
 * **2026-09-15** — Completed Task-003 / issue #5 on the exact QSL
   `c0deb7b3ab66d6e8cb64a0fd7769bd0af82b61b7` owner evaluator delivered by
   QSL #101/#105/#108. The request-scoped Engine begins with eligible linked

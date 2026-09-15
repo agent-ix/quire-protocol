@@ -34,8 +34,8 @@ relationships:
 
 ### Functional Requirements
 
-- [x] **FR-001**: Strict `/1` and `/2` admission is implemented; its `/1`
-  integration remainder belongs to Task-009.
+- [x] **FR-001**: Strict `/1` and `/2` admission, mutual refusal and the `/1`
+  two-revision compatibility regression are implemented.
 - [ ] **FR-002**: Complete the exact version-2 binding and linked graph.
 - [ ] **FR-003**: Connect the implemented compensation kernel to the linked graph.
 - [ ] **FR-004**: Connect one batch/incremental conformance kernel to graph and compensation outputs.
@@ -54,7 +54,7 @@ relationships:
 - [x] **NFR-004**: The exact single-lane local gate is executable.
 - [ ] **NFR-005**: Compose and hand off every owed scenario record.
 - [ ] **NFR-006**: Keep manifest, lockfile and rights record exact after every pin.
-- [ ] **NFR-007**: Keep `/1`, `/2` and external contract paths version-explicit.
+- [x] **NFR-007**: Keep `/1`, `/2` and external contract paths version-explicit.
 - [ ] **NFR-008**: Carry every owed refusal or unexecutable axis in its returned value.
 
 ## Dependency Graph
@@ -134,7 +134,7 @@ shared result-domain values. Each has one Protocol owner and no adapter-local co
 
 ### Integration tests
 
-- [ ] **IT-001 `/1` SC-01..SC-05 and SC-06a**: default-running admission plus
+- [x] **IT-001 `/1` SC-01..SC-05 and SC-06a**: default-running admission plus
   local-link regression and before/after compatibility comparison. The `/2`
   SC-06..SC-09 handoff is already complete under Task-012.
 - [ ] **IT-002**: exact QObs runtime/authority facts and QSL native-temporal
@@ -175,8 +175,9 @@ shared result-domain values. Each has one Protocol owner and no adapter-local co
 
 ### Producer Integration
 
-- **Native = Task-009** `/1` compatibility lane — may run after Task-002; exit:
-  the complete owner corpus runs by default through admission and linking.
+- **Native = Task-009 (done)** `/1` compatibility lane — the complete owner
+  corpus runs by default through admission and linking, and SC-06a passes at
+  both historical revisions around the `/2` addition.
 - **Facts = Task-010** QObs/QSL native-temporal lane — may run after Task-006;
   exit: all selected facts and adverse mutations reach results unchanged.
 - **E02 = Task-007** Portable projection — may run after Task-006 and accepted
@@ -219,7 +220,7 @@ track names are subsystems and are not agent assignments; Agent B remains on TL.
 | Task-006 | Core | FR-006, FR-008 | TC-006, TC-011 | in_progress; result/map slice landed |
 | Task-007 | Producer Integration | FR-007 | TC-007 | blocked on E02 owner acceptance reconciliation |
 | Task-008 | Cross-cutting Closure | NFR-001, NFR-002 | TC-008, TC-009 | in_progress; current-site inventory exists |
-| Task-009 | Producer Integration | FR-001, FR-002 | IT-001 | in_progress; QSL gate delivered |
+| Task-009 | Producer Integration | FR-001, FR-002 | IT-001 | done; default `/1` admission/static link and SC-06a two-revision comparison pass |
 | Task-010 | Producer Integration | FR-003, FR-004, FR-006 | IT-002 | in_progress; QObs delivered, core bridge remains |
 | Task-011 | Qualification | StR-001, FR-006, FR-007, NFR-003 | IT-003, TC-010 | blocked on E02/Quoin and predecessors |
 | Task-012 | Producer Integration | FR-001, FR-002, NFR-002 | IT-001 | done |
