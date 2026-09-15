@@ -122,6 +122,17 @@ fn tc_017_retains_exact_state_and_keeps_identity_separate() {
 #[test]
 #[trace("TC-017", "FR-018-AC-3", "FR-018-AC-5", "FR-018-AC-9")]
 fn tc_017_refuses_each_local_ambiguity_without_repair() {
+    assert_eq!(
+        DeliveryIndex::new(
+            key(b"", b"revision"),
+            contents(vec![], vec![], vec![], vec![]),
+        ),
+        Err(DeliveryIndexError::EmptyDeliveryRoot)
+    );
+    assert_eq!(
+        DeliveryIndex::new(key(b"root", b""), contents(vec![], vec![], vec![], vec![]),),
+        Err(DeliveryIndexError::EmptyProducerRevision)
+    );
     let role = InputRole::new(b"clock-input");
     assert!(matches!(
         DeliveryIndex::new(

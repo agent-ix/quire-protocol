@@ -403,6 +403,10 @@ impl DeliveryIndexContents {
 /// A distinct failure while assembling consumer-owned delivery evidence.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum DeliveryIndexError {
+    /// The selected delivery root was empty and cannot identify an index.
+    EmptyDeliveryRoot,
+    /// The producer revision was empty and cannot identify an immutable delivery.
+    EmptyProducerRevision,
     /// The selected root was not available.
     MissingRoot(DeliveryRoot),
     /// No index was available under the selected root.
@@ -517,6 +521,12 @@ impl DeliveryIndex {
         key: DeliveryIndexKey,
         contents: DeliveryIndexContents,
     ) -> Result<Self, DeliveryIndexError> {
+        if key.delivery_root().as_bytes().is_empty() {
+            return Err(DeliveryIndexError::EmptyDeliveryRoot);
+        }
+        if key.producer_revision().as_bytes().is_empty() {
+            return Err(DeliveryIndexError::EmptyProducerRevision);
+        }
         let mut input_roles = BTreeSet::new();
         for input in &contents.inputs {
             if !input_roles.insert(input.role.clone()) {
