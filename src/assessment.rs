@@ -9,6 +9,9 @@ use quire_observation::authority::{closure as observation_closure, progress};
 use quire_observation::QualifiedSubject;
 use quire_spec_language::protocol_artifact::native_temporal::v2 as temporal_v2;
 
+use crate::claims::dispatch::{
+    self, ClaimRequest, Limits as DispatchLimits, Report as DispatchReport,
+};
 use crate::claims::Claim;
 use crate::closure::GlobalConformanceClosure;
 use crate::compensation::registration::Snapshot as CompensationSnapshot;
@@ -221,6 +224,42 @@ fn outcome_refusal(error: BundleRefusal) -> ProtocolRefusal {
     .emitting_nothing()
 }
 
+/// One refusal from the Engine's closed-dispatch boundary.
+///
+/// This wrapper deliberately preserves the inner refusal envelope.  A
+/// whole-request dispatch limit is owned by dispatch, while an attempt to
+/// retarget the Engine's fixed claim population is owned by the bundle; neither
+/// is collapsed into a synthetic generic error.
+#[derive(Clone, Debug)]
+pub enum DispatchRefusal {
+    /// The request does not name the Engine's exact selected claim population.
+    Bundle(BundleRefusal),
+    /// The closed dispatch owner refused with its original typed envelope.
+    Dispatch(dispatch::Refusal),
+}
+
+impl DispatchRefusal {
+    /// The complete source-bound envelope for this refusal.
+    #[must_use]
+    pub fn envelope(&self) -> ProtocolRefusal {
+        match self {
+            Self::Bundle(error) => outcome_refusal(*error),
+            Self::Dispatch(error) => error.envelope().clone(),
+        }
+    }
+}
+
+impl core::fmt::Display for DispatchRefusal {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Bundle(error) => write!(formatter, "assessment dispatch rejected: {error:?}"),
+            Self::Dispatch(error) => error.fmt(formatter),
+        }
+    }
+}
+
+impl std::error::Error for DispatchRefusal {}
+
 /// One non-retargetable assessment request.
 ///
 /// The engine borrows the constructor-validated linked assessment and retains
@@ -356,6 +395,36 @@ impl<'a> Engine<'a> {
     #[must_use]
     pub const fn activation(&self) -> Option<ActivationBinding<'a>> {
         self.activation
+    }
+
+    /// Dispatch this assessment's exact claim population through the closed
+    /// local conformance capability.
+    ///
+    /// The supplied report is produced by QProtocol's conformance owner; this
+    /// method neither accepts a backend callback nor permits a dispatch request
+    /// to add, omit, or retarget one of this engine's selected claims.
+    pub fn dispatch_conformance(
+        &self,
+        requests: &[ClaimRequest<'_>],
+        report: &crate::conformance::Report,
+        limits: DispatchLimits,
+    ) -> Result<DispatchReport, DispatchRefusal> {
+        if requests.len() != self.requested.len()
+            || requests
+                .iter()
+                .any(|request| !self.requested.contains(&request.claim))
+            || self.requested.iter().any(|claim| {
+                requests
+                    .iter()
+                    .filter(|request| request.claim == *claim)
+                    .count()
+                    != 1
+            })
+        {
+            return Err(DispatchRefusal::Bundle(BundleRefusal::UnexpectedClaim));
+        }
+        dispatch::dispatch_from_conformance(requests, report, limits)
+            .map_err(DispatchRefusal::Dispatch)
     }
 
     /// Retain one independent outcome for every selected claim.
@@ -595,11 +664,15 @@ impl<Row> AssessmentBundle<'_, Row> {
 #[cfg(test)]
 mod tests {
     use super::{
-        claim_from_result_kind, validate_requested, validate_rows, BundleRefusal, ClaimRow,
+        claim_from_result_kind, outcome_refusal, validate_requested, validate_rows, BundleRefusal,
+        ClaimRow,
     };
     use crate::claims::Claim;
     use crate::outcome::ClaimOutcome;
+    use crate::refusal::{PartialOutput, ProtocolStage, RefusalDomain};
     use crate::result::ClaimKind;
+    use ix_trace_rs::trace;
+    use std::collections::BTreeSet;
 
     #[test]
     fn assessment_request_requires_one_claim() {
@@ -659,6 +732,36 @@ mod tests {
             ),
             Ok(())
         );
+    }
+
+    /// Every whole-assessment refusal carries a source-bound envelope rather
+    /// than using the absence of a bundle as its identity.
+    #[test]
+    #[trace("TC-011", "FR-008-AC-1", "FR-008-AC-4", "FR-036-AC-1", "FR-040-AC-1")]
+    fn tc_011_assessment_bundle_refusals_are_typed_and_distinct() {
+        let reasons = [
+            BundleRefusal::EmptyRequest,
+            BundleRefusal::DuplicateRequestedClaim,
+            BundleRefusal::UnexpectedClaim,
+            BundleRefusal::DuplicateClaimRow,
+            BundleRefusal::MissingClaimRow,
+            BundleRefusal::InvalidDefinitionIdentity,
+            BundleRefusal::InvalidLinkedProtocol,
+            BundleRefusal::InvalidConformanceKernel,
+            BundleRefusal::CanonicalClaimMismatch,
+            BundleRefusal::ActivationSubjectMismatch,
+            BundleRefusal::ActivationDeclarationMismatch,
+        ];
+        let mut codes = BTreeSet::new();
+        let mut axes = BTreeSet::new();
+        for reason in reasons {
+            let refusal = outcome_refusal(reason);
+            assert_eq!(refusal.domain(), RefusalDomain::Assessment);
+            assert_eq!(refusal.stage(), ProtocolStage::ClaimDispatch);
+            assert_eq!(refusal.partial_output(), PartialOutput::NoneEmitted);
+            assert!(codes.insert(refusal.code().as_str()));
+            assert!(axes.insert(refusal.axis().as_bytes().to_vec()));
+        }
     }
 
     #[test]

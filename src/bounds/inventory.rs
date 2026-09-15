@@ -1821,16 +1821,10 @@ const CLAIM_DERIVED: SourceSite = SourceSite::new(
     SiteKind::Retention,
 );
 const CLAIM_OPERATION: SourceSite = SourceSite::new(
-    SiteId::new("claims/backend/invoke"),
-    "claims::dispatch::dispatch",
+    SiteId::new("claims/conformance/dispatch"),
+    "claims::dispatch::dispatch_from_conformance",
     BudgetDimension::Operation,
     SiteKind::Iteration,
-);
-const CLAIM_BACKEND: SourceSite = SourceSite::new(
-    SiteId::new("claims/backend/select"),
-    "claims::dispatch::dispatch",
-    BudgetDimension::Definition,
-    SiteKind::Traversal,
 );
 const CLAIM_COMPONENT: SourceSite = SourceSite::new(
     SiteId::new("claims/premise/component/visit"),
@@ -2015,7 +2009,6 @@ pub const PRODUCTION_SOURCES: &[SourceSite] = &[
     crate::claims::dispatch::RESULT_SOURCE,
     crate::claims::dispatch::DERIVED_SOURCE,
     crate::claims::dispatch::OPERATION_SOURCE,
-    crate::claims::dispatch::BACKEND_SOURCE,
     crate::claims::dispatch::COMPONENT_SOURCE,
     crate::claims::dispatch::ALLOCATION_SOURCE,
     crate::compensation::recovery::OBSERVATION_SOURCE,
@@ -2350,12 +2343,6 @@ pub const PRODUCTION_ENTRIES: &[InventoryEntry] = &[
         CLAIM_OPERATION,
         LimitAuthority::ConsumerOwner,
         ChargePoint::BeforeUnit,
-        Termination::CollectionLength,
-    ),
-    entry(
-        CLAIM_BACKEND,
-        LimitAuthority::ConsumerOwner,
-        ChargePoint::BeforeTraverse,
         Termination::CollectionLength,
     ),
     entry(
