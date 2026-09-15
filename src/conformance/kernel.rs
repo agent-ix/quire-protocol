@@ -2,7 +2,11 @@
 //! One immutable conformance input assembled from linked static and compensation facts.
 
 use crate::compensation::registration::{Registration, Snapshot as CompensationSnapshot};
-use crate::model::v2::{DefinitionIdentity, LinkedCompensationDefinition, LinkedProtocol};
+use crate::model::v2::{
+    CompensationAttemptInput, CompensationEffectInput, DefinitionIdentity,
+    LinkedCompensationDefinition, LinkedProtocol,
+};
+use quire_observation::QualifiedSubject;
 use quire_spec_language::protocol_artifact::wire::{Body, ControlOperation};
 
 /// Why linked static and derived compensation state cannot form one kernel.
@@ -12,6 +16,8 @@ pub enum Refusal {
     ForeignDefinition,
     /// A registration names no compensation definition in the linked graph.
     UnknownCompensation,
+    /// An admitted attempt or effect names no derived registration.
+    UnknownRegistration,
     /// A selected QSL control table is too large for its published `u32` handle domain.
     UnrepresentableControl,
 }
@@ -21,6 +27,48 @@ pub enum Refusal {
 pub struct LinkedObligation {
     handle: u32,
     operation: ControlOperation,
+}
+
+/// One admitted compensation attempt bound to its exact derived registration.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LinkedCompensationAttempt {
+    registration: Registration,
+    subject: QualifiedSubject,
+}
+
+impl LinkedCompensationAttempt {
+    /// Returns the exact registration this attempt belongs to.
+    #[must_use]
+    pub const fn registration(&self) -> &Registration {
+        &self.registration
+    }
+
+    /// Returns QObs's complete authority-qualified attempt subject.
+    #[must_use]
+    pub const fn subject(&self) -> &QualifiedSubject {
+        &self.subject
+    }
+}
+
+/// One admitted compensation effect bound to its exact derived registration.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LinkedCompensationEffect {
+    registration: Registration,
+    subject: QualifiedSubject,
+}
+
+impl LinkedCompensationEffect {
+    /// Returns the exact registration this effect belongs to.
+    #[must_use]
+    pub const fn registration(&self) -> &Registration {
+        &self.registration
+    }
+
+    /// Returns QObs's complete authority-qualified compensation-effect subject.
+    #[must_use]
+    pub const fn subject(&self) -> &QualifiedSubject {
+        &self.subject
+    }
 }
 
 impl LinkedObligation {
@@ -49,6 +97,8 @@ pub struct Kernel {
     causal_edges: Vec<quire_spec_language::protocol_artifact::wire::CausalEdge>,
     compensations: Vec<LinkedCompensationDefinition>,
     registrations: Vec<Registration>,
+    attempts: Vec<LinkedCompensationAttempt>,
+    effects: Vec<LinkedCompensationEffect>,
 }
 
 impl Kernel {
@@ -56,6 +106,8 @@ impl Kernel {
     pub fn new(
         linked: &LinkedProtocol<'_>,
         compensation: &CompensationSnapshot,
+        attempts: &[CompensationAttemptInput<'_>],
+        effects: &[CompensationEffectInput<'_>],
     ) -> Result<Self, Refusal> {
         for registration in compensation.registrations() {
             if registration.key().definition() != linked.identity() {
@@ -80,12 +132,34 @@ impl Kernel {
                 operation: control.operation.clone(),
             });
         }
+        let attempts = attempts
+            .iter()
+            .map(|attempt| {
+                let registration = registration_for(compensation, attempt.registration())?;
+                Ok(LinkedCompensationAttempt {
+                    registration,
+                    subject: attempt.subject().clone(),
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let effects = effects
+            .iter()
+            .map(|effect| {
+                let registration = registration_for(compensation, effect.registration())?;
+                Ok(LinkedCompensationEffect {
+                    registration,
+                    subject: effect.subject().clone(),
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         Ok(Self {
             definition: linked.identity().clone(),
             obligations,
             causal_edges: linked.causal_edges().to_vec(),
             compensations: linked.compensations().to_vec(),
             registrations: compensation.registrations().to_vec(),
+            attempts,
+            effects,
         })
     }
 
@@ -146,4 +220,31 @@ impl Kernel {
     pub fn registrations(&self) -> &[Registration] {
         &self.registrations
     }
+
+    /// Returns admitted attempt subjects bound to registrations in this kernel.
+    #[must_use]
+    pub fn attempts(&self) -> &[LinkedCompensationAttempt] {
+        &self.attempts
+    }
+
+    /// Returns admitted effect subjects bound to registrations in this kernel.
+    #[must_use]
+    pub fn effects(&self) -> &[LinkedCompensationEffect] {
+        &self.effects
+    }
+}
+
+fn registration_for(
+    compensation: &CompensationSnapshot,
+    input: crate::model::v2::CompensationRegistrationInput<'_>,
+) -> Result<Registration, Refusal> {
+    compensation
+        .registrations()
+        .iter()
+        .find(|registration| {
+            registration.key().compensation_handle() == input.compensation_handle()
+                && registration.key().forward_effect() == input.effect().subject()
+        })
+        .cloned()
+        .ok_or(Refusal::UnknownRegistration)
 }

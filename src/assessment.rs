@@ -182,10 +182,15 @@ impl<'a> Engine<'a> {
             link_v2(context, &mut definitions).map_err(|_| BundleRefusal::InvalidLinkedProtocol)?;
         let compensation_inputs = context.compensation_registration_inputs();
         let compensation = CompensationSnapshot::from_inputs(&identity, &compensation_inputs);
-        let conformance = ConformanceKernel::new(&linked, &compensation)
-            .map_err(|_| BundleRefusal::InvalidConformanceKernel)?;
         let compensation_attempts = context.compensation_attempt_inputs();
         let compensation_effects = context.compensation_effect_inputs();
+        let conformance = ConformanceKernel::new(
+            &linked,
+            &compensation,
+            &compensation_attempts,
+            &compensation_effects,
+        )
+        .map_err(|_| BundleRefusal::InvalidConformanceKernel)?;
         Ok(Self {
             context,
             identity,
