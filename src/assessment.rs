@@ -64,27 +64,53 @@ pub struct ClaimRow<Row> {
     pub outcome: ClaimOutcome<Row>,
 }
 
-/// One result-owner input selected for an exact requested claim.
+/// Independently owned facts needed to construct one canonical claim row.
 ///
-/// The Engine owns construction and strict rereading; callers supply only the
-/// independently typed subsystem facts required by the result owner.
+/// This deliberately omits execution, claim identity/strength/backend, and
+/// assumptions. The Engine derives those fields from its sealed dispatch
+/// report, so a production caller cannot restate a complete result-owner
+/// [`result::Input`] and substitute values for the preceding stages.
+///
+/// ```compile_fail,E0603
+/// // The complete row input is an Engine-private transition value.
+/// use quire_protocol::assessment::CanonicalRowInput;
+/// ```
 #[derive(Clone, Debug)]
-pub struct CanonicalRowInput<'a> {
-    claim: Claim,
-    input: result::Input<'a>,
-    limits: result::Limits,
-}
-
-impl<'a> CanonicalRowInput<'a> {
-    /// Retain one typed result-owner input for its exact requested claim.
-    #[must_use]
-    pub const fn new(claim: Claim, input: result::Input<'a>, limits: result::Limits) -> Self {
-        Self {
-            claim,
-            input,
-            limits,
-        }
-    }
+pub struct CanonicalRowFacts<'a> {
+    /// Strict QSL checked-predicate owner view selected for this assessment.
+    pub checked_predicate:
+        &'a quire_spec_language::protocol_artifact::checked_predicate::ValidatedCheckedPredicate,
+    /// Strict QSL temporal-subject owner view selected for this assessment.
+    pub temporal_subject:
+        &'a quire_spec_language::protocol_artifact::temporal_subject::ValidatedTemporalSubject,
+    /// Four independent QObs progress and closure views.
+    pub axes: AxisInputs<'a>,
+    /// Exact QObs completeness view.
+    pub completeness: &'a completeness::View,
+    /// Typed truth disposition supplied by its owner.
+    pub truth: result::Truth,
+    /// Typed settlement and exact supporting identities.
+    pub settlement: result::Settlement,
+    /// Typed activation state.
+    pub activation: result::Activation,
+    /// Typed role participation state.
+    pub participation: result::Participation,
+    /// Typed observation-adequacy state.
+    pub observation_adequacy: result::Adequacy,
+    /// Typed protocol-adequacy state.
+    pub protocol_adequacy: result::ProtocolAdequacy,
+    /// Complete decision-support population.
+    pub decision_support: Vec<result::DecisionSupport>,
+    /// Complete global-conformance closure and premise population.
+    pub global_conformance: GlobalConformanceInput,
+    /// Exact limitations retained for this claim.
+    pub limitations: Vec<result::Limitation>,
+    /// Complete result provenance.
+    pub provenance: result::ProvenanceRecord,
+    /// Optional validated direct correction edge.
+    pub correction: Option<result::CorrectionInput<'a>>,
+    /// Result-owner limits, which may lower but never raise owner maxima.
+    pub limits: result::Limits,
 }
 
 /// The exact QObs event and QSL v2 request selected for one activation site.
@@ -1213,45 +1239,45 @@ impl<'a> Engine<'a> {
         self.assemble(rows)
     }
 
-    /// Construct and strict-read each canonical result row from typed owner
-    /// inputs. A result-owner refusal remains local to its selected claim.
-    pub fn construct_canonical(
+    /// Internal result-stage constructor used by the public three-state
+    /// operation boundary. A result-owner refusal remains local to its claim.
+    pub(crate) fn construct_canonical(
         self,
         dispatch: &DispatchReport,
-        inputs: Vec<CanonicalRowInput<'a>>,
+        inputs: Vec<Option<CanonicalRowFacts<'a>>>,
     ) -> Result<AssessmentBundle<'a, result::ValidatedResult>, BundleRefusal> {
-        validate_input_claims(&self.requested, &inputs)?;
         validate_dispatch_rows(&self.requested, dispatch, &inputs)?;
         let mut rows = Vec::with_capacity(inputs.len());
         for (selected, disposition) in inputs.into_iter().zip(dispatch.dispositions()) {
-            validate_input_package(
-                self.context.package().digest(),
-                selected.input.checked_predicate.package_digest(),
-                selected.input.temporal_subject.package_digest(),
-            )?;
-            if claim_from_result_kind(selected.input.claim.kind) != selected.claim {
-                return Err(BundleRefusal::CanonicalClaimMismatch);
-            }
             let outcome = if let Some(failure) = &disposition.failure {
                 ClaimOutcome::Refused(failure.envelope().clone())
             } else {
-                match result::produce(selected.input.clone(), selected.limits) {
-                    Ok(document) => match result::read(
-                        document.bytes(),
-                        result::Expected {
-                            input: selected.input,
-                            enclosing_digest: document.digest(),
+                let selected = selected.ok_or(BundleRefusal::MissingClaimRow)?;
+                validate_input_package(
+                    self.context.package().digest(),
+                    selected.checked_predicate.package_digest(),
+                    selected.temporal_subject.package_digest(),
+                )?;
+                match result_input_from_dispatch(disposition, selected) {
+                    Err(refusal) => ClaimOutcome::Refused(refusal.envelope().clone()),
+                    Ok((input, limits)) => match result::produce(input.clone(), limits) {
+                        Ok(document) => match result::read(
+                            document.bytes(),
+                            result::Expected {
+                                input,
+                                enclosing_digest: document.digest(),
+                            },
+                            limits,
+                        ) {
+                            Ok(validated) => ClaimOutcome::Canonical(validated),
+                            Err(refusal) => ClaimOutcome::Refused(refusal.envelope().clone()),
                         },
-                        selected.limits,
-                    ) {
-                        Ok(validated) => ClaimOutcome::Canonical(validated),
                         Err(refusal) => ClaimOutcome::Refused(refusal.envelope().clone()),
                     },
-                    Err(refusal) => ClaimOutcome::Refused(refusal.envelope().clone()),
                 }
             };
             rows.push(ClaimRow {
-                claim: selected.claim,
+                claim: disposition.claim,
                 outcome,
             });
         }
@@ -1269,13 +1295,14 @@ impl<'a> Engine<'a> {
     }
 
     /// Construct canonical rows through the complete three-member operation
-    /// algebra. Whole-assessment cardinality failures cannot retain a bundle;
-    /// individual result-owner failures remain claim-local inside a completed
-    /// bundle.
+    /// algebra. Callers provide `Some` facts only for dispositions that reached
+    /// row construction and `None` for claim-local dispatch refusals. The
+    /// Engine derives execution, claim selection, and assumptions from the
+    /// sealed dispatch report before invoking the result owner.
     pub fn construct_canonical_outcome(
         self,
         dispatch: &DispatchReport,
-        inputs: Vec<CanonicalRowInput<'a>>,
+        inputs: Vec<Option<CanonicalRowFacts<'a>>>,
     ) -> crate::outcome::OperationOutcome<AssessmentBundle<'a, result::ValidatedResult>> {
         match self.construct_canonical(dispatch, inputs) {
             Ok(bundle) => crate::outcome::OperationOutcome::Completed(bundle),
@@ -1355,25 +1382,106 @@ fn observation_position(
         .position(|(_, identity)| identity == observation.payload().observation_identity())
 }
 
-fn validate_input_claims(
-    requested: &[Claim],
-    inputs: &[CanonicalRowInput<'_>],
-) -> Result<(), BundleRefusal> {
-    for (index, input) in inputs.iter().enumerate() {
-        if !requested.contains(&input.claim) {
-            return Err(BundleRefusal::UnexpectedClaim);
+fn result_input_from_dispatch<'a>(
+    disposition: &dispatch::Disposition,
+    selected: CanonicalRowFacts<'a>,
+) -> result::Result<(result::Input<'a>, result::Limits)> {
+    let strength = match disposition.strength.as_ref() {
+        b"proven" => result::ClaimStrength::Proven,
+        b"bounded-checked" => result::ClaimStrength::BoundedChecked,
+        b"tested" => result::ClaimStrength::Tested,
+        b"observed" => result::ClaimStrength::Observed,
+        _ => {
+            return Err(dispatch_value_refusal(
+                "dispatch selected an unknown result claim strength",
+            ));
         }
-        if inputs[..index]
-            .iter()
-            .any(|previous| previous.claim == input.claim)
-        {
-            return Err(BundleRefusal::DuplicateClaimRow);
-        }
+    };
+    let admitted_fragment_identity =
+        retained_text(disposition.premises.admitted_fragment.identity.as_ref())?;
+    let backend_identity = retained_text(disposition.premises.backend.identity.as_ref())?;
+    let assumptions = disposition
+        .premises
+        .assumptions
+        .iter()
+        .map(|assumption| {
+            Ok(result::Assumption {
+                identity: retained_text(assumption.component.identity.as_ref())?,
+                state: match assumption
+                    .state
+                    .ok_or_else(|| dispatch_value_refusal("dispatch omitted an assumption state"))?
+                {
+                    crate::claims::premises::AssumptionState::Met => result::AssumptionState::Met,
+                    crate::claims::premises::AssumptionState::NotMet => {
+                        result::AssumptionState::NotMet
+                    }
+                    crate::claims::premises::AssumptionState::Unknown => {
+                        result::AssumptionState::Unknown
+                    }
+                    crate::claims::premises::AssumptionState::NotAssessed => {
+                        result::AssumptionState::NotAssessed
+                    }
+                },
+            })
+        })
+        .collect::<result::Result<Vec<_>>>()?;
+    let limits = selected.limits;
+    Ok((
+        result::Input {
+            checked_predicate: selected.checked_predicate,
+            temporal_subject: selected.temporal_subject,
+            axes: selected.axes,
+            completeness: selected.completeness,
+            execution: disposition.execution,
+            truth: selected.truth,
+            settlement: selected.settlement,
+            activation: selected.activation,
+            participation: selected.participation,
+            assumptions,
+            observation_adequacy: selected.observation_adequacy,
+            protocol_adequacy: selected.protocol_adequacy,
+            claim: result::Claim {
+                kind: result_claim_kind(disposition.claim),
+                strength: Some(strength),
+                admitted_fragment_identity: Some(admitted_fragment_identity),
+                backend_identity: Some(backend_identity),
+            },
+            decision_support: selected.decision_support,
+            global_conformance: selected.global_conformance,
+            limitations: selected.limitations,
+            provenance: selected.provenance,
+            correction: selected.correction,
+        },
+        limits,
+    ))
+}
+
+fn retained_text(bytes: &[u8]) -> result::Result<String> {
+    String::from_utf8(bytes.to_vec()).map_err(|_| {
+        dispatch_value_refusal(
+            "dispatch identity cannot be represented in the selected result contract",
+        )
+    })
+}
+
+fn dispatch_value_refusal(detail: &'static str) -> result::Refusal {
+    result::Refusal::assembly(
+        result::ErrorCode::InvalidSelection,
+        detail,
+        result::Usage::default(),
+        None,
+    )
+}
+
+const fn result_claim_kind(claim: Claim) -> ClaimKind {
+    match claim {
+        Claim::Conformance => ClaimKind::GlobalConformance,
+        Claim::Monitorability => ClaimKind::Monitorability,
+        Claim::Projection => ClaimKind::LocalProjection,
+        Claim::Realizability => ClaimKind::Realizability,
+        Claim::Refinement => ClaimKind::Refinement,
+        Claim::Composition => ClaimKind::Composition,
     }
-    if inputs.len() != requested.len() {
-        return Err(BundleRefusal::MissingClaimRow);
-    }
-    Ok(())
 }
 
 /// Require both strict QSL source views used by a result owner to answer this
@@ -1396,11 +1504,14 @@ fn validate_input_package(
 fn validate_dispatch_rows(
     requested: &[Claim],
     dispatch: &DispatchReport,
-    inputs: &[CanonicalRowInput<'_>],
+    inputs: &[Option<CanonicalRowFacts<'_>>],
 ) -> Result<(), BundleRefusal> {
     validate_dispatch_population(requested, dispatch)?;
+    if inputs.len() != requested.len() {
+        return Err(BundleRefusal::MissingClaimRow);
+    }
     for (disposition, input) in dispatch.dispositions().iter().zip(inputs) {
-        if input.claim != disposition.claim || input.input.execution != disposition.execution {
+        if disposition.failure.is_some() == input.is_some() {
             return Err(BundleRefusal::DispatchReportMismatch);
         }
     }

@@ -13,7 +13,7 @@ use quire_observation::{
     ResourceLimits, ScopeKind, ScopeSelection, SubjectIdentity, SubjectKind, ValueState,
     Visibility, NATIVE_LINKED_PACKAGE_FORMAT,
 };
-use quire_protocol::assessment::{CanonicalRowInput, Engine};
+use quire_protocol::assessment::{CanonicalRowFacts, Engine};
 use quire_protocol::bounds::inventory::{
     production_inventory, Budget, BudgetDimension, OperationOutcome, ResourceAccountant,
 };
@@ -582,6 +582,27 @@ fn base_input<'a>(fixture: &'a Fixture) -> Input<'a> {
     }
 }
 
+fn canonical_row_facts(input: Input<'_>, limits: Limits) -> CanonicalRowFacts<'_> {
+    CanonicalRowFacts {
+        checked_predicate: input.checked_predicate,
+        temporal_subject: input.temporal_subject,
+        axes: input.axes,
+        completeness: input.completeness,
+        truth: input.truth,
+        settlement: input.settlement,
+        activation: input.activation,
+        participation: input.participation,
+        observation_adequacy: input.observation_adequacy,
+        protocol_adequacy: input.protocol_adequacy,
+        decision_support: input.decision_support,
+        global_conformance: input.global_conformance,
+        limitations: input.limitations,
+        provenance: input.provenance,
+        correction: input.correction,
+        limits,
+    }
+}
+
 fn temporal_digest(label: &str) -> String {
     format!(
         "{:x}",
@@ -911,9 +932,6 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
 
     let fixture = fixture();
     let input = base_input(&fixture);
-    let mut refused_input = input.clone();
-    refused_input.claim.kind = ClaimKind::Monitorability;
-    refused_input.execution = AssessmentExecution::Refused;
     assert_eq!(input.checked_predicate.package_digest(), package.digest());
     assert_eq!(input.temporal_subject.package_digest(), package.digest());
     let requested = [DispatchClaim::Conformance, DispatchClaim::Monitorability];
@@ -1042,23 +1060,28 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
     assert!(dispatch.dispositions()[1].failure.is_some());
     let outcome = engine.construct_canonical_outcome(
         &dispatch,
-        vec![
-            CanonicalRowInput::new(DispatchClaim::Conformance, input, Limits::owner_max()),
-            CanonicalRowInput::new(
-                DispatchClaim::Monitorability,
-                refused_input,
-                Limits::owner_max(),
-            ),
-        ],
+        vec![Some(canonical_row_facts(input, Limits::owner_max())), None],
     );
     let quire_protocol::outcome::OperationOutcome::Completed(bundle) = outcome else {
         panic!("the complete assessment returns its bundle only in the completed outcome")
     };
     assert_eq!(bundle.rows().len(), 2);
-    assert!(matches!(
-        &bundle.rows()[0].outcome,
-        quire_protocol::outcome::ClaimOutcome::Canonical(_)
-    ));
+    let quire_protocol::outcome::ClaimOutcome::Canonical(canonical) = &bundle.rows()[0].outcome
+    else {
+        panic!("the completed conformance disposition must produce its canonical row")
+    };
+    assert_eq!(canonical.execution(), AssessmentExecution::Completed);
+    assert_eq!(canonical.claim().kind, ClaimKind::GlobalConformance);
+    assert_eq!(canonical.claim().strength, Some(ClaimStrength::Tested));
+    assert_eq!(
+        canonical.claim().admitted_fragment_identity.as_deref(),
+        Some("fragment:canonical-engine")
+    );
+    assert_eq!(
+        canonical.claim().backend_identity.as_deref(),
+        Some("qprotocol:conformance")
+    );
+    assert!(canonical.assumptions().is_empty());
     let quire_protocol::outcome::ClaimOutcome::Refused(refusal) = &bundle.rows()[1].outcome else {
         panic!("only the constrained claim construction must refuse");
     };
