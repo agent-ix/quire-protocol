@@ -1116,7 +1116,7 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
         declaration_handle,
         contradictory_roles,
         vec![StaticSlot {
-            handle: SlotHandle::new(u32::try_from(subject_slot).expect("published slot fits")),
+            handle: SlotHandle::new(subject_slot),
             compatibility: SlotCompatibility::Subject {
                 kind: SubjectKind::new(ORDER_KIND.to_vec()).expect("non-empty kind"),
             },
@@ -1129,7 +1129,7 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
         &contradictory_definition,
         &producer,
         vec![RuntimeBinding::subject(
-            SlotHandle::new(u32::try_from(subject_slot).expect("published slot fits")),
+            SlotHandle::new(subject_slot),
             subject(&producer),
         )],
     )
