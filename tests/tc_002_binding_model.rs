@@ -880,6 +880,13 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
         Err(FifoPartitionRefusal::NotFifo(ChannelHandle::new(0))),
         "an admitted unordered channel cannot be silently partitioned as FIFO"
     );
+    assert_eq!(
+        linked.fifo_partition(ChannelHandle::new(u32::MAX), b"owner-evaluated-key"),
+        Err(FifoPartitionRefusal::UnknownChannel(ChannelHandle::new(
+            u32::MAX
+        ))),
+        "an unselected channel coordinate cannot be repaired into an admitted FIFO channel"
+    );
 
     let mut contradictory_roles = roles
         .iter()
