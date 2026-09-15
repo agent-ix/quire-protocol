@@ -57,7 +57,7 @@ production construction of compensation identities.
   `BindingKind::Effect`; QProtocol neither reconstructs nor locally mints a
   runtime effect identity. The remaining bridge derives compensation records
   from QSL's typed compensation table and these admitted owner values.
-- QSpec FR-236 does not yet partition its five labels between per-attempt and
-  aggregate recovery facts. Comment the exact blocker on the ticket and leave
-  only those mapping cases unexecuted; implement every independent subtask and
-  never guess the partition. Owner ticket: `agent-ix/quire-specification#57`.
+- QSpec FR-236 is accepted on QSpec main at `478afa2`: `failed`, `timed-out`,
+  `pending`, and `successful` are separately admissible for per-attempt and
+  recovery-relation facts; `duplicate` is effect-only. Retain these domains as
+  distinct types and never infer a recovery outcome from an attempt outcome.

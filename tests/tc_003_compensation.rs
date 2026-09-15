@@ -12,9 +12,9 @@ use quire_protocol::compensation::activate::{
     assess as assess_activation, Activation, Binding, Guard, IdentityAxis, TriggerEvidence,
 };
 use quire_protocol::compensation::algebra::{
-    assess_ordering, AggregateRecoveryDisposition, AttemptAdmission, AttemptFact, AttemptLedger,
-    AttemptOutcome, AuthoredOrder, CausalEdge, Definition, EffectDisposition, ForwardFact,
-    Limits as AlgebraLimits, Milestone, MissingOrderingInput, OrderingViolation, Registry,
+    assess_ordering, AttemptAdmission, AttemptFact, AttemptLedger, AttemptOutcome, AuthoredOrder,
+    CausalEdge, Definition, EffectDisposition, ForwardFact, Limits as AlgebraLimits, Milestone,
+    MissingOrderingInput, OrderingViolation, RecoveryRelationOutcome, Registry,
     Resource as AlgebraResource,
 };
 use quire_protocol::compensation::purity::{Capability, CapabilityInventory, PureAssessment};
@@ -552,14 +552,30 @@ fn tc_003_attempts_effects_outcomes_and_retry_bound_stay_distinct() {
     let attempt_labels: Vec<_> = [
         AttemptOutcome::Failed,
         AttemptOutcome::TimedOut,
+        AttemptOutcome::Pending,
         AttemptOutcome::Successful,
     ]
     .into_iter()
     .map(AttemptOutcome::label)
     .collect();
-    assert_eq!(attempt_labels, ["failed", "timed-out", "successful"]);
+    assert_eq!(
+        attempt_labels,
+        ["failed", "timed-out", "pending", "successful"]
+    );
     assert_eq!(EffectDisposition::Duplicate.label(), "duplicate");
-    assert_eq!(AggregateRecoveryDisposition::Pending.label(), "pending");
+    let recovery_labels: Vec<_> = [
+        RecoveryRelationOutcome::Failed,
+        RecoveryRelationOutcome::TimedOut,
+        RecoveryRelationOutcome::Pending,
+        RecoveryRelationOutcome::Successful,
+    ]
+    .into_iter()
+    .map(RecoveryRelationOutcome::label)
+    .collect();
+    assert_eq!(
+        recovery_labels,
+        ["failed", "timed-out", "pending", "successful"]
+    );
     let absent = AttemptFact {
         attempt: AttemptId::new(b"attempt:unknown", "unknown outcome"),
         registration: registration.identity.clone(),

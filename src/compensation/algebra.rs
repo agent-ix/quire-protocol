@@ -646,14 +646,14 @@ fn pair_precedes(
 
 /// Established per-attempt outcome under FR-236.
 ///
-/// An attempt without an established outcome retains `None`; it is never
-/// defaulted to an aggregate-recovery pending disposition. Duplicate business
-/// effects and aggregate recovery availability belong to their own domains
-/// below, so neither can be relabelled as an attempt result.
+/// An attempt without an established outcome retains `None`; absence is never
+/// defaulted to `Pending`. A duplicate business effect belongs to its own
+/// domain below and cannot be relabelled as an attempt result.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum AttemptOutcome {
     Failed,
     TimedOut,
+    Pending,
     Successful,
 }
 
@@ -664,6 +664,7 @@ impl AttemptOutcome {
         match self {
             Self::Failed => "failed",
             Self::TimedOut => "timed-out",
+            Self::Pending => "pending",
             Self::Successful => "successful",
         }
     }
@@ -689,22 +690,28 @@ impl EffectDisposition {
     }
 }
 
-/// Aggregate recovery disposition for one registration.
+/// Aggregate recovery-relation outcome for one registration.
 ///
-/// A missing state, commit, population, membership, completeness authority, or
-/// compensation effect is recorded here; it is never attached to an attempt.
+/// This is separate from an attempt outcome even though the owner admits the
+/// same four labels in both domains: it is established only by the exact
+/// recovery relation and its authorities, never inferred from a retry.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-pub enum AggregateRecoveryDisposition {
-    /// A required recovery premise is not yet established.
+pub enum RecoveryRelationOutcome {
+    Failed,
+    TimedOut,
     Pending,
+    Successful,
 }
 
-impl AggregateRecoveryDisposition {
+impl RecoveryRelationOutcome {
     /// Exact owner label.
     #[must_use]
     pub const fn label(self) -> &'static str {
         match self {
+            Self::Failed => "failed",
+            Self::TimedOut => "timed-out",
             Self::Pending => "pending",
+            Self::Successful => "successful",
         }
     }
 }
