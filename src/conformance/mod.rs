@@ -25,7 +25,7 @@ pub use batch::{
     Usage,
 };
 pub use incremental::{compare, Incremental, IncrementalContext};
-pub use kernel::{Kernel, Refusal as KernelRefusal};
+pub use kernel::{Kernel, LinkedObligation, Refusal as KernelRefusal};
 
 /// Stable conformance refusal cause.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
