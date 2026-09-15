@@ -9,7 +9,7 @@ use quire_observation::authority::{
     closure as observation_closure, observation as observation_record, position, progress,
 };
 use quire_observation::QualifiedSubject;
-use quire_spec_language::protocol_artifact::wire::{BindingKind, ControlOperation, Handle};
+use quire_spec_language::protocol_artifact::wire::{BindingKind, Body, ControlOperation, Handle};
 use quire_spec_language::protocol_artifact::ProtocolNumber;
 use quire_spec_language::protocol_artifact::{native_temporal::v2 as temporal_v2, v3};
 use quire_spec_language::state::{
@@ -834,14 +834,17 @@ impl<'a> Engine<'a> {
         let Some(commit) = definition.definition().commit.0.as_ref() else {
             return CompensationOutcome::Refused(CompensationRefusal::CommitNotSelected);
         };
-        let Some(control) = self
-            .conformance
-            .obligation(commit.index)
-            .filter(|_| commit.declaration == self.identity.declaration_handle())
+        if commit.declaration != self.identity.declaration_handle() {
+            return CompensationOutcome::Refused(CompensationRefusal::InvalidCommitSelection);
+        }
+        let Body::Protocol { controls, .. } = &self.linked.declaration().body else {
+            unreachable!("LinkedProtocol retains only a protocol declaration");
+        };
+        let Some(control) = controls.get(usize::try_from(commit.index).unwrap_or(usize::MAX))
         else {
             return CompensationOutcome::Refused(CompensationRefusal::InvalidCommitSelection);
         };
-        let ControlOperation::Commit { instance, .. } = control.operation() else {
+        let ControlOperation::Commit { instance, .. } = &control.operation else {
             return CompensationOutcome::Refused(CompensationRefusal::InvalidCommitSelection);
         };
         let slot = SlotHandle::new(*instance);
