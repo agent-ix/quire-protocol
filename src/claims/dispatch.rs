@@ -638,7 +638,6 @@ const fn defect_kind_tag(kind: premises::PremiseDefectKind) -> &'static str {
         premises::PremiseDefectKind::Duplicate => "duplicate",
         premises::PremiseDefectKind::DanglingDependency => "dangling-dependency",
         premises::PremiseDefectKind::CircularDependency => "circular-dependency",
-        premises::PremiseDefectKind::Substituted => "substituted",
         premises::PremiseDefectKind::CorrespondenceMismatch => "correspondence-mismatch",
     }
 }

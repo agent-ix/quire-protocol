@@ -151,7 +151,6 @@ pub enum PremiseDefectKind {
     /// Assumption dependencies are circular.
     CircularDependency,
     /// Backend-returned evidence differs from the exact request premises.
-    Substituted,
     /// Derived identity does not validate against the exact selected tuple.
     CorrespondenceMismatch,
 }
