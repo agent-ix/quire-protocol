@@ -1522,6 +1522,21 @@ mod tests {
                 RefusalDomain::Assessment,
                 ProtocolStage::Compensation,
             ),
+            (
+                BundleRefusal::ActivationPackageMismatch,
+                RefusalDomain::Representation,
+                ProtocolStage::Representation,
+            ),
+            (
+                BundleRefusal::ActivationControlMismatch,
+                RefusalDomain::Assessment,
+                ProtocolStage::Conformance,
+            ),
+            (
+                BundleRefusal::ActivationMappingMismatch,
+                RefusalDomain::Assessment,
+                ProtocolStage::Conformance,
+            ),
         ];
         let mut codes = BTreeSet::new();
         let mut axes = BTreeSet::new();
