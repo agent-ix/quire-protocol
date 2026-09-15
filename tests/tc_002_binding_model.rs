@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! TC-002: versioned static/runtime binding capability admission.
 
+use std::collections::BTreeSet;
+
 use agent_ix_baseline_producer::StaticProducerBundle;
 use ix_trace_rs::trace;
 use quire_observation::{
@@ -12,7 +14,7 @@ use quire_protocol::model::v2::{
     RuntimeRefusal, SlotCompatibility, SlotHandle, StaticBindingDefinition, StaticRefusal,
     StaticSelection, StaticSlot, RUNTIME_BINDING_CONTRACT, STATIC_BINDING_CONTRACT,
 };
-use quire_protocol::wire::{BindingKind, Body};
+use quire_protocol::wire::{BindingKind, Body, CausalEdge, ControlOperation, EdgeKind, Port};
 
 // The shared handoff reader carries all public mutation helpers; this focused
 // binding lane exercises only `Handoff`, so the remaining helper surface is
@@ -24,6 +26,76 @@ mod handoff;
 const ORDER_KIND: &[u8] = b"ix://agent-ix/commerce/type/Order";
 const SHIPMENT_KIND: &[u8] = b"ix://agent-ix/commerce/type/Shipment";
 const ORDER_SHIPMENT: &str = "ix://agent-ix/commerce/relationship/Order-shipment";
+
+/// An owner-declared causal endpoint reduced only to its local table coordinate
+/// and its closed owner port tag. This test helper never constructs QSL edges.
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+struct CausalEndpoint {
+    control: u32,
+    port: u8,
+}
+
+fn causal_endpoint(edge: &CausalEdge, from: bool) -> CausalEndpoint {
+    let endpoint = if from { &edge.from } else { &edge.to };
+    CausalEndpoint {
+        control: endpoint.node.index,
+        port: match endpoint.port {
+            Port::Enter => 0,
+            Port::Exit => 1,
+        },
+    }
+}
+
+/// Enumerates every linear extension of the owner-declared acyclic half of a
+/// selected parallel subgraph. The source reader owns edge derivation and the
+/// repeat back-edge; this helper only proves the retained relation permits
+/// every order that preserves those edges.
+fn parallel_orders(edges: &[&CausalEdge]) -> Vec<Vec<CausalEndpoint>> {
+    let relation: Vec<_> = edges
+        .iter()
+        .filter(|edge| edge.kind != EdgeKind::RepeatProgress)
+        .map(|edge| (causal_endpoint(edge, true), causal_endpoint(edge, false)))
+        .collect();
+    let endpoints: Vec<_> = relation
+        .iter()
+        .flat_map(|(from, to)| [*from, *to])
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect();
+    let mut placed = Vec::new();
+    let mut orders = Vec::new();
+    extend_parallel_order(&endpoints, &relation, &mut placed, &mut orders);
+    orders
+}
+
+fn extend_parallel_order(
+    endpoints: &[CausalEndpoint],
+    relation: &[(CausalEndpoint, CausalEndpoint)],
+    placed: &mut Vec<CausalEndpoint>,
+    orders: &mut Vec<Vec<CausalEndpoint>>,
+) {
+    if placed.len() == endpoints.len() {
+        orders.push(placed.clone());
+        return;
+    }
+    for endpoint in endpoints {
+        if placed.contains(endpoint)
+            || relation
+                .iter()
+                .any(|(from, to)| to == endpoint && !placed.contains(from))
+        {
+            continue;
+        }
+        placed.push(*endpoint);
+        extend_parallel_order(endpoints, relation, placed, orders);
+        let removed = placed.pop();
+        assert_eq!(
+            removed,
+            Some(*endpoint),
+            "the deterministic traversal unwinds"
+        );
+    }
+}
 
 fn producer() -> quire_observation::AdmittedStaticBundle {
     StaticProducerBundle::admit_json(include_bytes!("fixtures/fcd-static-bundle-1.2.json"))
@@ -560,6 +632,74 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
         linked.causal_edges(),
         causal_edges,
         "the linked graph retains QSL's exact causal edges without deriving arrival order"
+    );
+    let Body::Protocol { controls, .. } = &linked.declaration().body else {
+        unreachable!("the linked declaration was checked as a protocol");
+    };
+    let (parallel_index, parallel_children) = controls
+        .iter()
+        .enumerate()
+        .find_map(|(index, control)| match &control.operation {
+            ControlOperation::Parallel { branches, .. } => Some((
+                u32::try_from(index).expect("published control index fits"),
+                branches
+                    .iter()
+                    .map(|branch| branch.body.index)
+                    .collect::<BTreeSet<_>>(),
+            )),
+            ControlOperation::Sequence { .. }
+            | ControlOperation::Choice { .. }
+            | ControlOperation::Repeat { .. }
+            | ControlOperation::Await { .. }
+            | ControlOperation::Event { .. }
+            | ControlOperation::Check { .. }
+            | ControlOperation::Commit { .. } => None,
+        })
+        .expect("published handoff has a parallel control");
+    let parallel_nodes = parallel_children
+        .iter()
+        .copied()
+        .chain([parallel_index])
+        .collect::<BTreeSet<_>>();
+    let parallel_edges = linked
+        .causal_edges()
+        .iter()
+        .filter(|edge| {
+            edge.from.node.declaration == declaration_handle
+                && edge.to.node.declaration == declaration_handle
+                && parallel_nodes.contains(&edge.from.node.index)
+                && parallel_nodes.contains(&edge.to.node.index)
+        })
+        .collect::<Vec<_>>();
+    let orders = parallel_orders(&parallel_edges);
+    assert!(
+        orders.len() > 1,
+        "the owner-declared parallel subgraph admits more than one legal interleaving"
+    );
+    for order in &orders {
+        for edge in &parallel_edges {
+            let from = causal_endpoint(edge, true);
+            let to = causal_endpoint(edge, false);
+            let from_index = order
+                .iter()
+                .position(|endpoint| *endpoint == from)
+                .expect("every retained edge source is ordered");
+            let to_index = order
+                .iter()
+                .position(|endpoint| *endpoint == to)
+                .expect("every retained edge target is ordered");
+            assert!(
+                from_index < to_index,
+                "every legal interleaving preserves the owner-declared edge"
+            );
+        }
+    }
+    assert!(
+        controls.iter().any(|control| matches!(
+            control.operation,
+            ControlOperation::Choice { .. }
+        )),
+        "a choice remains an owner-declared alternative and is never passed to the parallel enumerator"
     );
     assert_eq!(
         linked.fifo_partition(ChannelHandle::new(0), b"owner-evaluated-key"),
