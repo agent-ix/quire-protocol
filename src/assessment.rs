@@ -198,6 +198,17 @@ impl<'a> Engine<'a> {
         }
         self.assemble(rows)
     }
+
+    /// Assemble strict-read canonical rows through the shared operation algebra.
+    pub fn assemble_canonical_outcome(
+        self,
+        rows: Vec<ClaimRow<result::ValidatedResult>>,
+    ) -> crate::outcome::OperationOutcome<AssessmentBundle<'a, result::ValidatedResult>> {
+        match self.assemble_canonical(rows) {
+            Ok(bundle) => crate::outcome::OperationOutcome::Completed(bundle),
+            Err(error) => crate::outcome::OperationOutcome::Refused(outcome_refusal(error)),
+        }
+    }
 }
 
 const fn claim_from_result_kind(kind: ClaimKind) -> Claim {
