@@ -510,7 +510,6 @@ fn preflight(requests: &[ClaimRequest<'_>]) -> Usage {
         requests: requests.len(),
         components: usize::MAX,
         bytes: usize::MAX,
-        ..Usage::default()
     })
 }
 
