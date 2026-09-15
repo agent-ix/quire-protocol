@@ -106,9 +106,9 @@ let it stand in.
 **A real upstream gap becomes an explicit unsupported or blocked case.** QSpec
 #28/#29/#31/#40 has since closed the progress, participation, identity, channel,
 relationship, activation, completeness and temporal-boundary gaps this
-repository previously listed. FR-236's per-attempt/aggregate outcome partition
-remains open and blocks only the affected Task-003 mappings. Protocol neither
-reopens accepted rulings nor fills that remaining gap locally.
+repository previously listed. QSpec #57 accepted FR-236's per-attempt,
+effect-only, and recovery-relation outcome partition at `478afa2`. Protocol
+consumes that ruling as distinct domains and does not invent another partition.
 
 **One local vocabulary was minted anyway, and had to be withdrawn.** FR-015
 declared a closed four-member digest-domain set before discovering that upstream

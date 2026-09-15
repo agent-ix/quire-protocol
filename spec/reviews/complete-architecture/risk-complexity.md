@@ -36,11 +36,11 @@ small typed adapters; the stable serial core does not wait on E02 or Quoin.
 | Resolver capability can be forged/reused | high | private constructors plus request/value identity; Task-013 / TC-013 |
 | QSL graph projection loses a future enum/member | high | exhaustive typed matching, no wildcard/JSON erasure; Task-002 / TC-002 |
 | Batch and incremental semantics drift | high | one `ConformanceKernel`; Task-004 / TC-004 |
-| Recovery semantics escape through a callback | high | admitted QSL expression only; Task-003 / TC-003 |
+| Recovery semantics escape through a callback | high | open Task-003 work: replace the public callback with the admitted QSL expression/result capability; TC-003 must prove the production surface is closed |
 | Fatal and claim-local failures collapse siblings | high | two-level outcome algebra; Tasks 017/006 / TC-011/006 |
 | Two resource architectures disagree | high | one accountant and owner accumulation accessor; Task-008 / TC-009 |
 | E02/Quoin owner contracts change | medium | isolated adapters remain unresolved; Tasks 007/018/011 do not invent substitutes |
-| FR-236 partition absent | medium | block only affected Task-003 mappings and continue other work |
+| FR-236 outcome-domain mapping | medium | QSpec #57 accepted the partition at `478afa2`; retain attempt, effect, and recovery subjects separately while completing Task-003's typed-expression bridge |
 
 The plan places the highest cross-cutting types in Tasks 017 and 013 before the
 serial implementation chain, preventing later subsystems from inventing local
