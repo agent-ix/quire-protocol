@@ -33,17 +33,19 @@ pub mod closure;
 pub mod compensation;
 /// Batch and settled-incremental conformance evaluation. Owner chunks: C-20, C-21.
 pub mod conformance;
+/// Consumer-authored evidence index for one pinned producer delivery.
+pub mod delivery_index;
 /// Producer-domain and result-domain digests. Owner chunks: C-10, C-11.
 pub mod digest;
 /// Protocol identity newtypes. Owner chunk: C-07.
 pub mod ids;
-/// Version-explicit strict compiled-protocol admission.
+/// Version-explicit compiled-protocol admission boundaries.
 pub mod intake;
 /// Independently selected inventory and axis discrimination. Owner chunks: C-04, C-05.
 pub mod inventory;
 /// Finite linked-protocol graph and its located diagnostics. Owner chunks: C-12, C-13.
 pub mod link;
-/// Version-explicit finite linked protocol construction.
+/// Version-explicit full-assessment model capabilities.
 pub mod model;
 /// Closed public operation and claim outcome algebras.
 pub mod outcome;

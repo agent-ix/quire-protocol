@@ -36,7 +36,7 @@ relationships:
 
 - [x] **FR-001**: Strict `/1` and `/2` admission is implemented; its `/1`
   integration remainder belongs to Task-009.
-- [x] **FR-002**: Exact version-2 binding and linked graph completed by Task-002.
+- [ ] **FR-002**: Complete the exact version-2 binding and linked graph.
 - [ ] **FR-003**: Connect the implemented compensation kernel to the linked graph.
 - [ ] **FR-004**: Connect one batch/incremental conformance kernel to graph and compensation outputs.
 - [ ] **FR-005**: Consume conformance through closed independent claim dispatch.
@@ -102,7 +102,7 @@ shared result-domain values. Each has one Protocol owner and no adapter-local co
 ### Property and model tests
 
 - [x] **TC-001**: exact versioned admission and all one-axis admission refusals.
-- [x] **TC-002**: exact graph/binding identity, exhaustive typed content, FIFO,
+- [ ] **TC-002**: exact graph/binding identity, exhaustive typed content, FIFO,
   relationship replay/ambiguity, causal interleavings and fatal refusals.
 - [ ] **TC-003**: graph-derived compensation, activation, commit, retry, recovery,
   replay, transactionality and zero business calls.
@@ -129,7 +129,7 @@ shared result-domain values. Each has one Protocol owner and no adapter-local co
 - [x] **TC-014**: consumer identity discipline.
 - [x] **TC-015**: canonical reader and complete structural Contract-IR result view.
 - [ ] **TC-016**: final scenario-evidence composition and cross-record refusal-axis distinctness.
-- [ ] **TC-017**: exact consumer delivery-index identity/state, typed absence,
+- [x] **TC-017**: exact consumer delivery-index identity/state, typed absence,
   byte retention, binding/limit rules and version-lock non-authority.
 
 ### Integration tests
@@ -212,7 +212,7 @@ track names are subsystems and are not agent assignments; Agent B remains on TL.
 | Task | Track | Owns | Verified by | Status |
 | --- | --- | --- | --- | --- |
 | Task-001 | Core | FR-001 | TC-001 | done |
-| Task-002 | Core | FR-002 | TC-002 | done; issue #4 closing PR |
+| Task-002 | Core | FR-002 | TC-002 | in_progress |
 | Task-003 | Core | FR-003 | TC-003 | in_progress; standalone kernel exists |
 | Task-004 | Core | FR-004 | TC-004 | in_progress; standalone kernel exists |
 | Task-005 | Core | FR-005 | TC-005 | in_progress; standalone kernel exists |
@@ -229,7 +229,7 @@ track names are subsystems and are not agent assignments; Agent B remains on TL.
 | Task-016 | Architecture Gate | AD-001, FR-001..FR-009 | TC-002..TC-013 | done; SR-089..SR-100 pass under #61 |
 | Task-017 | Cross-cutting Foundation | FR-008, FR-014, FR-016 | TC-011 | done; 30 focused tests and SR-101/SR-102 pass under #62 |
 | Task-018 | Qualification | FR-017, NFR-005 | TC-016 | planned |
-| Task-019 | Producer Integration | FR-018, NFR-006 | TC-017 | planned; issue #66 corrects previously unowned implementation |
+| Task-019 | Producer Integration | FR-018, NFR-006 | TC-017 | done; exact bounded consumer index cannot affect version-lock resolution |
 
 ## Coordination Rules
 

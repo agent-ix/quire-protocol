@@ -29,10 +29,12 @@ semantics.
 ## Target Integration
 
 QObs publishes the accepted typed Rust runtime facts and topology at revision
-`93bc565`, which Protocol now pins and consumes for Task-002's linked runtime
-binding boundary. QSL publishes the native-temporal request/result and
+`93bc565`. Protocol's current direct pin is older and must be repinned before
+these scenarios execute. QSL publishes the native-temporal request/result and
 checked activation-guard selection at Protocol's current exact revision
-`f1700a9264d6d3bcdd07e0f77b70f3dae9ed4c07`. Protocol invokes no temporal
+`f1700a9264d6d3bcdd07e0f77b70f3dae9ed4c07`. QSL `844c35f` specifies the
+follow-on native-temporal v2 opaque-trigger interface required before FR-300
+bindings can execute. Protocol invokes no temporal
 evaluator and does not consume a QCI join result; QCI consumes Protocol's result
 map downstream.
 
@@ -43,7 +45,7 @@ The consumer is the protocol evaluator and canonical result producer.
 | Owner | Supplies | This repository must not |
 | --- | --- | --- |
 | QObs | Observation facts, decision-scope and surrounding-execution progress/closure, settlement basis, decision support, completeness, and accepted runtime topology | Collect, correlate, or re-derive an observation; infer a missing fact |
-| QSL native temporal | Exact checked native-temporal results and activation-guard selection | Evaluate a temporal formula or author a second profile |
+| QSL native temporal | Exact checked native-temporal results, activation-guard selection, and complete FR-300 event-triggered activation bindings | Evaluate a temporal formula, reconstruct an obligation bridge, or author a second profile |
 | QSL compiled protocol | The admitted `/2` definition from which Protocol builds the linked graph | Parse native source or reinterpret an identity |
 | This repository | Compensation state, finite conformance, claim dispatch, canonical result production, typed refusals, version-lock resolution, the complete-global-conformance closure record and its premises, the scenario evidence record up to handoff | — |
 
@@ -60,9 +62,9 @@ QObs, QSL, QCI or a research artifact.
 
 Every external contract consumed by this integration resolves through FR-009
 before any fact is read. QSL `/2` and native-temporal capabilities are pinned at
-`f1700a9`, and the direct QObs dependency is pinned at accepted revision
-`93bc565`. Task-010 still owns the exact version-lock entry population and the
-typed assessment composition required before these scenarios execute.
+`f1700a9`. The QObs entry remains unresolved in Protocol until its direct
+dependency is repinned from `9ac80e93` to accepted revision `93bc565`; while it
+is unresolved these scenarios report unexecutable, not pass or fail.
 
 The QObs consumer preserves decision-scope and surrounding-execution
 progress/closure, settlement basis, decision support, completeness, and exact
@@ -72,7 +74,7 @@ workflow premises.
 
 ## Inputs
 
-Complete and open valid histories, a decisive witness, a decisive
+Complete and open valid histories, complete valid FR-300 activation bindings, a decisive witness, a decisive
 counterexample, a non-decisive prefix, missing support, each
 complete-global-conformance closure state and premise set, changed closure,
 mis-correlated observation, duplicate delivery, and late contradiction.
@@ -82,7 +84,7 @@ mis-correlated observation, duplicate delivery, and late contradiction.
 1. Submit complete and open histories through the accepted typed interfaces.
    - IT-002-SC-01: producer facts retain their exact identities and authorities.
 2. Assess compensation and finite conformance.
-   - IT-002-SC-02: every outcome follows only the selected protocol and temporal premises.
+   - IT-002-SC-02: every outcome follows only the selected protocol and temporal premises; each event-triggered obligation reaches Protocol through one complete FR-300 binding, while a missing, foreign, cross-control, cross-subject, cross-trigger or contradictory binding refuses and no caller-built obligation is accepted.
 3. Produce canonical results for decisive and non-decisive open prefixes.
    - IT-002-SC-03: settlement, pending state, support, decision-scope
      progress/closure, surrounding-execution progress/closure, and
@@ -167,15 +169,16 @@ producer revision, and a scenario whose evidence is incomplete claims nothing.
 ## Dependencies
 
 QSL compiled-protocol `/2` and native-temporal request/result at `f1700a9`, plus
+the QSL FR-053 opaque-trigger v2 interface specified at `844c35f`, plus
 QObs runtime facts/topology at `93bc565`. Protocol owns global closure and result
 assembly. QCI issue 71 is a downstream consumer and is not a prerequisite.
 
 ## Notes
 
-The owner contracts and Protocol's QObs pin/runtime linker adoption are
-delivered. The remaining enablement is the typed composition path from linked
-graph through assessment to canonical result, including exact version-lock
-entry population. This integration remains planned until Task-010 closes.
+The owner contracts are delivered except QSL FR-053's implementation. The
+remaining enablement is that opaque-trigger v2 interface, the Protocol QObs
+repin and the typed composition path from linked graph through assessment to
+canonical result. This integration remains planned until Task-010 closes.
 
 ## Traceability
 

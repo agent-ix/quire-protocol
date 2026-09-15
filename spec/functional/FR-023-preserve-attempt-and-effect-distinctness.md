@@ -85,10 +85,11 @@ attempt and business effect. Exact replay of one key is idempotent; a second
 effect key bound to the same singleton occurrence is the duplicate-business-
 effect outcome; reusing one key with different bindings refuses.
 
-FR-236 still does not partition `failed`, `timed-out`, `duplicate`, `pending`
-and `successful` between per-attempt and aggregate recovery facts. Protocol
-will not guess. The Task-003 adapter consumes the owner-published partition;
-until it is accepted, aggregate/per-attempt mapping cases are unexecutable.
+QSpec #57 resolves FR-236 on QSpec main `478afa2`. Per-attempt and
+recovery-relation facts each admit `failed`, `timed-out`, `pending`, and
+`successful` in their distinct subject domains; `duplicate` is only a
+duplicate-business-effect fact. Absence remains absent and no attempt outcome
+authorizes a recovery result.
 
 ## Dependencies
 

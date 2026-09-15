@@ -8,6 +8,8 @@
 
 pub mod batch;
 pub mod incremental;
+/// Immutable composition of one linked graph and derived compensation state.
+pub mod kernel;
 
 use crate::refusal::catalog::{CatalogSelection, CodeEntry, CodeModule, Provenance, RefusalCode};
 use crate::refusal::{
@@ -23,6 +25,10 @@ pub use batch::{
     Usage,
 };
 pub use incremental::{compare, Incremental, IncrementalContext};
+pub use kernel::{
+    Kernel, LinkedCompensationAttempt, LinkedCompensationEffect, LinkedObligation,
+    Refusal as KernelRefusal,
+};
 
 /// Stable conformance refusal cause.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]

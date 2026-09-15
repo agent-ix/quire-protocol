@@ -27,8 +27,8 @@ production construction of compensation identities.
 - [ ] Write TC-003 activation, state-transition, relation, idempotence, and
   adverse-path cases first.
 - [ ] Derive triggered, inactive and activation-unknown only from exact
-  workflow/role/effect/predicate/capture/anchor identities and the applicable
-  progress, closure and completeness authority.
+  QSpec FR-300 activation bindings and the applicable progress, closure and
+  completeness authority; refuse any caller-built or cross-linked substitute.
 - [ ] Preserve delivery, attempt, effect, registration, commit, and recovery identities as distinct types.
 - [ ] Register compensation only after the paired successful effect, preserve one
   registration when that exact effect is replayed, and enforce authored finite
@@ -51,7 +51,13 @@ production construction of compensation identities.
 ## Notes
 
 - Unblocks Task-004.
-- QSpec FR-236 does not yet partition its five labels between per-attempt and
-  aggregate recovery facts. Comment the exact blocker on the ticket and leave
-  only those mapping cases unexecuted; implement every independent subtask and
-  never guess the partition. Owner ticket: `agent-ix/quire-specification#57`.
+- The accepted QObs pin `93bc565` publishes the complete authority-qualified
+  FR-287 runtime subject key. The `/2` linked context projects it for
+  compensation only when the corresponding QSL requirement is exactly
+  `BindingKind::Effect`; QProtocol neither reconstructs nor locally mints a
+  runtime effect identity. The remaining bridge derives compensation records
+  from QSL's typed compensation table and these admitted owner values.
+- QSpec FR-236 is accepted on QSpec main at `478afa2`: `failed`, `timed-out`,
+  `pending`, and `successful` are separately admissible for per-attempt and
+  recovery-relation facts; `duplicate` is effect-only. Retain these domains as
+  distinct types and never infer a recovery outcome from an attempt outcome.

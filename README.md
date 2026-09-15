@@ -4,12 +4,9 @@ This is the Rust consumer and assessment boundary for the accepted A-owned
 `quire.compiled-protocol/1` and `/2` contracts. It delegates byte admission to
 the exact QSL readers, then owns a distinct identity-preserving linked
 representation and the pure compensation, conformance, claim and result path.
-Admission and linking are separate operations. Normal integrations use
-`intake::{v1,v2}` and `model::{v1,v2}`. The published root `/1`
-`admit_and_link` remains only as the frozen narrow compatibility facade; there
-is no root `/2` facade. Version-2 links expose exact presentation/provenance
-context separately from FR-288 and semantic equality, so source loci remain
-inspectable without becoming identity.
+Admission and linking are separate operations. The published root `/1`
+`admit_and_link` remains a narrow compatibility facade; normal integrations
+select versioned intake/model modules explicitly.
 
 The pinned QSL dependency publishes the default-running `/2` handoff and its
 expected selections. A producer-emitted expectation is evidence, not consumer
@@ -74,7 +71,7 @@ what risk each one detects — is defined by
 listed in [AGENTS.md](AGENTS.md). The crate is single-lane: it declares no Cargo
 feature, optional dependency, or feature-selected conditional compilation, so
 there is no second Cargo-feature configuration for another lane to cover. That
-is separate from its three test-only conditional sites and the Unix-only v2
+is separate from its six test-only conditional sites and the Unix-only v2
 handoff test selected on the admitted `x86_64-unknown-linux-gnu` target. Every
 compiling gate command uses the worktree-local `target-codex-backends`
 directory.

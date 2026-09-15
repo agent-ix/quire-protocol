@@ -858,3 +858,23 @@ fn tc_013_resolution_has_no_discovery_or_self_authorizing_input() {
         );
     }
 }
+
+/// A delivery index is consumer evidence only: the resolver's complete source
+/// surface has no index parameter, import, or fallback. The positive resolver
+/// tests above exercise the same delivered bytes and manifest without an index;
+/// this companion check prevents a later repair path from adding one.
+#[test]
+#[trace("TC-017", "FR-018-AC-1")]
+fn tc_017_delivery_index_cannot_supply_or_repair_version_lock_resolution() {
+    let source = include_str!("../version_lock.rs");
+    for forbidden in ["DeliveryIndex", "IndexRead", "delivery_index"] {
+        assert!(
+            !source.contains(forbidden),
+            "a consumer delivery index must not enter resolver authority: {forbidden}"
+        );
+    }
+    assert!(
+        source.contains("pub(crate) fn resolve<C: Clock + 'static>("),
+        "the resolver remains the explicit manifest/delivery-only authority boundary"
+    );
+}

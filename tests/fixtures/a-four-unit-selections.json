@@ -8,7 +8,7 @@
       "namespace": "example-output",
       "value": "1"
     },
-    "digest": "sha256:5bcba8cfebb88b082d718db6030096a90fc0047043f3f9c2db0e0bd877f1d0de",
+    "digest": "sha256:7a0b455a38d421ba37325b900a8c93c9d7a8dc9e56ae3a057ca8e31a5b23a257",
     "wire": {
       "identity": "quire.compiled-protocol",
       "version": "1"
@@ -59,7 +59,7 @@
         "namespace": "crate-version",
         "value": "0.1.0"
       },
-      "digest": "sha256:49ff42ff4b90459cd639981bb6b40e7e7eb9c2f78de1943cdee14db65bd13980",
+      "digest": "sha256:ec3f54b43845a9407335de4cef6c98588a0f2303914b8c500a12b4ce49ec8cbd",
       "wire": {
         "identity": "ELF",
         "version": "1"
@@ -369,7 +369,7 @@
           "namespace": "crate-version",
           "value": "0.1.0"
         },
-        "digest": "sha256:49ff42ff4b90459cd639981bb6b40e7e7eb9c2f78de1943cdee14db65bd13980",
+        "digest": "sha256:ec3f54b43845a9407335de4cef6c98588a0f2303914b8c500a12b4ce49ec8cbd",
         "wire": {
           "identity": "ELF",
           "version": "1"

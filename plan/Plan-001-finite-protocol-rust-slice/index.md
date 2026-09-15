@@ -11,7 +11,7 @@ okf_version: "0.1"
 * [Plan-001: Finite native Quire protocol Rust slice](./plan.md) - Plan overview, dependency graph, tests, tracks, and gates.
 * [Implementation chunk register](./chunk-register.md) - Recovered landed, partial, blocked, planned, and not-landed chunk status with pull-request and ticket evidence.
 * [Task-001: Admit the selected profile and establish the Rust crate](./tasks/Task-001-admit-profile-establish-crate.md) - Done: exact admission, owner mutation refusal, independent baseline selection and numeric boundaries execute against the pinned published handoff; FR-001-AC-5 remains Task-009 integration work.
-* [Task-002: Link the finite protocol representation](./tasks/Task-002-link-finite-representation.md) - Done under issue #4: exact `/1` compatibility and `/2` FR-288/QObs binding, typed graph/FIFO/source context and transactional refusal/replay; SR-105/SR-106 pass.
+* [Task-002: Link the finite protocol representation](./tasks/Task-002-link-finite-representation.md) - Build the identity-preserving finite graph and located diagnostics.
 * [Task-003: Assess compensation state](./tasks/Task-003-assess-compensation-state.md) - Implement activation, registration, retry, commit, and recovery assessment.
 * [Task-004: Assess finite global conformance](./tasks/Task-004-assess-finite-conformance.md) - Implement bounded batch and incremental conformance.
 * [Task-005: Dispatch independent claims](./tasks/Task-005-dispatch-independent-claims.md) - Preserve independent claim outcomes and explicit unsupported states.
@@ -28,4 +28,4 @@ okf_version: "0.1"
 * [Task-016: Freeze the complete Protocol implementation architecture](./tasks/Task-016-freeze-complete-architecture.md) - Done under issue #61: complete typed pipeline, owner boundaries, task DAG and live tracking; SR-089 through SR-100 pass.
 * [Task-017: Establish the shared operation outcome and refusal foundation](./tasks/Task-017-outcome-refusal-foundation.md) - Done under issue #62: the constructor-private three-way operation/claim outcome and exact refusal foundation execute; 30 focused tests and SR-101/SR-102 pass.
 * [Task-018: Compose final scenario evidence from completed subsystem outcomes](./tasks/Task-018-compose-scenario-evidence.md) - Issue #63: compose FR-017/NFR-005 only from final resolver, outcome and resource types, then validate integration-level distinctness and the selected Quoin handoff.
-* [Task-019: Implement the consumer-owned delivery index](./tasks/Task-019-implement-consumer-delivery-index.md) - Issue #66: implement the already-specified FR-018 index and TC-017 without granting version-lock authority.
+* [Task-019: Implement the consumer-owned delivery index](./tasks/Task-019-implement-consumer-delivery-index.md) - Done: FR-018 exact consumer evidence index, typed absence outcomes, bounded retention and TC-017 version-lock non-authority proof.

@@ -132,12 +132,11 @@ adopted, not restated.
 
 QSpec #28/#31/#40 fixes the FR-235 attempt key, FR-237 forbidding-commit
 selection, FR-238 relation key, FR-233 registration key, distinct FR-287 effect
-identity and FR-231 activation rule. Those values are consumed exactly and are
-no longer blockers. FR-236 still leaves one real gap: its five outcome labels
-are not partitioned between per-attempt and aggregate recovery facts. Task-003
-may implement every independent compensation behavior, but SHALL return
-unsupported for a mapping that requires that partition until the owner accepts
-one; it SHALL NOT guess.
+identity and FR-231 activation rule. QSpec #57 resolves FR-236 on QSpec main
+`478afa2`: `failed`, `timed-out`, `pending`, and `successful` are admissible
+in both per-attempt and recovery-relation domains, while `duplicate` is
+effect-only. Those value domains are distinct and no attempt outcome implies a
+recovery outcome.
 
 ## Dependencies
 

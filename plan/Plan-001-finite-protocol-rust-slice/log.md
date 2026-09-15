@@ -7,7 +7,19 @@ description: "Chronological log of changes to the Plan-001 bundle."
 
 ## History
 
-* **2026-09-14** — Completed Task-002 / issue #4 over Task-013 baseline `c26ae8e`. The frozen root `/1` facade now delegates through versioned `intake::v1`/`model::v1`, while normal `/2` callers use `intake::v2` and `model::v2` with an accepted static binding definition, complete runtime QObs binding set and caller-owned transactional definition registry. The linker retains componentwise FR-288, complete typed declaration/dependency/control/channel/FIFO content, exact FR-287 subjects and FR-262 relationships, and owner-typed presentation/build/source context outside semantic equality; no static slot or numeric/hash/JSON projection substitutes for an identity or value. Exact static/runtime coverage, role order/internality, relationship authority/replay/conflict/ambiguity, single-binding occurrence reuse and same-key/different-content all fail closed. QObs is pinned at `93bc565`; QSL remains `f1700a9`; the graph resolves one of each owner crate. Rust review SR-105 and gap review SR-106 fixed seven implementation/evidence gaps and pass. TC-002 has 66 default-running tests; the full gate reports 295 passed and 23 intentionally ignored legacy producer-fixture cases, while Quire reports 145/342 rows and 272/272 Rust candidates tagged/bound. All 214 documents are grammar-clean; live quire-cli#79 remains the sole structural validator defect and forbids renaming the valid `Coverage Status` header. No hosted workflow ran and `resources/native-v1/` is untouched. Task-003 and Task-009 are now unblocked by the linker; their other declared dependencies remain unchanged.
+* **2026-09-14** — Completed Task-019 / issue #66 as the consumer-authored
+  FR-018 delivery index. `DeliveryIndex` retains exact delivery-root and
+  producer-revision identity separately from offer, input, temporal, limit and
+  mutation state; it rejects every named absence or ambiguity without a default,
+  preserves producer bytes verbatim, validates A's declaration cardinality and
+  order without inventing an upstream key, and keeps Protocol versus
+  compiled-protocol dimensions as a non-substitutable tagged union. Its bounded
+  assembly charges exact retained bytes and allocation through reconciled source
+  inventory entries. TC-017 covers identity, byte retention, input/temporal/
+  mutation/limit rejection, adapter absence, fresh-budget behavior and the
+  structural proof that no delivery index can supply or repair a version-lock
+  resolution. The active full suite passes; the generated `/1` corpus remains
+  an explicit ignored integration lane under Task-009.
 
 * **2026-09-14** — Completed Task-013 / issue #49 as the Protocol-owned version-lock resolver over Task-017 baseline `0cba759`. The resolver validates exact non-empty (`owner`, `contract version`) keys in deterministic order, retains the two-state manifest without state-to-identity substitution, verifies exact delivered bytes, authenticates interface selections independently and mints only request/key/revision/contract-bound private capabilities. Seventeen typed refusal axes retain exact affected identities and causes; entry count, bytes digested and monotonic deadline use the shared accountant and return resource-incomplete one-short. Eleven TC-013 tests pass with no ignored case. Rust review SR-103 fixed accidental aggregate equality, a wrong interface subject cause, weak refusal-identity assertions and a panic-capable deadline conversion; semantic gap review SR-104 passes. The review also found that no `DeliveryIndex` exists despite prior FR-018 credit, so #66/Task-019 and TC-017 now own that already-specified object and Quire reports its rows honestly unbacked. Coverage is 144/342 with 247/247 Rust candidates tagged/bound. The exact unchanged-head local gate passes on Rust/Cargo 1.98.1; Cargo.lock remains SHA-256 `2824b45d644459229f0eb2293cc6f1bff12ee77dd16dd83c73e93f9fc0cbd3b5`, no dependency/workflow/native-v1 surface changes, and no hosted CI dispatch.
 

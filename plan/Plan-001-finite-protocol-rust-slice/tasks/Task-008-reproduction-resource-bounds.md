@@ -36,7 +36,7 @@ projection path.
 - [ ] Reconcile the completed test symbols against NFR-001-AC-1..AC-3 and NFR-002-AC-1..AC-4 with bare `ix-trace-rs` bindings.
 - [ ] Internalize the unused parallel `CountGuard`/`RunGuard` public surface so
   `ResourceAccountant` is the one supported Protocol request accountant.
-- [ ] Retain external-owner usage under its exact accounting version. For QSL
+- [x] Retain external-owner usage under its exact accounting version. For QSL
   at `f1700a9`, consume `protocol_artifact::work::Dimension::accumulation()`
   directly and remove the local mirrored accumulation enum/table; never sum an
   owner rule locally.

@@ -23,7 +23,7 @@ literal `target-codex-backends` directory, inspect `Cargo.toml` for a
 `[features]` table and `optional = true` dependencies, and inventory every
 tracked Rust `cfg` attribute and `cfg!` macro. Confirm that
 `--no-default-features`, `--all-features` and the default feature selection
-resolve to the same unit graph from Cargo metadata. Confirm that the three
+resolve to the same unit graph from Cargo metadata. Confirm that the six
 current `cfg(test)` sites are selected by `clippy --all-targets` and `test`, and
 that the current `cfg(unix)` test is selected on the admitted local Unix target;
 claim no unexecuted target. With `CARGO_BUILD_JOBS=1` under
@@ -47,7 +47,7 @@ statuses for the unchanged candidate.
 All three enumerated commands execute and pass over one unchanged clean
 worktree state, each recorded with its covering risk, and the three Cargo
 feature selections have one unit graph so exactly one feature lane is required.
-All four current conditional sites are selected without misclassifying target
+All seven current conditional sites are selected without misclassifying target
 kind or platform as a Cargo feature. Each negative policy fixture returns its
 own refusal: missing warning channel, missing all-target coverage, undeclared or
 phantom feature, missing opposing feature lane, unexecuted target condition,

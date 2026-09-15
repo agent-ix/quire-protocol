@@ -18,12 +18,17 @@ pub mod algebra;
 pub mod purity;
 /// Full and partial recovery through exact authored relation owners.
 pub mod recovery;
+/// Derived registration keys over QSL and QObs owner values.
+pub mod registration;
 
 use crate::bounds::inventory::{BudgetDimension, OperationOutcome, ResourceAccountant, SourceSite};
 use crate::bounds::{SiteId, SiteKind, UnitLabel};
 
 use activate::{Activation, Record as ActivationRecord};
-use algebra::{AttemptAdmission, AttemptFact, OrderingAssessment, OrderingViolation, Registration};
+use algebra::{
+    AttemptAdmission, AttemptFact, CompensationEffectFact, OrderingAssessment, OrderingViolation,
+    Registration,
+};
 use purity::PureAssessment;
 use recovery::Decision as RecoveryDecision;
 
@@ -51,6 +56,12 @@ pub(crate) const ATTEMPT_RESULT_SOURCE: SourceSite = SourceSite::new(
     BudgetDimension::ResultItem,
     SiteKind::Retention,
 );
+pub(crate) const EFFECT_RESULT_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("compensation/result/effect/retain"),
+    "compensation::compose",
+    BudgetDimension::ResultItem,
+    SiteKind::Retention,
+);
 pub(crate) const RETRY_RESULT_SOURCE: SourceSite = SourceSite::new(
     SiteId::new("compensation/result/retry/retain"),
     "compensation::compose",
@@ -73,6 +84,7 @@ pub(crate) const ALLOCATION_SOURCE: SourceSite = SourceSite::new(
 /// Immutable composition maxima.
 pub const OWNER_MAX: Limits = Limits {
     max_attempts: 10_000,
+    max_effects: 10_000,
     max_retry_outcomes: 10_000,
     max_recovery_decisions: 10_000,
 };
@@ -82,6 +94,8 @@ pub const OWNER_MAX: Limits = Limits {
 pub struct Limits {
     /// Retained admitted attempts.
     pub max_attempts: usize,
+    /// Retained established compensation effects.
+    pub max_effects: usize,
     /// Retained retry outcomes, including refusals.
     pub max_retry_outcomes: usize,
     /// Independently retained recovery-relation decisions.
@@ -100,6 +114,7 @@ impl Limits {
     pub const fn effective(self) -> Self {
         Self {
             max_attempts: min(self.max_attempts, OWNER_MAX.max_attempts),
+            max_effects: min(self.max_effects, OWNER_MAX.max_effects),
             max_retry_outcomes: min(self.max_retry_outcomes, OWNER_MAX.max_retry_outcomes),
             max_recovery_decisions: min(
                 self.max_recovery_decisions,
@@ -134,6 +149,8 @@ pub struct Parts<'a> {
     pub ordering: Option<&'a OrderingAssessment>,
     /// Exact attempts retained independently from effects.
     pub attempts: &'a [AttemptFact],
+    /// Exact established effects and their effect-only dispositions.
+    pub effects: &'a [CompensationEffectFact],
     /// Every retry admission/refusal retained independently.
     pub retry_outcomes: &'a [AttemptAdmission],
     /// Independent full, partial, or other owner relation decisions.
@@ -179,6 +196,8 @@ pub struct Snapshot {
     pub ordering: Option<OrderingAssessment>,
     /// Exact attempts, never collapsed into their effects.
     pub attempts: Vec<AttemptFact>,
+    /// Exact established effects, never collapsed into their attempts.
+    pub effects: Vec<CompensationEffectFact>,
     /// Exact retry results, including typed refusals.
     pub retry_outcomes: Vec<AttemptAdmission>,
     /// Independent recovery-relation decisions.
@@ -231,6 +250,7 @@ impl std::error::Error for ResourceRefusal {}
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum Resource {
     Attempts,
+    Effects,
     RetryOutcomes,
     RecoveryDecisions,
 }
@@ -282,6 +302,11 @@ fn compose_bounded_unit(
             Some(effective.max_attempts),
         ),
         (
+            EFFECT_RESULT_SOURCE.id(),
+            parts.effects.len(),
+            Some(effective.max_effects),
+        ),
+        (
             RETRY_RESULT_SOURCE.id(),
             parts.retry_outcomes.len(),
             Some(effective.max_retry_outcomes),
@@ -310,6 +335,7 @@ pub fn compose(
         parts.attempts.len(),
         limits.max_attempts,
     )?;
+    precheck(Resource::Effects, parts.effects.len(), limits.max_effects)?;
     precheck(
         Resource::RetryOutcomes,
         parts.retry_outcomes.len(),
@@ -326,6 +352,7 @@ pub fn compose(
         registration: parts.registration.cloned(),
         ordering: parts.ordering.cloned(),
         attempts: parts.attempts.to_vec(),
+        effects: parts.effects.to_vec(),
         retry_outcomes: parts.retry_outcomes.to_vec(),
         recoveries: parts.recoveries.to_vec(),
         availability,

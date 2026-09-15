@@ -84,33 +84,13 @@
 //! `Exhaustion` and `ACCOUNTING_VERSION`. This module does not re-implement it
 //! and does not invent a parallel limits type — [`CountGuard`] is built from A's
 //! `Limits` (already `bounded()`), charges A's `Usage` fields, names A's
-//! `Dimension`, and mirrors A's per-dimension [`Accumulation`] discipline so
-//! that B's pre-work refusal and A's in-work `Exhaustion` cannot disagree about
-//! which dimension is a peak and which is cumulative. What is B's own is the
+//! `Dimension`, and uses A's published [`Accumulation`] discipline so that B's
+//! pre-work refusal and A's in-work `Exhaustion` cannot disagree about which
+//! dimension is a peak and which is cumulative. What is B's own is the
 //! *site* layer: the guard refuses work at a site that is not in the inventory,
 //! which is the hook C-30 reconciles against.
-//!
-//! ## The accumulation table is an unverifiable mirror, and that is a gap
-//!
-//! [`accumulation`] states, for each of A's thirteen dimensions, whether A peaks
-//! or sums it. A does not publish that fact. `Dimension` is a bare public enum
-//! with no accessor, and the discipline lives in a private `Work::fields`, so
-//! **no test in this repository can fail when A changes it.** The table was
-//! checked by reading A's source at the pinned revision; it agrees there today,
-//! and nothing here will notice if it stops agreeing.
-//!
-//! That is a real exposure, not a stylistic one: if a dimension's discipline
-//! flips in A, B's precheck admits a unit A's in-work accounting then refuses
-//! (or the reverse), and the two guards disagree about one budget with no
-//! failing test on either side.
-//!
-//! The fix is A's to make, and is not to be worked around here with a local
-//! re-derivation. **B asks A to publish `Dimension::accumulation()`** — or any
-//! accessor exposing the peak/cumulative discipline — so this table can be
-//! replaced by A's own answer. Until then `tc_009_every_a_dimension_has_a_reconciled_accumulation`
-//! states the mapping per dimension rather than as a pair of totals, so B's half
-//! of the reconciliation is at least explicit and has to be changed
-//! deliberately.
+//! The pinned QSL contract publishes that discipline through
+//! [`Dimension::accumulation`]; Protocol does not maintain a second table.
 
 /// Resource-site inventory and mutant-kill assignment. Owner chunk: **C-30**.
 ///
@@ -122,66 +102,29 @@ pub mod inventory;
 use std::fmt;
 use std::time::{Duration, Instant};
 
+pub use quire_spec_language::protocol_artifact::Accumulation;
 use quire_spec_language::protocol_artifact::{Dimension, Limits, Usage};
 
 // ---------------------------------------------------------------------------
 // Dimension reconciliation with A
 // ---------------------------------------------------------------------------
 
-/// How a dimension accumulates, mirroring A's `Work::charge`.
+/// The accounting discipline published by the selected QSL contract.
 ///
-/// A peak dimension retains the largest single candidate; a cumulative
-/// dimension sums every charge. Getting this wrong in B would let a pre-work
-/// precheck admit a unit that A's in-work accounting then refuses, or the
-/// reverse — two guards disagreeing about the same budget.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-pub enum Accumulation {
-    /// The dimension retains the largest candidate seen.
-    Peak,
-    /// The dimension sums every charge.
-    Cumulative,
-}
-
-/// A's accumulation discipline for `dimension`.
+/// This narrow forwarding function remains for callers of the prior Protocol
+/// surface; its result is the owner's type and comes directly from the same
+/// accessor QSL's work accounting uses.
 #[must_use]
 pub const fn accumulation(dimension: Dimension) -> Accumulation {
-    match dimension {
-        Dimension::PayloadBytes
-        | Dimension::OutputBytes
-        | Dimension::SourceBytes
-        | Dimension::Sources
-        | Dimension::Dependencies
-        | Dimension::Definitions
-        | Dimension::Models
-        | Dimension::Declarations
-        | Dimension::Depth => Accumulation::Peak,
-        Dimension::ContentBytes
-        | Dimension::Entries
-        | Dimension::References
-        | Dimension::ByteWork => Accumulation::Cumulative,
-    }
+    dimension.accumulation()
 }
 
-/// Every dimension A declares, in A's declaration order.
+/// Every dimension declared by the selected QSL accounting contract.
 ///
-/// Written out rather than derived so that a dimension added to A breaks the
-/// exhaustive match in [`accumulation`] and the length assertion in the TC-009
-/// suite, instead of quietly going unguarded.
-pub const ALL_DIMENSIONS: [Dimension; 13] = [
-    Dimension::PayloadBytes,
-    Dimension::OutputBytes,
-    Dimension::SourceBytes,
-    Dimension::ContentBytes,
-    Dimension::Sources,
-    Dimension::Dependencies,
-    Dimension::Definitions,
-    Dimension::Models,
-    Dimension::Declarations,
-    Dimension::Entries,
-    Dimension::References,
-    Dimension::ByteWork,
-    Dimension::Depth,
-];
+/// This is the owner's declaration-order inventory, not a Protocol-maintained
+/// mirror. A new owner dimension therefore reaches every caller that consumes
+/// this constant without a second table to update.
+pub const ALL_DIMENSIONS: [Dimension; 13] = Dimension::ALL;
 
 /// The caller's effective ceiling for `dimension`.
 #[must_use]

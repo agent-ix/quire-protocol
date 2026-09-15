@@ -8,9 +8,9 @@ use quire_protocol::bounds::inventory::{
 };
 use quire_protocol::closure::{AssessmentExecution, GlobalConformanceClosure};
 use quire_protocol::conformance::{
-    assess, assess_bounded, compare, AdverseKind, BoundObservation, ErrorCode, GlobalDisposition,
-    GlobalPremiseDefectKind, IncompleteCause, Incremental, IncrementalContext, Limits, Model,
-    ObligationDisposition, ObligationId, ObservationObligation, Request,
+    assess, assess_bounded, compare, AdverseKind, AdverseObservation, BoundObservation, ErrorCode,
+    GlobalDisposition, GlobalPremiseDefectKind, IncompleteCause, Incremental, IncrementalContext,
+    Limits, Model, ObligationDisposition, ObligationId, ObservationObligation, Request,
 };
 use quire_protocol::refusal::ProtocolStage;
 
@@ -343,6 +343,52 @@ fn tc_004_reports_all_adverse_kinds_without_repair() {
     assert_eq!(
         report.observations[1].document.bytes,
         bindings[1].observation.bytes()
+    );
+}
+
+/// Opaque runtime-reference bytes are compared exactly; they are never decoded
+/// as UTF-8 or normalized before an adverse observation is retained.
+#[trace("TC-004", "FR-004-AC-2", "FR-027-AC-1")]
+#[test]
+fn tc_004_opaque_runtime_subject_bytes_are_not_text_decoded() {
+    let decision = scope_views("decision-opaque-runtime-reference");
+    let surrounding = scope_views("surrounding-opaque-runtime-reference");
+    let mut expected = obligation(
+        "obligation:opaque-runtime-reference",
+        &decision.observation,
+        "effect:opaque-runtime-reference",
+        vec![],
+    );
+    expected.subject_kind = vec![0xff].into();
+    expected.subject_identity = vec![0xfe].into();
+    let model = Model::new(
+        "protocol:opaque-runtime-reference",
+        vec![expected],
+        Limits::default(),
+    )
+    .expect("opaque expected bytes are a valid model selection");
+    let bindings = [binding(
+        "obligation:opaque-runtime-reference",
+        &decision.observation,
+        "workflow:one",
+        "effect:opaque-runtime-reference",
+    )];
+    let global = premises(GlobalConformanceClosure::Closed);
+    let report = assess(
+        request(&model, &bindings, &decision, &surrounding, &global, true),
+        Limits::default(),
+    )
+    .expect("the mismatch is an adverse result, not a decoder failure");
+
+    assert_eq!(
+        report.adverse.as_slice(),
+        [AdverseObservation {
+            obligation: oid("obligation:opaque-runtime-reference"),
+            kind: AdverseKind::Unexpected,
+            observation_identity: Some(
+                decision.observation.payload().observation_identity().into(),
+            ),
+        }]
     );
 }
 

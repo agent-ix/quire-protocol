@@ -32,11 +32,11 @@ Status meanings:
 | C-07 | Closed protocol identity newtypes | landed | PR #37 | #4, epic #14 |
 | C-10 | Opaque producer-domain digests and cross-domain guard | landed | PR #36 | #1, #8, #34, epic #14 |
 | C-11 | Result-domain JCS subset | partial | PR #36; JSON numbers remain explicitly refused until the exact ECMAScript serialization algorithm is implemented | #8, epic #14 |
-| C-12 | Finite typed linker | landed | PR #43 supplied the frozen `/1` static kernel; Task-002/#4 adds the exact `/2` FR-288, QObs binding, graph/FIFO and separately retained source-context boundary. | #4, epic #14 |
+| C-12 | Finite typed linker | landed | PR #43 | #4, epic #14 |
 | C-13 | Accumulated located link diagnostics | landed | PR #44 | #4, epic #14 |
 | C-14 | Permitted-interleaving proof and FR-050..FR-054 mutation sweep | landed | PR #45 | #4, epic #14 |
 | C-15 | Five-axis closure and assessment-outcome lattice | landed | PR #33 | #6, #8, #12, epic #14 |
-| C-16..C-19 | Compensation algebra, purity, activation, and recovery | partial | Standalone registration/retry/commit/recovery kernels and tests exist; Task-003 derives them from the linked graph, removes the public recovery callback, and closes transactionality. FR-236 partition cases remain owner-blocked. | #5, epic #14 |
+| C-16..C-19 | Compensation algebra, purity, activation, and recovery | partial | Standalone registration/retry/commit/recovery kernels and tests exist; Task-003 derives them from the linked graph, removes the public recovery callback, and closes transactionality. QSpec #57 resolved FR-236 at `478afa2`; Protocol retains distinct attempt, effect, and recovery outcome domains, while the complete typed-expression bridge remains Task-003 work. | #5, epic #14 |
 | C-20..C-21 | Batch and incremental conformance | partial | Both kernels execute independently; Task-004 derives one production `ConformanceKernel` from graph/compensation values and proves frontend agreement. | #6, epic #14 |
 | C-22 | Six independent claim dispositions | landed | PR #41 | #7, epic #14 |
 | C-23..C-24 | Claim premise retention and dispatch | partial | Premise validation/dispatch execute; Task-005 consumes only conformance output and removes the public arbitrary backend callback/fallback path. | #7, epic #14 |
@@ -50,8 +50,8 @@ Status meanings:
 
 The standalone kernels above are real but disconnected. The reviewed DAG starts
 with Task-017's shared outcomes/refusals and Task-013's request-bound resolver,
-then connects the serial graph-to-result core. The only current external blocks
-are the FR-236 compensation partition (`quire-specification#57`) for affected
-Task-003 cases, qverify E02 acceptance (`quire-verification#32`) and Quoin
-scenario intake (`quoin#519`); no local refusal path waits on a proposed
-diagnostic catalog.
+then connects the serial graph-to-result core. QSpec #57 resolved the FR-236
+partition at `478afa2`; its remaining Protocol bridge is implementation work,
+not an external block. The remaining external blocks are qverify E02 acceptance
+(`quire-verification#32`) and Quoin scenario intake (`quoin#519`); no local
+refusal path waits on a proposed diagnostic catalog.

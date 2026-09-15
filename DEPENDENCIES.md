@@ -10,9 +10,9 @@ record discharges.
 
 | Crate | Pinned revision | Declared license | Role |
 | --- | --- | --- | --- |
-| `quire-spec-language` | `f1700a9264d6d3bcdd07e0f77b70f3dae9ed4c07` | `AGPL-3.0-only` | Supplies the accepted `quire.compiled-protocol/1` and `/2` readers, handoff records, owner-exported constants, the FR-051 checked temporal activation-guard selection, and the source-compatible FR-052 temporal owner authority. Release `v0.2.0` is its ancestor at `6eccb05`. |
-| `quire-observation` | `93bc565072fb05d1ecf29f15725b75c0a77378fb` | `AGPL-3.0-or-later` | Direct observation authority dependency. Task-002 consumes its accepted constructor-guarded FR-287 subjects, FR-262 relationships and admitted producer-authority keys without mirroring their wire shapes. |
-| `agent-ix-baseline-producer` | `404288282402d60de007295ccbafa960532b955e` | `AGPL-3.0-only` | Direct test-only producer boundary used to construct real admitted QObs authorities, and also a transitive dependency; sourced from `agent-ix/filament-core-data`. |
+| `quire-spec-language` | `b2598b50706ea615716abf51194dd58d3929c2f7` | `AGPL-3.0-or-later` | Supplies the accepted `quire.compiled-protocol/1` and `/2` readers, handoff records, owner-exported constants, the FR-051 checked temporal activation-guard selection, the FR-052 temporal owner authority, and FR-053 opaque native-temporal v2 trigger identity. Release `v0.2.0` is its ancestor at `6eccb05`. |
+| `quire-observation` | `93bc565072fb05d1ecf29f15725b75c0a77378fb` | `AGPL-3.0-or-later` | Direct observation authority dependency used by the current compensation, conformance and result kernels. This accepted revision publishes the FR-287/FR-262 authority-qualified runtime-reference and finite-topology contracts Task-002 consumes; Protocol imports those types rather than mirroring their wire vocabulary. |
+| `agent-ix-baseline-producer` | `404288282402d60de007295ccbafa960532b955e` | `AGPL-3.0-only` | Transitive baseline producer reached through `quire-spec-language`; sourced from `agent-ix/filament-core-data`. |
 | `quire-contract-ir` | `53cc03c639e2e26528132d34d96dc56449df78e8` | `MIT OR Apache-2.0` | Direct test type and the exact transitive contract-IR revision selected by `quire-spec-language` `f1700a9`; one identity type is present in the resolved graph. |
 | `ix-trace-rs` | `2ce4ebf47f726b9d76388220545cd0abda8a5cfb` | `AGPL-3.0-or-later` | Test-only trace attributes binding tests to acceptance criteria. |
 
@@ -40,8 +40,8 @@ entirely. That is the closure gap `NFR-006` names: `FR-009` pins the producers
 and nothing pinned this repository's own consumed set.
 
 `quire-observation` was also a direct `Cargo.toml`/lockfile dependency while
-absent from this record. The row above now records the accepted FR-287/FR-262
-revision the build consumes.
+absent from this record. The row above records the revision the build actually
+consumes; it does not prematurely claim the later accepted FR-287/FR-262 pin.
 
 ## Correction: the record trailed the version 2 pin, and omitted a transitive
 

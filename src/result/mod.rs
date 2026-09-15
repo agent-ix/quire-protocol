@@ -12,6 +12,8 @@ pub mod global;
 pub mod lineage;
 pub mod reader;
 pub mod record;
+/// Reversible opaque runtime-reference carrier for string-only result fields.
+pub mod runtime_reference;
 
 use crate::refusal::catalog::{CatalogSelection, CodeEntry, CodeModule, Provenance, RefusalCode};
 use crate::refusal::{

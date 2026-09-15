@@ -1874,6 +1874,12 @@ const COMPENSATION_ATTEMPT_RESULT: SourceSite = SourceSite::new(
     BudgetDimension::ResultItem,
     SiteKind::Retention,
 );
+const COMPENSATION_EFFECT_RESULT: SourceSite = SourceSite::new(
+    SiteId::new("compensation/result/effect/retain"),
+    "compensation::compose",
+    BudgetDimension::ResultItem,
+    SiteKind::Retention,
+);
 const COMPENSATION_RETRY_RESULT: SourceSite = SourceSite::new(
     SiteId::new("compensation/result/retry/retain"),
     "compensation::compose",
@@ -1940,6 +1946,18 @@ const RESOLUTION_DEADLINE: SourceSite = SourceSite::new(
     BudgetDimension::ResolutionDeadline,
     SiteKind::Iteration,
 );
+const DELIVERY_INDEX_INPUT: SourceSite = SourceSite::new(
+    SiteId::new("delivery-index/member/retain"),
+    "delivery_index::DeliveryIndex::new_bounded",
+    BudgetDimension::InputByte,
+    SiteKind::Retention,
+);
+const DELIVERY_INDEX_ALLOCATION: SourceSite = SourceSite::new(
+    SiteId::new("delivery-index/index/allocate"),
+    "delivery_index::DeliveryIndex::new_bounded",
+    BudgetDimension::AccountedAllocation,
+    SiteKind::Allocation,
+);
 
 /// Production work sites derived from reviewed Rust interfaces and paths.
 ///
@@ -1947,6 +1965,8 @@ const RESOLUTION_DEADLINE: SourceSite = SourceSite::new(
 /// deletion or addition on either side therefore fails bidirectional
 /// reconciliation rather than changing both populations by construction.
 pub const PRODUCTION_SOURCES: &[SourceSite] = &[
+    crate::delivery_index::INPUT_SOURCE,
+    crate::delivery_index::ALLOCATION_SOURCE,
     crate::version_lock::RESOLUTION_ENTRY_SOURCE,
     crate::version_lock::RESOLUTION_BYTES_SOURCE,
     crate::version_lock::RESOLUTION_DEADLINE_SOURCE,
@@ -2003,6 +2023,7 @@ pub const PRODUCTION_SOURCES: &[SourceSite] = &[
     crate::compensation::REGISTRATION_RESULT_SOURCE,
     crate::compensation::ORDERING_RESULT_SOURCE,
     crate::compensation::ATTEMPT_RESULT_SOURCE,
+    crate::compensation::EFFECT_RESULT_SOURCE,
     crate::compensation::RETRY_RESULT_SOURCE,
     crate::compensation::RECOVERY_RESULT_SOURCE,
     crate::compensation::ALLOCATION_SOURCE,
@@ -2031,6 +2052,18 @@ const fn entry(
 
 /// Independently authored production inventory rows.
 pub const PRODUCTION_ENTRIES: &[InventoryEntry] = &[
+    entry(
+        DELIVERY_INDEX_INPUT,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeRetain,
+        Termination::InputLength,
+    ),
+    entry(
+        DELIVERY_INDEX_ALLOCATION,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeAllocate,
+        Termination::SingleUnit,
+    ),
     entry(
         RESOLUTION_ENTRY,
         LimitAuthority::ConsumerOwner,
@@ -2363,6 +2396,12 @@ pub const PRODUCTION_ENTRIES: &[InventoryEntry] = &[
     ),
     entry(
         COMPENSATION_ATTEMPT_RESULT,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeRetain,
+        Termination::CollectionLength,
+    ),
+    entry(
+        COMPENSATION_EFFECT_RESULT,
         LimitAuthority::ConsumerOwner,
         ChargePoint::BeforeRetain,
         Termination::CollectionLength,

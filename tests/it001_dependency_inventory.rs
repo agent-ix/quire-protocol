@@ -13,11 +13,13 @@ use ix_trace_rs::trace;
 const MANIFEST: &str = include_str!("../Cargo.toml");
 const LOCKFILE: &str = include_str!("../Cargo.lock");
 const LIBRARY: &str = include_str!("../src/lib.rs");
-const INTAKE: &str = include_str!("../src/intake.rs");
+const INTAKE_V1: &str = include_str!("../src/intake/v1.rs");
+const INTAKE_V2: &str = include_str!("../src/intake/v2.rs");
+const MODEL_V1: &str = include_str!("../src/model/v1.rs");
 
 /// A's accepted reader, pinned to the exact revision this lane froze.
 const FRONTEND: &str = "quire-spec-language";
-const FRONTEND_REVISION: &str = "f1700a9264d6d3bcdd07e0f77b70f3dae9ed4c07";
+const FRONTEND_REVISION: &str = "b2598b50706ea615716abf51194dd58d3929c2f7";
 
 /// F's promoted observation owner supplies typed progress, closure and
 /// completeness views. B consumes those views and does not mirror them.
@@ -44,13 +46,14 @@ const LIBRARY_MODULES: &[&str] = &[
     "closure.rs",
     "compensation",
     "conformance",
+    "delivery_index.rs",
     "digest",
     "ids.rs",
-    "intake.rs",
+    "intake",
     "inventory",
     "lib.rs",
     "link",
-    "model.rs",
+    "model",
     "outcome.rs",
     "refusal",
     "repro.rs",
@@ -245,9 +248,9 @@ fn it_001_declares_only_selected_owner_dependencies() {
     );
 
     // Development dependencies are harness-only: tracing, the cycle-free
-    // Contract Model types used to construct the native handoff, the producer
-    // owner used to construct real QObs authorities, and JSON fixtures. None
-    // is reachable from the published library.
+    // Contract Model types used to construct the native handoff, the exact FCD
+    // static-producer owner that admits shared QObs fixture bytes, and JSON
+    // fixtures. None is reachable from the published library.
     assert_eq!(
         declared_packages(manifest_section("[dev-dependencies]")),
         BTreeSet::from([
@@ -318,35 +321,37 @@ fn it_001_library_facade_only_delegates_frontend_admission() {
         .collect::<Vec<_>>();
     assert_eq!(files, frozen);
 
-    // The crate root retains only the frozen version-1 compatibility function.
-    // Both current contracts live behind the version-explicit intake module,
-    // and each intake body is a call into A's reader for that contract. B's own
-    // result/conformance semantics live in their named modules; neither surface
-    // adds a parser, decoder, numeric layer or alternate frontend.
+    // The frozen crate-root facade has one `/1` compatibility function. Its
+    // whole body enters the explicit version-1 intake module; the full `/2`
+    // assessment path may not be reintroduced at this root.
     //
-    // These are exact counts rather than ceilings: another function on either
-    // byte-admission surface requires a deliberate inventory change.
-    let root_functions = LIBRARY.match_indices("fn ").count();
+    // This counts `lib.rs` alone, and it is an exact count rather than a
+    // ceiling: a second function here would hide a version-selection decision
+    // in the compatibility surface.
+    let functions = LIBRARY.match_indices("fn ").count();
     assert_eq!(
-        root_functions, 1,
-        "the crate root retains only the frozen version-1 compatibility facade"
+        functions, 1,
+        "the root facade must expose only the frozen version-1 compatibility path"
     );
     assert!(
         LIBRARY.contains("intake::v1::admit(bytes, expected, limits)"),
-        "the root compatibility facade must delegate to versioned intake"
-    );
-    let intake_functions = INTAKE.match_indices("pub fn admit(").count();
-    assert_eq!(
-        intake_functions, 2,
-        "versioned intake must expose exactly one delegation per admitted contract"
+        "the version-1 facade must delegate directly to its explicit intake module"
     );
     assert!(
-        INTAKE.contains("protocol_artifact::read(bytes, expected, limits)"),
-        "version-1 intake must be a bare call into A's reader"
+        !LIBRARY.contains("admit_and_link_v2"),
+        "the root facade must not offer a version-2 compatibility alias"
     );
     assert!(
-        INTAKE.contains("v2::read(bytes, expected, limits)"),
-        "version-2 intake must be a bare call into A's reader"
+        INTAKE_V1.contains("quire_spec_language::protocol_artifact::read(bytes, expected, limits)"),
+        "the version-1 intake must be a bare call into A's reader"
+    );
+    assert!(
+        INTAKE_V2.contains("v2::read(bytes, expected, limits)"),
+        "the version-2 intake must be a bare call into A's version-2 reader"
+    );
+    assert!(
+        MODEL_V1.contains("crate::link::link(package, declaration)"),
+        "the version-1 model must delegate static linking to the admitted legacy graph"
     );
 
     for line in LIBRARY.lines() {

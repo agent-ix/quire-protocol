@@ -564,9 +564,14 @@ fn b_sources() -> Vec<(String, String)> {
 }
 
 /// A's reading entry points, each of which B may delegate to from exactly one
-/// place. The version-explicit `intake::{v1,v2}` module owns those calls; the
-/// frozen root `admit_and_link` facade delegates to `intake::v1`.
-const A_READER_CALLS: [&str; 2] = ["protocol_artifact::read(", "v2::read("];
+/// place. `intake::v1::admit` and `intake::v2::admit` are those places.
+const A_READER_CALLS: [(&str, &str); 2] = [
+    (
+        "quire_spec_language::protocol_artifact::read(",
+        "src/intake/v1.rs",
+    ),
+    ("v2::read(", "src/intake/v2.rs"),
+];
 
 /// Tracing: IT-001, Task-009.
 #[test]
@@ -583,7 +588,7 @@ fn it_001_inventory_identifies_one_b_owned_reader_path() {
         sources.len()
     );
 
-    for call in A_READER_CALLS {
+    for (call, expected_path) in A_READER_CALLS {
         let sites = sources
             .iter()
             .filter(|(_, contents)| contents.contains(call))
@@ -591,8 +596,8 @@ fn it_001_inventory_identifies_one_b_owned_reader_path() {
             .collect::<Vec<_>>();
         assert_eq!(
             sites,
-            [("src/intake.rs", 1)],
-            "`{call}` must be reached from exactly one place in `src/intake.rs`"
+            [(expected_path, 1)],
+            "`{call}` must be reached from exactly one versioned intake module"
         );
     }
 

@@ -2,7 +2,7 @@
 id: Task-002
 title: "Link the finite protocol representation"
 type: Task
-status: done
+status: in_progress
 track: Core
 priority: P0
 relationships:
@@ -54,12 +54,12 @@ admitted selected profile while retaining the frozen root `/1`
   static channel plus owner-typed evaluated value.
 - [x] Adopt FR-262 replay and contradiction semantics without converting a
   relationship into a subject or collapsing a second exact key.
-- [x] Extend TC-002 so every newly accepted identity/content/binding axis has a
+- [ ] Extend TC-002 so every newly accepted identity/content/binding axis has a
   positive control and a failing one-axis mutation; every source
   FR-050..FR-054 identity, control, termination, channel, choice and visibility
   mutation reaches its intended guard; and every authored semantic change alters
   protocol identity while presentation changes do not.
-- [x] Bind every claim with bare compiler-checked `ix-trace-rs`, run the scoped
+- [ ] Bind every claim with bare compiler-checked `ix-trace-rs`, run the scoped
   local gates, reconcile Plan-001/TM-001/issues #4 and #14, and close #4 with its
   reviewed PR.
 
@@ -77,8 +77,3 @@ admitted selected profile while retaining the frozen root `/1`
   dependency: accepted FR-216 defines five components and derives duplication
   permission from delivery cardinality.
 - Unblocks Tasks 003 and 009.
-- PR-time Rust review SR-105 and semantic gap review SR-106 pass after fixing
-  the v2 pseudo-runtime projection, incomplete binding coverage, runtime-key
-  reuse, exact diagnostics, retained presentation/source context and stale
-  closed inventories. Issue #4's closing PR carries the exact local-gate
-  evidence; issue #14 remains open for the downstream serial core.

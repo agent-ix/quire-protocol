@@ -28,6 +28,9 @@ uses one shared deterministic kernel for both public frontends.
 
 - [ ] Write TC-004 batch/incremental equivalence and legal-interleaving model cases first.
 - [ ] Report unexpected, missing, misordered, duplicate-effect, cross-workflow, and compensation violations against exact obligations.
+- [ ] Admit each event-triggered obligation only from a complete QSpec FR-300
+  activation binding validated against the linked definition/control; remove the
+  public caller-built `Model`/obligation construction path from production.
 - [ ] Keep decision-scope progress/closure, surrounding-execution
   progress/closure, complete-global-conformance closure, and open, incomplete,
   unsupported, failed and exhausted outcomes independently observable.

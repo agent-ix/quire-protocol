@@ -13,8 +13,9 @@ use quire_protocol::compensation::activate::{
 };
 use quire_protocol::compensation::algebra::{
     assess_ordering, AttemptAdmission, AttemptFact, AttemptLedger, AttemptOutcome, AuthoredOrder,
-    CausalEdge, Definition, ForwardFact, Limits as AlgebraLimits, Milestone, MissingOrderingInput,
-    OrderingViolation, Registry, Resource as AlgebraResource,
+    CausalEdge, CompensationEffectFact, Definition, EffectDisposition, ForwardFact,
+    Limits as AlgebraLimits, Milestone, MissingOrderingInput, OrderingViolation,
+    RecoveryRelationOutcome, Registry, Resource as AlgebraResource,
 };
 use quire_protocol::compensation::purity::{Capability, CapabilityInventory, PureAssessment};
 use quire_protocol::compensation::recovery::{
@@ -548,10 +549,9 @@ fn tc_003_attempts_effects_outcomes_and_retry_bound_stay_distinct() {
     ));
     assert_eq!(ledger.attempts(), before);
 
-    let labels: Vec<_> = [
+    let attempt_labels: Vec<_> = [
         AttemptOutcome::Failed,
         AttemptOutcome::TimedOut,
-        AttemptOutcome::Duplicate,
         AttemptOutcome::Pending,
         AttemptOutcome::Successful,
     ]
@@ -559,8 +559,22 @@ fn tc_003_attempts_effects_outcomes_and_retry_bound_stay_distinct() {
     .map(AttemptOutcome::label)
     .collect();
     assert_eq!(
-        labels,
-        ["failed", "timed-out", "duplicate", "pending", "successful"]
+        attempt_labels,
+        ["failed", "timed-out", "pending", "successful"]
+    );
+    assert_eq!(EffectDisposition::Duplicate.label(), "duplicate");
+    let recovery_labels: Vec<_> = [
+        RecoveryRelationOutcome::Failed,
+        RecoveryRelationOutcome::TimedOut,
+        RecoveryRelationOutcome::Pending,
+        RecoveryRelationOutcome::Successful,
+    ]
+    .into_iter()
+    .map(RecoveryRelationOutcome::label)
+    .collect();
+    assert_eq!(
+        recovery_labels,
+        ["failed", "timed-out", "pending", "successful"]
     );
     let absent = AttemptFact {
         attempt: AttemptId::new(b"attempt:unknown", "unknown outcome"),
@@ -1052,11 +1066,17 @@ fn tc_003_aggregate_composes_every_atomic_fact_without_inference() {
         .expect("partial recovery decision"),
     ];
     let retry_outcomes = [retry];
+    let effects = [CompensationEffectFact {
+        effect: compensation.clone(),
+        registration: registration.identity.clone(),
+        disposition: None,
+    }];
     let parts = Parts {
         activation: Some(&activation),
         registration: Some(&registration),
         ordering: Some(&ordering),
         attempts: ledger.attempts(),
+        effects: &effects,
         retry_outcomes: &retry_outcomes,
         recoveries: &recoveries,
     };
@@ -1064,6 +1084,7 @@ fn tc_003_aggregate_composes_every_atomic_fact_without_inference() {
         compose(pure(&surface), parts, CompositionLimits::owner_max()).expect("bounded aggregate");
     assert_eq!(snapshot.availability, Availability::Available);
     assert_eq!(snapshot.attempts, ledger.attempts());
+    assert_eq!(snapshot.effects, effects);
     assert!(matches!(
         snapshot.recoveries.as_slice(),
         [
@@ -1147,7 +1168,7 @@ fn tc_003_aggregate_composes_every_atomic_fact_without_inference() {
         incomplete,
         OperationOutcome::ResourceIncomplete(value)
             if value.dimension() == BudgetDimension::ResultItem
-                && value.consumed() == 5
+                && value.consumed() == 6
                 && value.requested() == 2
     ));
     assert_eq!(
@@ -1158,7 +1179,7 @@ fn tc_003_aggregate_composes_every_atomic_fact_without_inference() {
     );
 
     let exact = Budget::nothing_granted()
-        .grant(BudgetDimension::ResultItem, 7)
+        .grant(BudgetDimension::ResultItem, 8)
         .expect("positive result-item grant");
     let mut exact_resources = ResourceAccountant::new(exact, &inventory);
     let bounded = compose_bounded(
@@ -1172,7 +1193,7 @@ fn tc_003_aggregate_composes_every_atomic_fact_without_inference() {
         exact_resources
             .usage()
             .consumed(BudgetDimension::ResultItem),
-        7
+        8
     );
 
     let one_allocation = Budget::nothing_granted()

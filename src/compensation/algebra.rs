@@ -644,12 +644,15 @@ fn pair_precedes(
         .is_some_and(|(before, after)| order.precedes(before, after))
 }
 
-/// Adopted FR-236 exact attempt outcome vocabulary.
+/// Established per-attempt outcome under FR-236.
+///
+/// An attempt without an established outcome retains `None`; absence is never
+/// defaulted to `Pending`. A duplicate business effect belongs to its own
+/// domain below and cannot be relabelled as an attempt result.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum AttemptOutcome {
     Failed,
     TimedOut,
-    Duplicate,
     Pending,
     Successful,
 }
@@ -661,7 +664,64 @@ impl AttemptOutcome {
         match self {
             Self::Failed => "failed",
             Self::TimedOut => "timed-out",
+            Self::Pending => "pending",
+            Self::Successful => "successful",
+        }
+    }
+}
+
+/// Disposition of one concrete compensation business effect.
+///
+/// This is intentionally not an [`AttemptOutcome`]: a repeated attempt and a
+/// second established business-effect key are different QSpec FR-058 facts.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum EffectDisposition {
+    /// A second concrete business effect claimed one singleton occurrence.
+    Duplicate,
+}
+
+impl EffectDisposition {
+    /// Exact owner label.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
             Self::Duplicate => "duplicate",
+        }
+    }
+}
+
+/// One established compensation business effect retained independently of its
+/// attempt and recovery-relation facts.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CompensationEffectFact {
+    /// Exact established compensation-effect identity.
+    pub effect: EffectId,
+    /// Exact registration this effect belongs to.
+    pub registration: RegistrationId,
+    /// Effect-only disposition, when the singleton occurrence is duplicated.
+    pub disposition: Option<EffectDisposition>,
+}
+
+/// Aggregate recovery-relation outcome for one registration.
+///
+/// This is separate from an attempt outcome even though the owner admits the
+/// same four labels in both domains: it is established only by the exact
+/// recovery relation and its authorities, never inferred from a retry.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum RecoveryRelationOutcome {
+    Failed,
+    TimedOut,
+    Pending,
+    Successful,
+}
+
+impl RecoveryRelationOutcome {
+    /// Exact owner label.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Failed => "failed",
+            Self::TimedOut => "timed-out",
             Self::Pending => "pending",
             Self::Successful => "successful",
         }

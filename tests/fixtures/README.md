@@ -3,8 +3,8 @@
 `a-four-unit-selections.json` is B's reviewed acceptance selection for IT-001.
 It is derived against the original sources, admitted model, contract and
 dependency bytes produced by `native_protocol_handoff` at `quire-spec-language`
-`93c411b287ccf4789879ac4ef3094fc921dada58` — A's promoted `main` after its
-`v0.2.0` release — and retained
+`f1700a9264d6d3bcdd07e0f77b70f3dae9ed4c07` — the QSL revision pinned by this
+crate — and retained
 here as an AGPL-3.0-only compatibility fixture. JSON does not support an SPDX
 header; this provenance record supplies the applicable license notice.
 
@@ -39,12 +39,12 @@ from two different A revisions, and `quire-spec-language` PR72 — named here as
 the source of `5690c2b` — is closed with `mergedAt: null`. The revision it
 described was never on A's `main`, so no one could reproduce the fixture from
 what this file said. Twenty-three of the lane's twenty-four tests had
-consequently never executed. All twenty-four execute when the version 1
-producer fixture is supplied against `93c411b`.
+consequently never executed. All twenty-three currently selected cases execute
+when the version 1 producer fixture is supplied against `f1700a9`.
 
 ## Regenerating the fixture
 
-From a checkout of `quire-spec-language` at `93c411b`, with its own target
+From a checkout of `quire-spec-language` at `f1700a9`, with its own target
 directory:
 
 ```console
@@ -60,7 +60,7 @@ original bytes, never from the producer's `expected.json`:
 | Field | Bytes hashed |
 | --- | --- |
 | `artifact/digest` | `<handoff-dir>/compiled-protocol.json` |
-| `contract/digest` | A's `docs/compiled-protocol-v1.md` at `93c411b` |
+| `contract/digest` | A's `docs/compiled-protocol-v1.md` at `f1700a9` |
 | producer identity | `<handoff-dir>/dependencies/0.bin` |
 
 ## Running the IT-001 lane
