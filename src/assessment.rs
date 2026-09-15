@@ -17,6 +17,9 @@ use quire_spec_language::state::{
     ValueKind as StateValueKind,
 };
 
+use crate::claims::dispatch::{
+    self, ClaimRequest, Limits as DispatchLimits, Report as DispatchReport,
+};
 use crate::claims::Claim;
 use crate::closure::GlobalConformanceClosure;
 use crate::compensation::registration::Snapshot as CompensationSnapshot;
@@ -238,6 +241,42 @@ fn outcome_refusal(error: BundleRefusal) -> ProtocolRefusal {
     .emitting_nothing()
 }
 
+/// One refusal from the Engine's closed-dispatch boundary.
+///
+/// This wrapper deliberately preserves the inner refusal envelope. A
+/// whole-request dispatch limit is owned by dispatch, while an attempt to
+/// retarget the Engine's fixed claim population is owned by the bundle; neither
+/// is collapsed into a synthetic generic error.
+#[derive(Clone, Debug)]
+pub enum DispatchRefusal {
+    /// The request does not name the Engine's exact selected claim population.
+    Bundle(BundleRefusal),
+    /// The closed dispatch owner refused with its original typed envelope.
+    Dispatch(dispatch::Refusal),
+}
+
+impl DispatchRefusal {
+    /// The complete source-bound envelope for this refusal.
+    #[must_use]
+    pub fn envelope(&self) -> ProtocolRefusal {
+        match self {
+            Self::Bundle(error) => outcome_refusal(*error),
+            Self::Dispatch(error) => error.envelope().clone(),
+        }
+    }
+}
+
+impl core::fmt::Display for DispatchRefusal {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Bundle(error) => write!(formatter, "assessment dispatch rejected: {error:?}"),
+            Self::Dispatch(error) => error.fmt(formatter),
+        }
+    }
+}
+
+impl std::error::Error for DispatchRefusal {}
+
 /// One non-retargetable assessment request.
 ///
 /// The engine borrows the constructor-validated linked assessment and retains
@@ -385,6 +424,36 @@ impl<'a> Engine<'a> {
     #[must_use]
     pub const fn activation(&self) -> Option<ActivationBinding<'a>> {
         self.activation
+    }
+
+    /// Dispatch this assessment's exact claim population through the closed
+    /// local conformance capability.
+    ///
+    /// The supplied report is produced by QProtocol's conformance owner; this
+    /// method neither accepts a backend callback nor permits a dispatch request
+    /// to add, omit, or retarget one of this engine's selected claims.
+    pub fn dispatch_conformance(
+        &self,
+        requests: &[ClaimRequest<'_>],
+        report: &crate::conformance::Report,
+        limits: DispatchLimits,
+    ) -> Result<DispatchReport, DispatchRefusal> {
+        if requests.len() != self.requested.len()
+            || requests
+                .iter()
+                .any(|request| !self.requested.contains(&request.claim))
+            || self.requested.iter().any(|claim| {
+                requests
+                    .iter()
+                    .filter(|request| request.claim == *claim)
+                    .count()
+                    != 1
+            })
+        {
+            return Err(DispatchRefusal::Bundle(BundleRefusal::UnexpectedClaim));
+        }
+        dispatch::dispatch_from_conformance(requests, report, limits)
+            .map_err(DispatchRefusal::Dispatch)
     }
 
     /// Evaluate the exact admitted guard and transactionally create every
@@ -655,15 +724,14 @@ impl<'a> Engine<'a> {
                 return CompensationOutcome::Unsupported(report)
             }
         };
-        if self.compensation_state.recoveries().iter().any(|recovery| {
-            recovery.registration() == &registration && recovery.report() == &report
-        }) {
-            return CompensationOutcome::Completed(CompensationTransition::Replay);
-        }
         let mut candidate = self.compensation_state.clone();
-        candidate.push_recovery(registration, report);
-        self.compensation_state = candidate;
-        CompensationOutcome::Completed(CompensationTransition::Applied)
+        match candidate.retain_recovery(registration, report) {
+            Ok(transition) => {
+                self.compensation_state = candidate;
+                CompensationOutcome::Completed(transition)
+            }
+            Err(error) => CompensationOutcome::Refused(error),
+        }
     }
 
     /// Assess the three commit-ordering laws only from QSL's selected nodes and
@@ -752,9 +820,13 @@ impl<'a> Engine<'a> {
             violations.push(OrderingViolation::CompensationAfterCommit);
         }
         let mut candidate = self.compensation_state.clone();
-        let transition = candidate.replace_ordering(registration, violations);
-        self.compensation_state = candidate;
-        CompensationOutcome::Completed(transition)
+        match candidate.retain_ordering(registration, violations) {
+            Ok(transition) => {
+                self.compensation_state = candidate;
+                CompensationOutcome::Completed(transition)
+            }
+            Err(error) => CompensationOutcome::Refused(error),
+        }
     }
 
     fn registration(&self, compensation_handle: u32) -> Option<CompensationRegistration> {
@@ -942,10 +1014,16 @@ fn evaluate_boolean(
         view,
         limits,
     );
+    enum Classification {
+        True,
+        False,
+        Unsupported,
+        Source,
+    }
     let classification = match report.outcome() {
         EvaluationOutcome::Completed(value) => match value.kind() {
-            StateValueKind::Boolean(true) => 0,
-            StateValueKind::Boolean(false) => 1,
+            StateValueKind::Boolean(true) => Classification::True,
+            StateValueKind::Boolean(false) => Classification::False,
             StateValueKind::Number(_)
             | StateValueKind::Text(_)
             | StateValueKind::Enum(_)
@@ -953,18 +1031,17 @@ fn evaluate_boolean(
             | StateValueKind::Option(_)
             | StateValueKind::Sequence(_)
             | StateValueKind::Reference(_)
-            | StateValueKind::Object(_) => 2,
+            | StateValueKind::Object(_) => Classification::Unsupported,
         },
         EvaluationOutcome::Incomplete(_)
         | EvaluationOutcome::Refused(_)
-        | EvaluationOutcome::Exhausted(_) => 3,
+        | EvaluationOutcome::Exhausted(_) => Classification::Source,
     };
     match classification {
-        0 => BooleanEvaluation::True(report),
-        1 => BooleanEvaluation::False(report),
-        2 => BooleanEvaluation::Unsupported(report),
-        3 => BooleanEvaluation::Source(report),
-        _ => unreachable!("closed Boolean evaluation classification"),
+        Classification::True => BooleanEvaluation::True(report),
+        Classification::False => BooleanEvaluation::False(report),
+        Classification::Unsupported => BooleanEvaluation::Unsupported(report),
+        Classification::Source => BooleanEvaluation::Source(report),
     }
 }
 

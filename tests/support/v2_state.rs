@@ -360,6 +360,8 @@ pub fn published_recovery_view(
     forward: w::Handle,
     trigger: w::Handle,
     recovery: w::Handle,
+    target: i64,
+    restored: i64,
 ) -> StateView {
     let declaration = &package.inherited().declarations[recovery.declaration as usize];
     let total = field_export(package, 0, "Workflow", "total");
@@ -393,7 +395,7 @@ pub fn published_recovery_view(
             receipts_type,
             StateValueKind::Sequence(vec![InputSlot::Available(StateValue::new(
                 element,
-                StateValueKind::Number(ProtocolNumber::Integer(ExactInteger::new(1))),
+                StateValueKind::Number(ProtocolNumber::Integer(ExactInteger::new(restored))),
             ))]),
         ))),
     };
@@ -401,7 +403,7 @@ pub fn published_recovery_view(
         field: total,
         value: FieldValue::Compiled(InputSlot::Available(StateValue::new(
             total_type,
-            StateValueKind::Number(ProtocolNumber::Integer(ExactInteger::new(1))),
+            StateValueKind::Number(ProtocolNumber::Integer(ExactInteger::new(target))),
         ))),
     };
     let (mut binders, forward_population) =

@@ -7,6 +7,23 @@ description: "Chronological log of changes to the Plan-001 bundle."
 
 ## History
 
+* **2026-09-15** — Completed Task-003 / issue #5 on the exact QSL
+  `c0deb7b3ab66d6e8cb64a0fd7769bd0af82b61b7` owner evaluator delivered by
+  QSL #101/#105/#108. The request-scoped Engine begins with eligible linked
+  inputs but no fabricated registration, then transactionally derives guard
+  activation, FR-288/compensation-handle/FR-287 registrations, distinct finite
+  attempts, independently established effects, the selected commit, QObs
+  position-ledger ordering and exact QSL recovery reports. False, missing,
+  refused, unsupported and exhausted paths cannot become success; exact replay
+  is a no-op and conflicts preserve the prior snapshot. Full and partial
+  recovery execute independently over the same target/achieved values. The
+  former `RecoveryRelation` callback is absent from production (with an
+  external compile-fail proof), while the existing capability-mutation harness
+  continues to prove zero business and compensation calls. TC-003 now has eight
+  retained pure-kernel tests and two graph-owned Engine tests; focused default-
+  free tests and doc tests pass. PR-time reviews and the unchanged-head full
+  local gate are the remaining promotion steps.
+
 * **2026-09-14** — Completed Task-019 / issue #66 as the consumer-authored
   FR-018 delivery index. `DeliveryIndex` retains exact delivery-root and
   producer-revision identity separately from offer, input, temporal, limit and

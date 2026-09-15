@@ -27,6 +27,12 @@ pub struct ScopeViews {
     pub completeness_contradicted: authority::completeness::View,
 }
 
+pub struct OrderingViews {
+    pub subject: QualifiedSubject,
+    pub observations: Vec<authority::observation::View>,
+    pub positions: authority::position::View,
+}
+
 fn id(value: impl Into<String>) -> Identity {
     Identity::new(value)
 }
@@ -102,6 +108,180 @@ pub fn scope_views_with_value(tag: &str, valuation_present: bool) -> ScopeViews 
         completeness_complete,
         completeness_incomplete,
         completeness_contradicted,
+    }
+}
+
+pub fn ordering_views(tag: &str, variant: &str, order: [usize; 3]) -> OrderingViews {
+    let producer = producer();
+    let subject = subject(&producer, tag);
+    let mut request = AdmissionRequest {
+        package: PackageSelection {
+            format: NATIVE_LINKED_PACKAGE_FORMAT.to_owned(),
+            identity: id(format!("package:{tag}:ordering:{variant}")),
+            revision: id("1"),
+            digest: digest(7),
+        },
+        producer,
+        binding: ObservationBinding {
+            identity: id(format!("binding:{tag}:ordering")),
+            source_identity: id(format!("source:{tag}:ordering")),
+            schema_identity: id("schema:ordering/v1"),
+            signal_identity: id("signal:ordering"),
+            trigger_identity: id("trigger:ordering"),
+            unit: id("position"),
+            subject_kind: SubjectKind::new(ORDER_KIND.as_bytes().to_vec())
+                .expect("non-empty order kind"),
+            required: true,
+        },
+        expected_subject: subject.clone(),
+        relationships: vec![],
+        required_relationships: vec![],
+        scope: ScopeSelection {
+            population_identity: id("unsealed-ordering-population"),
+            membership_rule_identity: id("unsealed-ordering-membership"),
+            membership_digest: digest(0),
+            membership_document: vec![],
+            required_member_identities: (0..3)
+                .map(|index| id(format!("member:{tag}:{variant}:{index}")))
+                .collect(),
+            observation_sources: vec![id(format!("source:{tag}:ordering"))],
+            completeness_dependencies: vec![id(format!("completeness:{tag}:ordering"))],
+            progress_dependencies: vec![id(format!("progress:{tag}:ordering"))],
+            clock_identity: id(format!("clock:{tag}:ordering")),
+            clock_revision: id("1"),
+            membership_complete: true,
+            closure_identity: Some(id(format!("closure:{tag}:ordering"))),
+            closure_digest: Some(digest(8)),
+            kind: ScopeKind::Window {
+                window_identity: id(format!("window:{tag}:ordering")),
+            },
+            range: ClockRange::Timestamp {
+                start_nanos: 0,
+                end_nanos: 40,
+            },
+            members: (0..3)
+                .map(|index| Member {
+                    object_identity: id(format!("member:{tag}:{variant}:{index}")),
+                    record_identity: id(format!("unsealed-ordering-record:{index}")),
+                    anchor: Anchor::TimestampNanos(10 + i128::from(index)),
+                })
+                .collect(),
+        },
+        records: (0..3)
+            .map(|index| AdmittedRecord {
+                identity: id(format!("unsealed-ordering-record:{index}")),
+                binding_identity: id(format!("binding:{tag}:ordering")),
+                source_identity: id(format!("source:{tag}:ordering")),
+                schema_identity: id("schema:ordering/v1"),
+                subject: subject.clone(),
+                signal_identity: id("signal:ordering"),
+                trigger_identity: id("trigger:ordering"),
+                unit: id("position"),
+                value: ValueState::Present {
+                    value_type: id("text"),
+                    canonical_value: format!("{tag}:{variant}:{index}"),
+                },
+                visibility: Visibility::External,
+                anchor: Anchor::TimestampNanos(10 + i128::from(index)),
+                event_time_nanos: 10 + i128::from(index),
+                ingestion_time_nanos: 20 + i128::from(index),
+                causal_relationship_identity: None,
+                clock_identity: id(format!("clock:{tag}:ordering")),
+                clock_revision: id("1"),
+                clock_uncertainty_nanos: 1,
+            })
+            .collect(),
+        limits: ResourceLimits {
+            max_records: 3,
+            max_members: 3,
+            max_relationships: 0,
+            max_required_relationships: 0,
+        },
+    };
+    for (record, member) in request.records.iter_mut().zip(&mut request.scope.members) {
+        let identity =
+            authority::observation::record_identity(record, ObservationLimits::owner_max())
+                .expect("ordering record identity");
+        record.identity = identity.clone();
+        member.record_identity = identity;
+    }
+    authority::population::assign_request_identities(&mut request, ObservationLimits::owner_max())
+        .expect("ordering population identities");
+    let qualified = match admit(request) {
+        AdmissionOutcome::Available { observation } => observation,
+        other => panic!("ordering qualification failed: {other:?}"),
+    };
+    let owner = AuthoritySelection {
+        definition_identity: id(format!("definition:{tag}:ordering")),
+        definition_revision: id("1"),
+        definition_digest: digest(9),
+    };
+    let selected_subject = SubjectSelection {
+        scope_identity: id(format!("window:{tag}:ordering")),
+        population_identity: qualified.scope().population_identity.clone(),
+    };
+    let context = Context::new(
+        History::batch(&qualified),
+        &owner,
+        &selected_subject,
+        1,
+        None,
+    );
+    let observations = qualified
+        .records()
+        .iter()
+        .map(|record| {
+            let selection = authority::observation::Selection::new(
+                record.identity.clone(),
+                authority::observation::CutoffSelection::new(
+                    id(format!("clock:{tag}:ordering")),
+                    id("1"),
+                    40,
+                    authority::observation::CutoffRule::IngestionTimeAtOrBefore,
+                    id("1"),
+                ),
+            );
+            let document =
+                authority::observation::derive(context, &selection, ObservationLimits::owner_max())
+                    .expect("ordering observation document");
+            authority::observation::read(
+                document.bytes(),
+                context,
+                &selection,
+                ObservationLimits::owner_max(),
+            )
+            .expect("ordering observation view")
+        })
+        .collect();
+    let position_selection = authority::position::Selection::new(
+        id(format!("ledger:{tag}:{variant}")),
+        id(format!("clock:{tag}:ordering")),
+        id("1"),
+        order
+            .into_iter()
+            .enumerate()
+            .map(|(position, record)| {
+                authority::position::Position::new(
+                    u64::try_from(position).expect("three positions"),
+                    qualified.records()[record].identity.clone(),
+                )
+            })
+            .collect(),
+    );
+    let document =
+        authority::position::derive(context, &position_selection, ObservationLimits::owner_max())
+            .expect("ordering position document");
+    let positions = authority::position::read(
+        document.bytes(),
+        context,
+        &position_selection,
+        ObservationLimits::owner_max(),
+    )
+    .expect("ordering position view");
+    OrderingViews {
+        subject,
+        observations,
+        positions,
     }
 }
 

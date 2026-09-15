@@ -4,21 +4,29 @@
 use agent_ix_baseline_producer::StaticProducerBundle;
 use ix_trace_rs::trace;
 use quire_observation::{QualifiedSubject, SubjectIdentity, SubjectKind};
-use quire_protocol::assessment::Engine;
+use quire_protocol::assessment::{ClaimRow, Engine};
 use quire_protocol::claims::Claim;
-use quire_protocol::compensation::algebra::{AttemptOutcome, EffectDisposition};
-use quire_protocol::compensation::graph::{Outcome, Refusal, Transition};
+use quire_protocol::compensation::algebra::{AttemptOutcome, EffectDisposition, OrderingViolation};
+use quire_protocol::compensation::graph::{MissingEvidence, Outcome, Refusal, Transition};
 use quire_protocol::model::v2::{
     Internality, LinkedAssessment, RoleClassification, RuntimeBinding, RuntimeBindingSet,
     SlotCompatibility, SlotHandle, StaticBindingDefinition, StaticSelection, StaticSlot,
     RUNTIME_BINDING_CONTRACT, STATIC_BINDING_CONTRACT,
 };
+use quire_protocol::outcome::ClaimOutcome;
 use quire_protocol::wire::{BindingKind, Body, ControlOperation};
-use quire_spec_language::state::{Limits as StateLimits, StateView};
+use quire_spec_language::state::{
+    EvaluationOutcome, Limits as StateLimits, StateView, ValueKind as StateValueKind,
+};
 
 #[allow(dead_code, unused_imports)]
 #[path = "support/v2_handoff/mod.rs"]
 mod handoff;
+// The shared owner fixture also contains scope views used by the retained
+// pure-kernel TC-003; this integration target exercises its ordering slice.
+#[allow(dead_code)]
+#[path = "support/observation_owner.rs"]
+mod observation_owner;
 #[path = "support/v2_state.rs"]
 mod v2_state;
 
@@ -56,10 +64,15 @@ struct Fixture {
     runtime: RuntimeBindingSet,
     first_attempt: RuntimeBinding,
     first_effect: RuntimeBinding,
+    second_effect: RuntimeBinding,
     commit: RuntimeBinding,
 }
 
 fn fixture() -> Fixture {
+    fixture_with_ordering_subject(None)
+}
+
+fn fixture_with_ordering_subject(shared: Option<&QualifiedSubject>) -> Fixture {
     let package = package();
     let (declaration_handle, declaration) = package
         .inherited()
@@ -86,6 +99,7 @@ fn fixture() -> Fixture {
         unreachable!("selected protocol declaration")
     };
     let compensation = &compensations[0];
+    let partial = &compensations[1];
     let forward_slot = declaration
         .bindings
         .iter()
@@ -104,6 +118,7 @@ fn fixture() -> Fixture {
         forward_slot,
         compensation.attempt_instance,
         compensation.effect_instance,
+        partial.effect_instance,
         commit_slot,
     ]
     .into_iter()
@@ -135,22 +150,29 @@ fn fixture() -> Fixture {
         slots,
     )
     .expect("compensation static definition");
-    let forward = RuntimeBinding::subject(
-        SlotHandle::new(forward_slot),
-        subject(&producer, b"forward-effect:1"),
-    );
+    let forward_subject = shared
+        .cloned()
+        .unwrap_or_else(|| subject(&producer, b"forward-effect:1"));
+    let forward = RuntimeBinding::subject(SlotHandle::new(forward_slot), forward_subject);
     let first_attempt = RuntimeBinding::subject(
         SlotHandle::new(compensation.attempt_instance),
         subject(&producer, b"compensation-attempt:1"),
     );
+    let effect_subject = shared
+        .cloned()
+        .unwrap_or_else(|| subject(&producer, b"compensation-effect:1"));
     let first_effect = RuntimeBinding::subject(
         SlotHandle::new(compensation.effect_instance),
-        subject(&producer, b"compensation-effect:1"),
+        effect_subject,
     );
-    let commit = RuntimeBinding::subject(
-        SlotHandle::new(commit_slot),
-        subject(&producer, b"commit:1"),
+    let second_effect = RuntimeBinding::subject(
+        SlotHandle::new(partial.effect_instance),
+        subject(&producer, b"partial-compensation-effect:1"),
     );
+    let commit_subject = shared
+        .cloned()
+        .unwrap_or_else(|| subject(&producer, b"commit:1"));
+    let commit = RuntimeBinding::subject(SlotHandle::new(commit_slot), commit_subject);
     let runtime = RuntimeBindingSet::new(
         RUNTIME_BINDING_CONTRACT,
         definition.selection(),
@@ -160,6 +182,7 @@ fn fixture() -> Fixture {
             forward,
             first_attempt.clone(),
             first_effect.clone(),
+            second_effect.clone(),
             commit.clone(),
         ],
     )
@@ -170,6 +193,7 @@ fn fixture() -> Fixture {
         runtime,
         first_attempt,
         first_effect,
+        second_effect,
         commit,
     }
 }
@@ -178,6 +202,59 @@ fn engine(fixture: &Fixture) -> Engine<'_> {
     let context = LinkedAssessment::new(&fixture.package, &fixture.definition, &fixture.runtime)
         .expect("linked assessment");
     Engine::new(context, vec![Claim::Conformance]).expect("request-scoped engine")
+}
+
+fn no_expression_work() -> StateLimits {
+    StateLimits {
+        expression_work: 0,
+        ..StateLimits::default()
+    }
+}
+
+fn assessed_ordering(order: [usize; 3]) -> Vec<OrderingViolation> {
+    let views = observation_owner::ordering_views("compensation", "base", order);
+    let fixture = fixture_with_ordering_subject(Some(&views.subject));
+    let compensation = match &fixture.package.inherited().declarations
+        [fixture.definition.declaration_handle() as usize]
+        .body
+    {
+        Body::Protocol { compensations, .. } => &compensations[0],
+        _ => unreachable!("protocol"),
+    };
+    let guard = StateView {
+        binders: vec![v2_state::plain_binder(
+            &fixture.package,
+            compensation.trigger.clone(),
+            false,
+        )],
+        populations: Vec::new(),
+    };
+    let mut engine = engine(&fixture);
+    assert_eq!(
+        engine.activate_compensation(0, &guard, StateLimits::default()),
+        Outcome::Completed(Transition::Applied)
+    );
+    assert_eq!(
+        engine.record_compensation_effect(0, &fixture.first_effect, None),
+        Outcome::Completed(Transition::Applied)
+    );
+    assert_eq!(
+        engine.record_compensation_commit(0, &fixture.commit),
+        Outcome::Completed(Transition::Applied)
+    );
+    assert_eq!(
+        engine.assess_compensation_ordering(
+            0,
+            &views.observations[0],
+            &views.observations[1],
+            Some(&views.observations[2]),
+            &views.positions,
+        ),
+        Outcome::Completed(Transition::Applied)
+    );
+    engine.compensation_state().orderings()[0]
+        .violations()
+        .to_vec()
 }
 
 /// The production Engine walks the admitted guard/retry/recovery handles and
@@ -201,6 +278,8 @@ fn engine(fixture: &Fixture) -> Engine<'_> {
     "FR-023-AC-2",
     "FR-023-AC-5",
     "FR-024-AC-2",
+    "FR-024-AC-1",
+    "FR-024-AC-3",
     "FR-024-AC-4",
     "FR-024-AC-5",
     "FR-024-AC-6"
@@ -216,10 +295,30 @@ fn tc_003_engine_is_graph_owned_exact_and_transactional() {
         Body::Protocol { compensations, .. } => &compensations[0],
         _ => unreachable!("protocol"),
     };
+    let partial = match &fixture.package.inherited().declarations
+        [fixture.definition.declaration_handle() as usize]
+        .body
+    {
+        Body::Protocol { compensations, .. } => &compensations[1],
+        _ => unreachable!("protocol"),
+    };
     let mut engine = engine(&fixture);
     assert!(engine.compensation().registrations().is_empty());
 
+    let false_guard = StateView {
+        binders: vec![v2_state::plain_binder(
+            &fixture.package,
+            compensation.trigger.clone(),
+            true,
+        )],
+        populations: Vec::new(),
+    };
     let before = engine.compensation().clone();
+    assert!(matches!(
+        engine.activate_compensation(0, &false_guard, StateLimits::default()),
+        Outcome::GuardFalse(_)
+    ));
+    assert_eq!(engine.compensation(), &before);
     assert!(matches!(
         engine.activate_compensation(0, &StateView::default(), StateLimits::default()),
         Outcome::Source(_)
@@ -234,6 +333,11 @@ fn tc_003_engine_is_graph_owned_exact_and_transactional() {
         )],
         populations: Vec::new(),
     };
+    assert!(matches!(
+        engine.activate_compensation(0, &guard, no_expression_work()),
+        Outcome::Source(_)
+    ));
+    assert_eq!(engine.compensation(), &before);
     assert_eq!(
         engine.activate_compensation(0, &guard, StateLimits::default()),
         Outcome::Completed(Transition::Applied)
@@ -269,6 +373,20 @@ fn tc_003_engine_is_graph_owned_exact_and_transactional() {
                 format!("compensation-attempt:{ordinal}").as_bytes(),
             ),
         );
+        if ordinal == 2 {
+            let before = engine.compensation_state().clone();
+            assert!(matches!(
+                engine.admit_compensation_attempt(
+                    0,
+                    &candidate,
+                    Some(AttemptOutcome::Successful),
+                    Some(&retry),
+                    no_expression_work(),
+                ),
+                Outcome::Source(_)
+            ));
+            assert_eq!(engine.compensation_state(), &before);
+        }
         assert_eq!(
             engine.admit_compensation_attempt(
                 0,
@@ -311,6 +429,23 @@ fn tc_003_engine_is_graph_owned_exact_and_transactional() {
     ));
     assert_eq!(engine.compensation_state(), &before);
 
+    let recovery = v2_state::published_recovery_view(
+        &fixture.package,
+        compensation.forward.clone(),
+        compensation.trigger.clone(),
+        compensation.recovery.clone(),
+        2,
+        1,
+    );
+    let before = engine.compensation_state().clone();
+    assert_eq!(
+        engine.evaluate_compensation_recovery(0, &recovery, StateLimits::default()),
+        Outcome::Unavailable(
+            quire_protocol::compensation::graph::MissingEvidence::CompensationEffect
+        )
+    );
+    assert_eq!(engine.compensation_state(), &before);
+
     assert_eq!(
         engine.record_compensation_effect(0, &fixture.first_effect, None),
         Outcome::Completed(Transition::Applied)
@@ -331,15 +466,20 @@ fn tc_003_engine_is_graph_owned_exact_and_transactional() {
     assert_eq!(engine.compensation_state(), &after_effect);
 
     assert_eq!(
+        engine.evaluate_compensation_recovery(0, &recovery, StateLimits::default()),
+        Outcome::Unavailable(quire_protocol::compensation::graph::MissingEvidence::Commit)
+    );
+    assert_eq!(engine.compensation_state(), &after_effect);
+    assert_eq!(
         engine.record_compensation_commit(0, &fixture.commit),
         Outcome::Completed(Transition::Applied)
     );
-    let recovery = v2_state::published_recovery_view(
-        &fixture.package,
-        compensation.forward.clone(),
-        compensation.trigger.clone(),
-        compensation.recovery.clone(),
-    );
+    let before = engine.compensation_state().clone();
+    assert!(matches!(
+        engine.evaluate_compensation_recovery(0, &recovery, no_expression_work()),
+        Outcome::Source(_)
+    ));
+    assert_eq!(engine.compensation_state(), &before);
     assert_eq!(
         engine.evaluate_compensation_recovery(0, &recovery, StateLimits::default()),
         Outcome::Completed(Transition::Applied)
@@ -348,14 +488,217 @@ fn tc_003_engine_is_graph_owned_exact_and_transactional() {
         engine.evaluate_compensation_recovery(0, &recovery, StateLimits::default()),
         Outcome::Completed(Transition::Replay)
     );
+    assert!(matches!(
+        engine.compensation_state().recoveries()[0]
+            .report()
+            .outcome(),
+        EvaluationOutcome::Completed(value)
+            if matches!(value.kind(), StateValueKind::Boolean(false))
+    ));
+    let changed_recovery = v2_state::published_recovery_view(
+        &fixture.package,
+        compensation.forward.clone(),
+        compensation.trigger.clone(),
+        compensation.recovery.clone(),
+        1,
+        1,
+    );
+    let before = engine.compensation_state().clone();
+    assert_eq!(
+        engine.evaluate_compensation_recovery(0, &changed_recovery, StateLimits::default(),),
+        Outcome::Refused(Refusal::ConflictingReplay)
+    );
+    assert_eq!(engine.compensation_state(), &before);
+
+    let partial_guard = StateView {
+        binders: vec![v2_state::plain_binder(
+            &fixture.package,
+            partial.trigger.clone(),
+            false,
+        )],
+        populations: Vec::new(),
+    };
+    assert_eq!(
+        engine.activate_compensation(1, &partial_guard, StateLimits::default()),
+        Outcome::Completed(Transition::Applied)
+    );
+    assert_eq!(
+        engine.record_compensation_effect(1, &fixture.second_effect, None),
+        Outcome::Completed(Transition::Applied)
+    );
+    let before = engine.compensation_state().clone();
+    assert!(matches!(
+        engine.evaluate_compensation_recovery(1, &StateView::default(), StateLimits::default()),
+        Outcome::Source(_)
+    ));
+    assert_eq!(engine.compensation_state(), &before);
+    let partial_recovery = v2_state::published_recovery_view(
+        &fixture.package,
+        partial.forward.clone(),
+        partial.trigger.clone(),
+        partial.recovery.clone(),
+        2,
+        1,
+    );
+    assert_eq!(
+        engine.evaluate_compensation_recovery(1, &partial_recovery, StateLimits::default()),
+        Outcome::Completed(Transition::Applied)
+    );
+    assert!(matches!(
+        engine.compensation_state().recoveries()[1]
+            .report()
+            .outcome(),
+        EvaluationOutcome::Completed(value)
+            if matches!(value.kind(), StateValueKind::Boolean(true))
+    ));
     assert_eq!(engine.compensation_state().attempts().len(), 3);
-    assert_eq!(engine.compensation_state().effects().len(), 1);
+    assert_eq!(engine.compensation_state().effects().len(), 2);
     assert_eq!(engine.compensation_state().commits().len(), 1);
-    assert_eq!(engine.compensation_state().recoveries().len(), 1);
+    assert_eq!(engine.compensation_state().recoveries().len(), 2);
     assert_eq!(
         engine.compensation_state().recoveries()[0]
             .report()
             .accounting_version(),
         quire_spec_language::state::ACCOUNTING_VERSION
+    );
+    let bundle = engine
+        .assemble(vec![ClaimRow {
+            claim: Claim::Conformance,
+            outcome: ClaimOutcome::Canonical(()),
+        }])
+        .expect("the complete graph state remains in the assessment bundle");
+    assert_eq!(bundle.compensation().registrations().len(), 2);
+    assert_eq!(bundle.compensation_state().attempts().len(), 3);
+    assert_eq!(bundle.compensation_state().effects().len(), 2);
+    assert_eq!(bundle.compensation_state().commits().len(), 1);
+    assert_eq!(bundle.compensation_state().recoveries().len(), 2);
+}
+
+/// Commit ordering consumes only strict QObs observation and position views.
+/// Missing owner evidence cannot mutate prior assessment state, while exact
+/// replay and each authored violation remain distinct.
+#[trace(
+    "TC-003",
+    "FR-003-AC-3",
+    "FR-003-AC-4",
+    "FR-021-AC-1",
+    "FR-021-AC-2",
+    "FR-021-AC-3",
+    "FR-021-AC-4"
+)]
+#[test]
+fn tc_003_ordering_uses_exact_qobs_positions() {
+    let valid = observation_owner::ordering_views("compensation", "base", [0, 1, 2]);
+    let fixture = fixture_with_ordering_subject(Some(&valid.subject));
+    let compensation = match &fixture.package.inherited().declarations
+        [fixture.definition.declaration_handle() as usize]
+        .body
+    {
+        Body::Protocol { compensations, .. } => &compensations[0],
+        _ => unreachable!("protocol"),
+    };
+    let guard = StateView {
+        binders: vec![v2_state::plain_binder(
+            &fixture.package,
+            compensation.trigger.clone(),
+            false,
+        )],
+        populations: Vec::new(),
+    };
+    let mut engine = engine(&fixture);
+    assert_eq!(
+        engine.activate_compensation(0, &guard, StateLimits::default()),
+        Outcome::Completed(Transition::Applied)
+    );
+    assert_eq!(
+        engine.record_compensation_effect(0, &fixture.first_effect, None),
+        Outcome::Completed(Transition::Applied)
+    );
+
+    let before = engine.compensation_state().clone();
+    assert_eq!(
+        engine.assess_compensation_ordering(
+            0,
+            &valid.observations[0],
+            &valid.observations[1],
+            None,
+            &valid.positions,
+        ),
+        Outcome::Unavailable(MissingEvidence::Commit)
+    );
+    assert_eq!(engine.compensation_state(), &before);
+    assert_eq!(
+        engine.record_compensation_commit(0, &fixture.commit),
+        Outcome::Completed(Transition::Applied)
+    );
+
+    let alternate = observation_owner::ordering_views("compensation", "alternate", [0, 1, 2]);
+    let before = engine.compensation_state().clone();
+    assert_eq!(
+        engine.assess_compensation_ordering(
+            0,
+            &valid.observations[0],
+            &valid.observations[1],
+            Some(&valid.observations[2]),
+            &alternate.positions,
+        ),
+        Outcome::Unavailable(MissingEvidence::Position)
+    );
+    assert_eq!(engine.compensation_state(), &before);
+
+    assert_eq!(
+        engine.assess_compensation_ordering(
+            0,
+            &valid.observations[0],
+            &valid.observations[1],
+            Some(&valid.observations[2]),
+            &valid.positions,
+        ),
+        Outcome::Completed(Transition::Applied)
+    );
+    assert!(engine.compensation_state().orderings()[0]
+        .violations()
+        .is_empty());
+    assert_eq!(
+        engine.assess_compensation_ordering(
+            0,
+            &valid.observations[0],
+            &valid.observations[1],
+            Some(&valid.observations[2]),
+            &valid.positions,
+        ),
+        Outcome::Completed(Transition::Replay)
+    );
+
+    let effect_first = observation_owner::ordering_views("compensation", "base", [1, 0, 2]);
+    let before = engine.compensation_state().clone();
+    assert_eq!(
+        engine.assess_compensation_ordering(
+            0,
+            &effect_first.observations[0],
+            &effect_first.observations[1],
+            Some(&effect_first.observations[2]),
+            &effect_first.positions,
+        ),
+        Outcome::Refused(Refusal::ConflictingReplay)
+    );
+    assert_eq!(engine.compensation_state(), &before);
+    assert_eq!(
+        assessed_ordering([1, 0, 2]),
+        &[OrderingViolation::CompensationBeforeForwardEffect]
+    );
+
+    assert_eq!(
+        assessed_ordering([0, 2, 1]),
+        &[OrderingViolation::CompensationAfterCommit]
+    );
+
+    assert_eq!(
+        assessed_ordering([2, 1, 0]),
+        &[
+            OrderingViolation::RegistrationAfterCommit,
+            OrderingViolation::CompensationBeforeForwardEffect,
+            OrderingViolation::CompensationAfterCommit,
+        ]
     );
 }

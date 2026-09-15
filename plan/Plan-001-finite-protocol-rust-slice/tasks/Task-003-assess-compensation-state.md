@@ -2,7 +2,7 @@
 id: Task-003
 title: "Assess compensation state"
 type: Task
-status: in_progress
+status: complete
 track: Core
 priority: P0
 relationships:
@@ -24,23 +24,23 @@ production construction of compensation identities.
 
 ## Subtasks
 
-- [ ] Write TC-003 activation, state-transition, relation, idempotence, and
+- [x] Write TC-003 activation, state-transition, relation, idempotence, and
   adverse-path cases first.
-- [ ] Derive triggered, inactive and activation-unknown only from exact
+- [x] Derive triggered, inactive and activation-unknown only from exact
   QSpec FR-300 activation bindings and the applicable progress, closure and
   completeness authority; refuse any caller-built or cross-linked substitute.
-- [ ] Preserve delivery, attempt, effect, registration, commit, and recovery identities as distinct types.
-- [ ] Register compensation only after the paired successful effect, preserve one
+- [x] Preserve delivery, attempt, effect, registration, commit, and recovery identities as distinct types.
+- [x] Register compensation only after the paired successful effect, preserve one
   registration when that exact effect is replayed, and enforce authored finite
   retry and commit ordering.
-- [ ] Evaluate full and partial recovery only through their exact authored
+- [x] Evaluate full and partial recovery only through their exact authored
   relation, captured target and achieved state; require exact population,
   membership and completeness authority for aggregate partial recovery.
-- [ ] Remove the public `RecoveryRelation` callback from production. Evaluate
+- [x] Remove the public `RecoveryRelation` callback from production. Evaluate
   only the admitted QSL typed state/temporal expression under its resolved
   capability and request accountant; unknown/out-of-profile expressions are
   unsupported, and source refusal/resource incompleteness propagate exactly.
-- [ ] Prove with zero-call action-capable doubles and API/dependency mutations
+- [x] Prove with zero-call action-capable doubles and API/dependency mutations
   that the module admits no network, storage, telemetry, business-operation, or
   compensation-operation I/O and derives no fact from successful transport alone.
 
@@ -61,3 +61,12 @@ production construction of compensation identities.
   `pending`, and `successful` are separately admissible for per-attempt and
   recovery-relation facts; `duplicate` is effect-only. Retain these domains as
   distinct types and never infer a recovery outcome from an attempt outcome.
+- QSL #101/#105/#108 are delivered through QSL PR #109 at exact merge
+  `c0deb7b3ab66d6e8cb64a0fd7769bd0af82b61b7`. The production Engine now walks
+  those admitted guard, retry and recovery handles directly, retains complete
+  owner evaluation reports, and exposes no recovery callback in production.
+- `tests/tc_003_graph_compensation.rs` exercises exact activation, finite retry,
+  selected commit, QObs position-ledger ordering, full-versus-partial recovery,
+  replay, missing-source and resource-exhaustion transactionality. The earlier
+  pure kernels remain as internal building blocks and their action-capability
+  mutation test continues to prove zero business/compensation calls.

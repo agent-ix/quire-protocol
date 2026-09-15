@@ -19,9 +19,8 @@ use quire_protocol::compensation::algebra::{
 };
 use quire_protocol::compensation::purity::{Capability, CapabilityInventory, PureAssessment};
 use quire_protocol::compensation::recovery::{
-    assess as assess_recovery, Decision as RecoveryDecision, Input as RecoveryInput,
-    Limits as RecoveryLimits, MissingInput, PopulationEvidence, PopulationRequirement,
-    RecoveryRelation, RelationSelection, State, Substitution,
+    Decision as RecoveryDecision, Fact as RecoveryFact, Limits as RecoveryLimits, MissingInput,
+    State,
 };
 use quire_protocol::compensation::{
     compose, compose_bounded, Availability, Limits as CompositionLimits, Parts,
@@ -603,38 +602,6 @@ fn tc_003_attempts_effects_outcomes_and_retry_bound_stay_distinct() {
     assert!(absent_ledger.attempts().is_empty());
 }
 
-struct AmountRelation {
-    relation_type: &'static [u8],
-    authored_bytes: &'static [u8],
-    full: bool,
-    aggregate_member: Option<EffectId>,
-    calls: Cell<usize>,
-}
-
-impl RecoveryRelation for AmountRelation {
-    fn relation_type(&self) -> &[u8] {
-        self.relation_type
-    }
-
-    fn authored_bytes(&self) -> &[u8] {
-        self.authored_bytes
-    }
-
-    fn evaluate(&self, target: &State, achieved: &State, members: &[EffectId]) -> bool {
-        self.calls.set(self.calls.get() + 1);
-        let state_matches = if self.full {
-            target.canonical_value() == achieved.canonical_value()
-        } else {
-            achieved.canonical_value() == b"40"
-        };
-        let population_matches = self
-            .aggregate_member
-            .as_ref()
-            .is_none_or(|expected| members.len() == 1 && members.first() == Some(expected));
-        state_matches && population_matches
-    }
-}
-
 fn state(identity: &str, value: &str) -> State {
     State::new(
         identity.as_bytes().to_vec().into_boxed_slice(),
@@ -644,305 +611,28 @@ fn state(identity: &str, value: &str) -> State {
     .expect("bounded state")
 }
 
-fn relation_selection(
+fn recovery_fact(
     recovery: &RecoveryId,
     registration: &quire_protocol::compensation::algebra::Registration,
+    commit: &CommitId,
+    compensation_effect: &EffectId,
     target: &State,
+    achieved: &State,
     relation_type: &[u8],
-    authored_bytes: &[u8],
-    population: Option<PopulationRequirement>,
-) -> RelationSelection {
-    RelationSelection::new(
-        recovery.clone(),
-        registration.identity.clone(),
-        target.identity_bytes().to_vec().into_boxed_slice(),
-        relation_type.to_vec().into_boxed_slice(),
-        authored_bytes.to_vec().into_boxed_slice(),
-        population,
-        RecoveryLimits::owner_max(),
-    )
-    .expect("bounded relation")
-}
-
-fn recovery_input<'a>(
-    recovery: &'a RecoveryId,
-    registration: &'a quire_protocol::compensation::algebra::Registration,
-    target: &'a State,
-    achieved: &'a State,
-    commit: &'a CommitId,
-    compensation_effect: &'a EffectId,
-) -> RecoveryInput<'a> {
-    RecoveryInput {
-        recovery,
-        registration,
-        target: Some(target),
-        achieved: Some(achieved),
-        commit: Some(commit),
-        compensation_effect: Some(compensation_effect),
-        population: None,
+    relation_bytes: &[u8],
+) -> RecoveryFact {
+    RecoveryFact {
+        recovery: recovery.clone(),
+        registration: registration.identity.clone(),
+        commit: commit.clone(),
+        compensation_effect: compensation_effect.clone(),
+        target: target.clone(),
+        achieved: achieved.clone(),
+        relation_type: relation_type.to_vec().into_boxed_slice(),
+        relation_bytes: relation_bytes.to_vec().into_boxed_slice(),
+        population_bytes: None,
+        completeness_bytes: None,
     }
-}
-
-/// Partial and full recovery are independent relation results; neither an
-/// attempt label nor a compensation-operation success appears in the API.
-#[trace("TC-003", "FR-003-AC-5", "FR-024-AC-1", "FR-024-AC-2", "FR-024-AC-5")]
-#[test]
-fn tc_003_recovery_is_decided_only_by_each_exact_authored_relation() {
-    let surface = Surface::default();
-    let registration = registered(&surface, NonZeroU32::new(2));
-    let recovery = RecoveryId::new(b"recovery:one", "recovery one");
-    let target = state("state:target", "100");
-    let achieved = state("state:achieved", "40");
-    let commit = CommitId::new(b"commit:one", "commit one");
-    let compensation = effect("effect:refund");
-
-    let full = AmountRelation {
-        relation_type: b"relation:full",
-        authored_bytes: b"target == achieved",
-        full: true,
-        aggregate_member: None,
-        calls: Cell::new(0),
-    };
-    let partial = AmountRelation {
-        relation_type: b"relation:partial",
-        authored_bytes: b"achieved == 40",
-        full: false,
-        aggregate_member: None,
-        calls: Cell::new(0),
-    };
-    let full_selection = relation_selection(
-        &recovery,
-        &registration,
-        &target,
-        full.relation_type,
-        full.authored_bytes,
-        None,
-    );
-    let partial_selection = relation_selection(
-        &recovery,
-        &registration,
-        &target,
-        partial.relation_type,
-        partial.authored_bytes,
-        None,
-    );
-    let input = recovery_input(
-        &recovery,
-        &registration,
-        &target,
-        &achieved,
-        &commit,
-        &compensation,
-    );
-    assert!(matches!(
-        assess_recovery(
-            pure(&surface),
-            &full_selection,
-            &full,
-            input,
-            RecoveryLimits::owner_max(),
-        )
-        .expect("full relation"),
-        RecoveryDecision::NotSatisfied(_)
-    ));
-    assert!(matches!(
-        assess_recovery(
-            pure(&surface),
-            &partial_selection,
-            &partial,
-            input,
-            RecoveryLimits::owner_max(),
-        )
-        .expect("partial relation"),
-        RecoveryDecision::Satisfied(_)
-    ));
-    assert_eq!(full.calls.get(), 1);
-    assert_eq!(partial.calls.get(), 1);
-
-    let substituted = relation_selection(
-        &recovery,
-        &registration,
-        &target,
-        b"relation:other",
-        partial.authored_bytes,
-        None,
-    );
-    assert_eq!(
-        assess_recovery(
-            pure(&surface),
-            &substituted,
-            &partial,
-            input,
-            RecoveryLimits::owner_max(),
-        )
-        .expect_err("relation type substitution"),
-        quire_protocol::compensation::recovery::Refusal::Substitution(Substitution::RelationType)
-    );
-    assert_eq!(partial.calls.get(), 1);
-
-    let changed_target = state("state:other-target", "41");
-    let changed = recovery_input(
-        &recovery,
-        &registration,
-        &changed_target,
-        &achieved,
-        &commit,
-        &compensation,
-    );
-    assert_eq!(
-        assess_recovery(
-            pure(&surface),
-            &full_selection,
-            &full,
-            changed,
-            RecoveryLimits::owner_max(),
-        )
-        .expect_err("captured target substitution must refuse"),
-        quire_protocol::compensation::recovery::Refusal::Substitution(Substitution::TargetState)
-    );
-}
-
-/// Aggregate recovery requires the exact QObs population, membership rule,
-/// complete per-member assertion, and every selected compensation effect.
-#[trace("TC-003", "FR-003-AC-5", "FR-003-AC-6", "FR-024-AC-3", "FR-024-AC-4")]
-#[test]
-fn tc_003_aggregate_recovery_requires_exact_population_authority() {
-    let surface = Surface::default();
-    let registration = registered(&surface, NonZeroU32::new(2));
-    let recovery = RecoveryId::new(b"recovery:aggregate", "aggregate recovery");
-    let target = state("state:target", "100");
-    let achieved = state("state:achieved", "100");
-    let commit = CommitId::new(b"commit:one", "commit one");
-    let compensation = effect("member:recovery");
-    let views = scope_views("recovery");
-    let population = views.population.payload();
-    let requirement = PopulationRequirement::new(
-        population.population_identity(),
-        population.membership_rule_identity(),
-        population.membership_digest(),
-        vec![compensation.clone()],
-        RecoveryLimits::owner_max(),
-    )
-    .expect("exact owner selection");
-    let selection = relation_selection(
-        &recovery,
-        &registration,
-        &target,
-        b"relation:aggregate",
-        b"sum(exact members) == target",
-        Some(requirement),
-    );
-    let relation = AmountRelation {
-        relation_type: b"relation:aggregate",
-        authored_bytes: b"sum(exact members) == target",
-        full: true,
-        aggregate_member: Some(compensation.clone()),
-        calls: Cell::new(0),
-    };
-    let base = recovery_input(
-        &recovery,
-        &registration,
-        &target,
-        &achieved,
-        &commit,
-        &compensation,
-    );
-    let exact = RecoveryInput {
-        population: Some(PopulationEvidence {
-            population: &views.population,
-            completeness: &views.completeness_complete,
-            effects: std::slice::from_ref(&compensation),
-        }),
-        ..base
-    };
-    assert!(matches!(
-        assess_recovery(
-            pure(&surface),
-            &selection,
-            &relation,
-            exact,
-            RecoveryLimits::owner_max(),
-        )
-        .expect("complete aggregate authority"),
-        RecoveryDecision::Satisfied(_)
-    ));
-    assert_eq!(relation.calls.get(), 1);
-
-    let missing_population = assess_recovery(
-        pure(&surface),
-        &selection,
-        &relation,
-        base,
-        RecoveryLimits::owner_max(),
-    )
-    .expect("missing authority is an incomplete outcome");
-    assert!(matches!(
-        missing_population,
-        RecoveryDecision::Incomplete(ref missing)
-            if missing.contains(&MissingInput::Population)
-                && missing.contains(&MissingInput::PopulationMember)
-                && missing.contains(&MissingInput::MembershipAuthority)
-                && missing.contains(&MissingInput::CompletenessAuthority)
-    ));
-
-    let incomplete = RecoveryInput {
-        population: Some(PopulationEvidence {
-            population: &views.population,
-            completeness: &views.completeness_incomplete,
-            effects: std::slice::from_ref(&compensation),
-        }),
-        ..base
-    };
-    assert!(matches!(
-        assess_recovery(
-            pure(&surface),
-            &selection,
-            &relation,
-            incomplete,
-            RecoveryLimits::owner_max(),
-        )
-        .expect("incomplete QObs authority"),
-        RecoveryDecision::Incomplete(ref missing)
-            if missing == &[MissingInput::CompletenessAuthority]
-    ));
-    assert_eq!(relation.calls.get(), 1);
-
-    let no_commit = RecoveryInput {
-        commit: None,
-        ..exact
-    };
-    assert!(matches!(
-        assess_recovery(
-            pure(&surface),
-            &selection,
-            &relation,
-            no_commit,
-            RecoveryLimits::owner_max(),
-        )
-        .expect("missing commit is pending"),
-        RecoveryDecision::Pending(ref missing) if missing == &[MissingInput::Commit]
-    ));
-    assert_eq!(relation.calls.get(), 1);
-
-    let authority_limit = views
-        .population
-        .bytes()
-        .len()
-        .min(views.completeness_complete.bytes().len())
-        .saturating_sub(1);
-    let lower = RecoveryLimits {
-        max_authority_bytes: authority_limit,
-        ..RecoveryLimits::owner_max()
-    };
-    let refusal = assess_recovery(pure(&surface), &selection, &relation, exact, lower)
-        .expect_err("authority bytes must be prechecked before retention or evaluation");
-    assert!(matches!(
-        refusal,
-        quire_protocol::compensation::recovery::Refusal::Resource(value)
-            if value.resource()
-                == quire_protocol::compensation::recovery::Resource::AuthorityBytes
-    ));
-    assert_eq!(relation.calls.get(), 1);
 }
 
 /// The facade retains atomic facts side by side and never upgrades a missing,
@@ -1011,59 +701,27 @@ fn tc_003_aggregate_composes_every_atomic_fact_without_inference() {
     let target = state("state:aggregate-target", "100");
     let achieved = state("state:aggregate-achieved", "40");
     let recovery = RecoveryId::new(b"recovery:aggregate-pair", "aggregate recovery pair");
-    let recovery_input = recovery_input(
-        &recovery,
-        &registration,
-        &target,
-        &achieved,
-        &commit,
-        &compensation,
-    );
-    let full = AmountRelation {
-        relation_type: b"relation:full",
-        authored_bytes: b"target == achieved",
-        full: true,
-        aggregate_member: None,
-        calls: Cell::new(0),
-    };
-    let partial = AmountRelation {
-        relation_type: b"relation:partial",
-        authored_bytes: b"achieved == 40",
-        full: false,
-        aggregate_member: None,
-        calls: Cell::new(0),
-    };
     let recoveries = vec![
-        assess_recovery(
-            pure(&surface),
-            &relation_selection(
-                &recovery,
-                &registration,
-                &target,
-                full.relation_type,
-                full.authored_bytes,
-                None,
-            ),
-            &full,
-            recovery_input,
-            RecoveryLimits::owner_max(),
-        )
-        .expect("full recovery decision"),
-        assess_recovery(
-            pure(&surface),
-            &relation_selection(
-                &recovery,
-                &registration,
-                &target,
-                partial.relation_type,
-                partial.authored_bytes,
-                None,
-            ),
-            &partial,
-            recovery_input,
-            RecoveryLimits::owner_max(),
-        )
-        .expect("partial recovery decision"),
+        RecoveryDecision::NotSatisfied(recovery_fact(
+            &recovery,
+            &registration,
+            &commit,
+            &compensation,
+            &target,
+            &achieved,
+            b"relation:full",
+            b"target == achieved",
+        )),
+        RecoveryDecision::Satisfied(recovery_fact(
+            &recovery,
+            &registration,
+            &commit,
+            &compensation,
+            &target,
+            &achieved,
+            b"relation:partial",
+            b"achieved == 40",
+        )),
     ];
     let retry_outcomes = [retry];
     let effects = [CompensationEffectFact {

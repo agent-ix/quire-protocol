@@ -326,33 +326,49 @@ impl Snapshot {
         });
     }
 
-    pub(crate) fn push_recovery(&mut self, registration: Registration, report: EvaluationReport) {
+    pub(crate) fn retain_recovery(
+        &mut self,
+        registration: Registration,
+        report: EvaluationReport,
+    ) -> Result<Transition, Refusal> {
+        if let Some(existing) = self
+            .recoveries
+            .iter()
+            .find(|recovery| recovery.registration == registration)
+        {
+            return if existing.report == report {
+                Ok(Transition::Replay)
+            } else {
+                Err(Refusal::ConflictingReplay)
+            };
+        }
         self.recoveries.push(Recovery {
             registration,
             report,
         });
+        Ok(Transition::Applied)
     }
 
-    pub(crate) fn replace_ordering(
+    pub(crate) fn retain_ordering(
         &mut self,
         registration: Registration,
         violations: Vec<OrderingViolation>,
-    ) -> Transition {
+    ) -> Result<Transition, Refusal> {
         if let Some(existing) = self
             .orderings
-            .iter_mut()
+            .iter()
             .find(|ordering| ordering.registration == registration)
         {
-            if existing.violations == violations {
-                return Transition::Replay;
-            }
-            existing.violations = violations;
-            return Transition::Applied;
+            return if existing.violations == violations {
+                Ok(Transition::Replay)
+            } else {
+                Err(Refusal::ConflictingReplay)
+            };
         }
         self.orderings.push(Ordering {
             registration,
             violations,
         });
-        Transition::Applied
+        Ok(Transition::Applied)
     }
 }

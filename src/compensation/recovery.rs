@@ -1,5 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Recovery decisions bound to exact authored relations and QObs authority.
+//! Recovery decisions retained from exact authored relations.
+//!
+//! Production recovery evaluation is owned by
+//! [`crate::assessment::Engine::evaluate_compensation_recovery`] and walks the
+//! selected admitted QSL expression. The former relation double is retained
+//! only as a crate-private test seam and is not importable by consumers:
+//!
+//! ```compile_fail
+//! use quire_protocol::compensation::recovery::RecoveryRelation;
+//! ```
 
 #![deny(clippy::wildcard_enum_match_arm)]
 
@@ -327,12 +336,12 @@ impl RelationSelection {
     }
 }
 
-/// Pure owner seam for one authored typed recovery relation.
+/// Crate-private test seam for one authored typed recovery relation.
 ///
 /// The evaluator receives no clock, transport, storage, telemetry, or operation
 /// capability. Its identity and exact authored bytes are checked before it is
-/// invoked.
-pub trait RecoveryRelation {
+/// invoked. No production Engine method accepts this crate-private trait.
+pub(crate) trait RecoveryRelation {
     /// Exact open-set owner relation type.
     fn relation_type(&self) -> &[u8];
     /// Exact authored relation bytes.
@@ -343,7 +352,7 @@ pub trait RecoveryRelation {
 
 /// Strict QObs population and completeness authority for an aggregate relation.
 #[derive(Clone, Copy, Debug)]
-pub struct PopulationEvidence<'a> {
+pub(crate) struct PopulationEvidence<'a> {
     /// Strict-read QObs declared population.
     pub population: &'a population::View,
     /// Strict-read QObs completeness assertion.
@@ -354,7 +363,7 @@ pub struct PopulationEvidence<'a> {
 
 /// Exact inputs for one recovery decision.
 #[derive(Clone, Copy, Debug)]
-pub struct Input<'a> {
+pub(crate) struct Input<'a> {
     /// Exact recovery-obligation identity.
     pub recovery: &'a RecoveryId,
     /// Exact compensation registration.
@@ -502,7 +511,11 @@ pub enum Decision {
 }
 
 /// Evaluate exactly one selected authored relation.
-pub fn assess(
+#[expect(
+    dead_code,
+    reason = "crate-private relation-double seam cannot enter the production Engine"
+)]
+pub(crate) fn assess(
     _pure: PureAssessment,
     selection: &RelationSelection,
     relation: &dyn RecoveryRelation,
