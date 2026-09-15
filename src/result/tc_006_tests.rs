@@ -1108,7 +1108,7 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
     let short_output = Budget::nothing_granted()
         .grant(BudgetDimension::OutputByte, 1)
         .expect("positive one-short output grant");
-    let short_outcome = short_result_engine.assess_activated(
+    let short_outcome = short_result_engine.assess_activated_authorized(
         &dispatch_requests,
         std::slice::from_ref(&fact),
         axes,
@@ -1142,7 +1142,7 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
         .grant(BudgetDimension::AccountedAllocation, 3)
         .expect("three allocations reach into result construction");
     assert!(matches!(
-        cumulative_engine.assess_activated(
+        cumulative_engine.assess_activated_authorized(
             &dispatch_requests,
             std::slice::from_ref(&fact),
             axes,
@@ -1172,7 +1172,7 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
     let foreign_model_engine = Engine::new(context, requested.to_vec())
         .expect("the same linked assessment starts a model-substitution control");
     let quire_protocol::outcome::OperationOutcome::Completed(foreign_model_bundle) =
-        foreign_model_engine.assess_activated(
+        foreign_model_engine.assess_activated_authorized(
             &dispatch_requests,
             std::slice::from_ref(&fact),
             axes,
@@ -1204,7 +1204,7 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
     let foreign_input_engine = Engine::new(context, requested.to_vec())
         .expect("the same linked assessment starts an input-substitution control");
     let quire_protocol::outcome::OperationOutcome::Completed(foreign_input_bundle) =
-        foreign_input_engine.assess_activated(
+        foreign_input_engine.assess_activated_authorized(
             &dispatch_requests,
             std::slice::from_ref(&fact),
             axes,
@@ -1232,7 +1232,7 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
         quire_protocol::outcome::ClaimOutcome::Refused(refusal)
             if refusal.code().as_str() == "result.invalid-selection"
     ));
-    let outcome = engine.assess_activated(
+    let outcome = engine.assess_activated_authorized(
         &dispatch_requests,
         std::slice::from_ref(&fact),
         axes,

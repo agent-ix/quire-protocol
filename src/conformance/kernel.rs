@@ -879,6 +879,15 @@ fn derived_obligation_id(activation: &ActivatedOccurrence<'_>) -> ObligationId {
     );
     identity.push(':');
     append_hex(&mut identity, activation.activation.semantic_trigger());
+    identity.push_str(":workflow:");
+    append_hex(
+        &mut identity,
+        activation.occurrence.workflow().as_str().as_bytes(),
+    );
+    identity.push_str(":repeats:");
+    for ordinal in activation.occurrence.repeat_ordinals() {
+        append_hex(&mut identity, &ordinal.value().to_be_bytes());
+    }
     ObligationId::retained(identity)
 }
 

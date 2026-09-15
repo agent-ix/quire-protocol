@@ -46,6 +46,11 @@ fn producer() -> quire_observation::AdmittedStaticBundle {
         .expect("shared FCD static bundle is admitted")
 }
 
+/// Admit the exact static Producer bundle shared by integration fixtures.
+pub fn admitted_producer() -> quire_observation::AdmittedStaticBundle {
+    producer()
+}
+
 fn subject(producer: &quire_observation::AdmittedStaticBundle, tag: &str) -> QualifiedSubject {
     QualifiedSubject::new(
         producer,
@@ -53,6 +58,14 @@ fn subject(producer: &quire_observation::AdmittedStaticBundle, tag: &str) -> Qua
         SubjectIdentity::new(format!("order:{tag}").into_bytes())
             .expect("non-empty order identity"),
     )
+}
+
+/// Construct one complete authority-qualified QObs runtime subject.
+pub fn qualified_subject(
+    producer: &quire_observation::AdmittedStaticBundle,
+    tag: &str,
+) -> QualifiedSubject {
+    subject(producer, tag)
 }
 
 pub fn scope_views(tag: &str) -> ScopeViews {

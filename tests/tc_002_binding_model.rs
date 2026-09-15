@@ -858,7 +858,7 @@ fn tc_002_runtime_subject_kind_must_match_the_explicit_slot_compatibility() {
 /// endpoint identities; neither a QSL relationship label nor a subject can
 /// substitute for this QObs-owned value family.
 #[test]
-#[trace("TC-002", "FR-002-AC-1", "FR-002-AC-3")]
+#[trace("TC-002", "IT-002", "FR-002-AC-1", "FR-002-AC-3")]
 fn tc_002_runtime_relationships_are_not_subjects_or_stringly_slots() {
     let producer = producer();
     let definition = StaticBindingDefinition::new(
@@ -945,7 +945,7 @@ fn tc_002_runtime_relationships_are_not_subjects_or_stringly_slots() {
 /// FR-262 replays preserve one complete relationship, while a different
 /// relationship key cannot silently become a second value for the same slot.
 #[test]
-#[trace("TC-002", "FR-002-AC-1", "FR-002-AC-3", "FR-002-AC-4")]
+#[trace("TC-002", "IT-002", "FR-002-AC-1", "FR-002-AC-3", "FR-002-AC-4")]
 fn tc_002_relationship_replay_is_idempotent_and_distinct_keys_are_not_collapsed() {
     let producer = producer();
     let relationship = order_shipment(&producer);

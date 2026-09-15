@@ -9,7 +9,7 @@ use quire_observation::authority::{
     closure as observation_closure, completeness, observation as observation_record, position,
     progress,
 };
-use quire_observation::QualifiedSubject;
+use quire_observation::{AdmittedBundleKey, QualifiedSubject, Relationship};
 use quire_spec_language::protocol_artifact::native_temporal::v2 as temporal_v2;
 use quire_spec_language::protocol_artifact::wire::{BindingKind, ControlOperation};
 use quire_spec_language::protocol_artifact::ProtocolNumber;
@@ -46,6 +46,9 @@ use crate::model::v2::{
     LinkedAssessment, LinkedProtocol, RuntimeBinding, SlotCompatibility, SlotHandle,
 };
 use crate::outcome::ClaimOutcome;
+use crate::producer_contracts::{
+    ProducerResolution, ProducerResolutionEvidence, ProducerResolutionRequest,
+};
 use crate::refusal::catalog::{
     CatalogSelection, CodeEntry, CodeModule, Provenance, RefusalCode, RetainedBytes,
 };
@@ -719,6 +722,64 @@ impl<'a> Engine<'a> {
         self.activation
     }
 
+    /// Derive the exact producer-resolution identity for this immutable request.
+    ///
+    /// The encoding is componentwise and length-prefixed. Runtime bindings are
+    /// ordered by their admitted static slot, so legal arrival permutations do
+    /// not change the identity. The activation request remains distinct from
+    /// the static/runtime context and is included when this Engine is activated.
+    #[must_use]
+    pub fn producer_resolution_request(&self) -> ProducerResolutionRequest {
+        let mut encoded = Vec::new();
+        append_component(&mut encoded, b"quire-protocol.producer-resolution/1");
+        append_component(
+            &mut encoded,
+            format!("{:x}", self.context.package().digest()).as_bytes(),
+        );
+        append_component(
+            &mut encoded,
+            &self.identity.declaration_handle().to_be_bytes(),
+        );
+
+        let static_selection = self.identity.static_binding();
+        append_component(&mut encoded, static_selection.identity.as_bytes());
+        append_component(&mut encoded, static_selection.revision.as_bytes());
+        append_component(&mut encoded, &static_selection.digest);
+
+        let mut bindings = self.context.runtime().bindings().iter().collect::<Vec<_>>();
+        bindings.sort_by_key(|binding| binding.slot());
+        append_count(&mut encoded, bindings.len());
+        for binding in bindings {
+            append_component(&mut encoded, &binding.slot().get().to_be_bytes());
+            if let Some(subject) = binding.subject_value() {
+                append_component(&mut encoded, b"subject");
+                append_subject(&mut encoded, subject);
+            } else if let Some(relationship) = binding.relationship_value() {
+                append_component(&mut encoded, b"relationship");
+                append_relationship(&mut encoded, relationship);
+            }
+        }
+
+        if let Some(activation) = self.activation {
+            append_component(&mut encoded, b"activated");
+            append_subject(&mut encoded, activation.subject());
+            append_component(
+                &mut encoded,
+                format!("{:x}", activation.request().document().digest()).as_bytes(),
+            );
+            append_component(
+                &mut encoded,
+                activation.request().document().identity().as_bytes(),
+            );
+            append_component(&mut encoded, activation.request().semantic_trigger());
+        } else {
+            append_component(&mut encoded, b"not-activated");
+        }
+
+        ProducerResolutionRequest::new(&encoded)
+            .expect("the versioned producer-resolution identity prefix is nonempty")
+    }
+
     /// Dispatch this Engine's exact requested claims from an admitted
     /// activation-derived conformance assessment.
     ///
@@ -1363,6 +1424,9 @@ impl<'a> Engine<'a> {
             compensation: self.compensation,
             compensation_state: self.compensation_state,
             conformance: self.conformance,
+            budget: None,
+            usage: ResourceAccountantUsage::default(),
+            producer_resolution: None,
             rows,
         })
     }
@@ -1500,7 +1564,10 @@ impl<'a> Engine<'a> {
             }
         }
         match self.assemble_canonical(rows) {
-            Ok(bundle) => crate::outcome::OperationOutcome::Completed(bundle),
+            Ok(mut bundle) => {
+                bundle.usage = resources.usage();
+                crate::outcome::OperationOutcome::Completed(bundle)
+            }
             Err(error) => crate::outcome::OperationOutcome::Refused(outcome_refusal(error)),
         }
     }
@@ -1532,8 +1599,63 @@ impl<'a> Engine<'a> {
     ///     );
     /// }
     /// ```
-    #[allow(clippy::too_many_arguments)]
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "the public orchestration keeps independently owned inputs typed and separate"
+    )]
     pub fn assess_activated(
+        self,
+        producers: &ProducerResolution,
+        requests: &[ClaimRequest<'_>],
+        facts: &[ActivationFact<'_>],
+        axes: AxisInputs<'a>,
+        completeness: &'a completeness::View,
+        global_conformance: &GlobalConformanceInput,
+        execution: crate::closure::AssessmentExecution,
+        conformance_limits: ConformanceLimits,
+        dispatch_limits: DispatchLimits,
+        inputs: Vec<Option<CanonicalRowFacts<'a>>>,
+        budget: Budget,
+    ) -> crate::outcome::OperationOutcome<AssessmentBundle<'a, result::ValidatedResult>> {
+        match producers.authorize(&self.producer_resolution_request()) {
+            crate::outcome::OperationOutcome::Completed(()) => {}
+            crate::outcome::OperationOutcome::Refused(refusal) => {
+                return crate::outcome::OperationOutcome::Refused(refusal);
+            }
+            crate::outcome::OperationOutcome::ResourceIncomplete(incomplete) => {
+                return crate::outcome::OperationOutcome::ResourceIncomplete(incomplete);
+            }
+        }
+        match self.assess_activated_authorized(
+            requests,
+            facts,
+            axes,
+            completeness,
+            global_conformance,
+            execution,
+            conformance_limits,
+            dispatch_limits,
+            inputs,
+            budget,
+        ) {
+            crate::outcome::OperationOutcome::Completed(mut bundle) => {
+                bundle.producer_resolution = Some(producers.evidence());
+                crate::outcome::OperationOutcome::Completed(bundle)
+            }
+            crate::outcome::OperationOutcome::Refused(refusal) => {
+                crate::outcome::OperationOutcome::Refused(refusal)
+            }
+            crate::outcome::OperationOutcome::ResourceIncomplete(incomplete) => {
+                crate::outcome::OperationOutcome::ResourceIncomplete(incomplete)
+            }
+        }
+    }
+
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "the authorized transition retains each independently owned stage value at the atomic Engine boundary"
+    )]
+    pub(crate) fn assess_activated_authorized(
         self,
         requests: &[ClaimRequest<'_>],
         facts: &[ActivationFact<'_>],
@@ -1546,6 +1668,7 @@ impl<'a> Engine<'a> {
         inputs: Vec<Option<CanonicalRowFacts<'a>>>,
         budget: Budget,
     ) -> crate::outcome::OperationOutcome<AssessmentBundle<'a, result::ValidatedResult>> {
+        let granted_budget = budget.clone();
         let inventory = production_inventory()
             .expect("the compile-time Protocol resource inventory must reconcile");
         let mut resources = ResourceAccountant::new(budget, &inventory);
@@ -1575,7 +1698,7 @@ impl<'a> Engine<'a> {
                 ));
             }
         };
-        self.construct_canonical_bounded(
+        match self.construct_canonical_bounded(
             &dispatch,
             &conformance,
             axes,
@@ -1583,8 +1706,53 @@ impl<'a> Engine<'a> {
             global_conformance,
             inputs,
             &mut resources,
-        )
+        ) {
+            crate::outcome::OperationOutcome::Completed(mut bundle) => {
+                bundle.budget = Some(granted_budget);
+                crate::outcome::OperationOutcome::Completed(bundle)
+            }
+            crate::outcome::OperationOutcome::Refused(refusal) => {
+                crate::outcome::OperationOutcome::Refused(refusal)
+            }
+            crate::outcome::OperationOutcome::ResourceIncomplete(incomplete) => {
+                crate::outcome::OperationOutcome::ResourceIncomplete(incomplete)
+            }
+        }
     }
+}
+
+fn append_component(encoded: &mut Vec<u8>, component: &[u8]) {
+    encoded.extend_from_slice(&(component.len() as u128).to_be_bytes());
+    encoded.extend_from_slice(component);
+}
+
+fn append_count(encoded: &mut Vec<u8>, count: usize) {
+    append_component(encoded, &(count as u128).to_be_bytes());
+}
+
+fn append_authority(encoded: &mut Vec<u8>, authority: &AdmittedBundleKey) {
+    append_component(encoded, authority.bundle_identity.as_bytes());
+    append_component(encoded, authority.bundle_revision.namespace.as_bytes());
+    append_component(encoded, authority.bundle_revision.value.as_bytes());
+    append_component(encoded, authority.digest.algorithm.as_bytes());
+    append_component(encoded, authority.digest.domain.as_bytes());
+    append_component(encoded, authority.digest.version.as_bytes());
+    append_component(encoded, authority.digest.value.as_bytes());
+}
+
+fn append_subject(encoded: &mut Vec<u8>, subject: &QualifiedSubject) {
+    append_authority(encoded, subject.authority());
+    append_component(encoded, subject.kind().as_bytes());
+    append_component(encoded, subject.identity().as_bytes());
+}
+
+fn append_relationship(encoded: &mut Vec<u8>, relationship: &Relationship) {
+    append_authority(encoded, relationship.authority());
+    append_component(encoded, relationship.interface_version().as_bytes());
+    append_component(encoded, relationship.declaration_identity().as_bytes());
+    append_component(encoded, relationship.identity().as_bytes());
+    append_subject(encoded, relationship.source());
+    append_subject(encoded, relationship.target());
 }
 
 fn validate_dispatch_request(
@@ -2063,6 +2231,9 @@ pub struct AssessmentBundle<'a, Row> {
     compensation: CompensationSnapshot,
     compensation_state: CompensationState,
     conformance: ConformanceKernel,
+    budget: Option<Budget>,
+    usage: ResourceAccountantUsage,
+    producer_resolution: Option<ProducerResolutionEvidence>,
     rows: Vec<ClaimRow<Row>>,
 }
 
@@ -2102,6 +2273,24 @@ impl<Row> AssessmentBundle<'_, Row> {
     #[must_use]
     pub const fn compensation_state(&self) -> &CompensationState {
         &self.compensation_state
+    }
+    /// Total shared-accountant usage across conformance, dispatch, result
+    /// production and strict reading for this completed operation.
+    #[must_use]
+    pub const fn usage(&self) -> ResourceAccountantUsage {
+        self.usage
+    }
+    /// Exact caller grants for the composed operation, when it passed through
+    /// the bounded assessment path.
+    #[must_use]
+    pub const fn budget(&self) -> Option<&Budget> {
+        self.budget.as_ref()
+    }
+    /// Exact producer-resolution attribution retained by the public composed
+    /// assessment path. Final FR-017 record composition remains Task-018-owned.
+    #[must_use]
+    pub const fn producer_resolution(&self) -> Option<&ProducerResolutionEvidence> {
+        self.producer_resolution.as_ref()
     }
     /// One ordered outcome for every requested claim.
     #[must_use]

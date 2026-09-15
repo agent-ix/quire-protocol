@@ -287,6 +287,7 @@ fn assessed_ordering(order: [usize; 3]) -> Vec<OrderingViolation> {
 /// refusal leaves the owned snapshot unchanged.
 #[trace(
     "TC-003",
+    "IT-002",
     "FR-003-AC-2",
     "FR-003-AC-4",
     "FR-003-AC-5",
@@ -780,6 +781,7 @@ fn tc_003_engine_is_graph_owned_exact_and_transactional() {
 /// replay and each authored violation remain distinct.
 #[trace(
     "TC-003",
+    "IT-002",
     "FR-003-AC-3",
     "FR-003-AC-4",
     "FR-021-AC-1",
