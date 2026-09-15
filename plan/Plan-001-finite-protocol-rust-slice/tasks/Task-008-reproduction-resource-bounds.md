@@ -10,6 +10,7 @@ relationships:
   - { target: ix://agent-ix/quire-protocol/Task-009, type: depends_on }
   - { target: ix://agent-ix/quire-protocol/Task-010, type: depends_on }
   - { target: ix://agent-ix/quire-protocol/Task-013, type: depends_on }
+  - { target: ix://agent-ix/quire-protocol/Task-019, type: depends_on }
   - { target: ix://agent-ix/quire-protocol/NFR-001, type: references }
   - { target: ix://agent-ix/quire-protocol/NFR-002, type: references }
   - { target: ix://agent-ix/quire-protocol/TC-008, type: verifies }

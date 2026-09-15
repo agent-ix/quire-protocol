@@ -62,7 +62,7 @@ Assurance producer, license, implementation plan, and retained corpus remain
 explicit gates.
 
 The repository carries 42 functional requirements, 8 non-functional
-requirements, 3 integration tests and 16 test cases, and 305 acceptance criteria
+requirements, 3 integration tests and 17 test cases, and 305 acceptance criteria
 across the 42 FRs and the 8 NFRs. The functional set divides into 9 aggregate or
 behavioural parents (FR-001..FR-009), 9 object requirements (FR-010..FR-018),
 and 24 atomic behavioural parts (FR-019..FR-042) that the parents aggregate
@@ -89,7 +89,7 @@ The five words below are not interchangeable, and no total mixes them.
   verifies by `Inspection` or `Analysis` only. 32 of 305 criteria (28
   Inspection, 4 Analysis). An unbacked criterion is not covered by a test and
   this matrix writes `none` in its Test Cases cell rather than a test-case id
-  that would imply otherwise. TC-016 is the highest authored test case; no row
+  that would imply otherwise. TC-017 is the highest authored test case; no row
   cites a higher id.
 - **Engine-bound** — a compiler-checked trace symbol actually resolves to the
   criterion. This is the only one of the five words that is *measured* rather
@@ -97,11 +97,11 @@ The five words below are not interchangeable, and no total mixes them.
 
   ```
   $ quire coverage --scope .
-  Coverage: 109/341 rows backed (31%)
+  Coverage: 144/342 rows backed (42%)
   ```
 
-  At the 2026-09-14 architecture checkpoint, 109 rows are engine-backed.
-  NFR-001 is 3 of 3, NFR-002 is 4 of 4, NFR-004 is 10 of 10, and 11 of the 16
+  At the 2026-09-14 Task-013 checkpoint, 144 rows are engine-backed.
+  NFR-001 is 3 of 3, NFR-002 is 4 of 4, NFR-004 is 10 of 10, and 12 of the 17
   test-case rows have at least one bound symbol. The remaining row-level gaps are enumerated by the
   same machine output and remain implementation work; this figure is not a
   qualification claim.
@@ -110,12 +110,12 @@ The five words below are not interchangeable, and no total mixes them.
   without being the measurement that criterion asks for:
 
   ```
-  rust: 237/237/237 bound/tagged/candidates (100% read; 100% authored; forms:
+  rust: 247/247/247 bound/tagged/candidates (100% read; 100% authored; forms:
   rust-trace-attribute, rust-trace-line, rust-comment-id, rust-test-name-id,
   rust-doc-comment-id)
   ```
 
-  Every one of the 237 Rust test symbols carries a marker and every marker is
+  Every one of the 247 Rust test symbols carries a marker and every marker is
   read. **`bound` counts symbols, not obligations** — a test carrying five ids is
   one bound candidate, and a test carrying only `Task-009` is a bound candidate
   too. `NFR-003-AC-5` asks for a binding "to each obligation it claims", which is
@@ -204,9 +204,9 @@ The five words below are not interchangeable, and no total mixes them.
   published version 2 handoff but remains engine-unbound at criterion level;
   the lane binds its owning `IT-001` scenario instead.
 
-  The 265 test-backed criteria and 109 engine-bound rows are not contradictory:
+  The 265 test-backed criteria and 144 engine-bound rows are not contradictory:
   the two words have different denominators, and the definitions above say so.
-  **Read 109/341 as the coverage figure.** "Test-backed" says a criterion has
+  **Read 144/342 as the coverage figure.** "Test-backed" says a criterion has
   somewhere to be tested; "engine-bound" says a trace reaches a repository row.
 
   The gap closes by tagging, never by editing this table. A trace attribute is
@@ -301,7 +301,7 @@ in Domain Object Coverage instead.
 | FR-006 | FR-006-AC-1..FR-006-AC-9 | TC-006 (AC-1..AC-9); TC-011 (AC-9) | 🚧 In progress — canonical production, strict reading, lineage and the complete borrowed Contract-IR view execute. Task-006 owns the per-assessment Engine, AssessmentBundle, two-level outcome algebra and typed upstream assembly. Aggregate view of FR-031..FR-033. |
 | FR-007 | FR-007-AC-1, FR-007-AC-2, FR-007-AC-3, FR-007-AC-4, FR-007-AC-5, FR-007-AC-6 | TC-007 (AC-1..AC-6) | 🚧 Planned — 6 of 6 criteria test-backed, 0 unbacked, 0 unexecutable. FR-007-AC-6 is the parent criterion added with the FR-034/FR-035 decomposition. Aggregate view of FR-034 and FR-035 |
 | FR-008 | FR-008-AC-1, FR-008-AC-2, FR-008-AC-3, FR-008-AC-4, FR-008-AC-5, FR-008-AC-6, FR-008-AC-7, FR-008-AC-8, FR-008-AC-9 | TC-011 (AC-1..AC-8); none for FR-008-AC-9 | 🚧 In progress — Task-017 supplies the exact seven-domain/ten-stage foundation, validating stage/domain construction, closed local causes, exact known-source retention and opaque unknown-source retention. Task-006 still owes accurate cause routing and full-envelope/resource usage on every public subsystem path. Aggregate view of FR-036..FR-040. |
-| FR-009 | FR-009-AC-1..FR-009-AC-9 | TC-013 (AC-1..AC-9); TC-010 (AC-7); IT-001, IT-002, IT-003 (AC-1..AC-6) | 🚧 In progress — PR #50 contains an unmerged resolver candidate and must be narrowed/rebased onto current main. Task-013 owns deterministic bounded request-bound capabilities; Task-018 owns final record composition. QSL/QObs/EA entries are pinnable after the QObs repin; E02 and Quoin remain unresolved. |
+| FR-009 | FR-009-AC-1..FR-009-AC-9 | TC-013 (AC-1..AC-9); TC-010 (AC-7); IT-001, IT-002, IT-003 (AC-1..AC-6) | 🚧 In progress — Task-013's ten resolver tests execute all nine criteria with deterministic bounded request-bound capabilities; concrete producer pins remain distributed to Tasks 009–011 and Task-018 owns final record composition. QSL/QObs/EA entries are pinnable after the QObs repin; E02 and Quoin remain unresolved. |
 | FR-019 | FR-019-AC-1..AC-5 | TC-003 (AC-1..AC-5) | 🚧 Planned — 5 of 5 criteria test-backed; QSpec #40 accepted the FR-231 activation ruling. |
 | FR-020 | FR-020-AC-1..AC-5 | TC-003 (AC-1..AC-5) | 🚧 Planned — 5 of 5 criteria test-backed, 0 unbacked, 0 unexecutable |
 | FR-021 | FR-021-AC-1..AC-4 | TC-003 (AC-1..AC-4) | 🚧 Planned — 4 of 4 criteria test-backed; QSpec #28/#31 accepted the FR-237 commit-boundary identity and forbidding selection. |
@@ -350,13 +350,13 @@ the reference resolves in both directions.
 | --- | --- | --- | --- | --- |
 | FR-010 | domain | FR-010-AC-1..AC-3 | none — all three criteria are Inspection | 🚧 Planned — 0 of 3 criteria test-backed; unbacked: FR-010-AC-1, FR-010-AC-2, FR-010-AC-3 |
 | FR-011 | value_object | FR-011-AC-1..AC-7 | TC-014 (AC-2..AC-6); none for FR-011-AC-1, FR-011-AC-7 | 🚧 Planned — 5 of 7 criteria test-backed; unbacked: FR-011-AC-1, FR-011-AC-7 (Inspection) |
-| FR-012 | entity | FR-012-AC-1..AC-8 | TC-013 (AC-1..AC-8) | 🚧 Planned — 8 of 8 criteria test-backed; deterministic validation order makes AC-7 executable. |
+| FR-012 | entity | FR-012-AC-1..AC-8 | TC-013 (AC-1..AC-8) | ✅ Implemented — all eight criteria execute in Task-013's ten resolver tests, including exact key-only identity, state independence, two-status absence, interface digest exclusion, containment and deterministic validation order. |
 | FR-013 | value_object | FR-013-AC-1..AC-8 | TC-001 (AC-1, AC-2, AC-3, AC-5, AC-6); IT-001 (AC-1..AC-4, AC-6); none for FR-013-AC-7, FR-013-AC-8 | 🚧 Planned — 5 of 8 criteria test-backed; unbacked: FR-013-AC-7 (Inspection), FR-013-AC-8 (Analysis). FR-013-AC-4 now executes in both ordered directions through the explicit `/1` and `/2` entry points and passes with distinct typed causes. |
 | FR-014 | value_object | FR-014-AC-1..AC-8 | TC-011 (AC-1, AC-2, AC-4, AC-5, AC-7); IT-003 (AC-5, AC-6); none for FR-014-AC-3, FR-014-AC-8 | 🚧 Planned — 5 of 8 criteria test-backed; unbacked: FR-014-AC-3 (Analysis), FR-014-AC-8 (Inspection); unexecutable: FR-014-AC-6, whose sole backing is IT-003, blocked on accepted qverify E02 and Quoin handoffs |
 | FR-015 | value_object | FR-015-AC-1..AC-5 | TC-014 (AC-2, AC-3, AC-4); TC-001 (AC-2); none for FR-015-AC-1, FR-015-AC-5 | 🚧 Planned — 3 of 5 criteria test-backed; unbacked: FR-015-AC-1, FR-015-AC-5 (Inspection). The implementation now exposes only the two exact FR-201 labels selected by FR-015; Task-006 carries those shared values through final assembly. |
 | FR-016 | enumeration | FR-016-AC-1..AC-8 | TC-009 (AC-2..AC-7); TC-011 (AC-5); TC-008 (AC-6); TC-013 (AC-8); IT-001 (AC-2); none for FR-016-AC-1 | 🚧 Planned — 7 of 8 criteria test-backed; unbacked: FR-016-AC-1 (Inspection); 0 unexecutable |
 | FR-017 | entity | FR-017-AC-1..AC-8 | TC-016 (AC-1, AC-2, AC-4..AC-8); TC-008, TC-009 (AC-5); TC-010 (AC-7); TC-014 (AC-8); IT-001, IT-002, IT-003 (AC-1, AC-2) | 🚧 Planned — 7 of 8 criteria test-backed; AC-3 is inspection-backed. Task-018 owns final composition after shared outcomes/resources. |
-| FR-018 | entity | FR-018-AC-1..AC-9 | TC-013 (AC-1, AC-3, AC-5, AC-6, AC-8, AC-9); none for FR-018-AC-2, FR-018-AC-4, FR-018-AC-7 | 🚧 Planned — 6 of 9 criteria test-backed; unbacked: FR-018-AC-2, FR-018-AC-4, FR-018-AC-7. The retired pre-delivery corpus is no longer credited to IT-001, and A's published `MutationManifest` is producer-owned rather than an FR-018 instance. |
+| FR-018 | entity | FR-018-AC-1..AC-9 | TC-017 planned under Task-019/#66 (AC-1, AC-3, AC-5, AC-6, AC-8, AC-9); none for FR-018-AC-2, FR-018-AC-4, FR-018-AC-7 | 🚧 Planned — 0 of 6 test-designated criteria execute today; Task-019/#66 owns the missing consumer `DeliveryIndex` and the three inspection/analysis criteria remain unbacked. The retired pre-delivery corpus is not credited, A's published `MutationManifest` is producer-owned, and Task-013's resolver does not claim this object. |
 
 ## Non-Functional Requirement Coverage
 
@@ -367,7 +367,7 @@ the reference resolves in both directions.
 | NFR-003 | Shared Rust language-boundary check, static analysis, architecture inspection, Rust review, Quire coverage, gap analysis | TC-010 (AC-1..AC-6); IT-003 (AC-4, AC-6) | 🚧 Planned — 6 of 6 criteria test-backed, 0 unbacked, 0 unexecutable |
 | NFR-004 | Cargo metadata inspection, conditional-compilation inventory, enumerated gate execution over one unchanged head, per-criterion negative controls | TC-012 (AC-1..AC-10) | ✅ Implemented — 10 of 10 criteria are engine-backed by ten executable TC-012 tests. The actual documented commands, manifest and four conditional sites are checked alongside isolated command/risk, serialization, warning, feature/lane, target and evidence-state mutations. Both real compiler warning-channel controls and the undeclared-feature control refuse as specified. NFR-004-AC-2 remains inspection-method but test-case-backed. |
 | NFR-005 | Composition properties and Quire coverage over owed integration lanes | TC-016 (AC-1..AC-6); TC-010 (AC-6); IT-001, IT-002, IT-003 (AC-1..AC-3, AC-6) | 🚧 Planned — 6 of 6 criteria are test-backed. The denominator is all 32 owed scenarios; until Task-018 and the concrete handoffs execute, each metric reports its actual completed count rather than a vacuous percentage. |
-| NFR-006 | Cargo manifest, lockfile and rights-record inspection with per-criterion negative controls; delivery-surface tests on B-owned fixtures | TC-013 (AC-6, AC-7, AC-8); none for NFR-006-AC-1..AC-5 | 🚧 In progress — 3 of 8 criteria test-backed; AC-1..AC-5 remain inspection-backed. `DEPENDENCIES.md` now records all five current git sources, including the previously omitted direct QObs dependency; Task-002 will update both record and lock when it adopts `93bc565`. |
+| NFR-006 | Cargo manifest, lockfile and rights-record inspection with per-criterion negative controls; delivery-surface tests on B-owned fixtures | TC-013 (AC-6, AC-7); TC-017 planned under Task-019/#66 (AC-8); none for NFR-006-AC-1..AC-5 | 🚧 In progress — AC-6 and AC-7 execute in Task-013's exact delivery-member controls; AC-8 awaits the consumer `DeliveryIndex` in Task-019/#66, and AC-1..AC-5 remain inspection-backed. `DEPENDENCIES.md` records all five current git sources; Task-002 must update the record and lock when it adopts `93bc565`. |
 | NFR-007 | Public-surface inspection, two-revision surface analysis, and IT-001 cross-version and inherited-axis scenarios | IT-001 (AC-3, AC-4, AC-5, AC-7); none for NFR-007-AC-1, NFR-007-AC-2, NFR-007-AC-6, NFR-007-AC-8 | 🚧 Planned — 0 of 8 criteria test-backed and 4 integration-backed. AC-3 and AC-4 pass: both ordered cross-version submissions refuse with distinct typed causes, and neither cause collides with any of A's 28 published mutation outcomes. AC-7 still owes the earlier-path comparison for every inherited axis; AC-5's complete SC-06a regression rerun remains planned. Unbacked: AC-1, AC-2, AC-8 (Inspection), AC-6 (Analysis). |
 | NFR-008 | Static site counts over the repository's own sources, a rendering-replacement mutation, a captured-stream control, an accessor compilation control, and reproduction comparison | TC-011 (AC-1, AC-2, AC-6); TC-008 (AC-7); none for NFR-008-AC-3, NFR-008-AC-4, NFR-008-AC-5, NFR-008-AC-8 | 🚧 Planned — 4 of 8 criteria test-backed; unbacked: NFR-008-AC-3, NFR-008-AC-4, NFR-008-AC-5, NFR-008-AC-8 (Inspection); 0 unexecutable |
 
@@ -417,28 +417,29 @@ a coverage claim in this matrix.
 | TC-010 | Preserve Rust and shared assurance containment | Static | P0 | NFR-003, FR-009, FR-017 | 🚧 Planned |
 | TC-011 | Return typed refusals without text parsing | Property | P0 | FR-008, FR-014, FR-016, FR-036, FR-037, FR-038, FR-039, FR-040, NFR-008 | 🚧 In progress — Task-017 executes 30 foundation/catalog tests over the three operation outcomes, claim-local sibling retention, all 70 stage/domain pairs, closed local causes, exact/unknown source interiors, cause order/multiplicity, axis collision visibility, rendering independence and the complete pre-existing registry mutation inventory. Task-006 still owes exact route coverage across every public subsystem. |
 | TC-012 | Run the local verification gate and refuse an undefined lane | Static | P0 | NFR-004 | ✅ Implemented — ten executable tests bind all ten criteria to the exact repository snapshot and thirteen stable defect identities; no test is ignored or environment-gated. |
-| TC-013 | Resolve the version-lock manifest | Property | P0 | FR-009, FR-012, FR-016, FR-018, NFR-006 | 🚧 Planned — deterministic resolution, authentic request-bound capabilities and delivery controls on Protocol-owned fixtures |
+| TC-013 | Resolve the version-lock manifest | Property | P0 | FR-009, FR-012, FR-016, NFR-006 | ✅ Implemented — eleven Task-013 tests execute deterministic bounded resolution, authentic request-bound capabilities, exact retained identities and exact-member delivery controls; FR-018 is separately assigned to TC-017 and is not pre-credited. |
 | TC-014 | Apply the consumer identity discipline | Property | P0 | FR-011, FR-015, FR-017 | ✅ Implemented — B-owned fixtures establish consumer authority and non-substitution without an external dependency. |
 | TC-015 | Produce, read and map canonical protocol results | Integration | P0 | FR-042-AC-1..FR-042-AC-6 | ✅ Implemented — 12 executable tests cover canonical production/strict reading, complete typed views, all four independent axes, Boolean/non-value mapping, identity/lineage mutations, schema pins, reproduction and exact/one-short resource limits |
 | TC-016 | Compose complete scenario evidence without storing it | Property | P0 | FR-017, NFR-005 | 🚧 Planned — final outcome/resource types, deterministic partial resolution, per-axis distinctness and transient-value containment |
+| TC-017 | Validate the consumer-owned delivery index | Property | P0 | FR-018, NFR-006 | 🚧 Planned — Task-019/#66 owns the missing consumer record, exact-byte/index controls and proof that it has no version-lock authority. |
 
 ## Test Execution Summary
 
 Row counts, recomputed from the tree. Every matrix row above is counted exactly
 once, and `Blocked` means unexecutable — neither passing nor failing.
 
-Engine-measured binding at the current implementation checkpoint is 109 of 341
-rows (31%) — see **Engine-bound** above. The table below counts matrix rows and
+Engine-measured binding at the current implementation checkpoint is 144 of 342
+rows (42%) — see **Engine-bound** above. The table below counts matrix rows and
 their planned state; it does not measure binding.
 
 | Category | Total | Passed | Failed | Blocked | Planned |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Functional requirement rows | 33 | 1 | 0 | 0 | 32 |
-| Domain object requirement rows | 9 | 0 | 0 | 0 | 9 |
+| Domain object requirement rows | 9 | 1 | 0 | 0 | 8 |
 | Non-functional requirement rows | 8 | 2 | 0 | 0 | 6 |
 | Integration rows | 4 | 0 | 0 | 2 | 2 |
-| Test case rows | 16 | 4 | 0 | 0 | 12 |
-| Overall | 70 | 7 | 0 | 2 | 61 |
+| Test case rows | 17 | 5 | 0 | 0 | 12 |
+| Overall | 71 | 9 | 0 | 2 | 60 |
 
 The Integration count is four because IT-001 carries a separate version 1 and version 2
 row; the two contracts may not substitute for each other, so one row cannot
@@ -453,16 +454,22 @@ fully blocked integration cannot score 100%. These totals follow that rule: the
 denominator is every authored acceptance criterion, and an unexecutable
 criterion is a zero inside it rather than a row removed from it.
 
-Engine-measured binding at the current implementation checkpoint is 109 of 341
-rows (31%) — see **Engine-bound** above. The table below counts matrix rows and
+Engine-measured binding at the current implementation checkpoint is 144 of 342
+rows (42%) — see **Engine-bound** above. The table below counts matrix rows and
 their planned state; it does not measure binding.
 
 | Category | Total | Passed | Failed | Blocked | Planned |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Criteria backed by a test case | 265 | 24 | 0 | 0 | 241 |
+| Criteria backed by a test case | 265 | 35 | 0 | 0 | 230 |
 | Criteria backed only by an integration scenario | 8 | 4 | 0 | 1 | 3 |
 | Criteria with no test case and no integration scenario | 32 | 0 | 0 | 0 | 32 |
-| Overall owed criteria | 305 | 28 | 0 | 1 | 276 |
+| Overall owed criteria | 305 | 39 | 0 | 1 | 265 |
+
+Task-013 adds eleven completed criteria to this table: all eight FR-012 object
+criteria, FR-016-AC-8, and NFR-006-AC-6/AC-7. FR-009's nine resolver controls
+execute, but its aggregate criteria remain in progress until the concrete
+producer integrations they also name run; they are not double-counted as
+complete here. FR-018 and NFR-006-AC-8 remain planned under Task-019/TC-017.
 
 The four passing integration-only criteria are FR-002-AC-5, FR-013-AC-4,
 NFR-007-AC-3 and NFR-007-AC-4. FR-001-AC-5, NFR-007-AC-5 and NFR-007-AC-7 remain
@@ -478,5 +485,6 @@ FR-017-AC-3, FR-018-AC-2, FR-018-AC-4, FR-018-AC-7, FR-026-AC-3,
 FR-027-AC-5, NFR-006-AC-1, NFR-006-AC-2, NFR-006-AC-3, NFR-006-AC-4,
 NFR-006-AC-5, NFR-007-AC-1, NFR-007-AC-2, NFR-007-AC-6, NFR-007-AC-8,
 NFR-008-AC-3, NFR-008-AC-4, NFR-008-AC-5 and NFR-008-AC-8. Each verifies by
-Inspection or Analysis and none is claimed as test coverage. No row cites a
-test-case id above TC-016, and none is invented to close one of these gaps.
+Inspection or Analysis and none is claimed as test coverage. TC-017 is the final
+planned test-case id and owns only DeliveryIndex evidence formerly over-credited
+to TC-013.

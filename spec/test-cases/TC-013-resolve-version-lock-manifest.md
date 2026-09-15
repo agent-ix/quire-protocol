@@ -5,6 +5,12 @@ type: TC
 relationships:
   - target: ix://agent-ix/quire-protocol/FR-009
     type: verifies
+  - target: ix://agent-ix/quire-protocol/FR-012
+    type: verifies
+  - target: ix://agent-ix/quire-protocol/FR-016
+    type: verifies
+  - target: ix://agent-ix/quire-protocol/NFR-006
+    type: verifies
 ---
 # TC-013: Resolve the version-lock manifest
 
@@ -93,15 +99,18 @@ refusal is ambiguous about which entry caused it.
 
 Verifies FR-009-AC-1 through FR-009-AC-9 and contributes to NFR-003.
 
-This test case additionally backs criteria on the object requirements FR-012,
-FR-016 and FR-018, which cite it as their verification. FR-017 composition is
-owned by TC-016 after final outcomes/resources exist.
+The resolver controls additionally back criteria on the object requirements
+FR-012 and FR-016, which cite this test case as their verification. FR-017
+composition is owned by TC-016 after final outcomes/resources exist.
 
-This test case additionally backs `NFR-006-AC-6`, `NFR-006-AC-7` and
-`NFR-006-AC-8`, the delivery-surface criteria of
+The implemented resolver controls additionally back `NFR-006-AC-6` and
+`NFR-006-AC-7`, the exact-member delivery-surface criteria of
 [NFR-006](../non-functional/NFR-006-fix-the-consumed-dependency-set.md), which
-name it as their verification. Their negative controls — an unenumerated file in
-an otherwise complete delivery root, a member's bytes swapped at the same path,
-and an edited or deleted delivery index — run on the Protocol-owned fixtures above and
-require no producer delivery. NFR-006's five closure criteria, `NFR-006-AC-1`
-through `NFR-006-AC-5`, verify by inspection and are not backed here.
+name it as their verification. Their negative controls are an unenumerated
+delivered member and bytes swapped at the same member path.
+
+FR-018 and `NFR-006-AC-8` are instead assigned to TC-017 and are not implemented
+or credited by the resolver slice. Task-019/#66 owns those consumer-delivery-index
+controls, including the edited/deleted-index negative control. NFR-006's five closure
+criteria, `NFR-006-AC-1` through `NFR-006-AC-5`, verify by inspection and are
+not backed here.

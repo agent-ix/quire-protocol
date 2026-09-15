@@ -7,6 +7,7 @@ track: Producer-Integration
 priority: P0
 relationships:
   - { target: ix://agent-ix/quire-protocol/Task-002, type: depends_on }
+  - { target: ix://agent-ix/quire-protocol/Task-019, type: depends_on }
   - { target: ix://agent-ix/quire-protocol/FR-001, type: references }
   - { target: ix://agent-ix/quire-protocol/FR-002, type: references }
   - { target: ix://agent-ix/quire-protocol/FR-009, type: references }

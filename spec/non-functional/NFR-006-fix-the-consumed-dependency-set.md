@@ -135,7 +135,7 @@ B-authored fixture root can carry an unenumerated file.
 | NFR-006-AC-5 | A verification run whose lockfile is not byte-identical before and after it is not accepted as evidence of the closure; introducing a dependency change that the run would resolve rather than refuse is detected by that comparison alone, independently of which commands [NFR-004](./NFR-004-define-local-verification-gate.md) enumerates. | Inspection |
 | NFR-006-AC-6 | A byte sequence in a pinned delivery root that no `pinned` entry's recorded digest covers does not reach a consumer path, and adding one unenumerated file to an otherwise complete fixture root returns a typed refusal naming that file rather than admitting the delivery. | Test (TC-013) |
 | NFR-006-AC-7 | Swapping one delivery member's bytes for different bytes at the same path returns a typed refusal, and the substituted bytes reach no consumer path; the refusal is distinct from the refusal an absent member produces. | Test (TC-013) |
-| NFR-006-AC-8 | A delivery index supplies, selects or repairs no version-lock entry and widens no accepted byte set; editing an index to name a file the manifest does not cover changes no acceptance outcome, and deleting the index changes no acceptance outcome either. | Test (TC-013) |
+| NFR-006-AC-8 | A delivery index supplies, selects or repairs no version-lock entry and widens no accepted byte set; editing an index to name a file the manifest does not cover changes no acceptance outcome, and deleting the index changes no acceptance outcome either. | Test (TC-017) |
 
 ## Dependencies
 
@@ -159,6 +159,8 @@ B-authored fixture root can carry an unenumerated file.
 
 In progress. The current lock has 132 non-root packages and five git sources;
 Cargo/rights records cover the current exact pins, including QSL `f1700a9`.
-TC-013 owns the runnable delivery-surface controls. Task-002 must repin QObs from
-`9ac80e9` to accepted `93bc565`, and every later pin must update Cargo.lock and
-DEPENDENCIES.md in the same ticket before this requirement can close.
+Task-013 implements TC-013's exact-member controls for AC-6 and AC-7;
+Task-019/#66 owns the missing TC-017 consumer-index control for AC-8. Task-002 must
+repin QObs from `9ac80e9` to accepted `93bc565`, and every later pin must update
+Cargo.lock and DEPENDENCIES.md in the same ticket before this requirement can
+close.

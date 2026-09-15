@@ -183,8 +183,8 @@ successful truth, adequacy, conformance, or sufficiency.
 
 [TM-001](tests.md) records requirement-to-test status over the repository as it
 stands: 42 functional requirements, 8 non-functional requirements, 5 stakeholder
-requirements, 7 user stories, 9 architecture decisions, 3 integration tests, 15
-test cases, and 294 acceptance criteria across the functional and non-functional
+requirements, 7 user stories, 9 architecture decisions, 3 integration tests, 17
+test cases, and 305 acceptance criteria across the functional and non-functional
 sets.
 
 The functional set is three layers rather than one list: 9 aggregate or
@@ -241,9 +241,12 @@ records and an inventoried resource accountant all exist on `main`.
 Those implementations are not yet one production pipeline. The linker has no
 version-2 linked graph, downstream modules accept independently constructed
 models, canonical result assembly accepts caller-built duplicates of upstream
-states, and version-lock, E02 projection and scenario handoff do not exist on
-`main`. Task status and executable coverage are stated only by TM-001 and
-Plan-001; module presence does not close an aggregate requirement.
+states, and E02 projection and scenario handoff do not exist on `main`.
+Version-lock resolution now exists as the Task-013 mechanism, while concrete
+producer entry population remains with Tasks 009–011 and the distinct
+consumer-owned delivery index remains Task-019/#66. Task status and executable
+coverage are stated only by TM-001 and Plan-001; module presence does not close
+an aggregate requirement.
 
 The current accepted compiler pin is QSL `f1700a9`. The direct QObs pin remains
 older than its accepted FR-287/FR-262 implementation and is corrected by
