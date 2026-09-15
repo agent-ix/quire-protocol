@@ -61,14 +61,7 @@ impl<'a> Engine<'a> {
         context: LinkedAssessment<'a>,
         requested: Vec<Claim>,
     ) -> Result<Self, BundleRefusal> {
-        if requested.is_empty() {
-            return Err(BundleRefusal::EmptyRequest);
-        }
-        for (index, claim) in requested.iter().enumerate() {
-            if requested[..index].contains(claim) {
-                return Err(BundleRefusal::DuplicateRequestedClaim);
-            }
-        }
+        validate_requested(&requested)?;
         let identity = context
             .definition_identity()
             .map_err(|_| BundleRefusal::InvalidDefinitionIdentity)?;
@@ -107,6 +100,18 @@ impl<'a> Engine<'a> {
     }
 }
 
+fn validate_requested(requested: &[Claim]) -> Result<(), BundleRefusal> {
+    if requested.is_empty() {
+        return Err(BundleRefusal::EmptyRequest);
+    }
+    for (index, claim) in requested.iter().enumerate() {
+        if requested[..index].contains(claim) {
+            return Err(BundleRefusal::DuplicateRequestedClaim);
+        }
+    }
+    Ok(())
+}
+
 /// Complete, non-retargetable claim population for one linked assessment.
 #[derive(Clone, Debug)]
 pub struct AssessmentBundle<'a, Row> {
@@ -130,6 +135,33 @@ impl<Row> AssessmentBundle<'_, Row> {
     #[must_use]
     pub fn rows(&self) -> &[ClaimRow<Row>] {
         &self.rows
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{validate_requested, BundleRefusal};
+    use crate::claims::Claim;
+
+    #[test]
+    fn assessment_request_requires_one_claim() {
+        assert_eq!(validate_requested(&[]), Err(BundleRefusal::EmptyRequest));
+    }
+
+    #[test]
+    fn assessment_request_refuses_duplicate_claims() {
+        assert_eq!(
+            validate_requested(&[Claim::Conformance, Claim::Conformance]),
+            Err(BundleRefusal::DuplicateRequestedClaim)
+        );
+    }
+
+    #[test]
+    fn assessment_request_keeps_distinct_claims() {
+        assert_eq!(
+            validate_requested(&[Claim::Conformance, Claim::Monitorability]),
+            Ok(())
+        );
     }
 }
 
