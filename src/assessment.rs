@@ -1090,9 +1090,9 @@ impl<'a> Engine<'a> {
 
     /// Retain one independent outcome for every selected claim.
     ///
-    /// Generic assembly is internal support for the typed result stage. Public
-    /// callers must use [`Self::assemble_canonical`], whose rows can only carry
-    /// strict-reader-admitted result-owner values.
+    /// Generic assembly is internal support for the typed result stage. The
+    /// public path is [`Self::construct_canonical`], which owns production and
+    /// strict reading from the Engine's exact linked assessment.
     pub(crate) fn assemble<Row>(
         self,
         rows: Vec<ClaimRow<Row>>,
@@ -1117,7 +1117,7 @@ impl<'a> Engine<'a> {
     /// A canonical row may not be moved to another claim merely because both
     /// rows share an assessment context. Claim-local refusals have no result
     /// row and therefore remain valid independent outcomes.
-    pub fn assemble_canonical(
+    pub(crate) fn assemble_canonical(
         self,
         rows: Vec<ClaimRow<result::ValidatedResult>>,
     ) -> Result<AssessmentBundle<'a, result::ValidatedResult>, BundleRefusal> {
@@ -1129,17 +1129,6 @@ impl<'a> Engine<'a> {
             }
         }
         self.assemble(rows)
-    }
-
-    /// Assemble strict-read canonical rows through the shared operation algebra.
-    pub fn assemble_canonical_outcome(
-        self,
-        rows: Vec<ClaimRow<result::ValidatedResult>>,
-    ) -> crate::outcome::OperationOutcome<AssessmentBundle<'a, result::ValidatedResult>> {
-        match self.assemble_canonical(rows) {
-            Ok(bundle) => crate::outcome::OperationOutcome::Completed(bundle),
-            Err(error) => crate::outcome::OperationOutcome::Refused(outcome_refusal(error)),
-        }
     }
 
     /// Construct and strict-read each canonical result row from typed owner
