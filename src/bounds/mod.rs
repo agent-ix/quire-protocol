@@ -119,26 +119,12 @@ pub const fn accumulation(dimension: Dimension) -> Accumulation {
     dimension.accumulation()
 }
 
-/// Every dimension A declares, in A's declaration order.
+/// Every dimension declared by the selected QSL accounting contract.
 ///
-/// Written out rather than derived so that a dimension added to A breaks the
-/// exhaustive match in [`accumulation`] and the length assertion in the TC-009
-/// suite, instead of quietly going unguarded.
-pub const ALL_DIMENSIONS: [Dimension; 13] = [
-    Dimension::PayloadBytes,
-    Dimension::OutputBytes,
-    Dimension::SourceBytes,
-    Dimension::ContentBytes,
-    Dimension::Sources,
-    Dimension::Dependencies,
-    Dimension::Definitions,
-    Dimension::Models,
-    Dimension::Declarations,
-    Dimension::Entries,
-    Dimension::References,
-    Dimension::ByteWork,
-    Dimension::Depth,
-];
+/// This is the owner's declaration-order inventory, not a Protocol-maintained
+/// mirror. A new owner dimension therefore reaches every caller that consumes
+/// this constant without a second table to update.
+pub const ALL_DIMENSIONS: [Dimension; 13] = Dimension::ALL;
 
 /// The caller's effective ceiling for `dimension`.
 #[must_use]
