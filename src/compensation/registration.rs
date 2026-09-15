@@ -51,6 +51,19 @@ impl Registration {
     pub const fn key(&self) -> &RegistrationKey {
         &self.key
     }
+
+    pub(crate) fn from_input(
+        definition: &DefinitionIdentity,
+        input: &CompensationRegistrationInput<'_>,
+    ) -> Self {
+        Self {
+            key: RegistrationKey {
+                definition: definition.clone(),
+                compensation_handle: input.compensation_handle(),
+                forward_effect: input.effect().subject().clone(),
+            },
+        }
+    }
 }
 
 /// The registration state derived for one non-retargetable assessment request.
@@ -71,13 +84,7 @@ impl Snapshot {
     ) -> Self {
         let mut registrations = Vec::with_capacity(inputs.len());
         for input in inputs {
-            let registration = Registration {
-                key: RegistrationKey {
-                    definition: definition.clone(),
-                    compensation_handle: input.compensation_handle(),
-                    forward_effect: input.effect().subject().clone(),
-                },
-            };
+            let registration = Registration::from_input(definition, input);
             if !registrations.contains(&registration) {
                 registrations.push(registration);
             }
@@ -89,5 +96,33 @@ impl Snapshot {
     #[must_use]
     pub fn registrations(&self) -> &[Registration] {
         &self.registrations
+    }
+
+    pub(crate) fn ensure(
+        &mut self,
+        definition: &DefinitionIdentity,
+        input: &CompensationRegistrationInput<'_>,
+    ) -> (Registration, bool) {
+        let candidate = Registration::from_input(definition, input);
+        if let Some(existing) = self
+            .registrations
+            .iter()
+            .find(|registration| **registration == candidate)
+        {
+            return (existing.clone(), false);
+        }
+        self.registrations.push(candidate.clone());
+        (candidate, true)
+    }
+
+    pub(crate) fn find(
+        &self,
+        definition: &DefinitionIdentity,
+        compensation_handle: u32,
+    ) -> Option<&Registration> {
+        self.registrations.iter().find(|registration| {
+            registration.key.definition == *definition
+                && registration.key.compensation_handle == compensation_handle
+        })
     }
 }
