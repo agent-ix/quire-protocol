@@ -1015,6 +1015,7 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
             panic!("engine startup has no resource work: {incomplete:?}")
         }
     };
+    assert_eq!(engine.linked().identity(), &identity);
     let bundle = match engine.assemble_outcome(vec![ClaimRow {
         claim: Claim::Conformance,
         outcome: ClaimOutcome::Canonical(()),
@@ -1033,6 +1034,7 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
         definition.selection()
     );
     assert_eq!(bundle.rows().len(), 1);
+    assert_eq!(bundle.linked().identity(), &identity);
 
     let different_runtime = RuntimeBindingSet::new(
         RUNTIME_BINDING_CONTRACT,

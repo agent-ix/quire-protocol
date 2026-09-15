@@ -11,8 +11,9 @@ use crate::claims::Claim;
 use crate::closure::GlobalConformanceClosure;
 use crate::compensation::registration::Snapshot as CompensationSnapshot;
 use crate::model::v2::{
-    CompensationAttemptInput, CompensationEffectInput, CompensationRegistrationInput,
-    DefinitionIdentity, LinkedAssessment,
+    link as link_v2, CompensationAttemptInput, CompensationEffectInput,
+    CompensationRegistrationInput, DefinitionIdentity, DefinitionRegistry, LinkedAssessment,
+    LinkedProtocol,
 };
 use crate::outcome::ClaimOutcome;
 use crate::refusal::catalog::{CatalogSelection, CodeEntry, CodeModule, Provenance, RefusalCode};
@@ -49,6 +50,8 @@ pub enum BundleRefusal {
     MissingClaimRow,
     /// The admitted linked context cannot derive its static definition identity.
     InvalidDefinitionIdentity,
+    /// The exact linked context cannot produce its static QSL graph.
+    InvalidLinkedProtocol,
     /// A canonical result row was offered under a different requested claim.
     CanonicalClaimMismatch,
 }
@@ -80,6 +83,10 @@ bundle_code!(
     BUNDLE_INVALID_IDENTITY,
     "assessment.bundle-invalid-identity"
 );
+bundle_code!(
+    BUNDLE_INVALID_LINKED_PROTOCOL,
+    "assessment.bundle-invalid-linked-protocol"
+);
 bundle_code!(BUNDLE_CLAIM_MISMATCH, "assessment.bundle-claim-mismatch");
 
 /// Refusal codes minted by the assessment-bundle orchestration boundary.
@@ -94,6 +101,7 @@ pub const CODES: CodeModule = CodeModule {
         BUNDLE_DUPLICATE_ROW,
         BUNDLE_MISSING_ROW,
         BUNDLE_INVALID_IDENTITY,
+        BUNDLE_INVALID_LINKED_PROTOCOL,
         BUNDLE_CLAIM_MISMATCH,
     ],
 };
@@ -106,6 +114,7 @@ fn outcome_refusal(error: BundleRefusal) -> ProtocolRefusal {
         BundleRefusal::DuplicateClaimRow => &BUNDLE_DUPLICATE_ROW,
         BundleRefusal::MissingClaimRow => &BUNDLE_MISSING_ROW,
         BundleRefusal::InvalidDefinitionIdentity => &BUNDLE_INVALID_IDENTITY,
+        BundleRefusal::InvalidLinkedProtocol => &BUNDLE_INVALID_LINKED_PROTOCOL,
         BundleRefusal::CanonicalClaimMismatch => &BUNDLE_CLAIM_MISMATCH,
     };
     let code = RefusalCode::of(entry);
@@ -130,6 +139,7 @@ fn outcome_refusal(error: BundleRefusal) -> ProtocolRefusal {
 pub struct Engine<'a> {
     context: LinkedAssessment<'a>,
     identity: DefinitionIdentity,
+    linked: LinkedProtocol<'a>,
     compensation_inputs: Vec<CompensationRegistrationInput<'a>>,
     compensation: CompensationSnapshot,
     compensation_attempts: Vec<CompensationAttemptInput<'a>>,
@@ -157,6 +167,9 @@ impl<'a> Engine<'a> {
         let identity = context
             .definition_identity()
             .map_err(|_| BundleRefusal::InvalidDefinitionIdentity)?;
+        let mut definitions = DefinitionRegistry::default();
+        let linked =
+            link_v2(context, &mut definitions).map_err(|_| BundleRefusal::InvalidLinkedProtocol)?;
         let compensation_inputs = context.compensation_registration_inputs();
         let compensation = CompensationSnapshot::from_inputs(&identity, &compensation_inputs);
         let compensation_attempts = context.compensation_attempt_inputs();
@@ -164,6 +177,7 @@ impl<'a> Engine<'a> {
         Ok(Self {
             context,
             identity,
+            linked,
             compensation_inputs,
             compensation,
             compensation_attempts,
@@ -177,6 +191,13 @@ impl<'a> Engine<'a> {
     #[must_use]
     pub fn compensation_inputs(&self) -> &[CompensationRegistrationInput<'a>] {
         &self.compensation_inputs
+    }
+
+    /// Returns the exact QSL graph and static compensation definitions linked
+    /// from this request's immutable context.
+    #[must_use]
+    pub const fn linked(&self) -> &LinkedProtocol<'a> {
+        &self.linked
     }
 
     /// Returns the replay-idempotent registrations derived for this request.
@@ -208,6 +229,7 @@ impl<'a> Engine<'a> {
         Ok(AssessmentBundle {
             context: self.context,
             identity: self.identity,
+            linked: self.linked,
             compensation_inputs: self.compensation_inputs,
             compensation: self.compensation,
             compensation_attempts: self.compensation_attempts,
@@ -304,6 +326,7 @@ fn validate_rows<Row>(requested: &[Claim], rows: &[ClaimRow<Row>]) -> Result<(),
 pub struct AssessmentBundle<'a, Row> {
     context: LinkedAssessment<'a>,
     identity: DefinitionIdentity,
+    linked: LinkedProtocol<'a>,
     compensation_inputs: Vec<CompensationRegistrationInput<'a>>,
     compensation: CompensationSnapshot,
     compensation_attempts: Vec<CompensationAttemptInput<'a>>,
@@ -321,6 +344,11 @@ impl<Row> AssessmentBundle<'_, Row> {
     #[must_use]
     pub const fn identity(&self) -> &DefinitionIdentity {
         &self.identity
+    }
+    /// Exact linked QSL graph retained for all result rows.
+    #[must_use]
+    pub const fn linked(&self) -> &LinkedProtocol<'_> {
+        &self.linked
     }
     /// Exact static-compensation/runtime-effect pairs available to the pure
     /// compensation stage for this one linked assessment.
