@@ -23,7 +23,7 @@ use quire_protocol::{
     claims::Claim,
     closure::{AssessmentExecution, GlobalConformanceClosure},
     conformance::{
-        ActivatedAssessmentError, ActivatedIncremental, ErrorCode, GlobalDisposition,
+        ActivatedAssessmentError, ActivatedIncremental, AdverseKind, ErrorCode, GlobalDisposition,
         Limits as ConformanceLimits, ObligationDisposition,
     },
     outcome::{ClaimOutcome, OperationOutcome},
@@ -1520,6 +1520,27 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
         ObligationDisposition::Conforms,
         "the QObs view is correlated only through its admitted activation occurrence"
     );
+    let unexpected_fact = engine
+        .conformance()
+        .activation_fact(derived_occurrence.clone(), Some(&surrounding.observation));
+    let unexpected = engine
+        .conformance()
+        .assess_activated(
+            std::slice::from_ref(&unexpected_fact),
+            closed_axes(&decision, &surrounding),
+            &decision.completeness_complete,
+            &global,
+            AssessmentExecution::Completed,
+            ConformanceLimits::default(),
+        )
+        .expect("a mismatched admitted QObs view is reported, not repaired");
+    assert_eq!(unexpected.global, GlobalDisposition::Violates);
+    assert_eq!(
+        unexpected.obligations[0].disposition,
+        ObligationDisposition::Violates
+    );
+    assert_eq!(unexpected.adverse.len(), 1);
+    assert_eq!(unexpected.adverse[0].kind, AdverseKind::Unexpected);
     for (state, expected) in [
         (GlobalConformanceClosure::Open, GlobalDisposition::Pending),
         (
