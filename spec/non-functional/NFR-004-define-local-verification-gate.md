@@ -54,7 +54,7 @@ review, or QUOIN semantic gap analysis, which remain owned by
 workflow triggers or to whether a hosted run may serve as local evidence, both of
 which remain owned by [NFR-003-AC-1](NFR-003-preserve-rust-assurance-boundary.md).
 
-On the current admitted local Unix target, six tracked `#[cfg(test)]` sites are
+On the current admitted local Unix target, nine tracked `#[cfg(test)]` sites are
 selected by `cargo clippy --all-targets` and `cargo test`, and one tracked
 `#[cfg(unix)]` integration test is selected by that target. This establishes no
 Windows or other-target support. A future condition that is false in every
@@ -99,7 +99,7 @@ protect.
 | Cargo build jobs during heavy local checks | 1 | 1 | Test (TC-012) |
 | Denied-warning channels active on the lint command | 2 (crate `[lints]` table and `-D warnings`) | Both present | Test (TC-012) |
 | Declared Cargo features with no conditionally compiled item behind them | 0 | 0 | Test (TC-012) |
-| Tracked conditional-compilation sites selected by no gate command or admitted target | None | 0; 7 of 7 selected today | Test (TC-012) |
+| Tracked conditional-compilation sites selected by no gate command or admitted target | None | 0; 10 of 10 selected today | Test (TC-012) |
 | Gate runs served from a build directory shared with another worktree | 0 | 0 | Test (TC-012) |
 
 ## Verification
