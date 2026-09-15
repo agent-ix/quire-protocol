@@ -1023,27 +1023,25 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
             &global,
             AssessmentExecution::Completed,
             ConformanceLimits::default(),
-            DispatchLimits::default()
+            DispatchLimits::default(),
+            Budget::nothing_granted()
         ),
-        Err(
-            quire_protocol::assessment::ActivatedDispatchError::Dispatch(
-                quire_protocol::assessment::DispatchRefusal::Bundle(_)
-            )
-        )
+        quire_protocol::outcome::OperationOutcome::Refused(_)
     ));
     let dispatch_requests = dispatch_inputs_with_claim_refusal();
-    let dispatch = engine
-        .dispatch_activated(
-            &dispatch_requests,
-            std::slice::from_ref(&fact),
-            axes,
-            &decision.completeness_complete,
-            &global,
-            AssessmentExecution::Completed,
-            ConformanceLimits::default(),
-            DispatchLimits::default(),
-        )
-        .expect("engine dispatches only its exact claim population");
+    let quire_protocol::outcome::OperationOutcome::Completed(dispatch) = engine.dispatch_activated(
+        &dispatch_requests,
+        std::slice::from_ref(&fact),
+        axes,
+        &decision.completeness_complete,
+        &global,
+        AssessmentExecution::Completed,
+        ConformanceLimits::default(),
+        DispatchLimits::default(),
+        Budget::nothing_granted(),
+    ) else {
+        panic!("engine dispatches only its exact claim population")
+    };
     assert_eq!(dispatch.dispositions()[0].claim, DispatchClaim::Conformance);
     assert_eq!(
         dispatch.dispositions()[0].execution,
@@ -1058,9 +1056,45 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
         AssessmentExecution::Refused
     );
     assert!(dispatch.dispositions()[1].failure.is_some());
+    let short_budget = Budget::nothing_granted()
+        .grant(BudgetDimension::InputByte, 1)
+        .expect("positive one-short input grant");
+    assert!(matches!(
+        engine.dispatch_activated(
+            &dispatch_requests,
+            std::slice::from_ref(&fact),
+            axes,
+            &decision.completeness_complete,
+            &global,
+            AssessmentExecution::Completed,
+            ConformanceLimits::default(),
+            DispatchLimits::default(),
+            short_budget,
+        ),
+        quire_protocol::outcome::OperationOutcome::ResourceIncomplete(incomplete)
+            if incomplete.dimension() == BudgetDimension::InputByte
+    ));
+    let short_result_engine = Engine::new(context, requested.to_vec())
+        .expect("the same linked assessment starts an independent result operation");
+    let short_output = Budget::nothing_granted()
+        .grant(BudgetDimension::OutputByte, 1)
+        .expect("positive one-short output grant");
+    assert!(matches!(
+        short_result_engine.construct_canonical_outcome(
+            &dispatch,
+            vec![
+                Some(canonical_row_facts(input.clone(), Limits::owner_max())),
+                None,
+            ],
+            short_output,
+        ),
+        quire_protocol::outcome::OperationOutcome::ResourceIncomplete(incomplete)
+            if incomplete.dimension() == BudgetDimension::OutputByte
+    ));
     let outcome = engine.construct_canonical_outcome(
         &dispatch,
         vec![Some(canonical_row_facts(input, Limits::owner_max())), None],
+        Budget::nothing_granted(),
     );
     let quire_protocol::outcome::OperationOutcome::Completed(bundle) = outcome else {
         panic!("the complete assessment returns its bundle only in the completed outcome")

@@ -18,6 +18,9 @@ use quire_spec_language::state::{
     ValueKind as StateValueKind,
 };
 
+use crate::bounds::inventory::{
+    production_inventory, Budget, OperationOutcome as BoundedOutcome, ResourceAccountant,
+};
 use crate::claims::dispatch::{
     self, ClaimRequest, Limits as DispatchLimits, Report as DispatchReport,
 };
@@ -35,7 +38,7 @@ use crate::compensation::{
 };
 use crate::conformance::{
     ActivatedAssessmentError, ActivationFact, Kernel as ConformanceKernel,
-    Limits as ConformanceLimits,
+    KernelRefusal as ConformanceKernelRefusal, Limits as ConformanceLimits,
 };
 use crate::model::v2::{
     link as link_v2, CompensationRegistrationInput, DefinitionIdentity, DefinitionRegistry,
@@ -432,67 +435,6 @@ fn bundle_cause(error: BundleRefusal, code: RefusalCode) -> crate::refusal::Refu
     .into()
 }
 
-/// One refusal from the Engine's closed-dispatch boundary.
-///
-/// This wrapper deliberately preserves the inner refusal envelope. A
-/// whole-request dispatch limit is owned by dispatch, while an attempt to
-/// retarget the Engine's fixed claim population is owned by the bundle; neither
-/// is collapsed into a synthetic generic error.
-#[derive(Clone, Debug)]
-pub enum DispatchRefusal {
-    /// The request does not name the Engine's exact selected claim population.
-    Bundle(BundleRefusal),
-    /// The closed dispatch owner refused with its original typed envelope.
-    Dispatch(dispatch::Refusal),
-}
-
-impl DispatchRefusal {
-    /// The complete source-bound envelope for this refusal.
-    #[must_use]
-    pub fn envelope(&self) -> ProtocolRefusal {
-        match self {
-            Self::Bundle(error) => outcome_refusal(*error),
-            Self::Dispatch(error) => error.envelope().clone(),
-        }
-    }
-}
-
-impl core::fmt::Display for DispatchRefusal {
-    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::Bundle(error) => write!(formatter, "assessment dispatch rejected: {error:?}"),
-            Self::Dispatch(error) => error.fmt(formatter),
-        }
-    }
-}
-
-impl std::error::Error for DispatchRefusal {}
-
-/// Failure from dispatching the Engine's activation-derived conformance result.
-///
-/// This keeps a rejected activation/conformance input distinct from a
-/// claim-local or whole-dispatch refusal. In particular, dispatch cannot turn
-/// a missing, conflicting, or otherwise non-admissible activation fact into an
-/// unsupported claim result.
-#[derive(Debug)]
-pub enum ActivatedDispatchError {
-    /// The exact activation-derived conformance input could not be assessed.
-    Assessment(ActivatedAssessmentError),
-    /// The fixed claim population or closed dispatcher rejected its own input.
-    Dispatch(DispatchRefusal),
-}
-
-impl core::fmt::Display for ActivatedDispatchError {
-    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::Assessment(error) => error.fmt(formatter),
-            Self::Dispatch(error) => error.fmt(formatter),
-        }
-    }
-}
-
-impl std::error::Error for ActivatedDispatchError {}
-
 /// One non-retargetable assessment request.
 ///
 /// The engine borrows the constructor-validated linked assessment and retains
@@ -617,36 +559,6 @@ impl<'a> Engine<'a> {
         self.activation
     }
 
-    /// Dispatch this assessment's exact claim population through the closed
-    /// local conformance capability.
-    ///
-    /// The supplied report is produced by QProtocol's conformance owner; this
-    /// method neither accepts a backend callback nor permits a dispatch request
-    /// to add, omit, or retarget one of this engine's selected claims.
-    pub(crate) fn dispatch_conformance(
-        &self,
-        requests: &[ClaimRequest<'_>],
-        report: &crate::conformance::Report,
-        limits: DispatchLimits,
-    ) -> Result<DispatchReport, DispatchRefusal> {
-        if requests.len() != self.requested.len()
-            || requests
-                .iter()
-                .any(|request| !self.requested.contains(&request.claim))
-            || self.requested.iter().any(|claim| {
-                requests
-                    .iter()
-                    .filter(|request| request.claim == *claim)
-                    .count()
-                    != 1
-            })
-        {
-            return Err(DispatchRefusal::Bundle(BundleRefusal::UnexpectedClaim));
-        }
-        dispatch::dispatch_from_conformance(requests, report, limits)
-            .map_err(DispatchRefusal::Dispatch)
-    }
-
     /// Dispatch this Engine's exact requested claims from an admitted
     /// activation-derived conformance assessment.
     ///
@@ -665,20 +577,52 @@ impl<'a> Engine<'a> {
         execution: crate::closure::AssessmentExecution,
         conformance_limits: ConformanceLimits,
         dispatch_limits: DispatchLimits,
-    ) -> Result<DispatchReport, ActivatedDispatchError> {
-        let report = self
-            .conformance
-            .assess_activated(
-                facts,
-                axes,
-                completeness,
-                global_conformance,
-                execution,
-                conformance_limits,
-            )
-            .map_err(ActivatedDispatchError::Assessment)?;
-        self.dispatch_conformance(requests, &report, dispatch_limits)
-            .map_err(ActivatedDispatchError::Dispatch)
+        budget: Budget,
+    ) -> crate::outcome::OperationOutcome<DispatchReport> {
+        if let Err(error) = validate_dispatch_request(&self.requested, requests) {
+            return crate::outcome::OperationOutcome::Refused(outcome_refusal(error));
+        }
+        let inventory = production_inventory()
+            .expect("the compile-time Protocol resource inventory must reconcile");
+        let mut resources = ResourceAccountant::new(budget, &inventory);
+        let report = match self.conformance.assess_activated_bounded(
+            facts,
+            axes,
+            completeness,
+            global_conformance,
+            execution,
+            conformance_limits,
+            &mut resources,
+        ) {
+            BoundedOutcome::Completed(report) => report,
+            BoundedOutcome::DomainError(error) => {
+                return crate::outcome::OperationOutcome::Refused(activated_assessment_refusal(
+                    error,
+                ));
+            }
+            BoundedOutcome::ResourceIncomplete(incomplete) => {
+                return crate::outcome::OperationOutcome::ResourceIncomplete(incomplete);
+            }
+            BoundedOutcome::AccountingFault(_) => {
+                return crate::outcome::OperationOutcome::Refused(outcome_refusal(
+                    BundleRefusal::InvalidConformanceKernel,
+                ));
+            }
+        };
+        match dispatch::dispatch_bounded(requests, &report, dispatch_limits, &mut resources) {
+            BoundedOutcome::Completed(report) => {
+                crate::outcome::OperationOutcome::Completed(report)
+            }
+            BoundedOutcome::DomainError(error) => {
+                crate::outcome::OperationOutcome::Refused(error.envelope().clone())
+            }
+            BoundedOutcome::ResourceIncomplete(incomplete) => {
+                crate::outcome::OperationOutcome::ResourceIncomplete(incomplete)
+            }
+            BoundedOutcome::AccountingFault(_) => crate::outcome::OperationOutcome::Refused(
+                outcome_refusal(BundleRefusal::InvalidConformanceKernel),
+            ),
+        }
     }
 
     /// Evaluate the exact admitted guard and transactionally create every
@@ -1239,41 +1183,85 @@ impl<'a> Engine<'a> {
         self.assemble(rows)
     }
 
-    /// Internal result-stage constructor used by the public three-state
-    /// operation boundary. A result-owner refusal remains local to its claim.
-    pub(crate) fn construct_canonical(
+    fn construct_canonical_bounded(
         self,
         dispatch: &DispatchReport,
         inputs: Vec<Option<CanonicalRowFacts<'a>>>,
-    ) -> Result<AssessmentBundle<'a, result::ValidatedResult>, BundleRefusal> {
-        validate_dispatch_rows(&self.requested, dispatch, &inputs)?;
+        resources: &mut ResourceAccountant<'_>,
+    ) -> crate::outcome::OperationOutcome<AssessmentBundle<'a, result::ValidatedResult>> {
+        if let Err(error) = validate_dispatch_rows(&self.requested, dispatch, &inputs) {
+            return crate::outcome::OperationOutcome::Refused(outcome_refusal(error));
+        }
         let mut rows = Vec::with_capacity(inputs.len());
         for (selected, disposition) in inputs.into_iter().zip(dispatch.dispositions()) {
             let outcome = if let Some(failure) = &disposition.failure {
                 ClaimOutcome::Refused(failure.envelope().clone())
             } else {
-                let selected = selected.ok_or(BundleRefusal::MissingClaimRow)?;
-                validate_input_package(
+                let Some(selected) = selected else {
+                    return crate::outcome::OperationOutcome::Refused(outcome_refusal(
+                        BundleRefusal::MissingClaimRow,
+                    ));
+                };
+                if let Err(error) = validate_input_package(
                     self.context.package().digest(),
                     selected.checked_predicate.package_digest(),
                     selected.temporal_subject.package_digest(),
-                )?;
+                ) {
+                    return crate::outcome::OperationOutcome::Refused(outcome_refusal(error));
+                }
                 match result_input_from_dispatch(disposition, selected) {
                     Err(refusal) => ClaimOutcome::Refused(refusal.envelope().clone()),
-                    Ok((input, limits)) => match result::produce(input.clone(), limits) {
-                        Ok(document) => match result::read(
-                            document.bytes(),
-                            result::Expected {
-                                input,
-                                enclosing_digest: document.digest(),
+                    Ok((input, limits)) => {
+                        match result::produce_bounded(input.clone(), limits, resources) {
+                            BoundedOutcome::Completed(document) => match result::read_bounded(
+                                document.bytes(),
+                                result::Expected {
+                                    input,
+                                    enclosing_digest: document.digest(),
+                                },
+                                limits,
+                                resources,
+                            ) {
+                                BoundedOutcome::Completed(validated) => {
+                                    ClaimOutcome::Canonical(validated)
+                                }
+                                BoundedOutcome::DomainError(refusal) => {
+                                    ClaimOutcome::Refused(refusal.envelope().clone())
+                                }
+                                BoundedOutcome::ResourceIncomplete(incomplete) => {
+                                    return crate::outcome::OperationOutcome::ResourceIncomplete(
+                                        incomplete,
+                                    );
+                                }
+                                BoundedOutcome::AccountingFault(_) => {
+                                    return crate::outcome::OperationOutcome::Refused(
+                                        dispatch_value_refusal(
+                                            "result read accounting contract is inconsistent",
+                                        )
+                                        .envelope()
+                                        .clone(),
+                                    );
+                                }
                             },
-                            limits,
-                        ) {
-                            Ok(validated) => ClaimOutcome::Canonical(validated),
-                            Err(refusal) => ClaimOutcome::Refused(refusal.envelope().clone()),
-                        },
-                        Err(refusal) => ClaimOutcome::Refused(refusal.envelope().clone()),
-                    },
+                            BoundedOutcome::DomainError(refusal) => {
+                                ClaimOutcome::Refused(refusal.envelope().clone())
+                            }
+                            BoundedOutcome::ResourceIncomplete(incomplete) => {
+                                return crate::outcome::OperationOutcome::ResourceIncomplete(
+                                    incomplete,
+                                );
+                            }
+                            BoundedOutcome::AccountingFault(_) => {
+                                return crate::outcome::OperationOutcome::Refused(
+                                    dispatch_value_refusal(
+                                        "result assembly accounting contract is inconsistent",
+                                    )
+                                    .envelope()
+                                    .clone(),
+                                );
+                            }
+                        }
+                    }
                 }
             };
             rows.push(ClaimRow {
@@ -1291,7 +1279,10 @@ impl<'a> Engine<'a> {
                 }
             }
         }
-        self.assemble_canonical(rows)
+        match self.assemble_canonical(rows) {
+            Ok(bundle) => crate::outcome::OperationOutcome::Completed(bundle),
+            Err(error) => crate::outcome::OperationOutcome::Refused(outcome_refusal(error)),
+        }
     }
 
     /// Construct canonical rows through the complete three-member operation
@@ -1303,12 +1294,131 @@ impl<'a> Engine<'a> {
         self,
         dispatch: &DispatchReport,
         inputs: Vec<Option<CanonicalRowFacts<'a>>>,
+        budget: Budget,
     ) -> crate::outcome::OperationOutcome<AssessmentBundle<'a, result::ValidatedResult>> {
-        match self.construct_canonical(dispatch, inputs) {
-            Ok(bundle) => crate::outcome::OperationOutcome::Completed(bundle),
-            Err(error) => crate::outcome::OperationOutcome::Refused(outcome_refusal(error)),
-        }
+        let inventory = production_inventory()
+            .expect("the compile-time Protocol resource inventory must reconcile");
+        let mut resources = ResourceAccountant::new(budget, &inventory);
+        self.construct_canonical_bounded(dispatch, inputs, &mut resources)
     }
+}
+
+fn validate_dispatch_request(
+    requested: &[Claim],
+    requests: &[ClaimRequest<'_>],
+) -> Result<(), BundleRefusal> {
+    if requests.len() != requested.len()
+        || requests
+            .iter()
+            .any(|request| !requested.contains(&request.claim))
+        || requested.iter().any(|claim| {
+            requests
+                .iter()
+                .filter(|request| request.claim == *claim)
+                .count()
+                != 1
+        })
+    {
+        Err(BundleRefusal::UnexpectedClaim)
+    } else {
+        Ok(())
+    }
+}
+
+fn activated_assessment_refusal(error: ActivatedAssessmentError) -> ProtocolRefusal {
+    match error {
+        ActivatedAssessmentError::Kernel(error) => kernel_refusal(error),
+        ActivatedAssessmentError::Conformance(refusal) => refusal.envelope().clone(),
+    }
+}
+
+fn kernel_refusal(error: ConformanceKernelRefusal) -> ProtocolRefusal {
+    let tag = match error {
+        ConformanceKernelRefusal::ForeignDefinition => b"foreign-definition".as_slice(),
+        ConformanceKernelRefusal::UnknownCompensation => b"unknown-compensation".as_slice(),
+        ConformanceKernelRefusal::UnknownRegistration => b"unknown-registration".as_slice(),
+        ConformanceKernelRefusal::UnrepresentableControl => b"unrepresentable-control".as_slice(),
+        ConformanceKernelRefusal::ForeignActivationPackage => {
+            b"foreign-activation-package".as_slice()
+        }
+        ConformanceKernelRefusal::MissingActivationMapping => {
+            b"missing-activation-mapping".as_slice()
+        }
+        ConformanceKernelRefusal::InvalidActivationControl => {
+            b"invalid-activation-control".as_slice()
+        }
+        ConformanceKernelRefusal::ActivationSubjectMismatch => {
+            b"activation-subject-mismatch".as_slice()
+        }
+        ConformanceKernelRefusal::ActivationResultMismatch => {
+            b"activation-result-mismatch".as_slice()
+        }
+        ConformanceKernelRefusal::InvalidActivationTemporal => {
+            b"invalid-activation-temporal".as_slice()
+        }
+        ConformanceKernelRefusal::ActivationOccurrenceMismatch => {
+            b"activation-occurrence-mismatch".as_slice()
+        }
+        ConformanceKernelRefusal::ConflictingActivation => b"conflicting-activation".as_slice(),
+        ConformanceKernelRefusal::ForeignActivatedOccurrence => {
+            b"foreign-activated-occurrence".as_slice()
+        }
+        ConformanceKernelRefusal::DuplicateActivatedObligation => {
+            b"duplicate-activated-obligation".as_slice()
+        }
+        ConformanceKernelRefusal::InvalidDerivedModel => b"invalid-derived-model".as_slice(),
+        ConformanceKernelRefusal::UnexpectedActivatedOccurrence => {
+            b"unexpected-activated-occurrence".as_slice()
+        }
+    };
+    let code = RefusalCode::of(&BUNDLE_INVALID_CONFORMANCE_KERNEL);
+    let cause = match error {
+        ConformanceKernelRefusal::UnknownCompensation
+        | ConformanceKernelRefusal::UnknownRegistration
+        | ConformanceKernelRefusal::MissingActivationMapping => ProtocolCause::MissingDefinition {
+            definition: RetainedBytes::new(tag),
+        },
+        ConformanceKernelRefusal::ConflictingActivation
+        | ConformanceKernelRefusal::DuplicateActivatedObligation => {
+            ProtocolCause::ConflictingDefinition {
+                definition: RetainedBytes::new(tag),
+                conflicting_definition: RetainedBytes::new(tag),
+            }
+        }
+        ConformanceKernelRefusal::ForeignDefinition
+        | ConformanceKernelRefusal::ForeignActivationPackage
+        | ConformanceKernelRefusal::ActivationSubjectMismatch
+        | ConformanceKernelRefusal::ActivationResultMismatch
+        | ConformanceKernelRefusal::ActivationOccurrenceMismatch
+        | ConformanceKernelRefusal::ForeignActivatedOccurrence
+        | ConformanceKernelRefusal::UnexpectedActivatedOccurrence => {
+            ProtocolCause::IdentityMismatch {
+                expected: RetainedBytes::new(b"engine-bound-activation"),
+                observed: RetainedBytes::new(tag),
+            }
+        }
+        ConformanceKernelRefusal::UnrepresentableControl
+        | ConformanceKernelRefusal::InvalidActivationControl
+        | ConformanceKernelRefusal::InvalidActivationTemporal
+        | ConformanceKernelRefusal::InvalidDerivedModel => ProtocolCause::IncompleteEvidence {
+            evidence: RetainedBytes::new(tag),
+        },
+    };
+    ProtocolRefusal::builder(
+        code,
+        CatalogSelection::local(),
+        ProtocolStage::Conformance,
+        RefusalAxis::new(tag).expect("kernel refusal tags are non-empty"),
+        cause.into(),
+        ResourceUsage::protocol("quire.protocol/assessment-usage/1", &[]),
+    )
+    .expect("kernel refusal code belongs to conformance")
+    .prerequisite(Prerequisite::new(
+        ProtocolStage::Representation,
+        PrerequisiteState::Established,
+    ))
+    .unavailable_location(Unavailability::NotApplicableToStage)
+    .emitting_nothing()
 }
 
 enum BooleanEvaluation {
@@ -1634,10 +1744,11 @@ impl<Row> AssessmentBundle<'_, Row> {
 #[cfg(test)]
 mod tests {
     use super::{
-        claim_from_result_kind, outcome_refusal, validate_dispatch_population,
+        claim_from_result_kind, kernel_refusal, outcome_refusal, validate_dispatch_population,
         validate_input_package, validate_requested, validate_rows, BundleRefusal, ClaimRow,
     };
     use crate::claims::{dispatch::Report as DispatchReport, Claim};
+    use crate::conformance::KernelRefusal;
     use crate::outcome::ClaimOutcome;
     use crate::refusal::{PartialOutput, ProtocolStage, RefusalDomain};
     use crate::result::ClaimKind;
@@ -1796,6 +1907,37 @@ mod tests {
             assert!(codes.insert(refusal.code().as_str()));
             assert!(axes.insert(refusal.axis().as_bytes().to_vec()));
         }
+    }
+
+    #[test]
+    #[trace("TC-011", "FR-008-AC-1", "FR-036-AC-1", "FR-039-AC-1")]
+    fn tc_011_kernel_refusal_axes_retain_the_exact_activation_failure() {
+        let failures = [
+            KernelRefusal::ForeignDefinition,
+            KernelRefusal::UnknownCompensation,
+            KernelRefusal::UnknownRegistration,
+            KernelRefusal::UnrepresentableControl,
+            KernelRefusal::ForeignActivationPackage,
+            KernelRefusal::MissingActivationMapping,
+            KernelRefusal::InvalidActivationControl,
+            KernelRefusal::ActivationSubjectMismatch,
+            KernelRefusal::ActivationResultMismatch,
+            KernelRefusal::InvalidActivationTemporal,
+            KernelRefusal::ActivationOccurrenceMismatch,
+            KernelRefusal::ConflictingActivation,
+            KernelRefusal::ForeignActivatedOccurrence,
+            KernelRefusal::DuplicateActivatedObligation,
+            KernelRefusal::InvalidDerivedModel,
+            KernelRefusal::UnexpectedActivatedOccurrence,
+        ];
+        let mut axes = BTreeSet::new();
+        for failure in failures {
+            let refusal = kernel_refusal(failure);
+            assert_eq!(refusal.stage(), ProtocolStage::Conformance);
+            assert!(!refusal.causes().is_empty());
+            assert!(axes.insert(refusal.axis().as_bytes().to_vec()));
+        }
+        assert_eq!(axes.len(), failures.len());
     }
 
     #[test]

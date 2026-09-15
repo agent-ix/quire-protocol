@@ -8,6 +8,7 @@ use ix_trace_rs::trace;
 use quire_observation::{
     QualifiedSubject, Relationship, RelationshipIdentity, SubjectIdentity, SubjectKind,
 };
+use quire_protocol::bounds::inventory::Budget;
 use quire_protocol::model::v2::{
     link as link_v2, ChannelHandle, DefinitionRegistry, FifoPartitionRefusal, Internality,
     LinkedAssessment, RegistryRefusal, RoleClassification, RuntimeBinding, RuntimeBindingSet,
@@ -1562,18 +1563,19 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
         },
         correspondence: None,
     };
-    let dispatched = engine
-        .dispatch_activated(
-            std::slice::from_ref(&dispatch_request),
-            std::slice::from_ref(&fact),
-            closed_axes(&decision, &surrounding),
-            &decision.completeness_complete,
-            &global,
-            AssessmentExecution::Completed,
-            ConformanceLimits::default(),
-            DispatchLimits::default(),
-        )
-        .expect("dispatch consumes only the engine's activation-derived report");
+    let OperationOutcome::Completed(dispatched) = engine.dispatch_activated(
+        std::slice::from_ref(&dispatch_request),
+        std::slice::from_ref(&fact),
+        closed_axes(&decision, &surrounding),
+        &decision.completeness_complete,
+        &global,
+        AssessmentExecution::Completed,
+        ConformanceLimits::default(),
+        DispatchLimits::default(),
+        Budget::nothing_granted(),
+    ) else {
+        panic!("dispatch consumes only the engine's activation-derived report")
+    };
     assert_eq!(dispatched.dispositions().len(), 1);
     assert_eq!(
         dispatched.dispositions()[0].decision,
