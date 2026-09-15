@@ -49,24 +49,62 @@ pub enum BundleRefusal {
     CanonicalClaimMismatch,
 }
 
-const BUNDLE_INVALID: CodeEntry = CodeEntry {
-    provenance: Provenance::Minted,
-    code: "assessment.bundle-invalid",
-    domain: RefusalDomain::Assessment,
-    retry: RetryDecision::AfterSelectionChange,
-    summary: "the assessment claim population cannot form one complete bundle",
-};
+macro_rules! bundle_code {
+    ($name:ident, $code:literal) => {
+        const $name: CodeEntry = CodeEntry {
+            provenance: Provenance::Minted,
+            code: $code,
+            domain: RefusalDomain::Assessment,
+            retry: RetryDecision::AfterSelectionChange,
+            summary: "the assessment claim population cannot form one complete bundle",
+        };
+    };
+}
+
+bundle_code!(BUNDLE_EMPTY_REQUEST, "assessment.bundle-empty-request");
+bundle_code!(
+    BUNDLE_DUPLICATE_REQUEST,
+    "assessment.bundle-duplicate-request"
+);
+bundle_code!(
+    BUNDLE_UNEXPECTED_CLAIM,
+    "assessment.bundle-unexpected-claim"
+);
+bundle_code!(BUNDLE_DUPLICATE_ROW, "assessment.bundle-duplicate-row");
+bundle_code!(BUNDLE_MISSING_ROW, "assessment.bundle-missing-row");
+bundle_code!(
+    BUNDLE_INVALID_IDENTITY,
+    "assessment.bundle-invalid-identity"
+);
+bundle_code!(BUNDLE_CLAIM_MISMATCH, "assessment.bundle-claim-mismatch");
 
 /// Refusal codes minted by the assessment-bundle orchestration boundary.
 pub const CODES: CodeModule = CodeModule {
     root: "assessment",
     owner: "Task-006",
     module_path: "quire_protocol::assessment",
-    entries: &[BUNDLE_INVALID],
+    entries: &[
+        BUNDLE_EMPTY_REQUEST,
+        BUNDLE_DUPLICATE_REQUEST,
+        BUNDLE_UNEXPECTED_CLAIM,
+        BUNDLE_DUPLICATE_ROW,
+        BUNDLE_MISSING_ROW,
+        BUNDLE_INVALID_IDENTITY,
+        BUNDLE_CLAIM_MISMATCH,
+    ],
 };
 
-fn outcome_refusal(_error: BundleRefusal) -> ProtocolRefusal {
-    let code = RefusalCode::of(&BUNDLE_INVALID);
+fn outcome_refusal(error: BundleRefusal) -> ProtocolRefusal {
+    let entry = match error {
+        BundleRefusal::EmptyRequest => &BUNDLE_EMPTY_REQUEST,
+        BundleRefusal::DuplicateRequestedClaim => &BUNDLE_DUPLICATE_REQUEST,
+        BundleRefusal::UnexpectedClaim => &BUNDLE_UNEXPECTED_CLAIM,
+        BundleRefusal::DuplicateClaimRow => &BUNDLE_DUPLICATE_ROW,
+        BundleRefusal::MissingClaimRow => &BUNDLE_MISSING_ROW,
+        BundleRefusal::InvalidDefinitionIdentity => &BUNDLE_INVALID_IDENTITY,
+        BundleRefusal::CanonicalClaimMismatch => &BUNDLE_CLAIM_MISMATCH,
+    };
+    let code = RefusalCode::of(entry);
     ProtocolRefusal::legacy_builder(
         code,
         CatalogSelection::local(),
