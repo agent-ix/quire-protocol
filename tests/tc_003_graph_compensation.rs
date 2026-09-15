@@ -19,6 +19,8 @@ use quire_spec_language::state::{
     EvaluationOutcome, Limits as StateLimits, StateView, ValueKind as StateValueKind,
 };
 
+// The complete owner handoff fixture is intentionally broader than this
+// scenario-specific target; the harness retains its internal fixture helpers.
 #[allow(dead_code, unused_imports)]
 #[path = "support/v2_handoff/mod.rs"]
 mod handoff;
