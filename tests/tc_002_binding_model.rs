@@ -1418,6 +1418,19 @@ fn tc_002_effect_projection_requires_an_owner_effect_slot() {
     assert_eq!(engine.conformance().registrations().len(), 2);
     assert_eq!(engine.conformance().obligations().len(), controls.len());
     assert_eq!(
+        engine.conformance().compensations(),
+        engine.linked().compensations()
+    );
+    assert_eq!(
+        engine
+            .conformance()
+            .compensation(0)
+            .expect("the first linked compensation is retained")
+            .definition(),
+        engine.linked().compensations()[0].definition()
+    );
+    assert!(engine.conformance().compensation(u32::MAX).is_none());
+    assert_eq!(
         engine
             .conformance()
             .obligation(0)
@@ -1452,6 +1465,10 @@ fn tc_002_effect_projection_requires_an_owner_effect_slot() {
     assert_eq!(bundle.compensation().registrations().len(), 2);
     assert_eq!(bundle.conformance().registrations().len(), 2);
     assert_eq!(bundle.conformance().obligations().len(), controls.len());
+    assert_eq!(
+        bundle.conformance().compensations(),
+        bundle.linked().compensations()
+    );
     assert_eq!(
         bundle.conformance().causal_edges(),
         bundle.linked().causal_edges()
