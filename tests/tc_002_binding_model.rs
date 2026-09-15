@@ -22,7 +22,7 @@ use quire_protocol::{
 };
 use quire_spec_language::protocol_artifact::{
     native_temporal::{self, request, v2 as temporal_v2},
-    temporal_subject, wire as qsl_wire,
+    temporal_subject, v3, wire as qsl_wire,
 };
 use quire_spec_language::{temporal, ByteDigest};
 
@@ -45,6 +45,90 @@ fn admitted_published_v2() -> quire_spec_language::protocol_artifact::v2::Admitt
     quire_protocol::intake::v2::admit(loaded.offer(), &expected, loaded.limits())
         .into_result()
         .expect("published v2 offer admits")
+}
+
+/// Strictly admit the published `/2` graph with one independently authored
+/// `/3` event-to-temporal mapping.  The test owns the offer and independent
+/// expectation separately so the Protocol kernel never needs a local mapping
+/// mirror.
+fn admitted_published_v3(
+    package: &quire_spec_language::protocol_artifact::v2::AdmittedPackage,
+) -> v3::AdmittedPackage {
+    let loaded = handoff::Handoff::load().expect("published v2 handoff");
+    let declarations = loaded.declarations();
+    let inventories = loaded.inventories(&declarations);
+    let (declaration, control) = package
+        .inherited()
+        .declarations
+        .iter()
+        .enumerate()
+        .find_map(|(declaration, item)| {
+            let Body::Protocol { controls, .. } = &item.body else {
+                return None;
+            };
+            controls.iter().enumerate().find_map(|(control, item)| {
+                matches!(item.operation, ControlOperation::Event { .. }).then_some((
+                    u32::try_from(declaration).expect("published declaration index fits"),
+                    u32::try_from(control).expect("published control index fits"),
+                ))
+            })
+        })
+        .expect("published handoff has an event control");
+    let temporal_declaration = match &package.inherited().declarations
+        [usize::try_from(declaration).expect("published declaration index fits")]
+    .body
+    {
+        Body::Protocol {
+            temporal_requirements,
+            ..
+        } => *temporal_requirements
+            .first()
+            .expect("selected protocol requires one temporal declaration"),
+        _ => unreachable!("selected declaration is a protocol"),
+    };
+    let activation = v3::ExpectedActivation {
+        control: qsl_wire::Handle {
+            declaration,
+            index: control,
+        },
+        temporal_declaration,
+    };
+    let mut inherited = package.inherited().clone();
+    inherited.wire = v3::WIRE.into();
+    inherited.media = v3::MEDIA.into();
+    inherited.schema = v3::SCHEMA.into();
+    let offer = v3::wire::Package {
+        inherited,
+        temporal_bindings: package.package().temporal_bindings.clone(),
+        activation_mappings: vec![v3::wire::ActivationMapping {
+            control: activation.control.clone(),
+            temporal_declaration,
+        }],
+    };
+    let candidate = v3::encode_candidate(
+        &offer,
+        quire_spec_language::protocol_artifact::Limits::default(),
+    )
+    .into_result()
+    .expect("canonical v3 mapping offer encodes");
+    let mut seal = package
+        .artifact()
+        .expect("strict v2 handoff retained its artifact seal")
+        .clone();
+    seal.wire.version = "3".into();
+    seal.digest = candidate.digest();
+    let inherited = loaded.expected_for(&inventories, &seal);
+    let expected = v3::Expected {
+        inherited,
+        activations: std::slice::from_ref(&activation),
+    };
+    v3::read(
+        candidate.bytes(),
+        &expected,
+        quire_spec_language::protocol_artifact::Limits::default(),
+    )
+    .into_result()
+    .expect("strict v3 mapping package admits")
 }
 
 fn protocol_coordinates(
@@ -1074,7 +1158,7 @@ fn tc_002_linked_assessment_refuses_every_context_coordinate_mutation() {
 /// The full-assessment boundary accepts only an admitted `/2` protocol and
 /// retains its static and runtime capabilities without retargeting either one.
 #[test]
-#[trace("TC-002", "FR-002-AC-1", "FR-002-AC-3")]
+#[trace("TC-002", "TC-004", "FR-002-AC-1", "FR-002-AC-3", "FR-004-AC-1")]
 fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
     let package = admitted_published_v2();
     let (declaration_handle, subject_slot) = protocol_coordinates(&package);
@@ -1177,6 +1261,59 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
     };
     assert_eq!(engine.linked().identity(), &identity);
     assert_eq!(engine.conformance().definition(), &identity);
+
+    let mappings = admitted_published_v3(&package);
+    let result_document = temporal_v2::evaluate(
+        &request,
+        temporal_v2::Relation::Original,
+        native_temporal::Limits::default(),
+    )
+    .into_result()
+    .expect("strict temporal result evaluates");
+    let result = temporal_v2::read_result(
+        result_document.bytes(),
+        &request,
+        temporal_v2::Relation::Original,
+        native_temporal::Limits::default(),
+    )
+    .into_result()
+    .expect("strict temporal result reads");
+    match engine.conformance().bind_activation(
+        engine.linked(),
+        &mappings,
+        &mismatched_subject,
+        &request,
+        &result,
+    ) {
+        Err(refusal) => assert_eq!(
+            refusal,
+            quire_protocol::conformance::KernelRefusal::ActivationSubjectMismatch
+        ),
+        Ok(_) => panic!("a strict request cannot be substituted onto another QObs subject"),
+    }
+    let activation = engine
+        .conformance()
+        .bind_activation(
+            engine.linked(),
+            &mappings,
+            &activation_subject,
+            &request,
+            &result,
+        )
+        .expect("only the strict /3 mapping joins the selected event activation");
+    assert_eq!(activation.definition(), &identity);
+    assert_eq!(activation.subject(), &activation_subject);
+    assert_eq!(
+        activation.semantic_trigger(),
+        activation_subject.identity().as_bytes()
+    );
+    assert_eq!(activation.evaluation_anchor(), "origin");
+    assert_eq!(activation.control().declaration, declaration_handle);
+    assert!(matches!(
+        activation.activation(),
+        native_temporal::result::ActivationState::Active
+    ));
+
     let bundle = match engine.assemble_outcome(vec![ClaimRow {
         claim: Claim::Conformance,
         outcome: ClaimOutcome::Canonical(()),

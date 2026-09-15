@@ -7,7 +7,11 @@ use crate::model::v2::{
     LinkedCompensationDefinition, LinkedProtocol,
 };
 use quire_observation::QualifiedSubject;
-use quire_spec_language::protocol_artifact::wire::{Body, ControlOperation};
+use quire_spec_language::protocol_artifact::{
+    native_temporal::{request::CaptureView, result::ActivationState, v2 as temporal_v2},
+    v3,
+    wire::{Body, ControlOperation, Handle},
+};
 
 /// Why linked static and derived compensation state cannot form one kernel.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -20,6 +24,75 @@ pub enum Refusal {
     UnknownRegistration,
     /// A selected QSL control table is too large for its published `u32` handle domain.
     UnrepresentableControl,
+    /// A supplied `/3` mapping package is not this linked `/2` graph.
+    ForeignActivationPackage,
+    /// No unique source-authorized event-control mapping selects the request.
+    MissingActivationMapping,
+    /// The selected mapping does not name an event control in this graph.
+    InvalidActivationControl,
+    /// QObs subject identity and QSL opaque semantic trigger disagree.
+    ActivationSubjectMismatch,
+    /// The checked temporal result is not the exact result of this request.
+    ActivationResultMismatch,
+    /// The request names no temporal declaration selected by this definition.
+    InvalidActivationTemporal,
+}
+
+/// Constructor-private FR-300 join of QSL, linked-graph, and QObs facts.
+///
+/// It deliberately retains QSL's checked owner values rather than reproducing
+/// the trigger, captures, anchor, or activation state in Protocol vocabulary.
+#[derive(Clone)]
+pub struct ActivationBinding<'a> {
+    definition: DefinitionIdentity,
+    control: Handle,
+    subject: QualifiedSubject,
+    request: &'a temporal_v2::ValidatedRequest,
+    result: &'a temporal_v2::ValidatedResult,
+}
+
+impl ActivationBinding<'_> {
+    /// Returns the fixed qualified definition component of the binding key.
+    #[must_use]
+    pub const fn definition(&self) -> &DefinitionIdentity {
+        &self.definition
+    }
+
+    /// Returns the declaration-local QSL event-control component of the key.
+    #[must_use]
+    pub const fn control(&self) -> &Handle {
+        &self.control
+    }
+
+    /// Returns QObs's exact qualified clause-subject component of the key.
+    #[must_use]
+    pub const fn subject(&self) -> &QualifiedSubject {
+        &self.subject
+    }
+
+    /// Returns QSL's opaque semantic-trigger component without reinterpretation.
+    #[must_use]
+    pub fn semantic_trigger(&self) -> &[u8] {
+        self.request.semantic_trigger()
+    }
+
+    /// Returns QSL's exact admitted evaluation anchor.
+    #[must_use]
+    pub fn evaluation_anchor(&self) -> &str {
+        self.request.evaluation_anchor()
+    }
+
+    /// Returns QSL's immutable trigger captures in their admitted order.
+    #[must_use]
+    pub fn captures(&self) -> impl ExactSizeIterator<Item = CaptureView<'_>> {
+        self.request.activation_captures()
+    }
+
+    /// Returns QSL's checked activation state from strict result admission.
+    #[must_use]
+    pub fn activation(&self) -> ActivationState {
+        self.result.activation()
+    }
 }
 
 /// One exact QSL control retained as a conformance obligation.
@@ -232,6 +305,96 @@ impl Kernel {
     pub fn effects(&self) -> &[LinkedCompensationEffect] {
         &self.effects
     }
+
+    /// Construct the one owner-authorized FR-300 activation binding.
+    ///
+    /// Repeating this operation with the same strict inputs is idempotent:
+    /// every retained component is copied from the same immutable owner values.
+    /// Any package, mapping, subject, trigger, or result substitution refuses
+    /// before a binding can be returned.
+    pub fn bind_activation<'a>(
+        &self,
+        linked: &LinkedProtocol<'_>,
+        mappings: &v3::AdmittedPackage,
+        subject: &QualifiedSubject,
+        request: &'a temporal_v2::ValidatedRequest,
+        result: &'a temporal_v2::ValidatedResult,
+    ) -> Result<ActivationBinding<'a>, Refusal> {
+        if self.definition != *linked.identity()
+            || !same_activation_graph(
+                &mappings.package().inherited,
+                linked.context().package().inherited(),
+            )
+        {
+            return Err(Refusal::ForeignActivationPackage);
+        }
+        if request.semantic_trigger() != subject.identity().as_bytes() {
+            return Err(Refusal::ActivationSubjectMismatch);
+        }
+        if result.semantic_trigger() != request.semantic_trigger()
+            || result.request_identity() != request.document().identity()
+        {
+            return Err(Refusal::ActivationResultMismatch);
+        }
+        if !self
+            .definition
+            .temporal_bindings()
+            .iter()
+            .any(|binding| binding.declaration == request.declaration())
+        {
+            return Err(Refusal::InvalidActivationTemporal);
+        }
+        let mut selected = mappings.activation_mappings().iter().filter(|mapping| {
+            mapping.control.declaration == self.definition.declaration_handle()
+                && mapping.temporal_declaration == request.declaration()
+        });
+        let Some(mapping) = selected.next() else {
+            return Err(Refusal::MissingActivationMapping);
+        };
+        if selected.next().is_some() {
+            return Err(Refusal::MissingActivationMapping);
+        }
+        let Some(obligation) = self.obligation(mapping.control.index) else {
+            return Err(Refusal::InvalidActivationControl);
+        };
+        if mapping.control.declaration != self.definition.declaration_handle()
+            || !matches!(obligation.operation(), ControlOperation::Event { .. })
+        {
+            return Err(Refusal::InvalidActivationControl);
+        }
+        Ok(ActivationBinding {
+            definition: self.definition.clone(),
+            control: mapping.control.clone(),
+            subject: subject.clone(),
+            request,
+            result,
+        })
+    }
+}
+
+/// Confirms that a `/3` activation table extends this exact admitted `/2`
+/// graph.  Version headers intentionally differ; every graph-bearing field is
+/// compared in QSL's typed vocabulary rather than normalizing either package
+/// into a Protocol-owned surrogate.
+fn same_activation_graph(
+    mapped: &quire_spec_language::protocol_artifact::wire::Package,
+    linked: &quire_spec_language::protocol_artifact::wire::Package,
+) -> bool {
+    mapped.package_type == linked.package_type
+        && mapped.encoding == linked.encoding
+        && mapped.numeric == linked.numeric
+        && mapped.contract == linked.contract
+        && mapped.producer == linked.producer
+        && mapped.baseline == linked.baseline
+        && mapped.language == linked.language
+        && mapped.package_definition == linked.package_definition
+        && mapped.features == linked.features
+        && mapped.sources == linked.sources
+        && mapped.dependencies == linked.dependencies
+        && mapped.definitions == linked.definitions
+        && mapped.models == linked.models
+        && mapped.types == linked.types
+        && mapped.declarations == linked.declarations
 }
 
 fn registration_for(

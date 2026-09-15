@@ -279,7 +279,7 @@ of A's mutation manifest. On the revision named below, the base offer is admitte
 and every mutation refuses with the identity A declares for it.
 
 The exact pin is `quire-spec-language`
-`6c8c401bb807a417215fae7593ef27fd9bab051e`, a post-`v0.2.0` revision. A
+`0c2f13e261c0ffeaf89f0638931b573ec038e99b`, a post-`v0.2.0` revision. A
 exports `PUBLISHED_HANDOFF` plus every member-name
 and manifest-format constant. B loads that owner path directly, verifies all
 109 published members, refuses unlisted or corrupt members, admits the base,
