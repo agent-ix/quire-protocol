@@ -20,7 +20,7 @@ use crate::refusal::catalog::{
 };
 use crate::refusal::{
     AffectedIdentity, Prerequisite, PrerequisiteState, ProtocolCause, ProtocolRefusal,
-    ProtocolStage, RefusalAxis, RefusalDomain, RetryDecision, Unavailability,
+    ProtocolStage, RefusalAxis, RefusalDomain, ResourceUsage, RetryDecision, Unavailability,
 };
 
 pub use crate::assessment::{AxisInputs, GlobalConformanceInput, GlobalPremise, PremiseKind};
@@ -129,6 +129,7 @@ impl Refusal {
             stage,
             RefusalAxis::from_registered_code(refusal_code),
             result_cause(code, identity).into(),
+            refusal_usage(usage),
         )
         .expect("result codes belong to a result stage")
         .unavailable_location(Unavailability::NotApplicableToStage);
@@ -187,6 +188,23 @@ impl Refusal {
     pub fn envelope(&self) -> &ProtocolRefusal {
         &self.envelope
     }
+}
+
+fn refusal_usage(usage: Usage) -> ResourceUsage {
+    ResourceUsage::protocol(
+        "quire.protocol/result-usage/1",
+        &[
+            ("wire-bytes", usage.wire_bytes),
+            ("depth", usage.depth),
+            ("string-bytes", usage.string_bytes),
+            ("claims", usage.claims),
+            ("premises", usage.premises),
+            ("support-records", usage.support_records),
+            ("limitations", usage.limitations),
+            ("lineage-nodes", usage.lineage_nodes),
+            ("visited-fields", usage.visited_fields),
+        ],
+    )
 }
 
 fn result_cause(code: ErrorCode, identity: Option<&str>) -> ProtocolCause {

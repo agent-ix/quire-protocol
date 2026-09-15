@@ -17,7 +17,7 @@ use crate::refusal::catalog::{
 };
 use crate::refusal::{
     AffectedIdentity, Prerequisite, PrerequisiteState, ProtocolCause, ProtocolRefusal,
-    ProtocolStage, RefusalAxis, RefusalDomain, RetryDecision, Unavailability,
+    ProtocolStage, RefusalAxis, RefusalDomain, ResourceUsage, RetryDecision, Unavailability,
 };
 use crate::ByteDigest;
 
@@ -102,6 +102,7 @@ impl Refusal {
             ProtocolStage::Conformance,
             RefusalAxis::new(&preimage).expect("code-prefixed conformance axis is non-empty"),
             conformance_cause(code, affected, discriminator).into(),
+            refusal_usage(usage),
         )
         .expect("conformance codes belong to the conformance stage")
         .prerequisite(Prerequisite::new(
@@ -154,6 +155,19 @@ impl Refusal {
     pub fn envelope(&self) -> &ProtocolRefusal {
         &self.envelope
     }
+}
+
+fn refusal_usage(usage: Usage) -> ResourceUsage {
+    ResourceUsage::protocol(
+        "quire.protocol/conformance-usage/1",
+        &[
+            ("obligations", usage.obligations),
+            ("bindings", usage.bindings),
+            ("predecessors", usage.predecessors),
+            ("adverse", usage.adverse),
+            ("retained-bytes", usage.retained_bytes),
+        ],
+    )
 }
 
 fn conformance_cause(

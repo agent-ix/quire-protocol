@@ -642,6 +642,104 @@ pub enum PartialOutput {
     IndependentResultsRetained,
 }
 
+// ---------------------------------------------------------------------------
+// Resource usage
+// ---------------------------------------------------------------------------
+
+/// One exact resource dimension and the amount consumed before refusal.
+///
+/// Dimension names remain under the selected accounting contract. Protocol
+/// does not merge similarly named dimensions owned by different producers.
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub struct ResourceMeasure {
+    dimension: RetainedBytes,
+    consumed: usize,
+}
+
+impl ResourceMeasure {
+    /// Exact owner-defined dimension name.
+    #[must_use]
+    pub const fn dimension(&self) -> &RetainedBytes {
+        &self.dimension
+    }
+
+    /// Work consumed on that dimension before the refusal.
+    #[must_use]
+    pub const fn consumed(&self) -> usize {
+        self.consumed
+    }
+}
+
+/// Usage retained under one exact owner and accounting contract.
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub struct AccountingRecord {
+    owner: RetainedBytes,
+    contract: RetainedBytes,
+    measures: Box<[ResourceMeasure]>,
+}
+
+impl AccountingRecord {
+    /// Exact accounting owner identity.
+    #[must_use]
+    pub const fn owner(&self) -> &RetainedBytes {
+        &self.owner
+    }
+
+    /// Exact selected accounting contract or version.
+    #[must_use]
+    pub const fn contract(&self) -> &RetainedBytes {
+        &self.contract
+    }
+
+    /// Owner-declared dimensions in their semantic order.
+    #[must_use]
+    pub const fn measures(&self) -> &[ResourceMeasure] {
+        &self.measures
+    }
+}
+
+/// Complete resource usage carried by one refusal envelope.
+///
+/// Protocol usage is mandatory. External-owner usage is a separate ordered
+/// population so no adapter can sum or reinterpret another owner's accounting
+/// dimensions into Protocol's record.
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub struct ResourceUsage {
+    protocol: AccountingRecord,
+    external: Box<[AccountingRecord]>,
+}
+
+impl ResourceUsage {
+    pub(crate) fn protocol(contract: &'static str, measures: &[(&'static str, usize)]) -> Self {
+        Self {
+            protocol: AccountingRecord {
+                owner: RetainedBytes::new(b"agent-ix/quire-protocol"),
+                contract: RetainedBytes::new(contract.as_bytes()),
+                measures: measures
+                    .iter()
+                    .map(|(dimension, consumed)| ResourceMeasure {
+                        dimension: RetainedBytes::new(dimension.as_bytes()),
+                        consumed: *consumed,
+                    })
+                    .collect(),
+            },
+            external: Box::new([]),
+        }
+    }
+
+    /// Exact Protocol-owned usage record.
+    #[must_use]
+    pub const fn protocol_record(&self) -> &AccountingRecord {
+        &self.protocol
+    }
+
+    /// Exact external-owner records, never merged into Protocol usage.
+    #[must_use]
+    pub const fn external_records(&self) -> &[AccountingRecord] {
+        &self.external
+    }
+}
+
 /// A refusal that retained independent results FR-005 authorises to survive.
 ///
 /// The two fields are separate by construction, and the only constructor
@@ -721,6 +819,7 @@ struct ProtocolRefusalInner {
     identity: AffectedIdentity,
     location: Location,
     causes: CauseChain,
+    resource_usage: ResourceUsage,
     partial_output: PartialOutput,
     rendering: Rendering,
 }
@@ -737,6 +836,7 @@ impl ProtocolRefusal {
         stage: ProtocolStage,
         axis: RefusalAxis,
         first_cause: RefusalCause,
+        resource_usage: ResourceUsage,
     ) -> Result<RefusalBuilder, StageDomainMismatch> {
         stage.validate_domain(code.domain())?;
         let mut causes = CauseChain::new();
@@ -750,6 +850,7 @@ impl ProtocolRefusal {
             identity: AffectedIdentity::NotApplicable,
             location: Location::Unavailable(Unavailability::NotReportedBySource),
             causes,
+            resource_usage,
             rendering: Rendering::default(),
         })
     }
@@ -806,6 +907,12 @@ impl ProtocolRefusal {
     #[must_use]
     pub fn causes(&self) -> &CauseChain {
         &self.0.causes
+    }
+
+    /// Exact Protocol usage and separately retained external-owner usage.
+    #[must_use]
+    pub const fn resource_usage(&self) -> &ResourceUsage {
+        &self.0.resource_usage
     }
 
     /// What, if anything, survived the refusal.
@@ -865,6 +972,7 @@ impl ProtocolRefusal {
             &self.0.identity,
             &self.0.location,
             &self.0.causes,
+            &self.0.resource_usage,
             self.0.partial_output,
         ) == (
             other.0.code,
@@ -874,6 +982,7 @@ impl ProtocolRefusal {
             &other.0.identity,
             &other.0.location,
             &other.0.causes,
+            &other.0.resource_usage,
             other.0.partial_output,
         )
     }
@@ -893,6 +1002,7 @@ impl ProtocolRefusal {
         &AffectedIdentity,
         &Location,
         &CauseChain,
+        &ResourceUsage,
         PartialOutput,
     ) {
         (
@@ -904,6 +1014,7 @@ impl ProtocolRefusal {
             &self.0.identity,
             &self.0.location,
             &self.0.causes,
+            &self.0.resource_usage,
             self.0.partial_output,
         )
     }
@@ -958,6 +1069,7 @@ pub(crate) struct RefusalBuilder {
     identity: AffectedIdentity,
     location: Location,
     causes: CauseChain,
+    resource_usage: ResourceUsage,
     rendering: Rendering,
 }
 
@@ -1056,6 +1168,7 @@ impl RefusalBuilder {
             identity: self.identity,
             location: self.location,
             causes: self.causes,
+            resource_usage: self.resource_usage,
             partial_output,
             rendering: self.rendering,
         }))

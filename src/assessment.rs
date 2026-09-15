@@ -47,7 +47,7 @@ use crate::refusal::catalog::{
 };
 use crate::refusal::{
     Prerequisite, PrerequisiteState, ProtocolCause, ProtocolRefusal, ProtocolStage, RefusalAxis,
-    RefusalDomain, RetryDecision, Unavailability,
+    RefusalDomain, ResourceUsage, RetryDecision, Unavailability,
 };
 use crate::result::{self, ClaimKind};
 
@@ -342,6 +342,7 @@ fn outcome_refusal(error: BundleRefusal) -> ProtocolRefusal {
         stage,
         RefusalAxis::from_registered_code(code),
         bundle_cause(error, code),
+        ResourceUsage::protocol("quire.protocol/assessment-usage/1", &[]),
     )
     .expect("assessment bundle code belongs to claim dispatch")
     .unavailable_location(Unavailability::NotApplicableToStage);

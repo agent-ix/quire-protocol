@@ -17,9 +17,9 @@ use crate::refusal::catalog::{
 use crate::refusal::{
     AffectedIdentity, CauseDetail, InvertedSpan, Location, PartialOutput, Prerequisite,
     PrerequisiteState, ProtocolCause, ProtocolCauseKind, ProtocolRefusal, ProtocolStage,
-    RefusalAxis, RefusalCause, RefusalDomain, Rendering, SourceCause, SourceContract, SourceField,
-    SourceLocation, StageDomainMismatch, Unavailability, UnsupportedSourceContract,
-    CONTRACT as REFUSAL_CONTRACT,
+    RefusalAxis, RefusalCause, RefusalDomain, Rendering, ResourceUsage, SourceCause,
+    SourceContract, SourceField, SourceLocation, StageDomainMismatch, Unavailability,
+    UnsupportedSourceContract, CONTRACT as REFUSAL_CONTRACT,
 };
 use crate::repro::ToolchainIdentity;
 use crate::{ClaimOutcome, OperationOutcome};
@@ -36,6 +36,10 @@ fn missing_definition(value: &[u8]) -> RefusalCause {
     .into()
 }
 
+fn usage() -> ResourceUsage {
+    ResourceUsage::protocol("quire.protocol/test-usage/1", &[("operations", 1)])
+}
+
 fn representation_refusal(axis_value: &[u8]) -> ProtocolRefusal {
     let code = lookup(UNREGISTERED_CODE.code).expect("registered foundation code");
     ProtocolRefusal::builder(
@@ -44,6 +48,7 @@ fn representation_refusal(axis_value: &[u8]) -> ProtocolRefusal {
         ProtocolStage::Representation,
         axis(axis_value),
         missing_definition(b"definition/7"),
+        usage(),
     )
     .expect("representation code and stage agree")
     .identity(AffectedIdentity::retained(b"definition/7"))
@@ -166,6 +171,7 @@ fn tc_011_envelope_construction_validates_stage_domain_and_axis() {
             ProtocolStage::Admission,
             axis(b"wrong-stage"),
             missing_definition(b"definition/7"),
+            usage(),
         )
         .expect_err("a representation code cannot be raised at admission"),
         StageDomainMismatch {
@@ -324,6 +330,7 @@ fn tc_011_typed_causes_retain_order_multiplicity_and_unknown_interiors() {
         ProtocolStage::Representation,
         axis(b"unknown-source-contract"),
         RefusalCause::from(unknown.clone()),
+        usage(),
     )
     .expect("representation code and stage agree")
     .cause(second.clone())
@@ -379,6 +386,7 @@ fn tc_011_partial_output_is_explicit_and_requires_a_retained_sibling() {
         ProtocolStage::Representation,
         axis(b"claim-local-construction"),
         missing_definition(b"definition/7"),
+        usage(),
     )
     .expect("representation code and stage agree")
     .retaining_independent("first-row", vec!["second-row"]);
@@ -456,6 +464,7 @@ fn tc_011_every_foundation_envelope_field_is_typed_and_readable() {
         ProtocolStage::Representation,
         axis(b"missing-definition"),
         missing_definition(b"definition/7"),
+        usage(),
     )
     .expect("representation code and stage agree")
     .prerequisite(Prerequisite::new(
@@ -489,6 +498,33 @@ fn tc_011_every_foundation_envelope_field_is_typed_and_readable() {
     );
     assert_eq!(refusal.location(), &Location::Available(location));
     assert_eq!(refusal.causes().len(), 1);
+    assert_eq!(
+        refusal
+            .resource_usage()
+            .protocol_record()
+            .owner()
+            .as_bytes(),
+        b"agent-ix/quire-protocol"
+    );
+    assert_eq!(
+        refusal
+            .resource_usage()
+            .protocol_record()
+            .contract()
+            .as_bytes(),
+        b"quire.protocol/test-usage/1"
+    );
+    assert_eq!(
+        refusal.resource_usage().protocol_record().measures()[0]
+            .dimension()
+            .as_bytes(),
+        b"operations"
+    );
+    assert_eq!(
+        refusal.resource_usage().protocol_record().measures()[0].consumed(),
+        1
+    );
+    assert!(refusal.resource_usage().external_records().is_empty());
     assert_eq!(refusal.partial_output(), PartialOutput::NoneEmitted);
     assert_eq!(refusal.retry(), code.retry());
     assert_eq!(refusal.rendering().locale, "en-GB");
@@ -528,6 +564,7 @@ fn tc_011_each_refusal_identity_component_changes_equality() {
             ProtocolStage::Representation,
             axis(b"axis-a"),
             missing_definition(b"definition/7"),
+            usage(),
         )
         .expect("representation code and stage agree")
     };
@@ -539,6 +576,7 @@ fn tc_011_each_refusal_identity_component_changes_equality() {
         ProtocolStage::Representation,
         axis(b"axis-a"),
         missing_definition(b"definition/7"),
+        usage(),
     )
     .expect("representation code and stage agree")
     .emitting_nothing();
@@ -554,6 +592,7 @@ fn tc_011_each_refusal_identity_component_changes_equality() {
         ProtocolStage::Representation,
         axis(b"axis-a"),
         missing_definition(b"definition/7"),
+        usage(),
     )
     .expect("representation code and stage agree")
     .emitting_nothing();
@@ -566,6 +605,7 @@ fn tc_011_each_refusal_identity_component_changes_equality() {
         ProtocolStage::ResultAssembly,
         axis(b"axis-a"),
         missing_definition(b"definition/7"),
+        usage(),
     )
     .expect("result assembly belongs to result")
     .emitting_nothing();
@@ -575,10 +615,28 @@ fn tc_011_each_refusal_identity_component_changes_equality() {
         ProtocolStage::ResultRead,
         axis(b"axis-a"),
         missing_definition(b"definition/7"),
+        usage(),
     )
     .expect("result read belongs to result")
     .emitting_nothing();
     assert_ne!(at_assembly, at_read, "stage is part of identity");
+
+    let other_usage = ProtocolRefusal::builder(
+        code,
+        CatalogSelection::local(),
+        ProtocolStage::Representation,
+        axis(b"axis-a"),
+        missing_definition(b"definition/7"),
+        ResourceUsage::protocol("quire.protocol/test-usage/1", &[("operations", 2)]),
+    )
+    .expect("representation code and stage agree")
+    .emitting_nothing();
+    assert_ne!(other_usage, base, "resource usage is part of identity");
+    assert_ne!(
+        hash_of(&other_usage),
+        hash_of(&base),
+        "resource usage changes the identity hash"
+    );
 
     assert_ne!(
         build()
@@ -621,6 +679,7 @@ fn tc_011_each_refusal_identity_component_changes_equality() {
             ProtocolStage::Representation,
             axis(b"axis-b"),
             missing_definition(b"definition/7"),
+            usage(),
         )
         .expect("representation code and stage agree")
         .emitting_nothing(),
@@ -651,6 +710,7 @@ fn tc_011_unavailability_and_prerequisite_states_do_not_collapse() {
             ProtocolStage::Representation,
             axis(b"axis-a"),
             missing_definition(b"definition/7"),
+            usage(),
         )
         .expect("representation code and stage agree")
         .unavailable_location(reason)
@@ -677,6 +737,7 @@ fn tc_011_unavailability_and_prerequisite_states_do_not_collapse() {
             ProtocolStage::Representation,
             axis(b"axis-a"),
             missing_definition(b"definition/7"),
+            usage(),
         )
         .expect("representation code and stage agree")
         .prerequisite(Prerequisite::new(ProtocolStage::Admission, state))

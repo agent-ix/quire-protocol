@@ -25,7 +25,8 @@ use crate::bounds::{Clock, Phase, SiteId, SiteKind, UnitLabel};
 use crate::outcome::OperationOutcome;
 use crate::refusal::catalog::{self, CatalogSelection, RetainedBytes};
 use crate::refusal::{
-    AffectedIdentity, ProtocolCause, ProtocolRefusal, ProtocolStage, RefusalAxis, Unavailability,
+    AffectedIdentity, ProtocolCause, ProtocolRefusal, ProtocolStage, RefusalAxis, ResourceUsage,
+    Unavailability,
 };
 use crate::ByteDigest;
 
@@ -859,6 +860,7 @@ fn refusal(
         ProtocolStage::ContractResolution,
         RefusalAxis::from_registered_code(registered),
         cause.into(),
+        ResourceUsage::protocol("quire.protocol/resolution-usage/1", &[]),
     )
     .expect("every resolver code belongs to the resolution domain")
     .identity(identity)

@@ -10,7 +10,8 @@ use crate::refusal::catalog::{
 };
 use crate::refusal::{
     AffectedIdentity, Prerequisite, PrerequisiteState, ProtocolCause, ProtocolRefusal,
-    ProtocolStage, RefusalAxis, RefusalCause, RefusalDomain, RetryDecision, Unavailability,
+    ProtocolStage, RefusalAxis, RefusalCause, RefusalDomain, ResourceUsage, RetryDecision,
+    Unavailability,
 };
 use crate::ByteDigest;
 
@@ -197,6 +198,7 @@ impl ClaimFailure {
         request: &ClaimRequest<'_>,
         defects: Vec<PremiseDefect>,
         retains_independent: bool,
+        usage: Usage,
     ) -> Self {
         let mut preimage = Vec::new();
         push_part(&mut preimage, code.as_str().as_bytes());
@@ -227,6 +229,7 @@ impl ClaimFailure {
             ProtocolStage::ClaimDispatch,
             RefusalAxis::from_registered_code(refusal_code),
             first_cause,
+            refusal_usage(usage),
         )
         .expect("claim codes belong to claim dispatch")
         .prerequisite(Prerequisite::new(
@@ -409,6 +412,7 @@ pub(crate) fn dispatch_from_conformance(
                 FailureCode::DuplicateRequest,
                 Vec::new(),
                 retains_independent,
+                usage,
             ));
             continue;
         }
@@ -419,6 +423,7 @@ pub(crate) fn dispatch_from_conformance(
                 FailureCode::InvalidPremises,
                 defects,
                 retains_independent,
+                usage,
             ));
             continue;
         }
@@ -551,6 +556,7 @@ fn refused(
     code: FailureCode,
     defects: Vec<PremiseDefect>,
     retains_independent: bool,
+    usage: Usage,
 ) -> Disposition {
     Disposition {
         request_identity: request.identity.clone(),
@@ -564,6 +570,7 @@ fn refused(
             request,
             defects,
             retains_independent,
+            usage,
         )),
     }
 }
@@ -684,6 +691,7 @@ fn resource_refusal(usage: Usage) -> Refusal {
             evidence: RetainedBytes::new(b"claim-dispatch-owner-limit"),
         }
         .into(),
+        refusal_usage(usage),
     )
     .expect("claim codes belong to claim dispatch")
     .prerequisite(Prerequisite::new(
@@ -693,6 +701,17 @@ fn resource_refusal(usage: Usage) -> Refusal {
     .unavailable_location(Unavailability::NotApplicableToStage)
     .emitting_nothing();
     Refusal { usage, envelope }
+}
+
+fn refusal_usage(usage: Usage) -> ResourceUsage {
+    ResourceUsage::protocol(
+        "quire.protocol/claim-dispatch-usage/1",
+        &[
+            ("requests", usage.requests),
+            ("components", usage.components),
+            ("bytes", usage.bytes),
+        ],
+    )
 }
 
 fn defect_cause(defect: &PremiseDefect) -> RefusalCause {
