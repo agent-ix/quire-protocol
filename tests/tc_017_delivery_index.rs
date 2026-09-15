@@ -250,8 +250,14 @@ fn tc_017_limit_vocabulary_is_typed_and_ordered_without_substitution() {
 #[trace("TC-017", "NFR-002-AC-2")]
 fn tc_017_bounded_assembly_charges_exact_retained_bytes_before_the_index_exists() {
     let inventory = production_inventory().expect("production sites reconcile");
+    let exact_retained_bytes = b"delivery-a".len()
+        + b"producer-revision-1".len()
+        + b"offer.json".len()
+        + b"{\n  \"exact\": true\n}\n".len()
+        + b"artifact-ref:producer/2".len()
+        + b"temporal.json".len();
     let budget = Budget::nothing_granted()
-        .grant(BudgetDimension::InputByte, 1)
+        .grant(BudgetDimension::InputByte, exact_retained_bytes - 1)
         .expect("positive byte budget")
         .grant(BudgetDimension::AccountedAllocation, 1)
         .expect("positive allocation budget");
@@ -274,7 +280,7 @@ fn tc_017_bounded_assembly_charges_exact_retained_bytes_before_the_index_exists(
     );
 
     let sufficient = Budget::nothing_granted()
-        .grant(BudgetDimension::InputByte, 4_096)
+        .grant(BudgetDimension::InputByte, exact_retained_bytes)
         .expect("positive byte budget")
         .grant(BudgetDimension::AccountedAllocation, 1)
         .expect("positive allocation budget");
@@ -287,7 +293,10 @@ fn tc_017_bounded_assembly_charges_exact_retained_bytes_before_the_index_exists(
         ),
         OperationOutcome::Completed(_)
     ));
-    assert!(fresh.usage().consumed(BudgetDimension::InputByte) > 1);
+    assert_eq!(
+        fresh.usage().consumed(BudgetDimension::InputByte),
+        exact_retained_bytes
+    );
     assert_eq!(
         fresh.usage().consumed(BudgetDimension::AccountedAllocation),
         1

@@ -502,7 +502,7 @@ impl DeliveryIndex {
         contents: DeliveryIndexContents,
         resources: &mut ResourceAccountant<'_>,
     ) -> OperationOutcome<Self, DeliveryIndexError> {
-        let bytes = retained_bytes(&contents);
+        let bytes = retained_bytes(&key, &contents);
         let bytes = match bytes {
             Ok(value) => value,
             Err(error) => return OperationOutcome::DomainError(error),
@@ -647,8 +647,19 @@ impl DeliveryIndex {
     }
 }
 
-fn retained_bytes(contents: &DeliveryIndexContents) -> Result<usize, DeliveryIndexError> {
-    let mut total = contents.offer.path.as_bytes().len();
+fn retained_bytes(
+    key: &DeliveryIndexKey,
+    contents: &DeliveryIndexContents,
+) -> Result<usize, DeliveryIndexError> {
+    let mut total = key.delivery_root().as_bytes().len();
+    for bytes in [
+        key.producer_revision().as_bytes(),
+        contents.offer.path.as_bytes(),
+    ] {
+        total = total
+            .checked_add(bytes.len())
+            .ok_or(DeliveryIndexError::RetainedBytesOverflow)?;
+    }
     for bytes in [
         contents.offer.bytes.as_bytes(),
         contents.artifact_reference.as_bytes(),
@@ -671,6 +682,16 @@ fn retained_bytes(contents: &DeliveryIndexContents) -> Result<usize, DeliveryInd
     }
     for binding in &contents.temporal_bindings {
         for bytes in [binding.owner.as_bytes(), binding.path.as_bytes()] {
+            total = total
+                .checked_add(bytes.len())
+                .ok_or(DeliveryIndexError::RetainedBytesOverflow)?;
+        }
+    }
+    for limit in &contents.limits {
+        for bytes in [
+            limit.accountant.owner().as_bytes(),
+            limit.accountant.contract_version().as_bytes(),
+        ] {
             total = total
                 .checked_add(bytes.len())
                 .ok_or(DeliveryIndexError::RetainedBytesOverflow)?;
