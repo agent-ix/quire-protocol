@@ -292,6 +292,105 @@ fn tc_002_binding_contract_and_slot_mutations_refuse_without_a_runtime_set() {
     );
 }
 
+/// Every static capability validation axis has a distinct one-axis mutation;
+/// none is silently repaired into a different binding definition.
+#[test]
+#[trace("TC-002", "FR-002-AC-3")]
+fn tc_002_static_definition_mutations_refuse_before_runtime_values_exist() {
+    let selected_producer = producer().key().clone();
+    assert_eq!(
+        StaticBindingDefinition::new(
+            STATIC_BINDING_CONTRACT,
+            StaticSelection {
+                identity: String::new().into(),
+                revision: "1".into(),
+                digest: [1; 32],
+            },
+            selected_producer.clone(),
+            3,
+            vec![],
+            vec![StaticSlot {
+                handle: SlotHandle::new(11),
+                compatibility: SlotCompatibility::Subject {
+                    kind: SubjectKind::new(ORDER_KIND.to_vec()).expect("non-empty kind"),
+                },
+            }],
+        ),
+        Err(StaticRefusal::EmptySelection)
+    );
+    assert_eq!(
+        StaticBindingDefinition::new(
+            STATIC_BINDING_CONTRACT,
+            selection(),
+            selected_producer.clone(),
+            3,
+            vec![
+                RoleClassification {
+                    role_handle: 7,
+                    internality: Internality::Internal,
+                },
+                RoleClassification {
+                    role_handle: 7,
+                    internality: Internality::External,
+                },
+            ],
+            vec![StaticSlot {
+                handle: SlotHandle::new(11),
+                compatibility: SlotCompatibility::Subject {
+                    kind: SubjectKind::new(ORDER_KIND.to_vec()).expect("non-empty kind"),
+                },
+            }],
+        ),
+        Err(StaticRefusal::DuplicateRole)
+    );
+    let slot = StaticSlot {
+        handle: SlotHandle::new(11),
+        compatibility: SlotCompatibility::Subject {
+            kind: SubjectKind::new(ORDER_KIND.to_vec()).expect("non-empty kind"),
+        },
+    };
+    assert_eq!(
+        StaticBindingDefinition::new(
+            STATIC_BINDING_CONTRACT,
+            selection(),
+            selected_producer.clone(),
+            3,
+            vec![],
+            vec![slot.clone(), slot],
+        ),
+        Err(StaticRefusal::DuplicateSlot)
+    );
+    assert_eq!(
+        StaticBindingDefinition::new(
+            STATIC_BINDING_CONTRACT,
+            selection(),
+            selected_producer.clone(),
+            3,
+            vec![],
+            vec![],
+        ),
+        Err(StaticRefusal::EmptySlots)
+    );
+    assert_eq!(
+        StaticBindingDefinition::new(
+            STATIC_BINDING_CONTRACT,
+            selection(),
+            selected_producer,
+            3,
+            vec![],
+            vec![StaticSlot {
+                handle: SlotHandle::new(11),
+                compatibility: SlotCompatibility::Relationship {
+                    declaration_identity: String::new().into(),
+                    source_kind: SubjectKind::new(ORDER_KIND.to_vec()).expect("non-empty kind"),
+                    target_kind: SubjectKind::new(SHIPMENT_KIND.to_vec()).expect("non-empty kind"),
+                },
+            }],
+        ),
+        Err(StaticRefusal::EmptyRelationshipDeclaration)
+    );
+}
+
 /// The runtime producer authority is selected by the static definition. A
 /// separately admitted static bundle cannot supply a concrete runtime value to
 /// that definition even when its subject kind and identity spelling match.
@@ -317,6 +416,30 @@ fn tc_002_runtime_bindings_refuse_a_foreign_selected_producer() {
             )],
         ),
         Err(RuntimeRefusal::ForeignStaticProducer)
+    );
+}
+
+/// A runtime subject must itself carry the authority selected by the static
+/// definition; supplying the right bundle argument cannot bless another
+/// bundle's concrete QObs subject.
+#[test]
+#[trace("TC-002", "FR-002-AC-3")]
+fn tc_002_runtime_binding_refuses_a_foreign_value_authority() {
+    let definition = definition();
+    let selected = producer();
+    let foreign = foreign_producer();
+    assert_eq!(
+        RuntimeBindingSet::new(
+            RUNTIME_BINDING_CONTRACT,
+            definition.selection(),
+            &definition,
+            &selected,
+            vec![RuntimeBinding::subject(
+                SlotHandle::new(11),
+                subject(&foreign)
+            )],
+        ),
+        Err(RuntimeRefusal::ForeignAuthority(SlotHandle::new(11)))
     );
 }
 
