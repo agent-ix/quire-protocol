@@ -1365,4 +1365,19 @@ fn tc_002_effect_projection_requires_an_owner_effect_slot() {
     assert_eq!(registrations[1].compensation_handle(), 1);
     assert_eq!(registrations[0].effect().subject(), &observed);
     assert_eq!(registrations[1].effect().subject(), &observed);
+
+    let engine = Engine::new(context, vec![Claim::Conformance])
+        .expect("the linked effect context starts a non-retargetable assessment");
+    assert_eq!(engine.compensation_inputs().len(), 2);
+    let bundle = engine
+        .assemble(vec![ClaimRow {
+            claim: Claim::Conformance,
+            outcome: ClaimOutcome::Canonical(()),
+        }])
+        .expect("the exact compensation inputs survive complete bundle assembly");
+    assert_eq!(bundle.compensation_inputs().len(), 2);
+    assert_eq!(
+        bundle.compensation_inputs()[0].effect().subject(),
+        &observed
+    );
 }

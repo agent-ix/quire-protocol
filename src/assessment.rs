@@ -9,7 +9,7 @@ use quire_observation::authority::{closure as observation_closure, progress};
 
 use crate::claims::Claim;
 use crate::closure::GlobalConformanceClosure;
-use crate::model::v2::{DefinitionIdentity, LinkedAssessment};
+use crate::model::v2::{CompensationRegistrationInput, DefinitionIdentity, LinkedAssessment};
 use crate::outcome::ClaimOutcome;
 use crate::refusal::catalog::{CatalogSelection, CodeEntry, CodeModule, Provenance, RefusalCode};
 use crate::refusal::{
@@ -126,6 +126,7 @@ fn outcome_refusal(error: BundleRefusal) -> ProtocolRefusal {
 pub struct Engine<'a> {
     context: LinkedAssessment<'a>,
     identity: DefinitionIdentity,
+    compensation_inputs: Vec<CompensationRegistrationInput<'a>>,
     requested: Vec<Claim>,
 }
 
@@ -149,11 +150,20 @@ impl<'a> Engine<'a> {
         let identity = context
             .definition_identity()
             .map_err(|_| BundleRefusal::InvalidDefinitionIdentity)?;
+        let compensation_inputs = context.compensation_registration_inputs();
         Ok(Self {
             context,
             identity,
+            compensation_inputs,
             requested,
         })
+    }
+
+    /// Returns every exact QSL-compensation/QObs-effect registration input
+    /// captured when this non-retargetable request was created.
+    #[must_use]
+    pub fn compensation_inputs(&self) -> &[CompensationRegistrationInput<'a>] {
+        &self.compensation_inputs
     }
 
     /// Retain one independent outcome for every selected claim.
@@ -165,6 +175,7 @@ impl<'a> Engine<'a> {
         Ok(AssessmentBundle {
             context: self.context,
             identity: self.identity,
+            compensation_inputs: self.compensation_inputs,
             rows,
         })
     }
@@ -257,6 +268,7 @@ fn validate_rows<Row>(requested: &[Claim], rows: &[ClaimRow<Row>]) -> Result<(),
 pub struct AssessmentBundle<'a, Row> {
     context: LinkedAssessment<'a>,
     identity: DefinitionIdentity,
+    compensation_inputs: Vec<CompensationRegistrationInput<'a>>,
     rows: Vec<ClaimRow<Row>>,
 }
 
@@ -270,6 +282,12 @@ impl<Row> AssessmentBundle<'_, Row> {
     #[must_use]
     pub const fn identity(&self) -> &DefinitionIdentity {
         &self.identity
+    }
+    /// Exact static-compensation/runtime-effect pairs available to the pure
+    /// compensation stage for this one linked assessment.
+    #[must_use]
+    pub fn compensation_inputs(&self) -> &[CompensationRegistrationInput<'_>] {
+        &self.compensation_inputs
     }
     /// One ordered outcome for every requested claim.
     #[must_use]
