@@ -4,6 +4,7 @@
 #![deny(clippy::wildcard_enum_match_arm)]
 
 use crate::closure::AssessmentExecution;
+use crate::conformance::{GlobalDisposition, Report as ConformanceReport};
 use crate::refusal::catalog::{CatalogSelection, CodeEntry, CodeModule, Provenance, RefusalCode};
 use crate::refusal::{
     AffectedIdentity, ProtocolRefusal, ProtocolStage, RefusalAxis, RefusalDomain, RetryDecision,
@@ -368,6 +369,89 @@ impl std::error::Error for Refusal {}
 
 /// Dispatch return type.
 pub type Result<T> = std::result::Result<T, Refusal>;
+
+/// Dispatch the closed locally supported claim set from an authoritative
+/// conformance report.
+///
+/// This production path deliberately exposes no backend callback: finite
+/// conformance is answered only from the report produced by QProtocol's own
+/// conformance owner, while every other claim remains explicitly unsupported.
+/// The legacy backend seam remains only while its migration tests are being
+/// replaced; callers of this entry point cannot substitute an implementation.
+pub fn dispatch_from_conformance(
+    requests: &[ClaimRequest<'_>],
+    conformance: &ConformanceReport,
+    limits: Limits,
+) -> Result<Report> {
+    let effective = limits.effective();
+    let usage = preflight(requests, 0);
+    if usage.requests > effective.max_requests
+        || usage.components > effective.max_components
+        || usage.bytes > effective.max_bytes
+    {
+        return Err(resource_refusal(usage));
+    }
+    let retains_independent = requests.len() > 1;
+    let mut request_identities = std::collections::BTreeMap::new();
+    for request in requests {
+        *request_identities
+            .entry(request.identity.as_ref())
+            .or_insert(0usize) += 1;
+    }
+    let mut dispositions = Vec::with_capacity(requests.len());
+    for request in requests {
+        if request_identities
+            .get(request.identity.as_ref())
+            .is_some_and(|count| *count > 1)
+        {
+            dispositions.push(refused(
+                request,
+                FailureCode::DuplicateRequest,
+                Vec::new(),
+                retains_independent,
+            ));
+            continue;
+        }
+        let defects = request_defects(request);
+        if !defects.is_empty() {
+            dispositions.push(refused(
+                request,
+                FailureCode::InvalidPremises,
+                defects,
+                retains_independent,
+            ));
+            continue;
+        }
+        match request.claim {
+            Claim::Conformance => dispositions.push(Disposition {
+                request_identity: request.identity.clone(),
+                claim: request.claim,
+                strength: request.strength.clone(),
+                execution: conformance.premises.execution,
+                decision: (conformance.premises.execution == AssessmentExecution::Completed)
+                    .then_some(match conformance.global {
+                        GlobalDisposition::Conforms => Decision::Established,
+                        GlobalDisposition::Pending
+                        | GlobalDisposition::Violates
+                        | GlobalDisposition::Unavailable => Decision::NotEstablished,
+                    }),
+                premises: request.premises.clone(),
+                failure: None,
+            }),
+            Claim::Monitorability
+            | Claim::Projection
+            | Claim::Realizability
+            | Claim::Refinement
+            | Claim::Composition => {
+                dispositions.push(unavailable(request, AssessmentExecution::Unsupported));
+            }
+        }
+    }
+    Ok(Report {
+        dispositions,
+        usage,
+    })
+}
 
 /// Dispatch every exact request independently and invoke no fallback backend.
 pub fn dispatch(
