@@ -1461,7 +1461,7 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
         .expect("a mapped activation and QSL occurrence form one derived obligation");
     let derived_model = engine
         .conformance()
-        .derive_model(&[derived_occurrence.clone()])
+        .derive_model(std::slice::from_ref(&derived_occurrence))
         .expect("the production model derives from activation owner facts");
     assert_eq!(derived_model.obligations().len(), 1);
     assert_eq!(
