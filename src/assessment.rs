@@ -62,14 +62,22 @@ pub struct ClaimRow<Row> {
 /// The Engine owns construction and strict rereading; callers supply only the
 /// independently typed subsystem facts required by the result owner.
 #[derive(Clone, Debug)]
-#[expect(
-    dead_code,
-    reason = "Task-006 retains the private result composition candidate until typed stage outputs are wired into Engine"
-)]
-pub(crate) struct CanonicalRowInput<'a> {
-    pub(crate) claim: Claim,
-    pub(crate) input: result::Input<'a>,
-    pub(crate) limits: result::Limits,
+pub struct CanonicalRowInput<'a> {
+    claim: Claim,
+    input: result::Input<'a>,
+    limits: result::Limits,
+}
+
+impl<'a> CanonicalRowInput<'a> {
+    /// Retain one typed result-owner input for its exact requested claim.
+    #[must_use]
+    pub const fn new(claim: Claim, input: result::Input<'a>, limits: result::Limits) -> Self {
+        Self {
+            claim,
+            input,
+            limits,
+        }
+    }
 }
 
 /// The exact QObs event and QSL v2 request selected for one activation site.
@@ -147,6 +155,8 @@ pub enum BundleRefusal {
     InvalidConformanceKernel,
     /// A canonical result row was offered under a different requested claim.
     CanonicalClaimMismatch,
+    /// A canonical input borrows a QSL view from another admitted package.
+    CanonicalPackageMismatch,
     /// QSL v2 opaque trigger bytes differ from the selected QObs subject.
     ActivationSubjectMismatch,
     /// The QSL v2 temporal declaration is not selected by this protocol definition.
@@ -211,6 +221,11 @@ bundle_code!(
     RefusalDomain::Result
 );
 bundle_code!(
+    BUNDLE_PACKAGE_MISMATCH,
+    "assessment-result.bundle-package-mismatch",
+    RefusalDomain::Result
+);
+bundle_code!(
     BUNDLE_ACTIVATION_SUBJECT,
     "assessment-activation.subject-mismatch",
     RefusalDomain::Assessment
@@ -256,7 +271,7 @@ pub const RESULT_CODES: CodeModule = CodeModule {
     root: "assessment-result",
     owner: "Task-006",
     module_path: "quire_protocol::assessment",
-    entries: &[BUNDLE_CLAIM_MISMATCH],
+    entries: &[BUNDLE_CLAIM_MISMATCH, BUNDLE_PACKAGE_MISMATCH],
 };
 
 /// Compensation-stage activation-binding codes.
@@ -289,6 +304,9 @@ fn outcome_refusal(error: BundleRefusal) -> ProtocolRefusal {
         ),
         BundleRefusal::CanonicalClaimMismatch => {
             (&BUNDLE_CLAIM_MISMATCH, ProtocolStage::ResultAssembly)
+        }
+        BundleRefusal::CanonicalPackageMismatch => {
+            (&BUNDLE_PACKAGE_MISMATCH, ProtocolStage::ResultAssembly)
         }
         BundleRefusal::ActivationSubjectMismatch => {
             (&BUNDLE_ACTIVATION_SUBJECT, ProtocolStage::Compensation)
@@ -1062,13 +1080,18 @@ impl<'a> Engine<'a> {
 
     /// Construct and strict-read each canonical result row from typed owner
     /// inputs. A result-owner refusal remains local to its selected claim.
-    pub(crate) fn construct_canonical(
+    pub fn construct_canonical(
         self,
         inputs: Vec<CanonicalRowInput<'a>>,
     ) -> Result<AssessmentBundle<'a, result::ValidatedResult>, BundleRefusal> {
         validate_input_claims(&self.requested, &inputs)?;
         let mut rows = Vec::with_capacity(inputs.len());
         for selected in inputs {
+            validate_input_package(
+                self.context.package().digest(),
+                selected.input.checked_predicate.package_digest(),
+                selected.input.temporal_subject.package_digest(),
+            )?;
             if claim_from_result_kind(selected.input.claim.kind) != selected.claim {
                 return Err(BundleRefusal::CanonicalClaimMismatch);
             }
@@ -1098,11 +1121,7 @@ impl<'a> Engine<'a> {
     /// algebra. Whole-assessment cardinality failures cannot retain a bundle;
     /// individual result-owner failures remain claim-local inside a completed
     /// bundle.
-    #[expect(
-        dead_code,
-        reason = "Task-006 retains the private result composition candidate until typed stage outputs are wired into Engine"
-    )]
-    pub(crate) fn construct_canonical_outcome(
+    pub fn construct_canonical_outcome(
         self,
         inputs: Vec<CanonicalRowInput<'a>>,
     ) -> crate::outcome::OperationOutcome<AssessmentBundle<'a, result::ValidatedResult>> {
@@ -1184,10 +1203,6 @@ fn observation_position(
         .position(|(_, identity)| identity == observation.payload().observation_identity())
 }
 
-#[expect(
-    dead_code,
-    reason = "Task-006 retains the private result composition candidate until typed stage outputs are wired into Engine"
-)]
 fn validate_input_claims(
     requested: &[Claim],
     inputs: &[CanonicalRowInput<'_>],
@@ -1207,6 +1222,21 @@ fn validate_input_claims(
         return Err(BundleRefusal::MissingClaimRow);
     }
     Ok(())
+}
+
+/// Require both strict QSL source views used by a result owner to answer this
+/// Engine's one admitted package. A result reader may validate each view on its
+/// own, but only this boundary can prevent cross-assessment retargeting.
+fn validate_input_package(
+    expected: crate::ByteDigest,
+    predicate: crate::ByteDigest,
+    temporal: crate::ByteDigest,
+) -> Result<(), BundleRefusal> {
+    if expected == predicate && expected == temporal {
+        Ok(())
+    } else {
+        Err(BundleRefusal::CanonicalPackageMismatch)
+    }
 }
 
 const fn claim_from_result_kind(kind: ClaimKind) -> Claim {
@@ -1310,13 +1340,14 @@ impl<Row> AssessmentBundle<'_, Row> {
 #[cfg(test)]
 mod tests {
     use super::{
-        claim_from_result_kind, outcome_refusal, validate_requested, validate_rows, BundleRefusal,
-        ClaimRow,
+        claim_from_result_kind, outcome_refusal, validate_input_package, validate_requested,
+        validate_rows, BundleRefusal, ClaimRow,
     };
     use crate::claims::Claim;
     use crate::outcome::ClaimOutcome;
     use crate::refusal::{PartialOutput, ProtocolStage, RefusalDomain};
     use crate::result::ClaimKind;
+    use crate::ByteDigest;
     use ix_trace_rs::trace;
     use std::collections::BTreeSet;
 
@@ -1432,6 +1463,11 @@ mod tests {
                 ProtocolStage::ResultAssembly,
             ),
             (
+                BundleRefusal::CanonicalPackageMismatch,
+                RefusalDomain::Result,
+                ProtocolStage::ResultAssembly,
+            ),
+            (
                 BundleRefusal::ActivationSubjectMismatch,
                 RefusalDomain::Assessment,
                 ProtocolStage::Compensation,
@@ -1479,6 +1515,20 @@ mod tests {
         assert_eq!(
             claim_from_result_kind(ClaimKind::Composition),
             Claim::Composition
+        );
+    }
+
+    #[test]
+    fn canonical_input_views_must_borrow_the_engines_admitted_package() {
+        let selected = ByteDigest::of(b"selected-package");
+        assert_eq!(validate_input_package(selected, selected, selected), Ok(()));
+        assert_eq!(
+            validate_input_package(selected, ByteDigest::of(b"foreign"), selected),
+            Err(BundleRefusal::CanonicalPackageMismatch)
+        );
+        assert_eq!(
+            validate_input_package(selected, selected, ByteDigest::of(b"foreign")),
+            Err(BundleRefusal::CanonicalPackageMismatch)
         );
     }
 }
