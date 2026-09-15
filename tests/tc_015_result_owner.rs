@@ -653,7 +653,14 @@ fn dispatch_inputs_with_claim_refusal() -> (Vec<ClaimRequest<'static>>, Conforma
 /// The public Engine boundary constructs and strict-reads owner rows against
 /// its one linked `/2` package; it has no caller-provided result document seam.
 #[test]
-#[trace("TC-006", "FR-006-AC-1", "FR-006-AC-2", "FR-008-AC-1", "Task-006")]
+#[trace(
+    "TC-006",
+    "FR-006-AC-1",
+    "FR-006-AC-2",
+    "FR-006-AC-9",
+    "FR-008-AC-1",
+    "Task-006"
+)]
 fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
     let loaded = handoff::Handoff::load().expect("published v2 handoff");
     let declarations = loaded.declarations();
@@ -761,19 +768,20 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
         AssessmentExecution::Refused
     );
     assert!(dispatch.dispositions[1].failure.is_some());
-    let bundle = engine
-        .construct_canonical(
-            &dispatch,
-            vec![
-                CanonicalRowInput::new(DispatchClaim::Conformance, input, Limits::owner_max()),
-                CanonicalRowInput::new(
-                    DispatchClaim::Monitorability,
-                    refused_input,
-                    Limits::owner_max(),
-                ),
-            ],
-        )
-        .expect("the engine constructs and strict-reads its canonical row");
+    let outcome = engine.construct_canonical_outcome(
+        &dispatch,
+        vec![
+            CanonicalRowInput::new(DispatchClaim::Conformance, input, Limits::owner_max()),
+            CanonicalRowInput::new(
+                DispatchClaim::Monitorability,
+                refused_input,
+                Limits::owner_max(),
+            ),
+        ],
+    );
+    let quire_protocol::outcome::OperationOutcome::Completed(bundle) = outcome else {
+        panic!("the complete assessment returns its bundle only in the completed outcome")
+    };
     assert_eq!(bundle.rows().len(), 2);
     assert!(matches!(
         &bundle.rows()[0].outcome,
