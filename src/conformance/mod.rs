@@ -26,8 +26,8 @@ pub use batch::{
 };
 pub use incremental::{compare, Incremental, IncrementalContext};
 pub use kernel::{
-    ActivationBinding, Kernel, LinkedCompensationAttempt, LinkedCompensationEffect,
-    LinkedObligation, Refusal as KernelRefusal,
+    ActivationBinding, ActivationRegistry, Kernel, LinkedCompensationAttempt,
+    LinkedCompensationEffect, LinkedObligation, Refusal as KernelRefusal,
 };
 
 /// Stable conformance refusal cause.

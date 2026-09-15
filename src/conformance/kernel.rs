@@ -39,6 +39,8 @@ pub enum Refusal {
     InvalidActivationTemporal,
     /// A QSL-validated runtime occurrence names another control.
     ActivationOccurrenceMismatch,
+    /// The same FR-300 key was replayed with different checked owner content.
+    ConflictingActivation,
 }
 
 /// Constructor-private FR-300 join of QSL, linked-graph, and QObs facts.
@@ -52,6 +54,18 @@ pub struct ActivationBinding<'a> {
     subject: QualifiedSubject,
     request: &'a temporal_v2::ValidatedRequest,
     result: &'a temporal_v2::ValidatedResult,
+}
+
+impl core::fmt::Debug for ActivationBinding<'_> {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        formatter
+            .debug_struct("ActivationBinding")
+            .field("definition", &self.definition)
+            .field("control", &self.control)
+            .field("subject", &self.subject)
+            .field("semantic_trigger", &self.semantic_trigger())
+            .finish_non_exhaustive()
+    }
 }
 
 impl ActivationBinding<'_> {
@@ -112,6 +126,68 @@ impl ActivationBinding<'_> {
         } else {
             Err(Refusal::ActivationOccurrenceMismatch)
         }
+    }
+
+    fn same_key(&self, other: &Self) -> bool {
+        self.definition == other.definition
+            && self.control == other.control
+            && self.subject == other.subject
+            && self.semantic_trigger() == other.semantic_trigger()
+    }
+
+    fn same_checked_content(&self, other: &Self) -> bool {
+        self.request.document().identity() == other.request.document().identity()
+            && self.evaluation_anchor() == other.evaluation_anchor()
+            && self.captures().eq(other.captures())
+            && self.result.document().identity() == other.result.document().identity()
+            && self.activation() == other.activation()
+    }
+}
+
+/// Replay-idempotent retained FR-300 bindings for one assessment input.
+///
+/// The registry never fabricates a key or owner fact: it only retains values
+/// formed by [`Kernel::bind_activation`]. An exact replay returns the original
+/// binding, while another checked request/result under the same four-part key
+/// refuses instead of overwriting or coalescing its owner content.
+#[derive(Default)]
+pub struct ActivationRegistry<'a> {
+    bindings: Vec<ActivationBinding<'a>>,
+}
+
+impl<'a> ActivationRegistry<'a> {
+    /// Validates and retains one exact activation, idempotently on replay.
+    pub fn admit(
+        &mut self,
+        kernel: &Kernel,
+        linked: &LinkedProtocol<'_>,
+        mappings: &v3::AdmittedPackage,
+        subject: &QualifiedSubject,
+        request: &'a temporal_v2::ValidatedRequest,
+        result: &'a temporal_v2::ValidatedResult,
+    ) -> Result<&ActivationBinding<'a>, Refusal> {
+        let candidate = kernel.bind_activation(linked, mappings, subject, request, result)?;
+        if let Some(index) = self
+            .bindings
+            .iter()
+            .position(|existing| existing.same_key(&candidate))
+        {
+            if self.bindings[index].same_checked_content(&candidate) {
+                return Ok(&self.bindings[index]);
+            }
+            return Err(Refusal::ConflictingActivation);
+        }
+        self.bindings.push(candidate);
+        match self.bindings.last() {
+            Some(binding) => Ok(binding),
+            None => unreachable!("a retained activation binding is immediately readable"),
+        }
+    }
+
+    /// Retained exact bindings in first-admission order.
+    #[must_use]
+    pub fn bindings(&self) -> &[ActivationBinding<'a>] {
+        &self.bindings
     }
 }
 

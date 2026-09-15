@@ -333,6 +333,14 @@ fn activated_request(
     package: &quire_spec_language::protocol_artifact::v2::AdmittedPackage,
     trigger: &[u8],
 ) -> temporal_v2::ValidatedRequest {
+    activated_request_at(package, trigger, "origin")
+}
+
+fn activated_request_at(
+    package: &quire_spec_language::protocol_artifact::v2::AdmittedPackage,
+    trigger: &[u8],
+    anchor: &str,
+) -> temporal_v2::ValidatedRequest {
     let declaration = package
         .inherited()
         .declarations
@@ -379,10 +387,10 @@ fn activated_request(
                 valuations: BTreeMap::from([(leaf, true)]),
             },
         }],
-        anchor: "origin".into(),
+        anchor: anchor.into(),
         triggers: vec![temporal_v2::TriggerInput {
             receipt: "receipt:1".into(),
-            anchor: "origin".into(),
+            anchor: anchor.into(),
             payload: String::new(),
             guard: None,
             captures: Vec::new(),
@@ -1313,6 +1321,62 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
         activation.activation(),
         native_temporal::result::ActivationState::Active
     ));
+    let mut activations = quire_protocol::conformance::ActivationRegistry::default();
+    activations
+        .admit(
+            engine.conformance(),
+            engine.linked(),
+            &mappings,
+            &activation_subject,
+            &request,
+            &result,
+        )
+        .expect("first strict activation retains");
+    activations
+        .admit(
+            engine.conformance(),
+            engine.linked(),
+            &mappings,
+            &activation_subject,
+            &request,
+            &result,
+        )
+        .expect("an exact strict activation replay is idempotent");
+    assert_eq!(activations.bindings().len(), 1);
+    let conflicting_request = activated_request_at(
+        &package,
+        activation_subject.identity().as_bytes(),
+        "other-origin",
+    );
+    let conflicting_result_document = temporal_v2::evaluate(
+        &conflicting_request,
+        temporal_v2::Relation::Original,
+        native_temporal::Limits::default(),
+    )
+    .into_result()
+    .expect("changed strict temporal request evaluates");
+    let conflicting_result = temporal_v2::read_result(
+        conflicting_result_document.bytes(),
+        &conflicting_request,
+        temporal_v2::Relation::Original,
+        native_temporal::Limits::default(),
+    )
+    .into_result()
+    .expect("changed strict temporal result reads");
+    assert_eq!(
+        activations
+            .admit(
+                engine.conformance(),
+                engine.linked(),
+                &mappings,
+                &activation_subject,
+                &conflicting_request,
+                &conflicting_result,
+            )
+            .expect_err("a changed checked anchor cannot overwrite the same FR-300 key"),
+        quire_protocol::conformance::KernelRefusal::ConflictingActivation
+    );
+    assert_eq!(activations.bindings().len(), 1);
     let occurrence_schema = occurrence_key_schema(
         &package,
         declaration_handle,
