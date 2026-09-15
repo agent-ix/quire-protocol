@@ -1229,6 +1229,7 @@ pub struct LinkedProtocol<'a> {
     identity: DefinitionIdentity,
     channels: Vec<LinkedChannelDefinition>,
     compensations: Vec<LinkedCompensationDefinition>,
+    causal_edges: Vec<quire_spec_language::protocol_artifact::wire::CausalEdge>,
 }
 
 /// One exact admitted compensation definition in declaration-table order.
@@ -1364,6 +1365,7 @@ pub fn link<'a>(
         .map_err(|_| LinkRefusal::InvalidIdentity)?;
     let channels = build_channels(context.package(), &identity)?;
     let compensations = build_compensations(context.package(), &identity)?;
+    let causal_edges = build_causal_edges(context.package(), &identity)?;
     registry.register(&context).map_err(|error| match error {
         RegistryRefusal::ContentContradiction => LinkRefusal::ContentContradiction,
         RegistryRefusal::InvalidIdentity => LinkRefusal::InvalidIdentity,
@@ -1373,6 +1375,7 @@ pub fn link<'a>(
         identity,
         channels,
         compensations,
+        causal_edges,
     })
 }
 
@@ -1406,6 +1409,17 @@ impl<'a> LinkedProtocol<'a> {
     #[must_use]
     pub fn compensations(&self) -> &[LinkedCompensationDefinition] {
         &self.compensations
+    }
+
+    /// Returns every admitted causal edge in its owner-declared order.
+    ///
+    /// These are QSL's complete typed edges, retained beside the linked
+    /// definition for the later deterministic conformance kernel.  This
+    /// representation neither sorts them nor infers an edge from arrival,
+    /// channel ordering, or a FIFO partition.
+    #[must_use]
+    pub fn causal_edges(&self) -> &[quire_spec_language::protocol_artifact::wire::CausalEdge] {
+        &self.causal_edges
     }
 
     /// Forms one exact partition for a selected admitted FIFO channel.
@@ -1488,6 +1502,21 @@ fn build_compensations(
             })
         })
         .collect()
+}
+
+fn build_causal_edges(
+    package: &artifact_v2::AdmittedPackage,
+    identity: &DefinitionIdentity,
+) -> Result<Vec<quire_spec_language::protocol_artifact::wire::CausalEdge>, LinkRefusal> {
+    let declaration = package
+        .inherited()
+        .declarations
+        .get(usize::try_from(identity.declaration_handle()).unwrap_or(usize::MAX))
+        .ok_or(LinkRefusal::InvalidIdentity)?;
+    let Body::Protocol { causal_edges, .. } = &declaration.body else {
+        return Err(LinkRefusal::InvalidIdentity);
+    };
+    Ok(causal_edges.clone())
 }
 
 fn build_fifo(

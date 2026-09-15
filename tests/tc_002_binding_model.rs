@@ -543,6 +543,14 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
         0,
         "compensation table coordinates remain distinct from runtime registrations"
     );
+    let Body::Protocol { causal_edges, .. } = &linked.declaration().body else {
+        unreachable!("the linked declaration was checked as a protocol");
+    };
+    assert_eq!(
+        linked.causal_edges(),
+        causal_edges,
+        "the linked graph retains QSL's exact causal edges without deriving arrival order"
+    );
     assert_eq!(
         linked.fifo_partition(ChannelHandle::new(0), b"owner-evaluated-key"),
         Err(FifoPartitionRefusal::NotFifo(ChannelHandle::new(0))),
