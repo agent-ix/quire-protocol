@@ -1178,6 +1178,16 @@ impl<'a> Engine<'a> {
                 outcome,
             });
         }
+        if rows
+            .iter()
+            .any(|row| matches!(row.outcome, ClaimOutcome::Canonical(_)))
+        {
+            for row in &mut rows {
+                if let ClaimOutcome::Refused(refusal) = &mut row.outcome {
+                    *refusal = refusal.clone().with_independent_results_retained();
+                }
+            }
+        }
         self.assemble_canonical(rows)
     }
 

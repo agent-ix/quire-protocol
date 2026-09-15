@@ -646,21 +646,34 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
 
     let fixture = fixture();
     let input = base_input(&fixture);
+    let mut refused_input = input.clone();
+    refused_input.claim.kind = ClaimKind::Monitorability;
+    let mut refusal_limits = Limits::owner_max();
+    refusal_limits.max_output_bytes = 1;
     assert_eq!(input.checked_predicate.package_digest(), package.digest());
     assert_eq!(input.temporal_subject.package_digest(), package.digest());
-    let bundle = Engine::new(context, vec![DispatchClaim::Conformance])
-        .expect("linked assessment starts one engine")
-        .construct_canonical(vec![CanonicalRowInput::new(
-            DispatchClaim::Conformance,
-            input,
-            Limits::owner_max(),
-        )])
-        .expect("the engine constructs and strict-reads its canonical row");
-    assert_eq!(bundle.rows().len(), 1);
+    let bundle = Engine::new(
+        context,
+        vec![DispatchClaim::Conformance, DispatchClaim::Monitorability],
+    )
+    .expect("linked assessment starts one engine")
+    .construct_canonical(vec![
+        CanonicalRowInput::new(DispatchClaim::Conformance, input, Limits::owner_max()),
+        CanonicalRowInput::new(DispatchClaim::Monitorability, refused_input, refusal_limits),
+    ])
+    .expect("the engine constructs and strict-reads its canonical row");
+    assert_eq!(bundle.rows().len(), 2);
     assert!(matches!(
         &bundle.rows()[0].outcome,
         quire_protocol::outcome::ClaimOutcome::Canonical(_)
     ));
+    let quire_protocol::outcome::ClaimOutcome::Refused(refusal) = &bundle.rows()[1].outcome else {
+        panic!("only the constrained claim construction must refuse");
+    };
+    assert_eq!(
+        refusal.partial_output(),
+        quire_protocol::refusal::PartialOutput::IndependentResultsRetained
+    );
 }
 
 fn validated<'a>(input: Input<'a>) -> result::ValidatedResult {
