@@ -152,9 +152,9 @@ pub struct ObservationObligation {
     /// Exact QObs observation identity required by this obligation.
     pub expected_observation_identity: Box<str>,
     /// Exact subject kind selected by the obligation.
-    pub subject_kind: Box<str>,
+    pub subject_kind: Box<[u8]>,
     /// Exact subject identity selected by the obligation.
-    pub subject_identity: Box<str>,
+    pub subject_identity: Box<[u8]>,
     /// Exact workflow-instance identity.
     pub workflow_identity: Box<str>,
     /// Exact business-effect identity, when the obligation owns an effect.
@@ -780,9 +780,10 @@ fn assess_inner(
         for (position, binding) in &bindings {
             let view = binding.observation.payload();
             let observation_identity = view.observation_identity().into();
+            let subject = view.subject();
             if view.observation_identity() != obligation.expected_observation_identity.as_ref()
-                || view.subject_kind() != obligation.subject_kind.as_ref()
-                || view.subject_identity() != obligation.subject_identity.as_ref()
+                || subject.kind != obligation.subject_kind.as_ref()
+                || subject.identity != obligation.subject_identity.as_ref()
             {
                 has_adverse = true;
                 retain_adverse(

@@ -7,7 +7,7 @@
 //!
 //! Every `Expected` value this module builds comes from the sidecar and the
 //! original input files. Nothing is read out of the offered `/2` bytes: the
-//! offer is carried to `admit_and_link_v2` untouched and has no authority to
+//! offer is carried to `intake::v2::admit` untouched and has no authority to
 //! select or repair any expectation.
 //!
 //! The sidecar and mutation-manifest record shapes are A's own published types

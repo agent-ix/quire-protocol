@@ -13,6 +13,7 @@ use ix_trace_rs::trace;
 const MANIFEST: &str = include_str!("../Cargo.toml");
 const LOCKFILE: &str = include_str!("../Cargo.lock");
 const LIBRARY: &str = include_str!("../src/lib.rs");
+const INTAKE: &str = include_str!("../src/intake.rs");
 
 /// A's accepted reader, pinned to the exact revision this lane froze.
 const FRONTEND: &str = "quire-spec-language";
@@ -45,9 +46,11 @@ const LIBRARY_MODULES: &[&str] = &[
     "conformance",
     "digest",
     "ids.rs",
+    "intake.rs",
     "inventory",
     "lib.rs",
     "link",
+    "model.rs",
     "outcome.rs",
     "refusal",
     "repro.rs",
@@ -242,11 +245,17 @@ fn it_001_declares_only_selected_owner_dependencies() {
     );
 
     // Development dependencies are harness-only: tracing, the cycle-free
-    // Contract Model types used to construct the native handoff, and JSON
-    // fixtures. None is reachable from the published library.
+    // Contract Model types used to construct the native handoff, the producer
+    // owner used to construct real QObs authorities, and JSON fixtures. None
+    // is reachable from the published library.
     assert_eq!(
         declared_packages(manifest_section("[dev-dependencies]")),
-        BTreeSet::from(["ix-trace-rs", "quire-contract-ir", "serde_json"])
+        BTreeSet::from([
+            "agent-ix-baseline-producer",
+            "ix-trace-rs",
+            "quire-contract-ir",
+            "serde_json",
+        ])
     );
 }
 
@@ -309,28 +318,35 @@ fn it_001_library_facade_only_delegates_frontend_admission() {
         .collect::<Vec<_>>();
     assert_eq!(files, frozen);
 
-    // The crate-root facade has two functions, one per admitted frontend
-    // contract, and each whole body is a call into A's reader for that contract.
-    // B's own result/conformance semantics live in their named modules; the
-    // facade adds no parser, decoder, numeric layer or alternate frontend.
+    // The crate root retains only the frozen version-1 compatibility function.
+    // Both current contracts live behind the version-explicit intake module,
+    // and each intake body is a call into A's reader for that contract. B's own
+    // result/conformance semantics live in their named modules; neither surface
+    // adds a parser, decoder, numeric layer or alternate frontend.
     //
-    // This counts `lib.rs` alone, and it is an exact count rather than a
-    // ceiling: a third function here would be B doing something to the offered
-    // bytes that neither reader does. The count was 1 until the version 2
-    // delegation landed, which is the increment this assertion was written to
-    // require a reviewer to make deliberately.
-    let functions = LIBRARY.match_indices("fn ").count();
+    // These are exact counts rather than ceilings: another function on either
+    // byte-admission surface requires a deliberate inventory change.
+    let root_functions = LIBRARY.match_indices("fn ").count();
     assert_eq!(
-        functions, 2,
-        "the library must expose one delegating function per admitted contract"
+        root_functions, 1,
+        "the crate root retains only the frozen version-1 compatibility facade"
     );
     assert!(
-        LIBRARY.contains("quire_spec_language::protocol_artifact::read(bytes, expected, limits)"),
-        "the version 1 delegation must be a bare call into A's reader"
+        LIBRARY.contains("intake::v1::admit(bytes, expected, limits)"),
+        "the root compatibility facade must delegate to versioned intake"
+    );
+    let intake_functions = INTAKE.match_indices("pub fn admit(").count();
+    assert_eq!(
+        intake_functions, 2,
+        "versioned intake must expose exactly one delegation per admitted contract"
     );
     assert!(
-        LIBRARY.contains("v2::read(bytes, expected, limits)"),
-        "the version 2 delegation must be a bare call into A's reader"
+        INTAKE.contains("protocol_artifact::read(bytes, expected, limits)"),
+        "version-1 intake must be a bare call into A's reader"
+    );
+    assert!(
+        INTAKE.contains("v2::read(bytes, expected, limits)"),
+        "version-2 intake must be a bare call into A's reader"
     );
 
     for line in LIBRARY.lines() {

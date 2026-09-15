@@ -121,7 +121,7 @@ fn the_published_handoff_is_admitted_and_linked() {
     let inventories = loaded.inventories(&declarations);
     let expected = loaded.expected(&inventories);
 
-    let report = quire_protocol::admit_and_link_v2(loaded.offer(), &expected, loaded.limits());
+    let report = quire_protocol::intake::v2::admit(loaded.offer(), &expected, loaded.limits());
     match report.result() {
         Ok(package) => {
             assert_eq!(package.digest(), loaded.reference().digest);
@@ -169,7 +169,7 @@ fn unaccepted_baseline_selections_refuse_without_offer_authority() {
             },
             ..base
         };
-        let error = quire_protocol::admit_and_link_v2(loaded.offer(), &expected, loaded.limits())
+        let error = quire_protocol::intake::v2::admit(loaded.offer(), &expected, loaded.limits())
             .into_result()
             .unwrap_err();
         assert_eq!(
@@ -192,7 +192,7 @@ fn numeric_edges_round_trip_and_invalid_forms_refuse_without_repair() {
     let declarations = loaded.declarations();
     let inventories = loaded.inventories(&declarations);
     let expected = loaded.expected(&inventories);
-    let admitted = quire_protocol::admit_and_link_v2(loaded.offer(), &expected, loaded.limits())
+    let admitted = quire_protocol::intake::v2::admit(loaded.offer(), &expected, loaded.limits())
         .into_result()
         .expect("the published numeric control must admit");
     let encoded = v2::encode_candidate(admitted.package(), loaded.limits())
@@ -349,7 +349,7 @@ fn numeric_edges_round_trip_and_invalid_forms_refuse_without_repair() {
         let mut seal = loaded.reference().clone();
         seal.digest = ByteDigest::of(&bytes);
         let expected = loaded.expected_for(&inventories, &seal);
-        let error = quire_protocol::admit_and_link_v2(&bytes, &expected, loaded.limits())
+        let error = quire_protocol::intake::v2::admit(&bytes, &expected, loaded.limits())
             .into_result()
             .unwrap_err();
         assert_eq!(
@@ -371,7 +371,7 @@ fn contract_versions_mutually_refuse_without_translation() {
     let expected_v2 = loaded.expected(&inventories);
 
     let admitted_v2 =
-        quire_protocol::admit_and_link_v2(loaded.offer(), &expected_v2, loaded.limits())
+        quire_protocol::intake::v2::admit(loaded.offer(), &expected_v2, loaded.limits())
             .into_result()
             .expect("the base /2 handoff must admit before deriving the /1 control");
 
@@ -416,7 +416,7 @@ fn contract_versions_mutually_refuse_without_translation() {
         },
         ..expected_v2
     };
-    let v1_at_v2 = quire_protocol::admit_and_link_v2(
+    let v1_at_v2 = quire_protocol::intake::v2::admit(
         candidate_v1.bytes(),
         &cross_expected_v2,
         loaded.limits(),
@@ -436,7 +436,7 @@ fn contract_versions_mutually_refuse_without_translation() {
                     .mutation_bytes(file)
                     .unwrap_or_else(|absence| panic!("case {}: {absence}", case.identity));
                 let expected = loaded.expected_for(&inventories, artifact);
-                quire_protocol::admit_and_link_v2(&bytes, &expected, loaded.limits())
+                quire_protocol::intake::v2::admit(&bytes, &expected, loaded.limits())
                     .into_result()
                     .unwrap_err()
             }
@@ -456,7 +456,7 @@ fn contract_versions_mutually_refuse_without_translation() {
                     },
                     ..base
                 };
-                quire_protocol::admit_and_link_v2(loaded.offer(), &expected, loaded.limits())
+                quire_protocol::intake::v2::admit(loaded.offer(), &expected, loaded.limits())
                     .into_result()
                     .unwrap_err()
             }
@@ -484,7 +484,7 @@ fn every_dimension_refuses_one_short_and_admits_fresh_exact_usage() {
     let declarations = loaded.declarations();
     let inventories = loaded.inventories(&declarations);
     let expected = loaded.expected(&inventories);
-    let baseline = quire_protocol::admit_and_link_v2(loaded.offer(), &expected, loaded.limits());
+    let baseline = quire_protocol::intake::v2::admit(loaded.offer(), &expected, loaded.limits());
     baseline
         .result()
         .expect("the base handoff must admit before measuring its usage");
@@ -497,7 +497,7 @@ fn every_dimension_refuses_one_short_and_admits_fresh_exact_usage() {
         let mut exact_limits = loaded.limits();
         set_limit(&mut exact_limits, dimension, exact);
         let exact_report =
-            quire_protocol::admit_and_link_v2(loaded.offer(), &expected, exact_limits);
+            quire_protocol::intake::v2::admit(loaded.offer(), &expected, exact_limits);
         assert_eq!(
             exact_report.usage(),
             usage,
@@ -509,7 +509,7 @@ fn every_dimension_refuses_one_short_and_admits_fresh_exact_usage() {
 
         let mut one_short_limits = loaded.limits();
         set_limit(&mut one_short_limits, dimension, exact - 1);
-        let error = quire_protocol::admit_and_link_v2(loaded.offer(), &expected, one_short_limits)
+        let error = quire_protocol::intake::v2::admit(loaded.offer(), &expected, one_short_limits)
             .into_result()
             .expect_err("a one-short budget must refuse before exposing a package");
         match error {
@@ -521,7 +521,7 @@ fn every_dimension_refuses_one_short_and_admits_fresh_exact_usage() {
         }
 
         let fresh_report =
-            quire_protocol::admit_and_link_v2(loaded.offer(), &expected, exact_limits);
+            quire_protocol::intake::v2::admit(loaded.offer(), &expected, exact_limits);
         assert_eq!(
             fresh_report.usage(),
             usage,
@@ -554,7 +554,7 @@ fn every_declared_mutation_is_refused_with_its_declared_identity() {
                     .unwrap_or_else(|absence| panic!("case {}: {absence}", case.identity));
                 let expected = loaded.expected_for(&inventories, artifact);
                 outcome(
-                    quire_protocol::admit_and_link_v2(&bytes, &expected, limits),
+                    quire_protocol::intake::v2::admit(&bytes, &expected, limits),
                     &case.expected_refusal_code,
                 )
             }
@@ -580,7 +580,7 @@ fn every_declared_mutation_is_refused_with_its_declared_identity() {
                     ..base
                 };
                 outcome(
-                    quire_protocol::admit_and_link_v2(loaded.offer(), &expected, limits),
+                    quire_protocol::intake::v2::admit(loaded.offer(), &expected, limits),
                     &case.expected_refusal_code,
                 )
             }
@@ -646,7 +646,7 @@ fn the_mutation_expectation_admits_the_unmutated_offer() {
     let declarations = loaded.declarations();
     let inventories = loaded.inventories(&declarations);
     let expected = loaded.expected(&inventories);
-    let report = quire_protocol::admit_and_link_v2(loaded.offer(), &expected, loaded.limits());
+    let report = quire_protocol::intake::v2::admit(loaded.offer(), &expected, loaded.limits());
     assert!(
         report.result().is_ok(),
         "the unmutated offer was refused under the mutation-loop expectation"
@@ -693,7 +693,7 @@ fn configured() -> Handoff {
 }
 
 fn base_admits(loaded: &Handoff, expected: &v2::Expected<'_>) {
-    quire_protocol::admit_and_link_v2(loaded.offer(), expected, loaded.limits())
+    quire_protocol::intake::v2::admit(loaded.offer(), expected, loaded.limits())
         .into_result()
         .expect("the unchanged offer must admit under the selected baseline");
 }
@@ -878,7 +878,7 @@ fn a_file_the_manifest_does_not_list_is_refused() {
 /// This is the hole the coverage sweep cannot see: the sweep walks the root, so
 /// bytes named outside it are never compared against anything. Without the
 /// containment check the manifest could name `../evil.json`, B would read it,
-/// and it would reach `admit_and_link_v2` with no published claim behind it.
+/// and it would reach `intake::v2::admit` with no published claim behind it.
 #[test]
 #[trace("Task-012")]
 fn a_published_path_that_escapes_the_root_is_refused() {

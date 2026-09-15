@@ -3,7 +3,7 @@
 //!
 //! `FR-002-AC-2` requires that "every permitted interleaving of bounded
 //! parallel branches preserves authored causal edges and satisfies its declared
-//! join". That is a proof obligation over what [`LinkedProtocol`] retained, not
+//! join". That is a proof obligation over what [`StaticLinkedProtocol`] retained, not
 //! a refusal the linker makes: FR-002's Behavior lists what the linker refuses
 //! and an interleaving is not on it. So this module ships no public surface and
 //! is compiled only under `cfg(test)` — a `pub` enumerator with no caller in
@@ -65,7 +65,7 @@
 //! one is `NFR-002`'s, owner chunk C-30 — the same ruling C-13 recorded for its
 //! accumulator.
 //!
-//! [`LinkedProtocol`]: super::LinkedProtocol
+//! [`StaticLinkedProtocol`]: super::StaticLinkedProtocol
 
 use std::collections::BTreeSet;
 
@@ -197,6 +197,9 @@ mod tests {
         ControlShape {
             kind,
             indices: Vec::new(),
+            operation: quire_spec_language::protocol_artifact::wire::ControlOperation::Sequence {
+                children: Vec::new(),
+            },
         }
     }
 
@@ -206,12 +209,40 @@ mod tests {
     /// written out: a rename upstream moves these fixtures with it instead of
     /// leaving four tests asserting against a literal no artifact carries.
     fn edge(kind: EdgeKind, from: Endpoint, to: Endpoint) -> EdgeShape {
+        use quire_spec_language::protocol_artifact::wire as w;
+        let port = |value| match value {
+            "enter" => w::Port::Enter,
+            "exit" => w::Port::Exit,
+            _ => unreachable!("test fixture uses only admitted port spellings"),
+        };
         EdgeShape {
             kind: kind.as_str(),
             owner: from.0,
             from,
             to,
             maximum: None,
+            exact: w::CausalEdge {
+                kind,
+                owner: w::Handle {
+                    declaration: 0,
+                    index: from.0,
+                },
+                from: w::Endpoint {
+                    node: w::Handle {
+                        declaration: 0,
+                        index: from.0,
+                    },
+                    port: port(from.1),
+                },
+                to: w::Endpoint {
+                    node: w::Handle {
+                        declaration: 0,
+                        index: to.0,
+                    },
+                    port: port(to.1),
+                },
+                maximum: w::Nullable(None),
+            },
         }
     }
 

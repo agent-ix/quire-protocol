@@ -8,9 +8,9 @@ use quire_observation::authority::{
 };
 use quire_observation::{
     admit, AdmissionOutcome, AdmissionRequest, AdmittedRecord, Anchor, ClockRange, Digest,
-    Identity, Member, ObservationBinding, PackageSelection, ProducerSelection,
-    QualifiedObservation, ResourceLimits, ScopeKind, ScopeSelection, Subject, SubjectKind,
-    ValueState, Visibility, NATIVE_LINKED_PACKAGE_FORMAT, PRODUCER_INTERFACE_VERSION,
+    Identity, Member, ObservationBinding, PackageSelection, QualifiedObservation, QualifiedSubject,
+    ResourceLimits, ScopeKind, ScopeSelection, SubjectIdentity, SubjectKind, ValueState,
+    Visibility, NATIVE_LINKED_PACKAGE_FORMAT,
 };
 use quire_protocol::bounds::inventory::{
     production_inventory, Budget, BudgetDimension, OperationOutcome, ResourceAccountant,
@@ -32,6 +32,9 @@ use serde_json::Value;
 #[path = "support/v2_handoff/mod.rs"]
 #[allow(dead_code, unused_imports)]
 mod handoff;
+
+#[path = "support/producer_owner.rs"]
+mod producer_owner;
 
 struct Fixture {
     predicate: checked_predicate::ValidatedCheckedPredicate,
@@ -62,7 +65,7 @@ fn fixture() -> Fixture {
     let declarations = loaded.declarations();
     let inventories = loaded.inventories(&declarations);
     let expected = loaded.expected(&inventories);
-    let admitted = quire_protocol::admit_and_link_v2(loaded.offer(), &expected, loaded.limits())
+    let admitted = quire_protocol::intake::v2::admit(loaded.offer(), &expected, loaded.limits())
         .into_result()
         .expect("strict v2 package");
     let (predicate_declaration, predicate_root) = checked_leaf(&admitted);
@@ -197,24 +200,20 @@ fn scope_views(tag: &str) -> ScopeViews {
 }
 
 fn qualified(tag: &str) -> Box<QualifiedObservation> {
-    let subject = Subject {
-        kind: SubjectKind::Order,
-        identity: id(format!("order:{tag}")),
-    };
+    let producer = producer_owner::admitted(tag);
+    let subject_kind =
+        SubjectKind::new(producer_owner::SUBJECT_KIND).expect("fixture subject kind");
+    let subject = QualifiedSubject::new(
+        &producer,
+        subject_kind.clone(),
+        SubjectIdentity::new(format!("order:{tag}").into_bytes()).expect("fixture subject"),
+    );
     let mut request = AdmissionRequest {
         package: PackageSelection {
             format: NATIVE_LINKED_PACKAGE_FORMAT.to_owned(),
             identity: id(format!("package:{tag}")),
             revision: id("1"),
             digest: digest(1),
-        },
-        producer: ProducerSelection {
-            interface_version: PRODUCER_INTERFACE_VERSION.to_owned(),
-            document_identity: id(format!("producer:{tag}")),
-            document_digest: digest(2),
-            model_identity: id(format!("model:{tag}")),
-            configuration_identity: id(format!("configuration:{tag}")),
-            configuration_digest: digest(3),
         },
         binding: ObservationBinding {
             identity: id(format!("binding:{tag}")),
@@ -223,7 +222,7 @@ fn qualified(tag: &str) -> Box<QualifiedObservation> {
             signal_identity: id(format!("signal:{tag}")),
             trigger_identity: id(format!("trigger:{tag}")),
             unit: id("unit"),
-            subject_kind: SubjectKind::Order,
+            subject_kind,
             required: true,
         },
         expected_subject: subject.clone(),
@@ -284,6 +283,7 @@ fn qualified(tag: &str) -> Box<QualifiedObservation> {
             max_relationships: 0,
             max_required_relationships: 0,
         },
+        producer,
     };
     let record_identity = authority::observation::record_identity(
         &request.records[0],
