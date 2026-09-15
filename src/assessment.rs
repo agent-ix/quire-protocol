@@ -1262,16 +1262,24 @@ fn validate_dispatch_rows(
     dispatch: &DispatchReport,
     inputs: &[CanonicalRowInput<'_>],
 ) -> Result<(), BundleRefusal> {
+    validate_dispatch_population(requested, dispatch)?;
+    for (disposition, input) in dispatch.dispositions.iter().zip(inputs) {
+        if input.claim != disposition.claim || input.input.execution != disposition.execution {
+            return Err(BundleRefusal::DispatchReportMismatch);
+        }
+    }
+    Ok(())
+}
+
+fn validate_dispatch_population(
+    requested: &[Claim],
+    dispatch: &DispatchReport,
+) -> Result<(), BundleRefusal> {
     if dispatch.dispositions.len() != requested.len() {
         return Err(BundleRefusal::DispatchReportMismatch);
     }
-    for ((requested, disposition), input) in
-        requested.iter().zip(&dispatch.dispositions).zip(inputs)
-    {
-        if disposition.claim != *requested || input.claim != *requested {
-            return Err(BundleRefusal::DispatchReportMismatch);
-        }
-        if input.input.execution != disposition.execution {
+    for (requested, disposition) in requested.iter().zip(&dispatch.dispositions) {
+        if disposition.claim != *requested {
             return Err(BundleRefusal::DispatchReportMismatch);
         }
     }
@@ -1379,10 +1387,12 @@ impl<Row> AssessmentBundle<'_, Row> {
 #[cfg(test)]
 mod tests {
     use super::{
-        claim_from_result_kind, outcome_refusal, validate_input_package, validate_requested,
-        validate_rows, BundleRefusal, ClaimRow,
+        claim_from_result_kind, outcome_refusal, validate_dispatch_population,
+        validate_input_package, validate_requested, validate_rows, BundleRefusal, ClaimRow,
     };
-    use crate::claims::Claim;
+    use crate::claims::{
+        dispatch::Report as DispatchReport, dispatch::Usage as DispatchUsage, Claim,
+    };
     use crate::outcome::ClaimOutcome;
     use crate::refusal::{PartialOutput, ProtocolStage, RefusalDomain};
     use crate::result::ClaimKind;
@@ -1507,6 +1517,11 @@ mod tests {
                 ProtocolStage::ResultAssembly,
             ),
             (
+                BundleRefusal::DispatchReportMismatch,
+                RefusalDomain::Result,
+                ProtocolStage::ResultAssembly,
+            ),
+            (
                 BundleRefusal::ActivationSubjectMismatch,
                 RefusalDomain::Assessment,
                 ProtocolStage::Compensation,
@@ -1568,6 +1583,18 @@ mod tests {
         assert_eq!(
             validate_input_package(selected, selected, ByteDigest::of(b"foreign")),
             Err(BundleRefusal::CanonicalPackageMismatch)
+        );
+    }
+
+    #[test]
+    fn dispatch_report_cannot_omit_or_reorder_the_engines_claim_population() {
+        let missing = DispatchReport {
+            dispositions: Vec::new(),
+            usage: DispatchUsage::default(),
+        };
+        assert_eq!(
+            validate_dispatch_population(&[Claim::Conformance], &missing),
+            Err(BundleRefusal::DispatchReportMismatch)
         );
     }
 }
