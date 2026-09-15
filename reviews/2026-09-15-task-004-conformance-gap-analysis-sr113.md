@@ -1,5 +1,5 @@
 ---
-id: SR-111
+id: SR-113
 title: "Gap analysis of the Task-004 activation-derived conformance bridge"
 type: SpecReview
 analysis: gap-analysis
@@ -12,7 +12,7 @@ relationships:
   - { target: ix://agent-ix/quire-protocol/FR-004, type: reviews }
   - { target: ix://agent-ix/quire-protocol/TC-004, type: reviews }
 ---
-# SR-111: Gap Analysis of the Task-004 Activation-Derived Conformance Bridge
+# SR-113: Gap Analysis of the Task-004 Activation-Derived Conformance Bridge
 
 ## Summary
 
@@ -59,7 +59,7 @@ Task-006, Task-008, Plan-001 or epic #14.
 
 The optional semantic gap-analysis mode was not invoked because it requires a
 separate explicit opt-in. The mandatory pass compared Task-004 assertions,
-production paths and tracking to their owning criteria; SR-110 records the
+production paths and tracking to their owning criteria; SR-112 records the
 corresponding Rust-boundary review.
 
 ## Reverse-Gap and Stub Audit

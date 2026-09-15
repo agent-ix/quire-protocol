@@ -108,7 +108,7 @@ shared result-domain values. Each has one Protocol owner and no adapter-local co
   replay, transactionality and zero business calls.
 - [x] **TC-004**: graph-derived batch/incremental agreement across legal semantic
   permutations, progress/closure and contradiction states.
-- [ ] **TC-005**: conformance-derived ordered claim dispositions, exact retained
+- [x] **TC-005**: conformance-derived ordered claim dispositions, exact retained
   premises and no callback fallback.
 - [ ] **TC-006**: subsystem-derived canonical rows, strict reads, exact settlement,
   support topology and immutable corrections.
@@ -216,7 +216,7 @@ track names are subsystems and are not agent assignments; Agent B remains on TL.
 | Task-002 | Core | FR-002 | TC-002 | done; PR #67 / `2a3ef19` |
 | Task-003 | Core | FR-003 | TC-003 | done; graph-owned Engine bridge and exact QSL/QObs evidence |
 | Task-004 | Core | FR-004 | TC-004 | done; strict FR-300 activation-derived frontends share the graph/compensation kernel |
-| Task-005 | Core | FR-005 | TC-005 | in_progress; standalone kernel exists |
+| Task-005 | Core | FR-005 | TC-005 | done; activation-derived Engine dispatch and closed local conformance backend |
 | Task-006 | Core | FR-006, FR-008 | TC-006, TC-011 | in_progress; result/map slice landed |
 | Task-007 | Producer Integration | FR-007 | TC-007 | blocked on E02 owner acceptance reconciliation |
 | Task-008 | Cross-cutting Closure | NFR-001, NFR-002 | TC-008, TC-009 | in_progress; current-site inventory exists |

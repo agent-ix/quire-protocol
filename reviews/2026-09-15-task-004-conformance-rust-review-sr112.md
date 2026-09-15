@@ -1,5 +1,5 @@
 ---
-id: SR-110
+id: SR-112
 title: "Rust review of the Task-004 activation-derived conformance bridge"
 type: SpecReview
 analysis: code-review
@@ -14,7 +14,7 @@ relationships:
   - { target: ix://agent-ix/quire-protocol/FR-041, type: references }
   - { target: ix://agent-ix/quire-protocol/TC-004, type: reviews }
 ---
-# SR-110: Rust Review of the Task-004 Activation-Derived Conformance Bridge
+# SR-112: Rust Review of the Task-004 Activation-Derived Conformance Bridge
 
 ## Summary
 

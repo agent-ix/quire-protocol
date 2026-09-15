@@ -7,6 +7,22 @@ description: "Chronological log of changes to the Plan-001 bundle."
 
 ## History
 
+* **2026-09-15** — Completed Task-005 / issue #7 as the activation-derived
+  independent-claim bridge. The public Engine now assesses strict FR-300 facts
+  through its graph/compensation kernel before dispatch; the raw report
+  evaluator and its bounded semantic harness are crate-private. Every request
+  keeps its ordered identity, strength and exact fragment/backend/assumption/
+  communication/visibility/environment/source/derived-artifact premises.
+  `qprotocol:conformance/v1` is the sole supported local backend; alternate
+  identities refuse claim-locally, and unsupported or failed sibling claims
+  never receive a fallback or erase another result. TC-005 retains total
+  disposition, premise mutation, duplicate, correspondence, resource and
+  no-fallback controls, while a real FR-300 fixture proves the Engine entry
+  point. SR-114/SR-115 pass. The live QSL default and Protocol pin are both
+  `0c2f13e`; the stale `6c8c401` campaign reference was corrected on #7/#14.
+  The Task-004 review-ID collision with Task-009 was repaired as SR-112/SR-113.
+  Task-006/#8 remains Agent B's serial consumer.
+
 * **2026-09-15** — Completed Task-004 / issue #6 as the strict
   activation-derived finite-conformance bridge. Production no longer exposes a
   caller-built conformance `Model`: exact QSL FR-300 bindings retain the linked
@@ -17,8 +33,8 @@ description: "Chronological log of changes to the Plan-001 bundle."
   so batch and settled-incremental frontends always assess the same graph-owned
   facts. TC-004 retains legal interleavings, adverse/mismatched facts,
   independent decision/execution/global closure axes, owner non-successes and
-  compensation synchronization. SR-110 removed the public construction bypass,
-  stale snapshot and panic-capable replacement path; SR-111 finds no remaining
+  compensation synchronization. SR-112 removed the public construction bypass,
+  stale snapshot and panic-capable replacement path; SR-113 finds no remaining
   Task-004 trace, matrix, reverse-code or stub gap. `quire coverage` reports
   154/342 repository rows backed and 266/266 tagged/bound Rust symbols (272
   candidates); unrelated remaining rows remain visible. The exact local Rust
