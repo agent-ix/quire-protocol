@@ -690,6 +690,18 @@ impl EffectDisposition {
     }
 }
 
+/// One established compensation business effect retained independently of its
+/// attempt and recovery-relation facts.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CompensationEffectFact {
+    /// Exact established compensation-effect identity.
+    pub effect: EffectId,
+    /// Exact registration this effect belongs to.
+    pub registration: RegistrationId,
+    /// Effect-only disposition, when the singleton occurrence is duplicated.
+    pub disposition: Option<EffectDisposition>,
+}
+
 /// Aggregate recovery-relation outcome for one registration.
 ///
 /// This is separate from an attempt outcome even though the owner admits the
