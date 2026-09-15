@@ -22,7 +22,7 @@ use quire_protocol::{
 };
 use quire_spec_language::protocol_artifact::{
     native_temporal::{self, request, v2 as temporal_v2},
-    temporal_subject, v3, wire as qsl_wire,
+    occurrence_key_schema, temporal_subject, v3, wire as qsl_wire, WorkflowInstanceIdentity,
 };
 use quire_spec_language::{temporal, ByteDigest};
 
@@ -1313,6 +1313,51 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
         activation.activation(),
         native_temporal::result::ActivationState::Active
     ));
+    let occurrence_schema = occurrence_key_schema(
+        &package,
+        declaration_handle,
+        quire_spec_language::protocol_artifact::Limits::default(),
+    )
+    .into_result()
+    .expect("selected protocol produces a strict occurrence-key schema");
+    let node = occurrence_schema
+        .nodes()
+        .get(usize::try_from(activation.control().index).expect("control index fits"))
+        .expect("selected activation control has an occurrence schema");
+    assert!(
+        node.repeats().is_empty(),
+        "published selected activation control has no repeat dimensions"
+    );
+    let occurrence = occurrence_schema
+        .bind(
+            WorkflowInstanceIdentity::new("workflow:one").expect("nonempty workflow identity"),
+            activation.control(),
+            node.role().clone(),
+            &[],
+        )
+        .expect("QSL validates the selected event occurrence");
+    activation
+        .require_occurrence(&occurrence)
+        .expect("the activation cannot be retargeted away from its mapped control");
+    let other = occurrence_schema
+        .nodes()
+        .iter()
+        .find(|candidate| {
+            candidate.node() != activation.control() && candidate.repeats().is_empty()
+        })
+        .expect("published protocol has another non-repeating control occurrence");
+    let other_occurrence = occurrence_schema
+        .bind(
+            WorkflowInstanceIdentity::new("workflow:one").expect("nonempty workflow identity"),
+            other.node(),
+            other.role().clone(),
+            &[],
+        )
+        .expect("QSL validates a distinct control occurrence");
+    assert_eq!(
+        activation.require_occurrence(&other_occurrence),
+        Err(quire_protocol::conformance::KernelRefusal::ActivationOccurrenceMismatch)
+    );
 
     let bundle = match engine.assemble_outcome(vec![ClaimRow {
         claim: Claim::Conformance,

@@ -11,6 +11,7 @@ use quire_spec_language::protocol_artifact::{
     native_temporal::{request::CaptureView, result::ActivationState, v2 as temporal_v2},
     v3,
     wire::{Body, ControlOperation, Handle},
+    OccurrenceKey,
 };
 
 /// Why linked static and derived compensation state cannot form one kernel.
@@ -36,6 +37,8 @@ pub enum Refusal {
     ActivationResultMismatch,
     /// The request names no temporal declaration selected by this definition.
     InvalidActivationTemporal,
+    /// A QSL-validated runtime occurrence names another control.
+    ActivationOccurrenceMismatch,
 }
 
 /// Constructor-private FR-300 join of QSL, linked-graph, and QObs facts.
@@ -92,6 +95,23 @@ impl ActivationBinding<'_> {
     #[must_use]
     pub fn activation(&self) -> ActivationState {
         self.result.activation()
+    }
+
+    /// Verifies that one QSL-validated runtime occurrence is this activation's
+    /// exact declaration-local event control.
+    ///
+    /// QSL owns validation of the workflow identity, role, and repeat
+    /// dimensions. Protocol only compares the already-validated control
+    /// coordinate with the control selected by the admitted `/3` mapping, so
+    /// an independent caller association cannot retarget this activation.
+    pub fn require_occurrence(&self, occurrence: &OccurrenceKey<'_>) -> Result<(), Refusal> {
+        if occurrence.declaration() == self.control.declaration
+            && occurrence.node() == &self.control
+        {
+            Ok(())
+        } else {
+            Err(Refusal::ActivationOccurrenceMismatch)
+        }
     }
 }
 
