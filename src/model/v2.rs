@@ -14,7 +14,7 @@ use quire_observation::{
 };
 use quire_spec_language::protocol_artifact::{
     v2 as artifact_v2,
-    wire::{ArtifactRef, BindingKind, Body, Requirement},
+    wire::{ArtifactRef, BindingKind, Body, Compensation, Requirement, Subject},
 };
 
 /// The only static binding-definition contract accepted by this model.
@@ -439,6 +439,65 @@ pub struct LinkedAssessment<'a> {
     runtime: &'a RuntimeBindingSet,
 }
 
+/// One QObs-owned runtime subject admitted at a QSL business-effect binding.
+///
+/// This is a borrowed protocol view, not an identity.  Its complete runtime
+/// identity remains the [`QualifiedSubject`] published by QObs; the selected
+/// QSL binding requirement supplies the only evidence that the subject is an
+/// effect rather than another runtime subject family.
+#[derive(Clone, Copy, Debug)]
+pub struct ObservedEffect<'a> {
+    slot: SlotHandle,
+    subject: &'a QualifiedSubject,
+}
+
+impl ObservedEffect<'_> {
+    /// Returns the exact selected static binding-requirement coordinate.
+    #[must_use]
+    pub const fn slot(&self) -> SlotHandle {
+        self.slot
+    }
+
+    /// Returns QObs's complete authority-qualified FR-287 runtime key.
+    #[must_use]
+    pub const fn subject(&self) -> &QualifiedSubject {
+        self.subject
+    }
+}
+
+/// One exact static-compensation/runtime-effect pair eligible for registration.
+///
+/// The compensation definition remains QSL's typed table member and the effect
+/// remains QObs's FR-287 value.  A caller combines this input with the linked
+/// [`DefinitionIdentity`] when it needs the complete FR-233 static key; this
+/// view deliberately neither flattens nor hashes either owner value.
+#[derive(Clone, Copy, Debug)]
+pub struct CompensationRegistrationInput<'a> {
+    compensation_handle: u32,
+    compensation: &'a Compensation,
+    effect: ObservedEffect<'a>,
+}
+
+impl<'a> CompensationRegistrationInput<'a> {
+    /// Returns the exact declaration-local QSL compensation-table coordinate.
+    #[must_use]
+    pub const fn compensation_handle(&self) -> u32 {
+        self.compensation_handle
+    }
+
+    /// Returns QSL's complete typed compensation definition.
+    #[must_use]
+    pub const fn compensation(&self) -> &'a Compensation {
+        self.compensation
+    }
+
+    /// Returns the exact admitted QObs forward business effect.
+    #[must_use]
+    pub const fn effect(&self) -> ObservedEffect<'a> {
+        self.effect
+    }
+}
+
 impl<'a> LinkedAssessment<'a> {
     /// Validates that exact static and runtime selections target one admitted
     /// version-2 protocol declaration.
@@ -483,6 +542,80 @@ impl<'a> LinkedAssessment<'a> {
     #[must_use]
     pub const fn runtime(&self) -> &'a RuntimeBindingSet {
         self.runtime
+    }
+
+    /// Returns the exact QObs subjects admitted at QSL `effect` requirements.
+    ///
+    /// The binding set has already proved producer authority and the selected
+    /// producer-local subject kind.  This projection additionally proves the
+    /// static requirement is an owner-published QSL business-effect slot.  It
+    /// never converts a delivery, attempt, trace, payload, or static coordinate
+    /// into a runtime effect identity.
+    #[must_use]
+    pub fn observed_effects(&self) -> Vec<ObservedEffect<'a>> {
+        let declaration = &self.package.inherited().declarations
+            [usize::try_from(self.definition.declaration_handle()).unwrap_or(usize::MAX)];
+        self.definition
+            .slots()
+            .iter()
+            .filter_map(|slot| {
+                let requirement = declaration
+                    .bindings
+                    .get(usize::try_from(slot.handle.get()).unwrap_or(usize::MAX))?;
+                (requirement.kind == BindingKind::Effect).then_some(slot.handle)
+            })
+            .filter_map(|slot| {
+                self.runtime
+                    .bindings()
+                    .iter()
+                    .find(|binding| binding.slot() == slot)
+                    .and_then(RuntimeBinding::subject_value)
+                    .map(|subject| ObservedEffect { slot, subject })
+            })
+            .collect()
+    }
+
+    /// Joins each QSL compensation definition to its exact admitted QObs
+    /// forward-effect subject.
+    ///
+    /// A compensation is included only when its `forward_effect` control is
+    /// the owner-declared subject of a selected QSL `effect` requirement that
+    /// holds an admitted QObs subject.  An attempt, delivery, or merely similar
+    /// static coordinate cannot produce this input.
+    #[must_use]
+    pub fn compensation_registration_inputs(&self) -> Vec<CompensationRegistrationInput<'a>> {
+        let declaration = &self.package.inherited().declarations
+            [usize::try_from(self.definition.declaration_handle()).unwrap_or(usize::MAX)];
+        let effects = self.observed_effects();
+        let Body::Protocol { compensations, .. } = &declaration.body else {
+            unreachable!("LinkedAssessment validates the selected declaration is a protocol");
+        };
+        compensations
+            .iter()
+            .enumerate()
+            .filter_map(|(compensation_index, compensation)| {
+                u32::try_from(compensation_index)
+                    .ok()
+                    .map(|handle| (handle, compensation))
+            })
+            .flat_map(|(compensation_handle, compensation)| {
+                effects.iter().filter_map(move |effect| {
+                    let requirement = declaration
+                        .bindings
+                        .get(usize::try_from(effect.slot.get()).unwrap_or(usize::MAX))?;
+                    let Subject::Control { control } = &requirement.subject else {
+                        return None;
+                    };
+                    (compensation.forward_effect == *control).then(|| {
+                        CompensationRegistrationInput {
+                            compensation_handle,
+                            compensation,
+                            effect: *effect,
+                        }
+                    })
+                })
+            })
+            .collect()
     }
 }
 

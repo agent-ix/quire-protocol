@@ -66,6 +66,30 @@ fn protocol_coordinates(
         .expect("published handoff has a protocol with a subject slot")
 }
 
+fn effect_coordinates(
+    package: &quire_spec_language::protocol_artifact::v2::AdmittedPackage,
+) -> (u32, u32) {
+    package
+        .inherited()
+        .declarations
+        .iter()
+        .enumerate()
+        .find_map(|(index, declaration)| {
+            let Body::Protocol { .. } = &declaration.body else {
+                return None;
+            };
+            let effect_slot = declaration
+                .bindings
+                .iter()
+                .position(|binding| binding.kind == BindingKind::Effect)?;
+            Some((
+                u32::try_from(index).expect("published declaration index fits"),
+                u32::try_from(effect_slot).expect("published slot index fits"),
+            ))
+        })
+        .expect("published handoff has a protocol business-effect slot")
+}
+
 fn context_refusal(
     result: Result<LinkedAssessment<'_>, quire_protocol::model::v2::ContextRefusal>,
 ) -> quire_protocol::model::v2::ContextRefusal {
@@ -1277,4 +1301,68 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
         .register(&revised_context)
         .expect("a changed static definition is not a contradictory replay");
     assert_eq!(registry.len(), 2);
+}
+
+/// A compensation bridge receives only QObs's complete FR-287 subject at a
+/// QSL `effect` requirement.  A static coordinate never becomes a replacement
+/// runtime identity, and the subject's opaque owner key remains unchanged.
+#[test]
+#[trace("TC-002", "FR-002-AC-1", "FR-003-AC-3")]
+fn tc_002_effect_projection_requires_an_owner_effect_slot() {
+    let package = admitted_published_v2();
+    let (declaration_handle, effect_slot) = effect_coordinates(&package);
+    let Body::Protocol { roles, .. } = &package.inherited().declarations
+        [usize::try_from(declaration_handle).expect("published index fits")]
+    .body
+    else {
+        unreachable!("selected declaration was found as a protocol")
+    };
+    let producer = producer();
+    let definition = StaticBindingDefinition::new(
+        STATIC_BINDING_CONTRACT,
+        selection(),
+        producer.key().clone(),
+        declaration_handle,
+        roles
+            .iter()
+            .enumerate()
+            .map(|(index, _)| RoleClassification {
+                role_handle: u32::try_from(index).expect("published role index fits"),
+                internality: Internality::Internal,
+            })
+            .collect(),
+        vec![StaticSlot {
+            handle: SlotHandle::new(effect_slot),
+            compatibility: SlotCompatibility::Subject {
+                kind: SubjectKind::new(ORDER_KIND.to_vec()).expect("non-empty kind"),
+            },
+        }],
+    )
+    .expect("an exact selected QObs subject kind is admitted for the effect slot");
+    let observed = subject(&producer);
+    let runtime = RuntimeBindingSet::new(
+        RUNTIME_BINDING_CONTRACT,
+        definition.selection(),
+        &definition,
+        &producer,
+        vec![RuntimeBinding::subject(
+            SlotHandle::new(effect_slot),
+            observed.clone(),
+        )],
+    )
+    .expect("the owner subject satisfies the selected effect slot");
+    let context = LinkedAssessment::new(&package, &definition, &runtime)
+        .expect("the admitted selected effect context links");
+
+    let effects = context.observed_effects();
+    assert_eq!(effects.len(), 1);
+    assert_eq!(effects[0].slot(), SlotHandle::new(effect_slot));
+    assert_eq!(effects[0].subject(), &observed);
+
+    let registrations = context.compensation_registration_inputs();
+    assert_eq!(registrations.len(), 2);
+    assert_eq!(registrations[0].compensation_handle(), 0);
+    assert_eq!(registrations[1].compensation_handle(), 1);
+    assert_eq!(registrations[0].effect().subject(), &observed);
+    assert_eq!(registrations[1].effect().subject(), &observed);
 }
