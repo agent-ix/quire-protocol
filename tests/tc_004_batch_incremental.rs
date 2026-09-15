@@ -32,7 +32,6 @@ fn obligation(
 ) -> ObservationObligation {
     ObservationObligation {
         identity: oid(identity),
-        expected_observation_identity: expected.payload().observation_identity().into(),
         subject_kind: expected.payload().subject().kind.into(),
         subject_identity: expected.payload().subject().identity.into(),
         workflow_identity: "workflow:one".into(),

@@ -2,6 +2,9 @@
 //! One immutable conformance input assembled from linked static and compensation facts.
 
 use crate::compensation::registration::{Registration, Snapshot as CompensationSnapshot};
+use crate::conformance::batch::{
+    Limits as ConformanceLimits, Model, ObligationId, ObservationObligation,
+};
 use crate::model::v2::{
     CompensationAttemptInput, CompensationEffectInput, DefinitionIdentity,
     LinkedCompensationDefinition, LinkedProtocol,
@@ -10,7 +13,7 @@ use quire_observation::QualifiedSubject;
 use quire_spec_language::protocol_artifact::{
     native_temporal::{request::CaptureView, result::ActivationState, v2 as temporal_v2},
     v3,
-    wire::{Body, ControlOperation, Handle},
+    wire::{Body, ControlOperation, EdgeKind, Handle},
     OccurrenceKey,
 };
 
@@ -41,6 +44,12 @@ pub enum Refusal {
     ActivationOccurrenceMismatch,
     /// The same FR-300 key was replayed with different checked owner content.
     ConflictingActivation,
+    /// An activation occurrence belongs to another linked definition.
+    ForeignActivatedOccurrence,
+    /// More than one activation occurrence derives one FR-230 obligation key.
+    DuplicateActivatedObligation,
+    /// The graph-derived activation population cannot form a finite model.
+    InvalidDerivedModel,
 }
 
 /// Constructor-private FR-300 join of QSL, linked-graph, and QObs facts.
@@ -153,6 +162,31 @@ impl ActivationBinding<'_> {
 #[derive(Default)]
 pub struct ActivationRegistry<'a> {
     bindings: Vec<ActivationBinding<'a>>,
+}
+
+/// One FR-300 activation paired with its QSL-validated node occurrence.
+///
+/// The constructor is kernel-owned so a caller cannot associate an activation
+/// with a different declaration-local control or an unchecked workflow/repeat
+/// tuple.
+#[derive(Clone, Debug)]
+pub struct ActivatedOccurrence<'a> {
+    activation: ActivationBinding<'a>,
+    occurrence: OccurrenceKey<'a>,
+}
+
+impl ActivatedOccurrence<'_> {
+    /// Returns the retained FR-300 activation binding.
+    #[must_use]
+    pub const fn activation(&self) -> &ActivationBinding<'_> {
+        &self.activation
+    }
+
+    /// Returns QSL's already-validated runtime occurrence key.
+    #[must_use]
+    pub const fn occurrence(&self) -> &OccurrenceKey<'_> {
+        &self.occurrence
+    }
 }
 
 impl<'a> ActivationRegistry<'a> {
@@ -465,6 +499,123 @@ impl Kernel {
             request,
             result,
         })
+    }
+
+    /// Pair one retained FR-300 binding with its validated QSL occurrence.
+    pub fn activate_occurrence<'a>(
+        &self,
+        activation: &ActivationBinding<'a>,
+        occurrence: OccurrenceKey<'a>,
+    ) -> Result<ActivatedOccurrence<'a>, Refusal> {
+        if activation.definition != self.definition {
+            return Err(Refusal::ForeignActivatedOccurrence);
+        }
+        activation.require_occurrence(&occurrence)?;
+        Ok(ActivatedOccurrence {
+            activation: activation.clone(),
+            occurrence,
+        })
+    }
+
+    /// Derive the finite evaluator model from owner-authorized activations.
+    ///
+    /// This is the production replacement for a caller-authored obligation
+    /// list: the FR-230 key comes from FR-300, workflow/repeat dimensions come
+    /// from QSL's occurrence key, and predecessor membership comes only from
+    /// authored non-repeat causal edges. A QObs observation is later matched by
+    /// its complete selected subject, never by a caller-supplied association.
+    pub fn derive_model(&self, activations: &[ActivatedOccurrence<'_>]) -> Result<Model, Refusal> {
+        let mut obligations = Vec::with_capacity(activations.len());
+        for activation in activations {
+            if activation.activation.definition != self.definition {
+                return Err(Refusal::ForeignActivatedOccurrence);
+            }
+            let identity = derived_obligation_id(activation);
+            if obligations
+                .iter()
+                .any(|existing: &ObservationObligation| existing.identity == identity)
+            {
+                return Err(Refusal::DuplicateActivatedObligation);
+            }
+            let predecessors = activations
+                .iter()
+                .filter(|candidate| {
+                    same_occurrence_scope(candidate, activation)
+                        && candidate.activation.control() != activation.activation.control()
+                        && self.causal_edges.iter().any(|edge| {
+                            edge.kind != EdgeKind::RepeatProgress
+                                && edge.from.node == *candidate.activation.control()
+                                && edge.to.node == *activation.activation.control()
+                        })
+                })
+                .map(derived_obligation_id)
+                .collect();
+            obligations.push(ObservationObligation {
+                identity,
+                subject_kind: activation.activation.subject().kind().as_bytes().into(),
+                subject_identity: activation.activation.subject().identity().as_bytes().into(),
+                workflow_identity: activation.occurrence.workflow().as_str().into(),
+                effect_identity: None,
+                // A strict activation selects a concrete QObs subject. Its
+                // value is therefore required to establish a decisive event
+                // fact; QObs preserves an absent value distinctly.
+                valuation_required: true,
+                predecessors,
+            });
+        }
+        let protocol_identity = format!(
+            "{}:{}",
+            self.definition.source_document().identity,
+            self.definition.declaration_handle()
+        );
+        Model::new(
+            protocol_identity,
+            obligations,
+            ConformanceLimits::owner_max(),
+        )
+        .map_err(|_| Refusal::InvalidDerivedModel)
+    }
+}
+
+fn derived_obligation_id(activation: &ActivatedOccurrence<'_>) -> ObligationId {
+    let mut identity = String::from("fr230:");
+    identity.push_str(
+        &activation
+            .activation
+            .definition()
+            .source_document()
+            .identity,
+    );
+    identity.push(':');
+    identity.push_str(
+        &activation
+            .activation
+            .definition()
+            .declaration_handle()
+            .to_string(),
+    );
+    identity.push(':');
+    identity.push_str(&activation.activation.control().index.to_string());
+    identity.push(':');
+    append_hex(
+        &mut identity,
+        activation.activation.subject().identity().as_bytes(),
+    );
+    identity.push(':');
+    append_hex(&mut identity, activation.activation.semantic_trigger());
+    ObligationId::retained(identity)
+}
+
+fn same_occurrence_scope(left: &ActivatedOccurrence<'_>, right: &ActivatedOccurrence<'_>) -> bool {
+    left.occurrence.workflow().as_str() == right.occurrence.workflow().as_str()
+        && left.occurrence.repeat_ordinals() == right.occurrence.repeat_ordinals()
+}
+
+fn append_hex(target: &mut String, bytes: &[u8]) {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    for byte in bytes {
+        target.push(char::from(HEX[usize::from(byte >> 4)]));
+        target.push(char::from(HEX[usize::from(byte & 0x0f)]));
     }
 }
 

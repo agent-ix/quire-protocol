@@ -26,7 +26,7 @@ pub use batch::{
 };
 pub use incremental::{compare, Incremental, IncrementalContext};
 pub use kernel::{
-    ActivationBinding, ActivationRegistry, Kernel, LinkedCompensationAttempt,
+    ActivatedOccurrence, ActivationBinding, ActivationRegistry, Kernel, LinkedCompensationAttempt,
     LinkedCompensationEffect, LinkedObligation, Refusal as KernelRefusal,
 };
 

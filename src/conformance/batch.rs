@@ -149,8 +149,6 @@ impl ObligationId {
 pub struct ObservationObligation {
     /// Exact obligation identity.
     pub identity: ObligationId,
-    /// Exact QObs observation identity required by this obligation.
-    pub expected_observation_identity: Box<str>,
     /// Exact opaque producer-local subject-kind bytes selected by the obligation.
     ///
     /// QObs owns this vocabulary. It is deliberately bytes rather than text so
@@ -237,7 +235,6 @@ impl Model {
         if by_id.len() != obligations.len()
             || obligations.iter().any(|obligation| {
                 obligation.identity.as_str().is_empty()
-                    || obligation.expected_observation_identity.is_empty()
                     || obligation.subject_kind.is_empty()
                     || obligation.subject_identity.is_empty()
                     || obligation.workflow_identity.is_empty()
@@ -786,8 +783,7 @@ fn assess_inner(
         for (position, binding) in &bindings {
             let view = binding.observation.payload();
             let observation_identity = view.observation_identity().into();
-            if view.observation_identity() != obligation.expected_observation_identity.as_ref()
-                || view.subject().kind != obligation.subject_kind.as_ref()
+            if view.subject().kind != obligation.subject_kind.as_ref()
                 || view.subject().identity != obligation.subject_identity.as_ref()
             {
                 has_adverse = true;
