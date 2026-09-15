@@ -2,7 +2,7 @@
 id: Task-002
 title: "Link the finite protocol representation"
 type: Task
-status: in_progress
+status: done
 track: Core
 priority: P0
 relationships:
@@ -31,35 +31,35 @@ admitted selected profile while retaining the frozen root `/1`
   choice-visibility premises and accumulate independent located diagnostics.
 - [x] Prove legal interleavings preserve the admitted graph and exercise the
   original FR-050..FR-054 static mutation sweep.
-- [ ] Pin the accepted Observation PR #21 boundary at `93bc565` and implement one
+- [x] Pin the accepted Observation PR #21 boundary at `93bc565` and implement one
   version-explicit binding subsystem: an accepted static binding definition
   owns role internality and independently selected slot compatibility; a
   separate runtime set imports FR-287 subjects and FR-262 relationships. Refuse
   old, missing, surplus, duplicate, wrong-kind, incompatible and slot-derived
   bindings without defaults or universal producer-kind spellings.
-- [ ] Introduce the version-explicit intake/model modules, migrate normal
+- [x] Introduce the version-explicit intake/model modules, migrate normal
   integration callers from `admit_and_link{,_v2}`, remove the root `/2` facade,
   and prove the frozen root `/1` facade delegates without gaining access to any
   full-assessment external value.
-- [ ] Replace the partial declaration/index identity with a structured FR-288
+- [x] Replace the partial declaration/index identity with a structured FR-288
   definition identity derived from the admitted version-2 package's exact source
   document, declaration handle, formal owner/clause and semantic selection
   closure.
-- [ ] Replace reduced control shapes and numeric fingerprints with complete
+- [x] Replace reduced control shapes and numeric fingerprints with complete
   typed declaration plus accepted static-binding consistency content; refuse
   same-FR-288/different-content through the linker registry while excluding
   concrete runtime values from FR-288.
-- [ ] Retain all five FR-216 channel premises, including the complete typed FIFO
+- [x] Retain all five FR-216 channel premises, including the complete typed FIFO
   expression definition, and expose an exact generic runtime partition over
   static channel plus owner-typed evaluated value.
-- [ ] Adopt FR-262 replay and contradiction semantics without converting a
+- [x] Adopt FR-262 replay and contradiction semantics without converting a
   relationship into a subject or collapsing a second exact key.
-- [ ] Extend TC-002 so every newly accepted identity/content/binding axis has a
+- [x] Extend TC-002 so every newly accepted identity/content/binding axis has a
   positive control and a failing one-axis mutation; every source
   FR-050..FR-054 identity, control, termination, channel, choice and visibility
   mutation reaches its intended guard; and every authored semantic change alters
   protocol identity while presentation changes do not.
-- [ ] Bind every claim with bare compiler-checked `ix-trace-rs`, run the scoped
+- [x] Bind every claim with bare compiler-checked `ix-trace-rs`, run the scoped
   local gates, reconcile Plan-001/TM-001/issues #4 and #14, and close #4 with its
   reviewed PR.
 
@@ -77,3 +77,8 @@ admitted selected profile while retaining the frozen root `/1`
   dependency: accepted FR-216 defines five components and derives duplication
   permission from delivery cardinality.
 - Unblocks Tasks 003 and 009.
+- PR-time Rust review SR-105 and semantic gap review SR-106 pass after fixing
+  the v2 pseudo-runtime projection, incomplete binding coverage, runtime-key
+  reuse, exact diagnostics, retained presentation/source context and stale
+  closed inventories. Issue #4's closing PR carries the exact local-gate
+  evidence; issue #14 remains open for the downstream serial core.

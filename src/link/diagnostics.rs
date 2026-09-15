@@ -7,13 +7,13 @@
 //! directions: reporting more than one finding means continuing past the first,
 //! and continuing past the first is how a half-built representation escapes.
 //!
-//! [`Diagnostics`] is how both hold at once. The linker keeps going and records
+//! [`StaticDiagnostics`] is how both hold at once. The linker keeps going and records
 //! what it finds, and the accumulated findings are the **error** half of its
-//! result. There is no constructor that produces a [`LinkedProtocol`] alongside
+//! result. There is no constructor that produces a [`StaticLinkedProtocol`] alongside
 //! them, so "some diagnostics, and here is the graph anyway" is not a value this
 //! module can express.
 //!
-//! [`LinkedProtocol`]: super::LinkedProtocol
+//! [`StaticLinkedProtocol`]: super::StaticLinkedProtocol
 //!
 //! # What "independent" means
 //!
@@ -38,7 +38,7 @@
 //!   traversal: if the selected declaration is not there, or is not a protocol,
 //!   there are no tables to walk and the result carries that one finding alone.
 //!
-//! So a [`Diagnostics`] carrying *n* findings says n independent checks failed.
+//! So a [`StaticDiagnostics`] carrying *n* findings says n independent checks failed.
 //! It does not say the package would link after n fixes: a dependent check that
 //! never ran may fail on the next attempt. That is a property of the input, not
 //! a weakness in the accumulation, and stating it is cheaper than implying a
@@ -59,24 +59,24 @@
 //!   calling it a refusal about a "table position". The index is an authored
 //!   field of the referring record and the referrer's own `locus` was already in
 //!   hand at the site that checks it, so the region was never missing.
-//! - the second left [`LinkRefusal::CollidingIdentity`] unlocated on the same
+//! - the second left [`StaticLinkRefusal::CollidingIdentity`] unlocated on the same
 //!   reasoning. Both colliding records are authored and both carry a region; the
 //!   finding now names the later of the two, which is the record an author would
 //!   change to resolve the collision.
 //!
 //! Two variants still return `None`, and neither is about the submitted
-//! artifact. [`LinkRefusal::NoSuchDeclaration`] and [`LinkRefusal::NotAProtocol`]
+//! artifact. [`StaticLinkRefusal::NoSuchDeclaration`] and [`StaticLinkRefusal::NotAProtocol`]
 //! refuse the **caller's own `declaration` argument** to [`link`] — a selection
 //! made at the call site, not a record in the package. There is no authored text
 //! to point at, and manufacturing a zero span, or borrowing the package's, would
 //! put a reader's caret over source that is not what was refused.
-//! [`Diagnostics::located`] yields only the findings that genuinely carry a
+//! [`StaticDiagnostics::located`] yields only the findings that genuinely carry a
 //! region.
 //!
 //! [`link`]: super::link
-//! [`LinkRefusal::CollidingIdentity`]: super::LinkRefusal::CollidingIdentity
-//! [`LinkRefusal::NoSuchDeclaration`]: super::LinkRefusal::NoSuchDeclaration
-//! [`LinkRefusal::NotAProtocol`]: super::LinkRefusal::NotAProtocol
+//! [`StaticLinkRefusal::CollidingIdentity`]: super::StaticLinkRefusal::CollidingIdentity
+//! [`StaticLinkRefusal::NoSuchDeclaration`]: super::StaticLinkRefusal::NoSuchDeclaration
+//! [`StaticLinkRefusal::NotAProtocol`]: super::StaticLinkRefusal::NotAProtocol
 //!
 //! # How many findings one refusal may carry
 //!
@@ -113,13 +113,13 @@ use std::fmt;
 
 use quire_spec_language::protocol_artifact::wire::Locus;
 
-use super::LinkRefusal;
+use super::StaticLinkRefusal;
 
 /// One or more construction-fatal findings from a single link attempt.
 ///
 /// Non-empty by construction, and by the *shape* of the struct rather than by a
 /// convention this module remembers to keep: the first finding is a field, not
-/// an element. [`Diagnostics::first`] is therefore a field access, with nothing
+/// an element. [`StaticDiagnostics::first`] is therefore a field access, with nothing
 /// to unwrap and no panic to reach. `NFR-008-AC-4` requires that no refusal path
 /// panics, aborts, unwraps or expects in place of returning a value, and an
 /// `expect` whose message asserts an invariant the type does not enforce is
@@ -134,17 +134,17 @@ use super::LinkRefusal;
 /// identity are two records at fault, and reporting one would name a collision
 /// without saying it happened twice.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Diagnostics {
-    first: LinkRefusal,
-    rest: Vec<LinkRefusal>,
+pub struct StaticDiagnostics {
+    first: StaticLinkRefusal,
+    rest: Vec<StaticLinkRefusal>,
 }
 
-impl Diagnostics {
-    /// A `Diagnostics` carrying exactly one finding.
+impl StaticDiagnostics {
+    /// A `StaticDiagnostics` carrying exactly one finding.
     ///
     /// Crate-internal: the linker establishes findings, and a consumer minting
     /// one would be manufacturing a refusal the linker never made.
-    pub(crate) fn of(finding: LinkRefusal) -> Self {
+    pub(crate) fn of(finding: StaticLinkRefusal) -> Self {
         Self {
             first: finding,
             rest: Vec::new(),
@@ -153,7 +153,7 @@ impl Diagnostics {
 
     /// The first finding established.
     #[must_use]
-    pub const fn first(&self) -> &LinkRefusal {
+    pub const fn first(&self) -> &StaticLinkRefusal {
         &self.first
     }
 
@@ -163,7 +163,7 @@ impl Diagnostics {
     /// caller wanting all of them wants all of them, and the split into a field
     /// and a vector is how non-emptiness is enforced, not a shape callers should
     /// have to know about.
-    pub fn iter(&self) -> impl Iterator<Item = &LinkRefusal> {
+    pub fn iter(&self) -> impl Iterator<Item = &StaticLinkRefusal> {
         std::iter::once(&self.first).chain(self.rest.iter())
     }
 
@@ -182,13 +182,13 @@ impl Diagnostics {
     /// The two findings that refuse the caller's `declaration` argument carry
     /// none and are absent here rather than present with an invented span; see
     /// the module documentation.
-    pub fn located(&self) -> impl Iterator<Item = (&LinkRefusal, &Locus)> {
+    pub fn located(&self) -> impl Iterator<Item = (&StaticLinkRefusal, &Locus)> {
         self.iter()
             .filter_map(|finding| finding.locus().map(|locus| (finding, locus)))
     }
 }
 
-impl fmt::Display for Diagnostics {
+impl fmt::Display for StaticDiagnostics {
     /// The findings, one per line, each preceded by its source region when it
     /// has one.
     ///
@@ -209,7 +209,7 @@ impl fmt::Display for Diagnostics {
     }
 }
 
-impl std::error::Error for Diagnostics {}
+impl std::error::Error for StaticDiagnostics {}
 
 /// One source region, as the producer recorded it.
 ///
@@ -219,7 +219,7 @@ impl std::error::Error for Diagnostics {}
 /// claim a line and column A did not supply.
 ///
 /// This is presentation. `FR-037` requires no refusal fact derived from text, so
-/// a caller asking *where* asks [`Diagnostics::located`] and reads the [`Locus`]
+/// a caller asking *where* asks [`StaticDiagnostics::located`] and reads the [`Locus`]
 /// itself; this function exists so a human reading one line sees the region.
 fn region(locus: &Locus) -> String {
     format!(
@@ -230,13 +230,13 @@ fn region(locus: &Locus) -> String {
 
 /// The linker's private accumulator.
 ///
-/// Separate from [`Diagnostics`] so that "nothing found yet" and "at least one
+/// Separate from [`StaticDiagnostics`] so that "nothing found yet" and "at least one
 /// finding" are different types. The linker holds the first and can only hand
-/// out the second, which is what keeps an empty `Diagnostics` unconstructable
+/// out the second, which is what keeps an empty `StaticDiagnostics` unconstructable
 /// from outside as well as inside this crate.
 #[derive(Debug, Default)]
 pub(super) struct Accumulator {
-    findings: Vec<LinkRefusal>,
+    findings: Vec<StaticLinkRefusal>,
 }
 
 impl Accumulator {
@@ -246,7 +246,7 @@ impl Accumulator {
     /// belongs to the resource inventory C-30 owns, and stopping early here
     /// would make the *presence* of a later finding depend on how many earlier
     /// ones there were.
-    pub(super) fn record(&mut self, finding: LinkRefusal) {
+    pub(super) fn record(&mut self, finding: StaticLinkRefusal) {
         self.findings.push(finding);
     }
 
@@ -255,7 +255,7 @@ impl Accumulator {
     ///
     /// The `Result` is consumed rather than returned, so a caller cannot record
     /// a failure and then use the value that failed.
-    pub(super) fn keep<T>(&mut self, outcome: Result<T, LinkRefusal>) -> Option<T> {
+    pub(super) fn keep<T>(&mut self, outcome: Result<T, StaticLinkRefusal>) -> Option<T> {
         match outcome {
             Ok(value) => Some(value),
             Err(finding) => {
@@ -266,10 +266,10 @@ impl Accumulator {
     }
 
     /// The accumulated findings, or `None` when every check passed.
-    pub(super) fn into_diagnostics(self) -> Option<Diagnostics> {
+    pub(super) fn into_diagnostics(self) -> Option<StaticDiagnostics> {
         let mut findings = self.findings.into_iter();
         let first = findings.next()?;
-        Some(Diagnostics {
+        Some(StaticDiagnostics {
             first,
             rest: findings.collect(),
         })

@@ -32,7 +32,7 @@ Status meanings:
 | C-07 | Closed protocol identity newtypes | landed | PR #37 | #4, epic #14 |
 | C-10 | Opaque producer-domain digests and cross-domain guard | landed | PR #36 | #1, #8, #34, epic #14 |
 | C-11 | Result-domain JCS subset | partial | PR #36; JSON numbers remain explicitly refused until the exact ECMAScript serialization algorithm is implemented | #8, epic #14 |
-| C-12 | Finite typed linker | landed | PR #43 | #4, epic #14 |
+| C-12 | Finite typed linker | landed | PR #43 supplied the frozen `/1` static kernel; Task-002/#4 adds the exact `/2` FR-288, QObs binding, graph/FIFO and separately retained source-context boundary. | #4, epic #14 |
 | C-13 | Accumulated located link diagnostics | landed | PR #44 | #4, epic #14 |
 | C-14 | Permitted-interleaving proof and FR-050..FR-054 mutation sweep | landed | PR #45 | #4, epic #14 |
 | C-15 | Five-axis closure and assessment-outcome lattice | landed | PR #33 | #6, #8, #12, epic #14 |

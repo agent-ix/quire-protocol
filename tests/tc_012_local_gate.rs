@@ -529,6 +529,12 @@ fn tc_012_every_conditional_site_is_selected_and_phantom_features_refuse() {
         policy.conditions,
         [
             Condition::Test {
+                path: "src/link/binding.rs".to_owned(),
+            },
+            Condition::Test {
+                path: "src/link/definition.rs".to_owned(),
+            },
+            Condition::Test {
                 path: "src/link/interleaving.rs".to_owned(),
             },
             Condition::Test {
@@ -536,6 +542,9 @@ fn tc_012_every_conditional_site_is_selected_and_phantom_features_refuse() {
             },
             Condition::Test {
                 path: "src/link/mod.rs".to_owned(),
+            },
+            Condition::Test {
+                path: "src/link/runtime_model.rs".to_owned(),
             },
             Condition::Test {
                 path: "src/refusal/mod.rs".to_owned(),

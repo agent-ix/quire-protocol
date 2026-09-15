@@ -209,8 +209,9 @@ counted as a zero inside its denominator rather than omitted from it, and
 is the highest authored test case and no matrix row cites a higher identifier.
 
 Rust tests carry bare compiler-checked `ix-trace-rs` bindings to the exact
-local and upstream obligations: a census over this head reports 198 tagged
-tests and 198 bare `#[trace(...)]` markers, none path-qualified. The future
+local and upstream obligations: a census over the Task-002 candidate reports
+272 tagged tests and 272 bound Rust candidates. Direct source inspection finds
+only bare `#[trace(...)]` markers, none path-qualified. The future
 tense this sentence carried through an earlier revision was superseded by that
 run. What does not yet exist is the enforcement — nothing today fails when a
 test is added untagged or a marker is path-qualified. That obligation is
@@ -233,24 +234,29 @@ review and semantic QUOIN `/gap-analysis` over one unchanged head.
 ## 14. Lifecycle Status
 
 The repository is partially implemented. Strict `/1` and `/2` admission,
-version-1 linking, standalone compensation, batch/incremental conformance,
+version-explicit linking, standalone compensation, batch/incremental conformance,
 independent claim disposition, canonical result reading/production, the complete
 borrowed Contract-IR result view, refusal-envelope components, reproduction
 records and an inventoried resource accountant all exist on `main`.
 
-Those implementations are not yet one production pipeline. The linker has no
-version-2 linked graph, downstream modules accept independently constructed
-models, canonical result assembly accepts caller-built duplicates of upstream
-states, and E02 projection and scenario handoff do not exist on `main`.
+Those implementations are not yet one production pipeline. The version-2
+linker now has an exact typed graph, accepted QObs runtime bindings,
+componentwise FR-288 identity, transactional definition registration and exact
+channel/FIFO retention. It retains QSL presentation, build provenance and
+source loci in a separate owner-typed context that does not participate in
+FR-288 or semantic equality; downstream modules still accept independently
+constructed models, canonical result assembly accepts caller-built duplicates
+of upstream states, and E02 projection and scenario handoff do not exist on
+`main`.
 Version-lock resolution now exists as the Task-013 mechanism, while concrete
 producer entry population remains with Tasks 009–011 and the distinct
 consumer-owned delivery index remains Task-019/#66. Task status and executable
 coverage are stated only by TM-001 and Plan-001; module presence does not close
 an aggregate requirement.
 
-The current accepted compiler pin is QSL `f1700a9`. The direct QObs pin remains
-older than its accepted FR-287/FR-262 implementation and is corrected by
-Task-002. E02 has an implemented draft-2 reader whose owner acceptance prose is
+The current accepted compiler pin is QSL `f1700a9`. Task-002 pins and consumes
+QObs `93bc565` for accepted FR-287/FR-262 runtime identities. E02 has an
+implemented draft-2 reader whose owner acceptance prose is
 still contradictory, and Quoin has a Rust evidence implementation but no
 Protocol scenario-record intake. These are explicit gates, not permission to
 substitute local contracts.
@@ -283,10 +289,9 @@ its entry-status table records why each is currently `unresolved`.
   40, 78 and 98 owned that delivery and have landed. This is the only native
   compiler reader in the admitted path, and this repository adds no second one.
 - `agent-ix/quire-observation` — the F-owned observation producer interface and
-  authority contracts. Accepted FR-287/FR-262 runtime references and topology
-  are on `93bc565`; the current Protocol dependency is older and must be repinned
-  before those values are consumed. Complete-global-conformance closure remains
-  Protocol-owned and is not a QObs artifact.
+  authority contracts. Protocol pins `93bc565` and consumes its accepted
+  FR-287/FR-262 runtime references and topology. Complete-global-conformance
+  closure remains Protocol-owned and is not a QObs artifact.
 - `agent-ix/quire-verification` FR-007 and `quire-verification/e02-draft-2` —
   the implemented E02 strict reader and its finding vocabulary. Its owner must
   reconcile the stale provisional interface decision before cross-repository

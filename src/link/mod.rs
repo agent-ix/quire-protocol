@@ -3,10 +3,15 @@
 //!
 //! FR-002 requires one finite typed representation of an admitted protocol,
 //! with every identity kind kept distinct and with neither input order nor
-//! display text participating in what is linked. [`LinkedProtocol`] is that
-//! representation, and [`link`] builds it.
+//! display text participating in what is linked. [`StaticLinkedProtocol`] is the
+//! frozen version-1 compatibility representation. The version-2
+//! [`LinkedProtocol`] adds FR-288 identity, accepted static/runtime binding,
+//! a v2-only static topology that exports no slot-derived pseudo-runtime IDs,
+//! exact channel/FIFO content, and transactional definition registration.
 //!
-//! # What A refuses, what this module refuses, and what nobody refuses yet
+//! [`LinkedProtocol`]: runtime_model::LinkedProtocol
+//!
+//! # What A refuses and what this module refuses
 //!
 //! FR-002 names a refusal list: duplicate role authorities, unresolved or
 //! ambiguous references, missing or invalid joins, causal cycles, unbounded or
@@ -35,27 +40,19 @@
 //!   `maximum = 0` is admitted, and A's contract documents N=0 as merely making
 //!   the progress edge unreachable. A refuses `maximum_attempts <= 0` for
 //!   compensation in the next function along, so the check exists there and not
-//!   here. [`LinkRefusal::ZeroProgressIteration`].
-//! - **Duplicate role authorities.** A dedupes role *names*, which are display
-//!   text. Nothing dedupes `role.model`, the export that says which authority
-//!   the role speaks for. [`LinkRefusal::DuplicateRoleAuthority`].
+//!   here. [`StaticLinkRefusal::ZeroProgressIteration`].
+//! - **Duplicate role-model exports in the frozen `/1` facade.** The historical
+//!   compatibility representation interpreted `role.model` as an authority.
+//!   Version 2 does not: that export is a role declaration type, while accepted
+//!   runtime bindings supply concrete authority. The legacy refusal remains
+//!   [`StaticLinkRefusal::DuplicateRoleAuthority`] only for `/1` compatibility.
 //!
-//! **Nobody refuses yet, and this is recorded rather than implied:**
-//!
-//! - **Unreachable termination.** There is no reachability or liveness analysis
-//!   in A, and none here. Exit reachability is a consequence of the edge
-//!   expansion, never checked.
-//! - **Overlapping choices.** A type-checks each case guard and stops. Deciding
-//!   whether two authored guards can both hold is a decision procedure over
-//!   arbitrary predicates, not a structural check, and neither repository has
-//!   one.
-//! - **Owner-unobservable choices.** A resolves the `visible` handles and does
-//!   nothing further; values carry no role attribution to relate a guard's
-//!   operands to that set.
-//!
-//! Those three are FR-002-AC-3 obligations that no code discharges today. They
-//! are named here, and in the matrix, so the gap is visible rather than covered
-//! by a sentence claiming A has them.
+//! A's current native family-admission path also establishes reachability,
+//! choice partition/non-overlap, ownership, and decision visibility before it
+//! emits an artifact. The independent reader validates the derived graph and
+//! selected producer but deliberately does not reconstruct those source proofs
+//! from wire data. This module consumes that admitted owner boundary and does
+//! not add a second family prover.
 //!
 //! What remains, and is genuinely this module's, is the identity space. A's
 //! records reference things by table position; B's sixteen newtypes (chunk C-07)
@@ -85,13 +82,15 @@
 //! table changes which requirement every channel and role refers to. It is
 //! structure, not presentation.
 //!
-//! These are requirement identities. When the later request interface supplies
-//! runtime instance identities, they extend these rather than replacing them,
-//! and nothing here has to be rewritten to accept them.
+//! These are requirement identities in the frozen version-1 representation.
+//! They do not escape through the version-2 graph. Version 2 retains its static
+//! topology separately and obtains every runtime identity from the accepted
+//! QObs binding set; a requirement coordinate never extends, replaces, or
+//! substitutes for such a runtime identity.
 //!
 //! # Equality is the linked identity
 //!
-//! [`LinkedProtocol`] implements `Eq` and `Hash` over its structural content
+//! [`StaticLinkedProtocol`] implements `Eq` and `Hash` over its structural content
 //! with display text excluded, so FR-002-AC-4 is checked by comparing two
 //! linked values. No digest is minted here: a digest would need a domain, and
 //! digest domains belong to `FR-015`'s selected vocabulary rather than to this
@@ -110,6 +109,38 @@
 /// a refusal reports every independent finding rather than only the first.
 pub mod diagnostics;
 
+/// Exact FR-288 definition identity and consistency registry.
+mod definition;
+
+/// Versioned static and runtime binding admission over Observation values.
+mod binding;
+
+/// Exact FIFO partitions over owner-typed evaluated values.
+mod fifo;
+
+/// Transactional version-2 linker and exact channel/FIFO representation.
+mod runtime_model;
+
+pub use binding::{
+    admit_binding_definition, AcceptedBindingDefinition, BindingArtifactIdentity,
+    BindingDefinitionOffer, BindingDiagnostics, BindingOfferRefusal, BindingRefusal,
+    BoundRelationship, BoundSubject, ExpectedBindingDefinition, LinkedRuntimeBindings,
+    RelationshipBinding, RoleClassification, RoleClassificationOffer, RoleInternality,
+    RuntimeBindingSet, SlotCompatibility, SubjectBinding, BINDING_DEFINITION_CONTRACT,
+    RUNTIME_BINDING_CONTRACT,
+};
+pub use definition::{
+    DeclarationHandle, DefinitionIdentity, DefinitionRegistration, DefinitionRegistry,
+    DefinitionRegistryRefusal, FormalOwnerClause, Handled, Indexed, PresentationContext,
+    SelectedProfile, SemanticContent, SemanticSelectionClosure, SourceDocumentKey,
+};
+pub use fifo::FifoPartition;
+pub(crate) use runtime_model::link as link_v2;
+pub use runtime_model::{
+    FifoDefinition, LinkDiagnostics, LinkedChannelDefinition, LinkedGraph, LinkedProtocol,
+    PartitionRefusal,
+};
+
 /// The `FR-002-AC-2` interleaving proof. Owner chunk: **C-14**.
 ///
 /// Test-only: AC-2 is a property of the retained causal graph rather than a
@@ -118,7 +149,8 @@ pub mod diagnostics;
 #[cfg(test)]
 mod interleaving;
 
-use diagnostics::{Accumulator, Diagnostics};
+use diagnostics::Accumulator;
+pub use diagnostics::StaticDiagnostics;
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -243,18 +275,18 @@ impl ChannelPremise {
 
 /// Why no linked representation was produced.
 ///
-/// Two groups. [`LinkRefusal::ZeroProgressIteration`] and
-/// [`LinkRefusal::DuplicateRoleAuthority`] are FR-002 obligations A leaves open.
+/// Two groups. [`StaticLinkRefusal::ZeroProgressIteration`] and
+/// [`StaticLinkRefusal::DuplicateRoleAuthority`] are FR-002 obligations A leaves open.
 /// The rest are facts about B's own identity mapping.
 ///
-/// [`LinkRefusal::NoSuchRequirement`] and [`LinkRefusal::WrongRequirementKind`]
+/// [`StaticLinkRefusal::NoSuchRequirement`] and [`StaticLinkRefusal::WrongRequirementKind`]
 /// do overlap A's `fn binding`, which range-checks and kind-checks the same
 /// indices. They are kept because the mapping cannot proceed without the answer
 /// — B must know a requirement's kind to build the right newtype from it — and
 /// a refusal is the honest result of asking. They are defence in depth over an
 /// already admitted package, not a second implementation of a rule A owns.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum LinkRefusal {
+pub enum StaticLinkRefusal {
     /// The selected declaration index is outside the admitted package.
     NoSuchDeclaration {
         /// The index that was selected.
@@ -285,7 +317,7 @@ pub enum LinkRefusal {
         /// The index is an authored field of that record, and `FR-002-AC-3`
         /// requires an unresolved reference refused at its source location. The
         /// site that range-checks it already holds the referrer's `locus` — it
-        /// passes the same one to [`LinkRefusal::WrongRequirementKind`] on the
+        /// passes the same one to [`StaticLinkRefusal::WrongRequirementKind`] on the
         /// very next line — so an earlier revision that dropped it here was
         /// discarding a region it had, not reporting one it lacked.
         locus: Locus,
@@ -320,12 +352,12 @@ pub enum LinkRefusal {
         /// The original source region of that control.
         locus: Locus,
     },
-    /// Two roles naming one authority.
+    /// Two version-1 roles naming one historically interpreted authority.
     ///
-    /// A dedupes role *names*, which are display text, and nothing dedupes
-    /// `role.model` — the export that actually says which authority the role
-    /// speaks for. Two roles over one authority with distinct role-instance
-    /// bindings are admitted by A.
+    /// This is the frozen `/1` interpretation of `role.model`. Version 2 treats
+    /// the export as the role's declared type and obtains concrete authority
+    /// from accepted runtime bindings, so two distinct static roles may share
+    /// one model export.
     DuplicateRoleAuthority {
         /// The role-table index of the later of the two.
         role: usize,
@@ -374,7 +406,7 @@ pub enum Referrer {
     WorkflowInstance,
 }
 
-impl LinkRefusal {
+impl StaticLinkRefusal {
     /// The original source region this finding is about, when it has one.
     ///
     /// Two variants return `None`, and neither is about the submitted artifact.
@@ -406,7 +438,7 @@ impl LinkRefusal {
     }
 }
 
-impl fmt::Display for LinkRefusal {
+impl fmt::Display for StaticLinkRefusal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::NoSuchDeclaration {
@@ -459,7 +491,7 @@ impl fmt::Display for LinkRefusal {
     }
 }
 
-impl std::error::Error for LinkRefusal {}
+impl std::error::Error for StaticLinkRefusal {}
 
 // ---------------------------------------------------------------------------
 // Identity derivation
@@ -527,7 +559,7 @@ fn push_bytes(bytes: &mut Vec<u8>, value: &[u8]) {
 /// requirements. [`ChannelPremises`] is what makes those axes identity-bearing,
 /// and an earlier revision of this doc counted it as a fifth premise rather than
 /// as the answer to a different question.
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct LinkedChannel {
     message: MessageId,
     send: SendId,
@@ -557,67 +589,59 @@ impl LinkedChannel {
     pub const fn delivery(&self) -> &DeliveryId {
         &self.delivery
     }
+
+    /// Exact five-part authored channel premise set.
+    #[must_use]
+    pub const fn premises(&self) -> &ChannelPremises {
+        &self.premises
+    }
 }
 
-/// The authored premises of one channel, with its display name excluded.
+/// The exact five FR-216 channel premises, with display name and locus absent.
 ///
-/// `FR-216` fixes the premise set's key as six components — sender, receiver,
-/// message types, ordering policy, delivery cardinality and duplication premise
-/// — and `FR-054-AC-4` makes every one of them significant: "Changing any
-/// channel premise changes the conformance request identity and its result
-/// provenance." `FR-002-AC-4` carries the same obligation into the linked
-/// representation.
-///
-/// An earlier revision of [`LinkedChannel`] carried the four *binding
-/// requirements* and nothing else, so a channel whose sender, receiver, message
-/// type, ordering policy or delivery cardinality was changed linked to an
-/// **equal** value while `spec/tests.md` recorded FR-002-AC-4 as executing.
-/// That is the same shape [`ControlShape`] was added to close, found the same
-/// way: by mutating one axis at a time and comparing.
-///
-/// # Five of the six, and the sixth is an open question upstream
-///
-/// This struct carries five: `from` is the sender, `to` the receiver,
-/// `message_type` the message type, `ordering` the ordering policy, and
-/// `delivery` the cardinality. A's `Channel` at the pinned revision publishes
-/// no field for the **duplication premise**, and it is not derived here —
-/// reading "duplication can occur" off an interval bound would be this crate
-/// interpreting A's numerals, and `FR-216` Absence forbids reading an absent
-/// premise as a default.
-///
-/// That is a contradiction between a requirement and an artifact, and
-/// `CLAUDE.md` says a contradiction is a stop rather than a paragraph. It is
-/// asked, not absorbed: **`agent-ix/quire-spec-language` issue 85** puts the
-/// question to the producer, and `FR-216`'s own Open gap 1 records the
-/// specification half of the same disagreement. Until one of them answers,
-/// `FR-002-AC-4` and `FR-054-AC-4` are **partially backed** in `spec/tests.md`
-/// — five components proven identity-bearing, one with no authored field to
-/// mutate — and this doc comment claims nothing further.
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+/// Duplication permission is a consequence of the retained delivery interval;
+/// it is not a sixth authored field. Handles and integers remain QSL owner
+/// types, so neither declaration qualification nor exact numeric spelling is
+/// collapsed into a local index or fingerprint.
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ChannelPremises {
-    sender: u32,
-    receiver: u32,
+    sender: quire_spec_language::protocol_artifact::wire::Handle,
+    receiver: quire_spec_language::protocol_artifact::wire::Handle,
     message_type: u32,
-    ordering: &'static str,
-    ordering_scope: Vec<u32>,
-    delivery: (u32, u32),
+    ordering: Ordering,
+    delivery: quire_spec_language::protocol_artifact::wire::Interval,
 }
 
 impl ChannelPremises {
-    // No accessors.
-    //
-    // What `FR-002-AC-4` and `FR-054-AC-4` require of this type is that
-    // changing a component changes the linked protocol, and that is carried by
-    // `PartialEq` and `Hash` over the fields. A reader that wants a component
-    // back has no obligation asking for it: nothing in this crate consumes one,
-    // and `Debug` already renders the set for a diagnostic.
-    //
-    // An earlier revision shipped six `pub` accessors with no caller anywhere
-    // in `src/` or `tests/`. That is the same API debt `link::interleaving`
-    // declines to take on in its own module documentation, and the argument
-    // does not stop applying because the item is an accessor rather than an
-    // enumerator. When a consumer needs a component, it arrives with that
-    // consumer.
+    /// Exact sender handle.
+    #[must_use]
+    pub const fn sender(&self) -> &quire_spec_language::protocol_artifact::wire::Handle {
+        &self.sender
+    }
+
+    /// Exact receiver handle.
+    #[must_use]
+    pub const fn receiver(&self) -> &quire_spec_language::protocol_artifact::wire::Handle {
+        &self.receiver
+    }
+
+    /// Exact selected message type.
+    #[must_use]
+    pub const fn message_type(&self) -> u32 {
+        self.message_type
+    }
+
+    /// Exact ordering alternative and FIFO handles.
+    #[must_use]
+    pub const fn ordering(&self) -> &Ordering {
+        &self.ordering
+    }
+
+    /// Exact delivery cardinality interval.
+    #[must_use]
+    pub const fn delivery(&self) -> &quire_spec_language::protocol_artifact::wire::Interval {
+        &self.delivery
+    }
 }
 
 /// Project one channel's authored premises.
@@ -628,24 +652,12 @@ impl ChannelPremises {
 /// one untagged shape — would make an unordered channel and a FIFO one
 /// comparable on their scopes alone.
 fn channel_premises(channel: &Channel) -> ChannelPremises {
-    let (ordering, ordering_scope) = match &channel.ordering {
-        Ordering::Unordered {} => ("unordered", Vec::new()),
-        Ordering::Fifo {
-            binder,
-            key,
-            anchor,
-        } => ("fifo", vec![binder.index, key.index, anchor.index]),
-    };
     ChannelPremises {
-        sender: channel.from.index,
-        receiver: channel.to.index,
+        sender: channel.from.clone(),
+        receiver: channel.to.clone(),
         message_type: channel.message_type,
-        ordering,
-        ordering_scope,
-        delivery: (
-            numeric_fingerprint(&channel.delivery.lower),
-            numeric_fingerprint(&channel.delivery.upper),
-        ),
+        ordering: channel.ordering.clone(),
+        delivery: channel.delivery.clone(),
     }
 }
 
@@ -654,7 +666,7 @@ fn channel_premises(channel: &Channel) -> ChannelPremises {
 /// A projection, not a re-derivation: A derives this set from the authored
 /// controls and refuses an offer whose `causal_edges` disagree with it, so what
 /// is retained here is A's answer.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EdgeShape {
     /// A's edge kind, as A spells it.
     pub kind: &'static str,
@@ -664,8 +676,18 @@ pub struct EdgeShape {
     pub from: (u32, &'static str),
     /// The target control and its port.
     pub to: (u32, &'static str),
-    /// The authored maximum, on a repeat-progress edge.
-    pub maximum: Option<u32>,
+    /// The exact authored maximum, on a repeat-progress edge.
+    pub maximum: Option<Integer>,
+    /// Complete QSL edge, retaining declaration-qualified handles and exact maximum.
+    exact: CausalEdge,
+}
+
+impl EdgeShape {
+    /// Complete admitted QSL edge.
+    #[must_use]
+    pub const fn exact(&self) -> &CausalEdge {
+        &self.exact
+    }
 }
 
 /// Project one of A's edges.
@@ -675,13 +697,14 @@ fn edge_shape(edge: &CausalEdge) -> EdgeShape {
         owner: edge.owner.index,
         from: (edge.from.node.index, edge.from.port.as_str()),
         to: (edge.to.node.index, edge.to.port.as_str()),
-        maximum: edge.maximum.0.as_ref().map(numeric_fingerprint),
+        maximum: edge.maximum.0.clone(),
+        exact: edge.clone(),
     }
 }
 
 /// One control's structure, with every authored name and label removed.
 ///
-/// `LinkedProtocol` used to carry identities and channels only, so two packages
+/// `StaticLinkedProtocol` used to carry identities and channels only, so two packages
 /// differing solely in a repeat's `maximum` (1 against 9999), or in a parallel
 /// `join`, or in `Finish.closure`, linked to **equal** values — while the matrix
 /// claimed FR-002-AC-4 was executing. AC-4 requires that changing an authored
@@ -694,12 +717,14 @@ fn edge_shape(edge: &CausalEdge) -> EdgeShape {
 /// and the fields below carry what the edge set does not — the repeat maximum,
 /// the choice's owner and visibility, and the finish closure. Nothing here is a
 /// name or a label, so a presentation change still leaves the value equal.
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ControlShape {
     /// The control's operation kind, as A spells it.
     kind: &'static str,
     /// Structural indices the operation carries, in declared order.
     indices: Vec<u32>,
+    /// Complete QSL operation; presentation-only nested labels/loci are neutralized.
+    operation: ControlOperation,
 }
 
 impl ControlShape {
@@ -713,6 +738,12 @@ impl ControlShape {
     #[must_use]
     pub fn indices(&self) -> &[u32] {
         &self.indices
+    }
+
+    /// Complete admitted control operation with presentation-only members excluded.
+    #[must_use]
+    pub const fn operation(&self) -> &ControlOperation {
+        &self.operation
     }
 
     /// Whether this control's sub-bodies are alternatives rather than
@@ -773,11 +804,9 @@ fn control_shape(control: &Control) -> ControlShape {
             indices.push(guard.index);
             indices.push(body.index);
             indices.push(exhausted.index);
-            // The authored maximum is the iteration bound AC-4 names. It is
-            // retained as its offered decimal text so a differently spelled but
-            // equal value is still a different authored protocol, which is A's
-            // own rule for exact numbers.
-            indices.push(numeric_fingerprint(maximum));
+            // `operation` below retains the exact owner-typed maximum. It is
+            // deliberately absent from this traversal-only index projection.
+            let _ = maximum;
             "repeat"
         }
         ControlOperation::Await {
@@ -817,7 +846,44 @@ fn control_shape(control: &Control) -> ControlShape {
             "commit"
         }
     };
-    ControlShape { kind, indices }
+    let mut operation = control.operation.clone();
+    normalize_control_presentation(&mut operation);
+    ControlShape {
+        kind,
+        indices,
+        operation,
+    }
+}
+
+fn normalize_control_presentation(operation: &mut ControlOperation) {
+    let empty_locus = || quire_spec_language::protocol_artifact::wire::Locus {
+        source: 0,
+        span: quire_spec_language::protocol_artifact::wire::Span { start: 0, end: 0 },
+    };
+    match operation {
+        ControlOperation::Choice { cases, .. } => {
+            for case in cases {
+                case.label.clear();
+                case.locus = empty_locus();
+            }
+        }
+        ControlOperation::Parallel { branches, .. } => {
+            for branch in branches {
+                branch.label.clear();
+                branch.locus = empty_locus();
+            }
+        }
+        ControlOperation::Event { related, .. } => {
+            for relation in related {
+                relation.locus = empty_locus();
+            }
+        }
+        ControlOperation::Sequence { .. }
+        | ControlOperation::Repeat { .. }
+        | ControlOperation::Await { .. }
+        | ControlOperation::Check { .. }
+        | ControlOperation::Commit { .. } => {}
+    }
 }
 
 /// Whether an offered integer is exactly zero.
@@ -839,23 +905,6 @@ fn is_zero(value: &Integer) -> bool {
     }
 }
 
-/// A stable fingerprint of an offered exact number's spelling.
-///
-/// Not a value: B does not interpret A's numerals, and A has already validated
-/// this one. It only has to differ when the spelling differs.
-fn numeric_fingerprint(value: &Integer) -> u32 {
-    let text = match &value.0 {
-        NumberWire::Integer { decimal } => decimal.clone(),
-        NumberWire::Rational {
-            numerator,
-            denominator,
-        } => format!("{numerator}/{denominator}"),
-    };
-    text.bytes().fold(2_166_136_261_u32, |hash, byte| {
-        (hash ^ u32::from(byte)).wrapping_mul(16_777_619)
-    })
-}
-
 /// The finite linked protocol.
 ///
 /// Equality and hashing run over the structure below. Every identity inside
@@ -866,8 +915,8 @@ fn numeric_fingerprint(value: &Integer) -> u32 {
 /// Maps are `BTreeMap`, so iteration order is the identity order rather than an
 /// insertion order or a hash order: a caller that walks a linked protocol sees
 /// the same sequence on every run and on every host.
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub struct LinkedProtocol {
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct StaticLinkedProtocol {
     definition: DefinitionId,
     workflow_instance: Option<WorkflowInstanceId>,
     role_instances: Vec<RoleInstanceId>,
@@ -890,7 +939,7 @@ pub struct LinkedProtocol {
     finish_closure: u32,
 }
 
-impl LinkedProtocol {
+impl StaticLinkedProtocol {
     /// The authored definition this protocol was linked from.
     #[must_use]
     pub const fn definition(&self) -> &DefinitionId {
@@ -1034,7 +1083,7 @@ impl IdentityBuilder for BoundedIdentityBuilder<'_, '_> {
 }
 
 enum LinkBuildError<E> {
-    Domain(Diagnostics),
+    Domain(StaticDiagnostics),
     Identity(E),
 }
 
@@ -1116,7 +1165,7 @@ fn link_declarations_bounded(
     declarations: &[Declaration],
     declaration: u32,
     resources: &mut ResourceAccountant<'_>,
-) -> OperationOutcome<LinkedProtocol, Diagnostics> {
+) -> OperationOutcome<StaticLinkedProtocol, StaticDiagnostics> {
     let work = match link_work(declarations, declaration) {
         Ok(Some(work)) => work,
         Ok(None) => {
@@ -1139,7 +1188,7 @@ fn link_declarations_bounded(
         return OperationOutcome::from_charge(error);
     }
     let mut identities = BoundedIdentityBuilder { resources };
-    match link_declarations_with(declarations, declaration, &mut identities) {
+    match link_declarations_with(declarations, declaration, true, &mut identities) {
         Ok(linked) => OperationOutcome::Completed(linked),
         Err(LinkBuildError::Domain(error)) => OperationOutcome::DomainError(error),
         Err(LinkBuildError::Identity(error)) => OperationOutcome::from_charge(error),
@@ -1159,7 +1208,10 @@ fn link_declarations_bounded(
 /// is what stops a partially built graph escaping alongside them. See
 /// [`diagnostics`] for which checks are independent and which are skipped
 /// because their input was never established.
-pub fn link(package: &AdmittedPackage, declaration: u32) -> Result<LinkedProtocol, Diagnostics> {
+pub(crate) fn link_static_v1(
+    package: &AdmittedPackage,
+    declaration: u32,
+) -> Result<StaticLinkedProtocol, StaticDiagnostics> {
     link_declarations(&package.package().declarations, declaration)
 }
 
@@ -1168,11 +1220,11 @@ pub fn link(package: &AdmittedPackage, declaration: u32) -> Result<LinkedProtoco
 /// Every structural population the linker will retain, traverse, queue, or
 /// iterate is charged transactionally before identity construction or graph
 /// mapping begins.
-pub fn link_bounded(
+pub(crate) fn link_static_v1_bounded(
     package: &AdmittedPackage,
     declaration: u32,
     resources: &mut ResourceAccountant<'_>,
-) -> OperationOutcome<LinkedProtocol, Diagnostics> {
+) -> OperationOutcome<StaticLinkedProtocol, StaticDiagnostics> {
     resources.run_unit(UnitLabel::new("link::link_bounded"), |resources| {
         link_declarations_bounded(&package.package().declarations, declaration, resources)
     })
@@ -1192,9 +1244,21 @@ pub fn link_bounded(
 fn link_declarations(
     declarations: &[Declaration],
     declaration: u32,
-) -> Result<LinkedProtocol, Diagnostics> {
+) -> Result<StaticLinkedProtocol, StaticDiagnostics> {
     let mut identities = UnboundedIdentityBuilder;
-    match link_declarations_with(declarations, declaration, &mut identities) {
+    match link_declarations_with(declarations, declaration, true, &mut identities) {
+        Ok(linked) => Ok(linked),
+        Err(LinkBuildError::Domain(error)) => Err(error),
+        Err(LinkBuildError::Identity(never)) => match never {},
+    }
+}
+
+pub(super) fn link_declarations_v2(
+    declarations: &[Declaration],
+    declaration: u32,
+) -> Result<StaticLinkedProtocol, StaticDiagnostics> {
+    let mut identities = UnboundedIdentityBuilder;
+    match link_declarations_with(declarations, declaration, false, &mut identities) {
         Ok(linked) => Ok(linked),
         Err(LinkBuildError::Domain(error)) => Err(error),
         Err(LinkBuildError::Identity(never)) => match never {},
@@ -1204,17 +1268,20 @@ fn link_declarations(
 fn link_declarations_with<B: IdentityBuilder>(
     declarations: &[Declaration],
     declaration: u32,
+    legacy_model_authority: bool,
     identities: &mut B,
-) -> Result<LinkedProtocol, LinkBuildError<B::Error>> {
+) -> Result<StaticLinkedProtocol, LinkBuildError<B::Error>> {
     // The two gating checks. Neither accumulates with anything, because a
     // declaration that is absent or is not a protocol leaves no tables to walk:
     // every check below reads one of them.
     let index = usize::try_from(declaration).unwrap_or(usize::MAX);
     let declared = declarations.get(index).ok_or_else(|| {
-        LinkBuildError::Domain(Diagnostics::of(LinkRefusal::NoSuchDeclaration {
-            selected: declaration,
-            available: declarations.len(),
-        }))
+        LinkBuildError::Domain(StaticDiagnostics::of(
+            StaticLinkRefusal::NoSuchDeclaration {
+                selected: declaration,
+                available: declarations.len(),
+            },
+        ))
     })?;
 
     let Body::Protocol {
@@ -1226,8 +1293,8 @@ fn link_declarations_with<B: IdentityBuilder>(
         ..
     } = &declared.body
     else {
-        return Err(LinkBuildError::Domain(Diagnostics::of(
-            LinkRefusal::NotAProtocol {
+        return Err(LinkBuildError::Domain(StaticDiagnostics::of(
+            StaticLinkRefusal::NotAProtocol {
                 declaration,
                 found: body_tag(&declared.body),
             },
@@ -1272,7 +1339,7 @@ fn link_declarations_with<B: IdentityBuilder>(
     for (position, control) in controls.iter().enumerate() {
         if let ControlOperation::Repeat { maximum, .. } = &control.operation {
             if is_zero(maximum) {
-                found.record(LinkRefusal::ZeroProgressIteration {
+                found.record(StaticLinkRefusal::ZeroProgressIteration {
                     control: u32::try_from(position).unwrap_or(u32::MAX),
                     locus: control.locus.clone(),
                 });
@@ -1280,21 +1347,22 @@ fn link_declarations_with<B: IdentityBuilder>(
         }
     }
 
-    let mut seen_authorities: Vec<(u32, u32)> = Vec::new();
-    for (position, role) in roles.iter().enumerate() {
-        let model = (role.model.model, role.model.export);
-        if seen_authorities.contains(&model) {
-            found.record(LinkRefusal::DuplicateRoleAuthority {
-                role: position,
-                model,
-                locus: role.locus.clone(),
-            });
+    if legacy_model_authority {
+        let mut seen_authorities: Vec<(u32, u32)> = Vec::new();
+        for (position, role) in roles.iter().enumerate() {
+            let model = (role.model.model, role.model.export);
+            if seen_authorities.contains(&model) {
+                found.record(StaticLinkRefusal::DuplicateRoleAuthority {
+                    role: position,
+                    model,
+                    locus: role.locus.clone(),
+                });
+            }
+            // The frozen `/1` facade preserves its historical interpretation
+            // of a role model export as authority. Version 2 obtains concrete
+            // authority only from accepted runtime bindings instead.
+            seen_authorities.push(model);
         }
-        // Pushed whether or not it duplicated one already seen. A third role
-        // over the same authority is then reported against the first, not
-        // against the second, so N roles over one authority give N-1 findings
-        // rather than one.
-        seen_authorities.push(model);
     }
 
     // Each role's binding requirement is resolved independently of every other
@@ -1434,7 +1502,7 @@ fn link_declarations_with<B: IdentityBuilder>(
         // and it is O(1) rather than the quadratic scans that were deleted.
         match linked_channels.entry(identity) {
             std::collections::btree_map::Entry::Occupied(existing) => {
-                found.record(LinkRefusal::CollidingIdentity {
+                found.record(StaticLinkRefusal::CollidingIdentity {
                     kind: IdentityKind::Channel,
                     identity: existing.key().identity_bytes().to_vec(),
                     locus: channel.locus.clone(),
@@ -1476,7 +1544,7 @@ fn link_declarations_with<B: IdentityBuilder>(
         .map(|(identity, _locus)| identity)
         .collect();
 
-    Ok(LinkedProtocol {
+    Ok(StaticLinkedProtocol {
         definition,
         workflow_instance,
         role_instances,
@@ -1507,19 +1575,20 @@ impl<'a> Linker<'a> {
         selected: u32,
         required: BindingKind,
         locus: &Locus,
-    ) -> Result<&'a BindingRequirement, LinkRefusal> {
+    ) -> Result<&'a BindingRequirement, StaticLinkRefusal> {
         let bindings = &self.declared.bindings;
         let index = usize::try_from(selected).unwrap_or(usize::MAX);
-        let requirement = bindings
-            .get(index)
-            .ok_or_else(|| LinkRefusal::NoSuchRequirement {
-                referrer,
-                selected,
-                available: bindings.len(),
-                locus: locus.clone(),
-            })?;
+        let requirement =
+            bindings
+                .get(index)
+                .ok_or_else(|| StaticLinkRefusal::NoSuchRequirement {
+                    referrer,
+                    selected,
+                    available: bindings.len(),
+                    locus: locus.clone(),
+                })?;
         if requirement.kind != required {
-            return Err(LinkRefusal::WrongRequirementKind {
+            return Err(StaticLinkRefusal::WrongRequirementKind {
                 referrer,
                 required,
                 found: requirement.kind,
@@ -1621,7 +1690,7 @@ fn check_distinct_roles(values: &[(RoleInstanceId, Locus)], found: &mut Accumula
     let mut seen: BTreeSet<&[u8]> = BTreeSet::new();
     for (value, locus) in values {
         if !seen.insert(value.identity_bytes()) {
-            found.record(LinkRefusal::CollidingIdentity {
+            found.record(StaticLinkRefusal::CollidingIdentity {
                 kind: IdentityKind::RoleInstance,
                 identity: value.identity_bytes().to_vec(),
                 locus: locus.clone(),
@@ -2046,7 +2115,7 @@ mod tests {
         let refusal = link_declarations(&wrong, 0).expect_err("a wrong kind refuses");
         assert_eq!(
             refusal,
-            Diagnostics::of(LinkRefusal::WrongRequirementKind {
+            StaticDiagnostics::of(StaticLinkRefusal::WrongRequirementKind {
                 referrer: Referrer::Channel {
                     index: 0,
                     premise: ChannelPremise::Send,
@@ -2070,7 +2139,7 @@ mod tests {
         let refusal = link_declarations(&missing, 0).expect_err("an absent requirement refuses");
         assert_eq!(
             refusal,
-            Diagnostics::of(LinkRefusal::NoSuchRequirement {
+            StaticDiagnostics::of(StaticLinkRefusal::NoSuchRequirement {
                 referrer: Referrer::Role { index: 0 },
                 selected: 99,
                 available: bindings().len(),
@@ -2095,7 +2164,7 @@ mod tests {
         )];
         assert_eq!(
             link_declarations(&not_a_protocol, 0).expect_err("a predicate is not a protocol"),
-            Diagnostics::of(LinkRefusal::NotAProtocol {
+            StaticDiagnostics::of(StaticLinkRefusal::NotAProtocol {
                 declaration: 0,
                 found: "predicate",
             })
@@ -2107,7 +2176,7 @@ mod tests {
     fn tc_002_a_declaration_outside_the_package_is_refused() {
         assert_eq!(
             link_declarations(&fixture(), 7).expect_err("there is one declaration"),
-            Diagnostics::of(LinkRefusal::NoSuchDeclaration {
+            StaticDiagnostics::of(StaticLinkRefusal::NoSuchDeclaration {
                 selected: 7,
                 available: 1,
             })
@@ -2136,7 +2205,7 @@ mod tests {
 
         assert_eq!(
             link_declarations(&colliding, 0).expect_err("one identity for two roles refuses"),
-            Diagnostics::of(LinkRefusal::CollidingIdentity {
+            StaticDiagnostics::of(StaticLinkRefusal::CollidingIdentity {
                 kind: IdentityKind::RoleInstance,
                 identity: requirement_identity(
                     &declaration_identity(0, &fixture()[0]),
@@ -2199,7 +2268,7 @@ mod tests {
         // neighbouring one, and that a working fixture does link.
         match link_declarations(&wrong, 0) {
             Err(diagnostics) => match diagnostics.first() {
-                LinkRefusal::WrongRequirementKind { referrer, .. } => assert_eq!(
+                StaticLinkRefusal::WrongRequirementKind { referrer, .. } => assert_eq!(
                     *referrer,
                     Referrer::Channel {
                         index: 0,
@@ -2229,7 +2298,7 @@ mod tests {
             controls.push(repeat_control(spelling));
             assert_eq!(
                 link_declarations(&zero, 0).expect_err("zero progress refuses"),
-                Diagnostics::of(LinkRefusal::ZeroProgressIteration {
+                StaticDiagnostics::of(StaticLinkRefusal::ZeroProgressIteration {
                     control: 0,
                     locus: locus(),
                 }),
@@ -2249,10 +2318,10 @@ mod tests {
         );
     }
 
-    /// Two roles may not name one authority.
+    /// The frozen version-1 linker refuses two roles under its legacy authority interpretation.
     ///
-    /// A dedupes role names, which are display text; nothing dedupes
-    /// `role.model`, which is the authority the role speaks for.
+    /// Version 2 deliberately does not apply this check: `role.model` is a role
+    /// declaration type there, not a concrete runtime authority.
     ///
     /// This fixture is two findings, not one, and it always was. Its second
     /// role selects role-instance requirement 1, which is the one the first
@@ -2278,12 +2347,12 @@ mod tests {
         assert_eq!(
             diagnostics.iter().collect::<Vec<_>>(),
             [
-                &LinkRefusal::DuplicateRoleAuthority {
+                &StaticLinkRefusal::DuplicateRoleAuthority {
                     role: 1,
                     model: (0, 0),
                     locus: locus(),
                 },
-                &LinkRefusal::CollidingIdentity {
+                &StaticLinkRefusal::CollidingIdentity {
                     kind: IdentityKind::RoleInstance,
                     identity: requirement_identity(
                         &declaration_identity(0, &fixture()[0]),
@@ -2323,7 +2392,7 @@ mod tests {
         let controls: Vec<u32> = diagnostics
             .iter()
             .map(|finding| match finding {
-                LinkRefusal::ZeroProgressIteration { control, .. } => *control,
+                StaticLinkRefusal::ZeroProgressIteration { control, .. } => *control,
                 other => panic!("expected only zero-progress findings, got {other:?}"),
             })
             .collect();
@@ -2355,7 +2424,7 @@ mod tests {
         let premises: Vec<ChannelPremise> = diagnostics
             .iter()
             .map(|finding| match finding {
-                LinkRefusal::WrongRequirementKind {
+                StaticLinkRefusal::WrongRequirementKind {
                     referrer: Referrer::Channel { premise, .. },
                     ..
                 } => *premise,
@@ -2490,7 +2559,7 @@ mod tests {
 
     /// FR-002-AC-4's semantic half, for the four mutations that used to pass.
     ///
-    /// `LinkedProtocol` carried identities and channels only, so two packages
+    /// `StaticLinkedProtocol` carried identities and channels only, so two packages
     /// differing solely in a repeat maximum, a parallel join, a choice's
     /// visibility or the finish closure linked to equal values — while the
     /// matrix claimed AC-4 was executing.
@@ -2929,7 +2998,7 @@ mod tests {
     /// sorts `causal_edges` on the full edge key and refuses an offer whose
     /// order differs, so a reordered table cannot reach this crate from an
     /// admitted artifact at all; what this checks is that nothing downstream of
-    /// the retained sequence depends on it. `LinkedProtocol` still compares the
+    /// the retained sequence depends on it. `StaticLinkedProtocol` still compares the
     /// edges as the sequence A supplied, which is A's canonical one.
     #[trace("TC-002", "FR-002-AC-2")]
     #[test]
@@ -3263,24 +3332,18 @@ mod tests {
     enum Guard {
         /// This crate refuses it. The first finding must be this one, and a
         /// refusal carries no linked representation by the shape of the result.
-        Refused(LinkRefusal),
+        Refused(StaticLinkRefusal),
         /// Admitted here, and the linked protocol differs. This is the
         /// `FR-002-AC-4` half that makes a semantic change identity-bearing.
         Distinct,
         /// Admitted here, and the linked protocol compares equal. The other
         /// `FR-002-AC-4` half: presentation is not identity.
         Presentation,
-        /// A refuses it inside `read`, so an admitted package cannot carry it.
-        /// These fixtures are built as wire records and never pass through
-        /// `read`, so what is checked here is the weaker true statement: the
-        /// mutation does not link to an equal protocol. The named check is A's.
+        /// A refuses it in strict reader validation or native family admission.
+        /// These fixtures are built as bare wire records and never pass through
+        /// either boundary, so what is checked here is that the private mapper
+        /// does not duplicate the named owner check.
         Upstream(&'static str),
-        /// Nobody refuses it. The mutation links, and the criterion stays open.
-        ///
-        /// Asserting the absence is deliberate. When a guard lands, this row
-        /// fails and has to be moved to [`Guard::Refused`], which is how the
-        /// hole gets closed in the matrix at the same time as in the code.
-        Unguarded(&'static str),
     }
 
     /// One mutation axis: what is changed, and what stops it.
@@ -3304,9 +3367,10 @@ mod tests {
     ///   carries exactly one `owner: Handle`, so there is no artifact with
     ///   none and none with two. The type is the guard, and a row asserting a
     ///   refusal that can never be offered would be theatre.
-    /// - **A duplication premise.** `FR-216` fixes six premise components and
-    ///   A's `Channel` publishes five; see [`ChannelPremises`]. An axis with no
-    ///   authored field has no mutation.
+    /// - **A separate duplication premise.** Accepted `FR-216` fixes five
+    ///   channel components and derives duplication permission from delivery
+    ///   cardinality; A's `Channel` publishes those five. There is no sixth
+    ///   authored field to mutate; see [`ChannelPremises`].
     /// - **Runtime instance identities.** `FR-050-AC-3`'s two concurrent
     ///   workflow instances are not link-time subjects; the owner has ruled
     ///   `FR-002-AC-1` unresolved until instance identities exist.
@@ -3323,7 +3387,7 @@ mod tests {
                     let (roles, ..) = body(declarations);
                     roles.push(role_with_model("Seller", 11, (0, 0)));
                 },
-                guard: Guard::Refused(LinkRefusal::DuplicateRoleAuthority {
+                guard: Guard::Refused(StaticLinkRefusal::DuplicateRoleAuthority {
                     role: 1,
                     model: (0, 0),
                     locus: locus_at(ROLES, 1),
@@ -3336,7 +3400,7 @@ mod tests {
                     let (roles, ..) = body(declarations);
                     roles.push(role_with_model("Seller", 1, (1, 0)));
                 },
-                guard: Guard::Refused(LinkRefusal::CollidingIdentity {
+                guard: Guard::Refused(StaticLinkRefusal::CollidingIdentity {
                     kind: IdentityKind::RoleInstance,
                     // The identity the second role collides with, read off a
                     // successful link of the same fixture rather than
@@ -3359,7 +3423,7 @@ mod tests {
                     let (roles, ..) = body(declarations);
                     roles[0].instance = 3;
                 },
-                guard: Guard::Refused(LinkRefusal::WrongRequirementKind {
+                guard: Guard::Refused(StaticLinkRefusal::WrongRequirementKind {
                     referrer: Referrer::Role { index: 0 },
                     required: BindingKind::RoleInstance,
                     found: BindingKind::Component,
@@ -3373,7 +3437,7 @@ mod tests {
                     let (roles, ..) = body(declarations);
                     roles[0].instance = 99;
                 },
-                guard: Guard::Refused(LinkRefusal::NoSuchRequirement {
+                guard: Guard::Refused(StaticLinkRefusal::NoSuchRequirement {
                     referrer: Referrer::Role { index: 0 },
                     selected: 99,
                     available: bindings().len(),
@@ -3397,7 +3461,7 @@ mod tests {
                     let (_, channels, ..) = body(declarations);
                     channels[0].message = 8;
                 },
-                guard: Guard::Refused(LinkRefusal::WrongRequirementKind {
+                guard: Guard::Refused(StaticLinkRefusal::WrongRequirementKind {
                     referrer: Referrer::Channel {
                         index: 0,
                         premise: ChannelPremise::Message,
@@ -3419,7 +3483,7 @@ mod tests {
                     };
                     *maximum = integer("0");
                 },
-                guard: Guard::Refused(LinkRefusal::ZeroProgressIteration {
+                guard: Guard::Refused(StaticLinkRefusal::ZeroProgressIteration {
                     control: 10,
                     locus: locus_at(CONTROLS, 10),
                 }),
@@ -3520,8 +3584,8 @@ mod tests {
                     let (_, _, controls, ..) = body(declarations);
                     controls.push(check_control());
                 },
-                guard: Guard::Unguarded(
-                    "unreachable termination: no reachability analysis exists in either repository",
+                guard: Guard::Upstream(
+                    "A's derived ownership/reachability check rejects every non-root control with no parent",
                 ),
             },
             // --- FR-053: choice and visibility ----------------------------
@@ -3584,9 +3648,8 @@ mod tests {
                     };
                     cases[1].guard = cases[0].guard.clone();
                 },
-                guard: Guard::Unguarded(
-                    "overlapping choices: guard disjointness is a decision procedure over \
-                     arbitrary predicates, which neither repository has",
+                guard: Guard::Upstream(
+                    "A's native family-admission Boolean partition proof rejects overlapping cases",
                 ),
             },
             Axis {
@@ -3600,9 +3663,9 @@ mod tests {
                     };
                     *visible = vec![handle(1)];
                 },
-                guard: Guard::Unguarded(
-                    "owner-unobservable choices: values carry no role attribution to relate a \
-                     guard's operands to the visible set",
+                guard: Guard::Upstream(
+                    "A's native family-admission proof checks exact role ownership, causal availability, \
+                     and the advertised visible-expression closure",
                 ),
             },
             // --- FR-054: channel premises ---------------------------------
@@ -3613,7 +3676,7 @@ mod tests {
                     let (_, channels, ..) = body(declarations);
                     channels[0].send = 99;
                 },
-                guard: Guard::Refused(LinkRefusal::NoSuchRequirement {
+                guard: Guard::Refused(StaticLinkRefusal::NoSuchRequirement {
                     referrer: Referrer::Channel {
                         index: 0,
                         premise: ChannelPremise::Send,
@@ -3707,7 +3770,9 @@ mod tests {
     /// ordering policy and delivery cardinality all linked to an equal protocol
     /// while the matrix recorded AC-4 as executing. See [`ChannelPremises`].
     /// Link a mutated fixture, re-stamping so every record keeps its own region.
-    fn sweep_outcome(apply: fn(&mut Vec<Declaration>)) -> Result<LinkedProtocol, Diagnostics> {
+    fn sweep_outcome(
+        apply: fn(&mut Vec<Declaration>),
+    ) -> Result<StaticLinkedProtocol, StaticDiagnostics> {
         let mut mutated = sweep_fixture();
         apply(&mut mutated);
         // A mutation that adds or moves a record changes which position each
@@ -3720,7 +3785,7 @@ mod tests {
     /// right place.
     ///
     /// `FR-002-AC-3` asks for a refusal "at its source location", so the
-    /// expected `LinkRefusal` is compared whole — the finding's kind, its
+    /// expected `StaticLinkRefusal` is compared whole — the finding's kind, its
     /// fields **and** its `locus`. `stamp` gives each record its own region,
     /// so a refusal that names the wrong control, role or channel fails here
     /// rather than comparing equal to the right one.
@@ -3786,25 +3851,16 @@ mod tests {
         assert_eq!(seen, 18, "the sweep's identity axes");
     }
 
-    /// The axes this crate does not guard, recorded as still unguarded.
+    /// The axes the producer owns and this crate deliberately does not re-check.
     ///
-    /// Two kinds, and neither discharges an acceptance criterion — the tag is
-    /// `Task-002`, not `FR-002-AC-3`, because every assertion here says a
-    /// mutation is **accepted**:
-    ///
-    /// - `Guard::Upstream` — A refuses it inside `read`, before this crate sees
-    ///   it. What is checked is that B does not *also* refuse it, which is what
-    ///   would happen if someone re-implemented A's acyclicity or join check
-    ///   here. An earlier revision asserted the linked protocol differed
-    ///   instead; both axes add or remove a `CausalEdge`, and the edge set is
-    ///   part of the identity, so that assertion could not fail and said
-    ///   nothing about A.
-    /// - `Guard::Unguarded` — nobody refuses it, in either repository. The
-    ///   assertion is the hole itself, so that the day someone closes it, this
-    ///   test fails and says which row to move.
+    /// The tag is `Task-002`, not `FR-002-AC-3`, because every assertion here
+    /// exercises the private mapper below owner admission and confirms B does
+    /// not duplicate A's guard. A's pinned native family-admission tests own
+    /// reachability, partition/non-overlap and decision visibility; its strict
+    /// reader owns derived-edge comparison, joins and acyclicity.
     #[trace("TC-002", "Task-002")]
     #[test]
-    fn tc_002_the_unguarded_axes_are_still_unguarded() {
+    fn tc_002_upstream_axes_are_not_rechecked_by_the_private_mapper() {
         let mut seen = 0;
         for Axis {
             criterion,
@@ -3813,24 +3869,16 @@ mod tests {
             guard,
         } in sweep()
         {
-            let note = match guard {
-                Guard::Upstream(check) => {
-                    format!(
-                        "upstream it is refused by {check}, and this crate must not re-check it"
-                    )
-                }
-                Guard::Unguarded(hole) => {
-                    format!("{hole} — move this axis to Guard::Refused and update spec/tests.md")
-                }
-                _ => continue,
+            let Guard::Upstream(check) = guard else {
+                continue;
             };
             seen += 1;
             let outcome = sweep_outcome(apply);
             assert!(
                 outcome.is_ok(),
-                "{criterion}: {change} is refused here. {note}"
+                "{criterion}: {change} is refused here; it is owned upstream by {check}"
             );
         }
-        assert_eq!(seen, 5, "the sweep's unguarded axes");
+        assert_eq!(seen, 5, "the sweep's upstream-owned axes");
     }
 }

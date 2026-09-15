@@ -29,8 +29,8 @@ semantics.
 ## Target Integration
 
 QObs publishes the accepted typed Rust runtime facts and topology at revision
-`93bc565`. Protocol's current direct pin is older and must be repinned before
-these scenarios execute. QSL publishes the native-temporal request/result and
+`93bc565`, which Protocol now pins and consumes for Task-002's linked runtime
+binding boundary. QSL publishes the native-temporal request/result and
 checked activation-guard selection at Protocol's current exact revision
 `f1700a9264d6d3bcdd07e0f77b70f3dae9ed4c07`. Protocol invokes no temporal
 evaluator and does not consume a QCI join result; QCI consumes Protocol's result
@@ -60,9 +60,9 @@ QObs, QSL, QCI or a research artifact.
 
 Every external contract consumed by this integration resolves through FR-009
 before any fact is read. QSL `/2` and native-temporal capabilities are pinned at
-`f1700a9`. The QObs entry remains unresolved in Protocol until its direct
-dependency is repinned from `9ac80e93` to accepted revision `93bc565`; while it
-is unresolved these scenarios report unexecutable, not pass or fail.
+`f1700a9`, and the direct QObs dependency is pinned at accepted revision
+`93bc565`. Task-010 still owns the exact version-lock entry population and the
+typed assessment composition required before these scenarios execute.
 
 The QObs consumer preserves decision-scope and surrounding-execution
 progress/closure, settlement basis, decision support, completeness, and exact
@@ -172,9 +172,10 @@ assembly. QCI issue 71 is a downstream consumer and is not a prerequisite.
 
 ## Notes
 
-The owner contracts are delivered. The remaining enablement is the Protocol
-QObs repin and the typed composition path from linked graph through assessment
-to canonical result. This integration remains planned until Task-010 closes.
+The owner contracts and Protocol's QObs pin/runtime linker adoption are
+delivered. The remaining enablement is the typed composition path from linked
+graph through assessment to canonical result, including exact version-lock
+entry population. This integration remains planned until Task-010 closes.
 
 ## Traceability
 

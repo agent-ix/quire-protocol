@@ -4,10 +4,12 @@ This is the Rust consumer and assessment boundary for the accepted A-owned
 `quire.compiled-protocol/1` and `/2` contracts. It delegates byte admission to
 the exact QSL readers, then owns a distinct identity-preserving linked
 representation and the pure compensation, conformance, claim and result path.
-Admission and linking are separate operations. The root `/2`
-`admit_and_link_v2` name is transitional; the published root `/1`
-`admit_and_link` remains a narrow compatibility facade while normal integrations
-move to versioned intake/model modules.
+Admission and linking are separate operations. Normal integrations use
+`intake::{v1,v2}` and `model::{v1,v2}`. The published root `/1`
+`admit_and_link` remains only as the frozen narrow compatibility facade; there
+is no root `/2` facade. Version-2 links expose exact presentation/provenance
+context separately from FR-288 and semantic equality, so source loci remain
+inspectable without becoming identity.
 
 The pinned QSL dependency publishes the default-running `/2` handoff and its
 expected selections. A producer-emitted expectation is evidence, not consumer
