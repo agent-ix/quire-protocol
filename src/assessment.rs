@@ -62,10 +62,14 @@ pub struct ClaimRow<Row> {
 /// The Engine owns construction and strict rereading; callers supply only the
 /// independently typed subsystem facts required by the result owner.
 #[derive(Clone, Debug)]
-pub struct CanonicalRowInput<'a> {
-    pub claim: Claim,
-    pub input: result::Input<'a>,
-    pub limits: result::Limits,
+#[expect(
+    dead_code,
+    reason = "Task-006 retains the private result composition candidate until typed stage outputs are wired into Engine"
+)]
+pub(crate) struct CanonicalRowInput<'a> {
+    pub(crate) claim: Claim,
+    pub(crate) input: result::Input<'a>,
+    pub(crate) limits: result::Limits,
 }
 
 /// The exact QObs event and QSL v2 request selected for one activation site.
@@ -150,53 +154,76 @@ pub enum BundleRefusal {
 }
 
 macro_rules! bundle_code {
-    ($name:ident, $code:literal) => {
+    ($name:ident, $code:literal, $domain:expr) => {
         const $name: CodeEntry = CodeEntry {
             provenance: Provenance::Minted,
             code: $code,
-            domain: RefusalDomain::Assessment,
+            domain: $domain,
             retry: RetryDecision::AfterSelectionChange,
             summary: "the assessment claim population cannot form one complete bundle",
         };
     };
 }
 
-bundle_code!(BUNDLE_EMPTY_REQUEST, "assessment.bundle-empty-request");
+bundle_code!(
+    BUNDLE_EMPTY_REQUEST,
+    "assessment-input.bundle-empty-request",
+    RefusalDomain::Assessment
+);
 bundle_code!(
     BUNDLE_DUPLICATE_REQUEST,
-    "assessment.bundle-duplicate-request"
+    "assessment-input.bundle-duplicate-request",
+    RefusalDomain::Assessment
 );
 bundle_code!(
     BUNDLE_UNEXPECTED_CLAIM,
-    "assessment.bundle-unexpected-claim"
+    "assessment-input.bundle-unexpected-claim",
+    RefusalDomain::Assessment
 );
-bundle_code!(BUNDLE_DUPLICATE_ROW, "assessment.bundle-duplicate-row");
-bundle_code!(BUNDLE_MISSING_ROW, "assessment.bundle-missing-row");
+bundle_code!(
+    BUNDLE_DUPLICATE_ROW,
+    "assessment-input.bundle-duplicate-row",
+    RefusalDomain::Assessment
+);
+bundle_code!(
+    BUNDLE_MISSING_ROW,
+    "assessment-input.bundle-missing-row",
+    RefusalDomain::Assessment
+);
 bundle_code!(
     BUNDLE_INVALID_IDENTITY,
-    "assessment.bundle-invalid-identity"
+    "assessment-representation.bundle-invalid-identity",
+    RefusalDomain::Representation
 );
 bundle_code!(
     BUNDLE_INVALID_LINKED_PROTOCOL,
-    "assessment.bundle-invalid-linked-protocol"
+    "assessment-representation.bundle-invalid-linked-protocol",
+    RefusalDomain::Representation
 );
 bundle_code!(
     BUNDLE_INVALID_CONFORMANCE_KERNEL,
-    "assessment.bundle-invalid-conformance-kernel"
+    "assessment-conformance.bundle-invalid-conformance-kernel",
+    RefusalDomain::Assessment
 );
-bundle_code!(BUNDLE_CLAIM_MISMATCH, "assessment.bundle-claim-mismatch");
+bundle_code!(
+    BUNDLE_CLAIM_MISMATCH,
+    "assessment-result.bundle-claim-mismatch",
+    RefusalDomain::Result
+);
 bundle_code!(
     BUNDLE_ACTIVATION_SUBJECT,
-    "assessment.activation-subject-mismatch"
+    "assessment-activation.subject-mismatch",
+    RefusalDomain::Assessment
 );
 bundle_code!(
     BUNDLE_ACTIVATION_DECLARATION,
-    "assessment.activation-declaration-mismatch"
+    "assessment-activation.declaration-mismatch",
+    RefusalDomain::Assessment
 );
 
 /// Refusal codes minted by the assessment-bundle orchestration boundary.
 pub const CODES: CodeModule = CodeModule {
-    root: "assessment",
+    root: "assessment-input",
     owner: "Task-006",
     module_path: "quire_protocol::assessment",
     entries: &[
@@ -205,34 +232,76 @@ pub const CODES: CodeModule = CodeModule {
         BUNDLE_UNEXPECTED_CLAIM,
         BUNDLE_DUPLICATE_ROW,
         BUNDLE_MISSING_ROW,
-        BUNDLE_INVALID_IDENTITY,
-        BUNDLE_INVALID_LINKED_PROTOCOL,
-        BUNDLE_INVALID_CONFORMANCE_KERNEL,
-        BUNDLE_CLAIM_MISMATCH,
-        BUNDLE_ACTIVATION_SUBJECT,
-        BUNDLE_ACTIVATION_DECLARATION,
     ],
 };
 
+/// Representation-stage assessment setup codes.
+pub const REPRESENTATION_CODES: CodeModule = CodeModule {
+    root: "assessment-representation",
+    owner: "Task-006",
+    module_path: "quire_protocol::assessment",
+    entries: &[BUNDLE_INVALID_IDENTITY, BUNDLE_INVALID_LINKED_PROTOCOL],
+};
+
+/// Conformance-stage assessment setup codes.
+pub const CONFORMANCE_CODES: CodeModule = CodeModule {
+    root: "assessment-conformance",
+    owner: "Task-006",
+    module_path: "quire_protocol::assessment",
+    entries: &[BUNDLE_INVALID_CONFORMANCE_KERNEL],
+};
+
+/// Result-assembly assessment codes.
+pub const RESULT_CODES: CodeModule = CodeModule {
+    root: "assessment-result",
+    owner: "Task-006",
+    module_path: "quire_protocol::assessment",
+    entries: &[BUNDLE_CLAIM_MISMATCH],
+};
+
+/// Compensation-stage activation-binding codes.
+pub const ACTIVATION_CODES: CodeModule = CodeModule {
+    root: "assessment-activation",
+    owner: "Task-006",
+    module_path: "quire_protocol::assessment",
+    entries: &[BUNDLE_ACTIVATION_SUBJECT, BUNDLE_ACTIVATION_DECLARATION],
+};
+
 fn outcome_refusal(error: BundleRefusal) -> ProtocolRefusal {
-    let entry = match error {
-        BundleRefusal::EmptyRequest => &BUNDLE_EMPTY_REQUEST,
-        BundleRefusal::DuplicateRequestedClaim => &BUNDLE_DUPLICATE_REQUEST,
-        BundleRefusal::UnexpectedClaim => &BUNDLE_UNEXPECTED_CLAIM,
-        BundleRefusal::DuplicateClaimRow => &BUNDLE_DUPLICATE_ROW,
-        BundleRefusal::MissingClaimRow => &BUNDLE_MISSING_ROW,
-        BundleRefusal::InvalidDefinitionIdentity => &BUNDLE_INVALID_IDENTITY,
-        BundleRefusal::InvalidLinkedProtocol => &BUNDLE_INVALID_LINKED_PROTOCOL,
-        BundleRefusal::InvalidConformanceKernel => &BUNDLE_INVALID_CONFORMANCE_KERNEL,
-        BundleRefusal::CanonicalClaimMismatch => &BUNDLE_CLAIM_MISMATCH,
-        BundleRefusal::ActivationSubjectMismatch => &BUNDLE_ACTIVATION_SUBJECT,
-        BundleRefusal::ActivationDeclarationMismatch => &BUNDLE_ACTIVATION_DECLARATION,
+    let (entry, stage) = match error {
+        BundleRefusal::EmptyRequest => (&BUNDLE_EMPTY_REQUEST, ProtocolStage::ClaimDispatch),
+        BundleRefusal::DuplicateRequestedClaim => {
+            (&BUNDLE_DUPLICATE_REQUEST, ProtocolStage::ClaimDispatch)
+        }
+        BundleRefusal::UnexpectedClaim => (&BUNDLE_UNEXPECTED_CLAIM, ProtocolStage::ClaimDispatch),
+        BundleRefusal::DuplicateClaimRow => (&BUNDLE_DUPLICATE_ROW, ProtocolStage::ClaimDispatch),
+        BundleRefusal::MissingClaimRow => (&BUNDLE_MISSING_ROW, ProtocolStage::ClaimDispatch),
+        BundleRefusal::InvalidDefinitionIdentity => {
+            (&BUNDLE_INVALID_IDENTITY, ProtocolStage::Representation)
+        }
+        BundleRefusal::InvalidLinkedProtocol => (
+            &BUNDLE_INVALID_LINKED_PROTOCOL,
+            ProtocolStage::Representation,
+        ),
+        BundleRefusal::InvalidConformanceKernel => (
+            &BUNDLE_INVALID_CONFORMANCE_KERNEL,
+            ProtocolStage::Conformance,
+        ),
+        BundleRefusal::CanonicalClaimMismatch => {
+            (&BUNDLE_CLAIM_MISMATCH, ProtocolStage::ResultAssembly)
+        }
+        BundleRefusal::ActivationSubjectMismatch => {
+            (&BUNDLE_ACTIVATION_SUBJECT, ProtocolStage::Compensation)
+        }
+        BundleRefusal::ActivationDeclarationMismatch => {
+            (&BUNDLE_ACTIVATION_DECLARATION, ProtocolStage::Compensation)
+        }
     };
     let code = RefusalCode::of(entry);
     ProtocolRefusal::legacy_builder(
         code,
         CatalogSelection::local(),
-        ProtocolStage::ClaimDispatch,
+        stage,
         RefusalAxis::from_registered_code(code),
     )
     .expect("assessment bundle code belongs to claim dispatch")
@@ -973,7 +1042,11 @@ impl<'a> Engine<'a> {
     /// A canonical row may not be moved to another claim merely because both
     /// rows share an assessment context. Claim-local refusals have no result
     /// row and therefore remain valid independent outcomes.
-    pub fn assemble_canonical(
+    #[expect(
+        dead_code,
+        reason = "Task-006 retains the private result composition candidate until typed stage outputs are wired into Engine"
+    )]
+    pub(crate) fn assemble_canonical(
         self,
         rows: Vec<ClaimRow<result::ValidatedResult>>,
     ) -> Result<AssessmentBundle<'a, result::ValidatedResult>, BundleRefusal> {
@@ -988,7 +1061,11 @@ impl<'a> Engine<'a> {
     }
 
     /// Assemble strict-read canonical rows through the shared operation algebra.
-    pub fn assemble_canonical_outcome(
+    #[expect(
+        dead_code,
+        reason = "Task-006 retains the private result composition candidate until typed stage outputs are wired into Engine"
+    )]
+    pub(crate) fn assemble_canonical_outcome(
         self,
         rows: Vec<ClaimRow<result::ValidatedResult>>,
     ) -> crate::outcome::OperationOutcome<AssessmentBundle<'a, result::ValidatedResult>> {
@@ -1000,7 +1077,11 @@ impl<'a> Engine<'a> {
 
     /// Construct and strict-read each canonical result row from typed owner
     /// inputs. A result-owner refusal remains local to its selected claim.
-    pub fn construct_canonical(
+    #[expect(
+        dead_code,
+        reason = "Task-006 retains the private result composition candidate until typed stage outputs are wired into Engine"
+    )]
+    pub(crate) fn construct_canonical(
         self,
         inputs: Vec<CanonicalRowInput<'a>>,
     ) -> Result<AssessmentBundle<'a, result::ValidatedResult>, BundleRefusal> {
@@ -1036,7 +1117,11 @@ impl<'a> Engine<'a> {
     /// algebra. Whole-assessment cardinality failures cannot retain a bundle;
     /// individual result-owner failures remain claim-local inside a completed
     /// bundle.
-    pub fn construct_canonical_outcome(
+    #[expect(
+        dead_code,
+        reason = "Task-006 retains the private result composition candidate until typed stage outputs are wired into Engine"
+    )]
+    pub(crate) fn construct_canonical_outcome(
         self,
         inputs: Vec<CanonicalRowInput<'a>>,
     ) -> crate::outcome::OperationOutcome<AssessmentBundle<'a, result::ValidatedResult>> {
@@ -1118,6 +1203,10 @@ fn observation_position(
         .position(|(_, identity)| identity == observation.payload().observation_identity())
 }
 
+#[expect(
+    dead_code,
+    reason = "Task-006 retains the private result composition candidate until typed stage outputs are wired into Engine"
+)]
 fn validate_input_claims(
     requested: &[Claim],
     inputs: &[CanonicalRowInput<'_>],
@@ -1139,6 +1228,13 @@ fn validate_input_claims(
     Ok(())
 }
 
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "Task-006 retains the private result composition candidate until typed stage outputs are wired into Engine"
+    )
+)]
 const fn claim_from_result_kind(kind: ClaimKind) -> Claim {
     match kind {
         ClaimKind::GlobalConformance => Claim::Conformance,
@@ -1316,24 +1412,68 @@ mod tests {
     #[trace("TC-011", "FR-008-AC-1", "FR-008-AC-4", "FR-036-AC-1", "FR-040-AC-1")]
     fn tc_011_assessment_bundle_refusals_are_typed_and_distinct() {
         let reasons = [
-            BundleRefusal::EmptyRequest,
-            BundleRefusal::DuplicateRequestedClaim,
-            BundleRefusal::UnexpectedClaim,
-            BundleRefusal::DuplicateClaimRow,
-            BundleRefusal::MissingClaimRow,
-            BundleRefusal::InvalidDefinitionIdentity,
-            BundleRefusal::InvalidLinkedProtocol,
-            BundleRefusal::InvalidConformanceKernel,
-            BundleRefusal::CanonicalClaimMismatch,
-            BundleRefusal::ActivationSubjectMismatch,
-            BundleRefusal::ActivationDeclarationMismatch,
+            (
+                BundleRefusal::EmptyRequest,
+                RefusalDomain::Assessment,
+                ProtocolStage::ClaimDispatch,
+            ),
+            (
+                BundleRefusal::DuplicateRequestedClaim,
+                RefusalDomain::Assessment,
+                ProtocolStage::ClaimDispatch,
+            ),
+            (
+                BundleRefusal::UnexpectedClaim,
+                RefusalDomain::Assessment,
+                ProtocolStage::ClaimDispatch,
+            ),
+            (
+                BundleRefusal::DuplicateClaimRow,
+                RefusalDomain::Assessment,
+                ProtocolStage::ClaimDispatch,
+            ),
+            (
+                BundleRefusal::MissingClaimRow,
+                RefusalDomain::Assessment,
+                ProtocolStage::ClaimDispatch,
+            ),
+            (
+                BundleRefusal::InvalidDefinitionIdentity,
+                RefusalDomain::Representation,
+                ProtocolStage::Representation,
+            ),
+            (
+                BundleRefusal::InvalidLinkedProtocol,
+                RefusalDomain::Representation,
+                ProtocolStage::Representation,
+            ),
+            (
+                BundleRefusal::InvalidConformanceKernel,
+                RefusalDomain::Assessment,
+                ProtocolStage::Conformance,
+            ),
+            (
+                BundleRefusal::CanonicalClaimMismatch,
+                RefusalDomain::Result,
+                ProtocolStage::ResultAssembly,
+            ),
+            (
+                BundleRefusal::ActivationSubjectMismatch,
+                RefusalDomain::Assessment,
+                ProtocolStage::Compensation,
+            ),
+            (
+                BundleRefusal::ActivationDeclarationMismatch,
+                RefusalDomain::Assessment,
+                ProtocolStage::Compensation,
+            ),
         ];
         let mut codes = BTreeSet::new();
         let mut axes = BTreeSet::new();
-        for reason in reasons {
+        for (reason, domain, stage) in reasons {
             let refusal = outcome_refusal(reason);
-            assert_eq!(refusal.domain(), RefusalDomain::Assessment);
-            assert_eq!(refusal.stage(), ProtocolStage::ClaimDispatch);
+            assert_eq!(refusal.domain(), domain);
+            assert_eq!(refusal.stage(), stage);
             assert_eq!(refusal.partial_output(), PartialOutput::NoneEmitted);
             assert!(codes.insert(refusal.code().as_str()));
             assert!(axes.insert(refusal.axis().as_bytes().to_vec()));
