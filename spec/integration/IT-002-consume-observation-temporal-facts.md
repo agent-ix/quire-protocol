@@ -32,9 +32,9 @@ QObs publishes the accepted typed Rust runtime facts and topology at revision
 `93bc565`. Protocol's current direct pin is older and must be repinned before
 these scenarios execute. QSL publishes the native-temporal request/result and
 checked activation-guard selection at Protocol's current exact revision
-`f1700a9264d6d3bcdd07e0f77b70f3dae9ed4c07`. QSL `844c35f` specifies the
-follow-on native-temporal v2 opaque-trigger interface required before FR-300
-bindings can execute. Protocol invokes no temporal
+`f1700a9264d6d3bcdd07e0f77b70f3dae9ed4c07`. QSL `d5623a7` publishes the
+native-temporal v2 opaque-trigger and activation-fact interface Protocol uses
+to validate FR-300 bindings. Protocol invokes no temporal
 evaluator and does not consume a QCI join result; QCI consumes Protocol's result
 map downstream.
 
@@ -45,13 +45,16 @@ The consumer is the protocol evaluator and canonical result producer.
 | Owner | Supplies | This repository must not |
 | --- | --- | --- |
 | QObs | Observation facts, decision-scope and surrounding-execution progress/closure, settlement basis, decision support, completeness, and accepted runtime topology | Collect, correlate, or re-derive an observation; infer a missing fact |
-| QSL native temporal | Exact checked native-temporal results, activation-guard selection, and complete FR-300 event-triggered activation bindings | Evaluate a temporal formula, reconstruct an obligation bridge, or author a second profile |
+| QSL native temporal | Exact checked native-temporal results, activation-guard selection, opaque trigger, captures and evaluation anchor | Evaluate a temporal formula, select a QObs subject or Protocol control, or author a second profile |
 | QSL compiled protocol | The admitted `/2` definition from which Protocol builds the linked graph | Parse native source or reinterpret an identity |
 | This repository | Compensation state, finite conformance, claim dispatch, canonical result production, typed refusals, version-lock resolution, the complete-global-conformance closure record and its premises, the scenario evidence record up to handoff | — |
 
-Every value crossing a row is consumed with its owner retained. A value this
-repository derives is never attributed to a producer, and a producer value is
-never attributed to this repository.
+Every value crossing a row is consumed with its owner retained. Protocol alone
+derives the FR-300 binding from one linked control, QSL's strict v2 request/result
+facts and QObs's qualified subject; it never attributes that join to either
+producer or accepts a caller-built equivalent. A value this repository derives
+is never attributed to a producer, and a producer value is never attributed to
+this repository.
 
 The complete-global-conformance closure record is Protocol-authored, not an
 external producer's. It therefore takes no version-lock entry. SC-03 and SC-04
@@ -169,7 +172,7 @@ producer revision, and a scenario whose evidence is incomplete claims nothing.
 ## Dependencies
 
 QSL compiled-protocol `/2` and native-temporal request/result at `f1700a9`, plus
-the QSL FR-053 opaque-trigger v2 interface specified at `844c35f`, plus
+the QSL FR-053 opaque-trigger v2 interface with activation facts at `d5623a7`, plus
 QObs runtime facts/topology at `93bc565`. Protocol owns global closure and result
 assembly. QCI issue 71 is a downstream consumer and is not a prerequisite.
 

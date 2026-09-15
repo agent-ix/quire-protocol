@@ -35,11 +35,13 @@ When activation is derived, the evaluator SHALL execute no business action.
 
 ## Inputs
 
-A linked finite protocol representation (FR-002), and the complete accepted
-event-triggered `FR-300` activation binding published by the selected QSL/QObs
-producer path. That binding carries the exact qualified definition, declaration-
-local control, clause subject, admitted semantic trigger, checked activation
-state, immutable captures and evaluation anchor. Closure and completeness remain
+A linked finite protocol representation (FR-002), QSL's strict version-two
+temporal request/result facts, and QObs's authority-qualified admitted subject.
+Protocol validates those owner facts against its linked definition and control,
+then retains its constructor-private complete event-triggered `FR-300` activation
+binding. The binding carries the exact qualified definition, declaration-local
+control, clause subject, admitted semantic trigger, checked activation state,
+immutable captures and evaluation anchor. Closure and completeness remain
 owner-issued facts. A caller-built obligation label, control coordinate, trigger
 identity, capture or anchor is not a production input.
 
@@ -111,10 +113,11 @@ pre-report lifecycle state.
 
 QSpec main `316743b` adds FR-300 and closes the event-triggered bridge: an
 activation binding is the exact source for a dynamic FR-230 instance. This
-library consumes that owner value and does not define a parallel QObs/QSL join.
-QSL `844c35f` adds FR-053: the native-temporal v2 producer retains the semantic
-trigger as opaque bytes, so this consumer can compare it to QObs's qualified
-subject without a string conversion or a caller-authored instance label.
+library owns the graph-validated binding operation and does not define a
+parallel QObs/QSL join. QSL `d5623a7` extends FR-053's strict v2 views with the
+checked activation state, immutable captures and evaluation anchor; QSL retains
+no QObs subject or protocol control, so it cannot construct the binding. The
+opaque trigger remains byte-exact for comparison to QObs's qualified subject.
 
 ## Dependencies
 

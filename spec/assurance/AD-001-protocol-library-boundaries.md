@@ -85,8 +85,10 @@ contract resolution
                                              |
 QObs runtime subjects/relationships --------+----> compensation
 QObs authority facts -----------------------+          |
-QSL native-temporal results + FR-300 bindings -+        v
-                                         conformance kernel
+QSL native-temporal facts ------------------+----> FR-300 activation binding
+                                                        |
+                                                        v
+                                               conformance kernel
                                              |
                                              v
                                       claim dispositions
@@ -253,12 +255,14 @@ source evaluator refusal or resource-incomplete outcome is retained without
 conversion. Test-only relation doubles remain crate-private and cannot enter a
 production Engine.
 
-One deterministic `ConformanceKernel` derives obligations from the linked graph
-and consumes the compensation snapshot, QObs authority facts, QSL native-
-temporal results and complete QSpec FR-300 activation bindings. The binding is
-validated against the exact linked definition/control before its clause subject
-and semantic trigger derive an FR-230 obligation; a table coordinate, timestamp,
-arrival order or caller-built model cannot substitute. Batch and incremental APIs
+Protocol's activation boundary derives each complete QSpec FR-300 binding from
+one linked control, QObs's authority-qualified subject, and QSL's strict v2
+request/result facts. It validates the binding against the exact linked
+definition/control before its clause subject and semantic trigger derive an
+FR-230 obligation; a table coordinate, timestamp, arrival order or caller-built
+model cannot substitute. One deterministic `ConformanceKernel` then consumes
+the linked graph, compensation snapshot, QObs authority facts, QSL native-
+temporal results and those Protocol-owned bindings. Batch and incremental APIs
 are frontends over that kernel.
 Incremental readiness follows authored causal prerequisites and exact semantic
 keys, never timestamp, arrival or map order. Replaying an accepted prefix is

@@ -44,9 +44,10 @@ When any one of FR-026, FR-027, FR-028 and FR-041 is unsatisfied, the evaluator 
 ## Inputs
 
 A constructor-private version-2 linked protocol, the compensation snapshot
-derived from it, complete accepted FR-300 event-triggered activation bindings,
-bound QObs observation/authority views, accepted QSL native-temporal results,
-the exact assessment request, independent decision-scope and
+derived from it, QSL strict version-two temporal request/result facts, bound
+QObs observation/authority views, the constructor-private FR-300 activation
+bindings Protocol validates from those owner facts and its linked controls, the
+exact assessment request, independent decision-scope and
 surrounding-execution progress/closure facts, the Protocol-owned complete-global-
 conformance closure record, resource budget, and evaluator identity. A caller-
 constructed string model or obligation list is not a production input.
@@ -93,11 +94,13 @@ authorize no work.
 
 The kernel SHALL derive each event-triggered FR-230 obligation only from a
 validated FR-300 binding whose qualified definition and declaration-local
-control belong to its linked graph. It SHALL retain the binding's exact clause
-subject and semantic trigger identity as the obligation key and SHALL refuse
-missing, foreign, cross-control, cross-subject, cross-trigger or contradictory
-bindings. Neither frontend accepts a caller-built `Model`, obligation identity or
-observation-to-obligation association.
+control belong to its linked graph. The Protocol activation boundary SHALL
+construct that binding only from the linked control plus QSL's strict v2
+request/result facts and QObs's authority-qualified subject. It SHALL retain
+the binding's exact clause subject and semantic trigger identity as the
+obligation key and SHALL refuse missing, foreign, cross-control, cross-subject,
+cross-trigger or contradictory bindings. Neither frontend accepts a caller-built
+`Model`, obligation identity or observation-to-obligation association.
 
 ## Acceptance Criteria
 
