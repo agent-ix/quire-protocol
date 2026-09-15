@@ -102,7 +102,7 @@ Local immutable identifiers begin at `StR-001`, `US-001`, `FR-001`, `NFR-001`,
 `IT-001`, `TC-001`, `ADR-001`, `TM-001`, `AP-001`, and `AD-001`.
 Each namespace is allocated sequentially with no gaps and no reuse; the highest
 allocated identifier is currently `StR-005`, `US-007`, `FR-042`, `NFR-008`,
-`IT-003`, `TC-016`, `ADR-009`, `TM-001`, `AP-001`, and `AD-001`.
+`IT-003`, `TC-017`, `ADR-009`, `TM-001`, `AP-001`, and `AD-001`.
 
 ## 7. Requirement Quality Policy
 
@@ -205,17 +205,14 @@ earlier revision of this paragraph said four states and omitted engine-bound,
 while TM-001 defined it and reported it as the coverage figure. `FR-009-AC-3`,
 `NFR-007-AC-8` and `NFR-008-AC-8` each require an unexecutable obligation to be
 counted as a zero inside its denominator rather than omitted from it, and
-`NFR-005` denominates its metrics on owed scenarios for the same reason. `TC-015`
+`NFR-005` denominates its metrics on owed scenarios for the same reason. `TC-017`
 is the highest authored test case and no matrix row cites a higher identifier.
 
 Rust tests carry bare compiler-checked `ix-trace-rs` bindings to the exact
-local and upstream obligations: a census over this head reports 198 tagged
-tests and 198 bare `#[trace(...)]` markers, none path-qualified. The future
-tense this sentence carried through an earlier revision was superseded by that
-run. What does not yet exist is the enforcement — nothing today fails when a
-test is added untagged or a marker is path-qualified. That obligation is
-`NFR-003-AC-5`'s, its sole declared verification is `TC-010`, and `TC-010` is
-owned by `Task-011`, which is `blocked`.
+local and upstream obligations: the Task-009 checkpoint reports 272 Rust
+evidence candidates, 266 tagged and 266 bound. Six candidates remain untagged;
+the final enforcement obligation is `NFR-003-AC-5`'s, its sole declared
+verification is `TC-010`, and `TC-010` remains owned by blocked Task-011.
 
 ## 12. Verification Strategy
 
@@ -242,18 +239,20 @@ Those implementations are not yet one production pipeline. The linker has no
 version-2 linked graph, downstream modules accept independently constructed
 models, canonical result assembly accepts caller-built duplicates of upstream
 states, and E02 projection and scenario handoff do not exist on `main`.
-Version-lock resolution now exists as the Task-013 mechanism, while concrete
-producer entry population remains with Tasks 009–011 and the distinct
-consumer-owned delivery index remains Task-019/#66. Task status and executable
-coverage are stated only by TM-001 and Plan-001; module presence does not close
-an aggregate requirement.
+Version-lock resolution now exists as the Task-013 mechanism. Task-009 has
+completed the concrete QSL `/1` and `/2` intake handoff; Tasks 010–011 retain
+the other producer integrations. The distinct consumer-owned delivery index is
+complete under Task-019/#66. Task status and executable coverage are stated
+only by TM-001 and Plan-001; module presence does not close an aggregate
+requirement.
 
-The current accepted compiler pin is QSL `f1700a9`. The direct QObs pin remains
-older than its accepted FR-287/FR-262 implementation and is corrected by
-Task-002. E02 has an implemented draft-2 reader whose owner acceptance prose is
-still contradictory, and Quoin has a Rust evidence implementation but no
-Protocol scenario-record intake. These are explicit gates, not permission to
-substitute local contracts.
+The current accepted compiler pin is QSL `6c8c401`; both compiled-protocol
+handoffs are owner-addressed and the `/1` Service/Provider authorities are
+distinct. The direct QObs pin is the accepted FR-287/FR-262 revision `93bc565`.
+E02 has an implemented draft-2 reader whose owner acceptance prose is still
+contradictory, and Quoin has a Rust evidence implementation but no Protocol
+scenario-record intake. These are explicit gates, not permission to substitute
+local contracts.
 
 ## 15. Governance Notes
 
@@ -276,16 +275,15 @@ its entry-status table records why each is currently `unresolved`.
   protocol, temporal and observation noun. Open questions this repository raised
   against that layer are issues 28 and 29.
 - `agent-ix/quire-spec-language` — the A-owned native compiler and its
-  compiled-protocol artifact contracts. The pin is `f1700a9`, A's promoted
-  FR-052 compatibility correction plus FR-051 checked activation-guard
-  selection after release `v0.2.0`, which supplies both
-  `quire.compiled-protocol/1` and `/2` plus the exported handoff address; issues
-  40, 78 and 98 owned that delivery and have landed. This is the only native
-  compiler reader in the admitted path, and this repository adds no second one.
+  compiled-protocol artifact contracts. The pin is `6c8c401`, A's promoted
+  FR-052 compatibility correction, FR-051 checked activation-guard selection,
+  committed owner-addressed `/1` and `/2` handoffs, and distinct `/1`
+  Service/Provider authorities after release `v0.2.0`; issues 40, 78, 98, 112
+  and 114 owned that delivery and have landed. This is the only native compiler
+  reader in the admitted path, and this repository adds no second one.
 - `agent-ix/quire-observation` — the F-owned observation producer interface and
   authority contracts. Accepted FR-287/FR-262 runtime references and topology
-  are on `93bc565`; the current Protocol dependency is older and must be repinned
-  before those values are consumed. Complete-global-conformance closure remains
+  are consumed at `93bc565`. Complete-global-conformance closure remains
   Protocol-owned and is not a QObs artifact.
 - `agent-ix/quire-verification` FR-007 and `quire-verification/e02-draft-2` —
   the implemented E02 strict reader and its finding vocabulary. Its owner must

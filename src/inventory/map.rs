@@ -19,7 +19,7 @@ use crate::bounds::{SiteId, SiteKind, UnitLabel};
 use crate::digest::producer::{CrossDomainDigest, DigestSlot};
 use crate::inventory::axis::DivergedSelection;
 use crate::inventory::{DigestClassification, InventoryError, SelectedInventory};
-use crate::{admit_and_link, wire, AdmittedPackage, Error, Expected, Invalid, Limits};
+use crate::{intake, wire, AdmittedPackage, Error, Expected, Invalid, Limits};
 
 pub(crate) const ADMISSION_INPUT_SOURCE: SourceSite = SourceSite::new(
     SiteId::new("admission/offer/decode"),
@@ -103,7 +103,7 @@ pub fn admit_discriminating(
             return Err(AdmissionRefusal::CrossDomainDigest(refusal));
         }
     }
-    match admit_and_link(bytes, expected, limits).into_result() {
+    match intake::v1::admit(bytes, expected, limits).into_result() {
         Ok(package) => Ok(package),
         Err(error) => Err(match classify_source(error) {
             // A's one collapsed code is the only classification that needs B's

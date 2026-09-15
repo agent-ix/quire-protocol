@@ -38,13 +38,15 @@ this test; neither may stand in for the other.
 
 ## Preconditions
 
-The consumer has resolved the exact QSL compiled-protocol contract capability
-through FR-009 and has independently selected and retained the compiler contract,
-baseline, producer, native-source, model-source, and dependency bytes before it
-inspects an offered package. The native compiler publishes versioned
-compiled-protocol contracts. The existing version 1 candidate retains its
-`quire.protocol.numeric/1` wire profile and was generated at immutable revision
-`5690c2b29c155ec72e21f5a7bb00fe1146b6f71a` (PR72).
+Normal full-assessment integrations resolve the exact QSL compiled-protocol
+contract capability through FR-009. The version-1 lane here is the explicit
+legacy compatibility exception: it mints no capability, independently selects
+and retains the compiler contract, baseline, producer, native-source,
+model-source and dependency bytes before inspecting the offer, and cannot read
+any full-assessment input. The native compiler publishes both versioned
+compiled-protocol contracts and committed owner-addressed handoffs at
+`6c8c401bb807a417215fae7593ef27fd9bab051e`. Version 1 retains its
+`quire.protocol.numeric/1` wire profile.
 
 The version 2 intake is a separate contract with its own published surface:
 
@@ -253,9 +255,9 @@ or campaign-completion result.
 The A-owned frozen profile and each versioned compiled-protocol artifact contract
 are accepted. `quire-spec-language` release `v0.2.0` is at
 `6eccb05adf58cb2ed0c6092f5ef8e23d55030028`. Its post-release interface PR #92
-exports the handoff path, all member names, and the mutation-manifest format on
+exports the handoff paths, all member names, and the mutation-manifest format on
 `main`; this repository pins
-`f1700a9264d6d3bcdd07e0f77b70f3dae9ed4c07`. The version 2 reader, its typed per-axis refusals, the independent
+`6c8c401bb807a417215fae7593ef27fd9bab051e`. The version 2 reader, its typed per-axis refusals, the independent
 selection records, the original inputs, the 28-case mutation corpus, and the
 published handoff are all present under that dependency source. No environment
 configuration or copied artifact tree is part of the gate.
@@ -280,9 +282,10 @@ offer that ships its own acceptance context authorizes itself. SC-01 forbids
 this for version 1 and it holds identically for version 2.
 
 The version 1 numeric and handoff commits that were previously reachable only from
-`agent-a/handoff-numeric-domains` are contained in A's `main` and remain
-available through the same
-`f1700a9264d6d3bcdd07e0f77b70f3dae9ed4c07` pin.
+`agent-a/handoff-numeric-domains` are contained in A's `main`. QSL #112 added
+the committed version-1 address, and QSL #114 corrected the published package's
+Service/Provider authority collision; both are included by the same `6c8c401`
+pin.
 
 A prose definition, native source file, emitted sidecar, hand-authored bytes, or
 a version 1 value cannot substitute for either compiled interface because this
@@ -290,12 +293,12 @@ repository owns no parser.
 
 ## Notes
 
-The generated version 1 fixture is at
-`/tmp/quire-native-handoff-signed64-endpoints/`. Its embedded producer ELF
-digest changes on rebuild and is intentionally not pinned; B derives all stable
-selections from the retained generated inputs. The complete positive parser-set
-proof for SC-05 is still an open integration obligation, not an absence-of-known
-bad-dependencies claim.
+The version-1 lane loads A's committed handoff through
+`PUBLISHED_V1_HANDOFF` and A's published offer-file constant. B's independently
+retained selection snapshot is loaded before the offer and every selected source,
+model and dependency byte is checked against it. The lane runs by default,
+executes the positive parser/reader inventory for SC-05, and reaches the local
+version-1 static linker.
 
 The version 2 lane submits to A's published `/2` reader at the pinned revision.
 It adds no `[features]` entry and no `cfg` attribute, so the crate stays
@@ -311,7 +314,14 @@ published member before decoding, and the lane admits the base offer, checks
 both cross-version submissions, runs all 28 manifest mutations, and probes every
 member of `Dimension::ALL` at exact usage, one-short, and fresh exact usage.
 The superseded B-authored pre-delivery corpus is not retained as a second source
-of protocol vocabulary. The version 1 SC-01 through SC-05 lane is unchanged.
+of protocol vocabulary. The version 1 SC-01 through SC-05 lane runs 24 default
+tests with no ignores. SC-06a additionally ran the identical historical 23-case
+corpus against Protocol `0e5ec292` and `5ce9070e`, using their recorded QSL
+revisions `5690c2b2` and `d03e4ca5`; both runs passed and the fixture/test blobs,
+root facade signature/body and `/1` refusal definitions were unchanged.
+The current paired-reader lane also mutates all eight inherited `Expected`
+fields and requires both explicit readers to refuse each one; temporal-only
+axes remain a separate `/2` corpus.
 
 ## Traceability
 

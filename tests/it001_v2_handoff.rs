@@ -363,29 +363,14 @@ fn numeric_edges_round_trip_and_invalid_forms_refuse_without_repair() {
 /// SC-06: each contract version refuses the other version's bytes through its
 /// explicit public entry point; neither entry point detects or translates it.
 #[test]
-#[trace("IT-001", "Task-012")]
+#[trace("IT-001", "FR-001-AC-5", "NFR-007-AC-3", "NFR-007-AC-4")]
 fn contract_versions_mutually_refuse_without_translation() {
     let loaded = configured();
     let declarations = loaded.declarations();
     let inventories = loaded.inventories(&declarations);
     let expected_v2 = loaded.expected(&inventories);
 
-    let admitted_v2 =
-        quire_protocol::intake::v2::admit(loaded.offer(), &expected_v2, loaded.limits())
-            .into_result()
-            .expect("the base /2 handoff must admit before deriving the /1 control");
-
-    let mut package_v1 = admitted_v2.inherited().clone();
-    package_v1.wire = artifact::WIRE.into();
-    package_v1.media = artifact::MEDIA.into();
-    package_v1.schema = artifact::SCHEMA.into();
-    let candidate_v1 = artifact::encode_candidate(&package_v1, loaded.limits())
-        .into_result()
-        .expect("the inherited package must encode under the /1 contract");
-    let mut reference_v1 = loaded.reference().clone();
-    reference_v1.digest = candidate_v1.digest();
-    reference_v1.wire.identity = "quire.compiled-protocol".into();
-    reference_v1.wire.version = "1".into();
+    let (candidate_v1, reference_v1) = inherited_v1_control(&loaded, &expected_v2);
     let expected_v1 = artifact::Expected {
         artifact: &reference_v1,
         ..expected_v2.inherited
@@ -470,6 +455,158 @@ fn contract_versions_mutually_refuse_without_translation() {
             v1_at_v2, error,
             "/1 at /2 collided with mutation {}",
             case.identity
+        );
+    }
+}
+
+/// SC-06a/AC-7: the version-2 expectation embeds the complete version-1
+/// expectation. Mutating each of those eight inherited selection fields must
+/// therefore refuse at both explicit readers; the temporal selection remains a
+/// separate version-2 axis and is exercised by A's mutation manifest below.
+#[test]
+#[trace("IT-001", "NFR-007-AC-7", "Task-009")]
+fn every_inherited_selection_axis_refuses_at_both_versions() {
+    let loaded = configured();
+    let declarations = loaded.declarations();
+    let inventories = loaded.inventories(&declarations);
+    let expected_v2 = loaded.expected(&inventories);
+
+    let (candidate_v1, reference_v1) = inherited_v1_control(&loaded, &expected_v2);
+    let expected_v1 = artifact::Expected {
+        artifact: &reference_v1,
+        ..expected_v2.inherited
+    };
+    quire_protocol::intake::v1::admit(candidate_v1.bytes(), &expected_v1, loaded.limits())
+        .into_result()
+        .expect("the derived /1 control must admit before selection mutations");
+
+    let mut artifact_v1 = reference_v1.clone();
+    artifact_v1.digest = ByteDigest::of(b"unselected version-1 artifact");
+    let mut artifact_v2 = loaded.reference().clone();
+    artifact_v2.digest = ByteDigest::of(b"unselected version-2 artifact");
+    let mut contract = expected_v2.inherited.contract.clone();
+    contract.identity.push_str("-unselected");
+    let mut baseline = expected_v2.inherited.baseline.clone();
+    baseline.revision.value.push_str("-unselected");
+    let mut producer = expected_v2.inherited.producer.clone();
+    producer.implementation.push_str("-unselected");
+    let mut language = expected_v2.inherited.language.clone();
+    language.edition.push_str("-unselected");
+    let no_sources = [];
+    let no_dependencies = [];
+    let no_models = [];
+
+    let cases = [
+        (
+            "artifact",
+            artifact::Expected {
+                artifact: &artifact_v1,
+                ..expected_v1
+            },
+            artifact::Expected {
+                artifact: &artifact_v2,
+                ..expected_v2.inherited
+            },
+        ),
+        (
+            "contract",
+            artifact::Expected {
+                contract: &contract,
+                ..expected_v1
+            },
+            artifact::Expected {
+                contract: &contract,
+                ..expected_v2.inherited
+            },
+        ),
+        (
+            "baseline",
+            artifact::Expected {
+                baseline: &baseline,
+                ..expected_v1
+            },
+            artifact::Expected {
+                baseline: &baseline,
+                ..expected_v2.inherited
+            },
+        ),
+        (
+            "producer",
+            artifact::Expected {
+                producer: &producer,
+                ..expected_v1
+            },
+            artifact::Expected {
+                producer: &producer,
+                ..expected_v2.inherited
+            },
+        ),
+        (
+            "language",
+            artifact::Expected {
+                language: &language,
+                ..expected_v1
+            },
+            artifact::Expected {
+                language: &language,
+                ..expected_v2.inherited
+            },
+        ),
+        (
+            "sources",
+            artifact::Expected {
+                sources: &no_sources,
+                ..expected_v1
+            },
+            artifact::Expected {
+                sources: &no_sources,
+                ..expected_v2.inherited
+            },
+        ),
+        (
+            "dependencies",
+            artifact::Expected {
+                dependencies: &no_dependencies,
+                ..expected_v1
+            },
+            artifact::Expected {
+                dependencies: &no_dependencies,
+                ..expected_v2.inherited
+            },
+        ),
+        (
+            "models",
+            artifact::Expected {
+                models: &no_models,
+                ..expected_v1
+            },
+            artifact::Expected {
+                models: &no_models,
+                ..expected_v2.inherited
+            },
+        ),
+    ];
+
+    for (axis, inherited_v1, inherited_v2) in cases {
+        let error_v1 =
+            quire_protocol::intake::v1::admit(candidate_v1.bytes(), &inherited_v1, loaded.limits())
+                .into_result()
+                .unwrap_err();
+        let expected_v2 = v2::Expected {
+            inherited: inherited_v2,
+            ..expected_v2
+        };
+        let error_v2 =
+            quire_protocol::intake::v2::admit(loaded.offer(), &expected_v2, loaded.limits())
+                .into_result()
+                .unwrap_err();
+        assert_eq!(
+            error_v1, error_v2,
+            "the inherited {axis} selection changed typed refusal across versions"
+        );
+        assert!(
+            !error_v2.code().starts_with("v2."),
+            "the inherited {axis} selection was relabeled as a version-2-only axis"
         );
     }
 }
@@ -690,6 +827,31 @@ fn every_declared_axis_is_exercised() {
 fn configured() -> Handoff {
     Handoff::load()
         .unwrap_or_else(|absence| panic!("the pinned /2 handoff could not be assembled: {absence}"))
+}
+
+/// Derive the valid `/1` control shared by the version-isolation checks from
+/// the `/2` package's inherited graph. Callers still exercise each explicit
+/// reader independently.
+fn inherited_v1_control(
+    loaded: &Handoff,
+    expected_v2: &v2::Expected<'_>,
+) -> (artifact::Candidate, artifact::wire::ArtifactRef) {
+    let admitted_v2 =
+        quire_protocol::intake::v2::admit(loaded.offer(), expected_v2, loaded.limits())
+            .into_result()
+            .expect("the base /2 handoff must admit before deriving the /1 control");
+    let mut package_v1 = admitted_v2.inherited().clone();
+    package_v1.wire = artifact::WIRE.into();
+    package_v1.media = artifact::MEDIA.into();
+    package_v1.schema = artifact::SCHEMA.into();
+    let candidate_v1 = artifact::encode_candidate(&package_v1, loaded.limits())
+        .into_result()
+        .expect("the inherited package must encode under the /1 contract");
+    let mut reference_v1 = loaded.reference().clone();
+    reference_v1.digest = candidate_v1.digest();
+    reference_v1.wire.identity = "quire.compiled-protocol".into();
+    reference_v1.wire.version = "1".into();
+    (candidate_v1, reference_v1)
 }
 
 fn base_admits(loaded: &Handoff, expected: &v2::Expected<'_>) {

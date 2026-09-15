@@ -2,7 +2,7 @@
 id: Task-009
 title: "Integrate the native compiler artifact"
 type: Task
-status: in_progress
+status: done
 track: Producer-Integration
 priority: P0
 relationships:
@@ -24,24 +24,24 @@ substitution, or identity reinterpretation.
 
 ## Subtasks
 
-- [x] Freeze the accepted QSL `f1700a9` compiler contract and owner-published
-  `/2` handoff revision.
-- [ ] Implement IT-001 SC-01 through SC-05 as Rust integration tests.
-- [ ] Resolve the exact `/1` or `/2` capability before each normal integration
-  path and compose its Task-018 evidence record; exercise only SC-06a through
-  the frozen non-integration `/1` facade and record its exact compatibility
-  selection instead of pretending it has a capability.
-- [ ] Retain every producer identity and source reference through the public API.
-- [ ] Round-trip field-boundary and admitted signed-64/exact-rational values through
+- [x] Freeze the accepted QSL `6c8c401` compiler contract and owner-published
+  `/1` and `/2` handoff revisions.
+- [x] Implement IT-001 SC-01 through SC-05 as default-running Rust integration tests.
+- [x] Retain `/1` as the declared capability-free compatibility exception and
+  leave final scenario-value composition to Task-018; normal full-assessment
+  integrations still require Task-013 capabilities.
+- [x] Retain every producer identity and source reference through the public API.
+- [x] Round-trip field-boundary and admitted signed-64/exact-rational values through
   the accepted versioned numeric wire profile without loss or alternate form.
-- [ ] Mutate version, digest, feature, binding, baseline-selection state, numeric
+- [x] Mutate version, digest, feature, binding, baseline-selection state, numeric
   representation, and digest domain independently and prove refusal precedes evaluation.
-- [ ] Bind each IT-001 public-API case to the FR-001/FR-002 acceptance criterion it
-  evidences, and prove the matrix credit with `quire coverage` rather than tags alone.
-- [ ] Inventory the dependency graph and first-party source path positively to prove
+- [x] Bind each IT-001 public-API case to the FR-001 acceptance criterion it
+  evidences; `quire coverage` reports FR-001 at 5/5 and binds the three current
+  executable NFR-007 criteria without treating task-only tags as matrix rows.
+- [x] Inventory the dependency graph and first-party source path positively to prove
   that the A-owned public reader is the only native frontend; a denylist of
   foreign-runtime crates is not sufficient.
-- [ ] Execute the local version-1 linker and the SC-06a before/after
+- [x] Execute the local version-1 linker and the SC-06a before/after
   compatibility comparison; admission alone is not link evidence.
 
 ## Deliverables
@@ -50,10 +50,11 @@ substitution, or identity reinterpretation.
 
 ## Notes
 
-- The accepted `/1` and `/2` readers and published `/2` handoff are delivered at
-  QSL `f1700a9`; QSL #40 is closed. The remaining blocker is the local exact
-  linker and default-running `/1` corpus, not producer promotion.
+- The accepted `/1` and `/2` readers and committed handoffs are consumed at QSL
+  `6c8c401`. QSL #112 published the `/1` address and #114 corrected its distinct
+  role authorities; both are closed.
 - This increment consumes that boundary directly. It does not take ownership of
   later protocol conformance, execution, compensation assessment or E02 work.
-- Review SR-024 through SR-032 still requires criterion-level matrix bindings
-  and a positive parser/reader inventory before qualification evidence closes.
+- The default lane passes all 24 current tests with no ignores and performs
+  `intake::v1::admit` plus `model::v1::link_static`. SC-06a separately passes
+  the identical 23-case historical corpus at Protocol `0e5ec292` and `5ce9070e`.

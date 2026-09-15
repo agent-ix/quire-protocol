@@ -171,9 +171,14 @@ mutation cannot be run today is recorded as unexecutable, not as passing.
 
 ## Status
 
-In progress. QSL `/1` and `/2` are both pinned at `f1700a9`; the default `/2`
-handoff executes both cross-version directions and every inherited selection
-axis. Task-009 still owes the complete two-revision SC-06a `/1` comparison.
+Implemented. QSL `/1` and `/2` are both pinned at `6c8c401`; the default handoff
+lanes execute both cross-version directions and every inherited selection axis.
+SC-06a passes the identical 23-case version-1 corpus at Protocol `0e5ec292`
+(before `/2`) and `5ce9070e` (the revision adding it), while source comparison
+shows the root `/1` signature/body and QSL `/1` refusal types unchanged.
+The current paired reader test changes artifact, contract, baseline, producer,
+language, source, dependency and model selections independently; `/1` and `/2`
+both refuse each one, while the `/2` temporal axes remain separately enumerated.
 Task-002 introduces the versioned integration modules, removes the transitional
 root `/2` facade, and preserves the root `/1` facade under the explicit
 compatibility exception above.
