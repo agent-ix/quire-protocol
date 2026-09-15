@@ -10,6 +10,7 @@ use quire_observation::authority::{closure as observation_closure, progress};
 use crate::claims::Claim;
 use crate::closure::GlobalConformanceClosure;
 use crate::compensation::registration::Snapshot as CompensationSnapshot;
+use crate::conformance::Kernel as ConformanceKernel;
 use crate::model::v2::{
     link as link_v2, CompensationAttemptInput, CompensationEffectInput,
     CompensationRegistrationInput, DefinitionIdentity, DefinitionRegistry, LinkedAssessment,
@@ -52,6 +53,8 @@ pub enum BundleRefusal {
     InvalidDefinitionIdentity,
     /// The exact linked context cannot produce its static QSL graph.
     InvalidLinkedProtocol,
+    /// Linked graph and compensation state cannot form one conformance kernel.
+    InvalidConformanceKernel,
     /// A canonical result row was offered under a different requested claim.
     CanonicalClaimMismatch,
 }
@@ -87,6 +90,10 @@ bundle_code!(
     BUNDLE_INVALID_LINKED_PROTOCOL,
     "assessment.bundle-invalid-linked-protocol"
 );
+bundle_code!(
+    BUNDLE_INVALID_CONFORMANCE_KERNEL,
+    "assessment.bundle-invalid-conformance-kernel"
+);
 bundle_code!(BUNDLE_CLAIM_MISMATCH, "assessment.bundle-claim-mismatch");
 
 /// Refusal codes minted by the assessment-bundle orchestration boundary.
@@ -102,6 +109,7 @@ pub const CODES: CodeModule = CodeModule {
         BUNDLE_MISSING_ROW,
         BUNDLE_INVALID_IDENTITY,
         BUNDLE_INVALID_LINKED_PROTOCOL,
+        BUNDLE_INVALID_CONFORMANCE_KERNEL,
         BUNDLE_CLAIM_MISMATCH,
     ],
 };
@@ -115,6 +123,7 @@ fn outcome_refusal(error: BundleRefusal) -> ProtocolRefusal {
         BundleRefusal::MissingClaimRow => &BUNDLE_MISSING_ROW,
         BundleRefusal::InvalidDefinitionIdentity => &BUNDLE_INVALID_IDENTITY,
         BundleRefusal::InvalidLinkedProtocol => &BUNDLE_INVALID_LINKED_PROTOCOL,
+        BundleRefusal::InvalidConformanceKernel => &BUNDLE_INVALID_CONFORMANCE_KERNEL,
         BundleRefusal::CanonicalClaimMismatch => &BUNDLE_CLAIM_MISMATCH,
     };
     let code = RefusalCode::of(entry);
@@ -142,6 +151,7 @@ pub struct Engine<'a> {
     linked: LinkedProtocol<'a>,
     compensation_inputs: Vec<CompensationRegistrationInput<'a>>,
     compensation: CompensationSnapshot,
+    conformance: ConformanceKernel,
     compensation_attempts: Vec<CompensationAttemptInput<'a>>,
     compensation_effects: Vec<CompensationEffectInput<'a>>,
     requested: Vec<Claim>,
@@ -172,6 +182,8 @@ impl<'a> Engine<'a> {
             link_v2(context, &mut definitions).map_err(|_| BundleRefusal::InvalidLinkedProtocol)?;
         let compensation_inputs = context.compensation_registration_inputs();
         let compensation = CompensationSnapshot::from_inputs(&identity, &compensation_inputs);
+        let conformance = ConformanceKernel::new(&linked, &compensation)
+            .map_err(|_| BundleRefusal::InvalidConformanceKernel)?;
         let compensation_attempts = context.compensation_attempt_inputs();
         let compensation_effects = context.compensation_effect_inputs();
         Ok(Self {
@@ -180,6 +192,7 @@ impl<'a> Engine<'a> {
             linked,
             compensation_inputs,
             compensation,
+            conformance,
             compensation_attempts,
             compensation_effects,
             requested,
@@ -198,6 +211,13 @@ impl<'a> Engine<'a> {
     #[must_use]
     pub const fn linked(&self) -> &LinkedProtocol<'a> {
         &self.linked
+    }
+
+    /// Returns the one linked-graph/compensation kernel for both conformance
+    /// frontends of this assessment.
+    #[must_use]
+    pub const fn conformance(&self) -> &ConformanceKernel {
+        &self.conformance
     }
 
     /// Returns the replay-idempotent registrations derived for this request.
@@ -232,6 +252,7 @@ impl<'a> Engine<'a> {
             linked: self.linked,
             compensation_inputs: self.compensation_inputs,
             compensation: self.compensation,
+            conformance: self.conformance,
             compensation_attempts: self.compensation_attempts,
             compensation_effects: self.compensation_effects,
             rows,
@@ -329,6 +350,7 @@ pub struct AssessmentBundle<'a, Row> {
     linked: LinkedProtocol<'a>,
     compensation_inputs: Vec<CompensationRegistrationInput<'a>>,
     compensation: CompensationSnapshot,
+    conformance: ConformanceKernel,
     compensation_attempts: Vec<CompensationAttemptInput<'a>>,
     compensation_effects: Vec<CompensationEffectInput<'a>>,
     rows: Vec<ClaimRow<Row>>,
@@ -349,6 +371,11 @@ impl<Row> AssessmentBundle<'_, Row> {
     #[must_use]
     pub const fn linked(&self) -> &LinkedProtocol<'_> {
         &self.linked
+    }
+    /// The non-retargetable conformance kernel retained with this bundle.
+    #[must_use]
+    pub const fn conformance(&self) -> &ConformanceKernel {
+        &self.conformance
     }
     /// Exact static-compensation/runtime-effect pairs available to the pure
     /// compensation stage for this one linked assessment.

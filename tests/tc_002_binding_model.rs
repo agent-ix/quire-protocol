@@ -1016,6 +1016,7 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
         }
     };
     assert_eq!(engine.linked().identity(), &identity);
+    assert_eq!(engine.conformance().definition(), &identity);
     let bundle = match engine.assemble_outcome(vec![ClaimRow {
         claim: Claim::Conformance,
         outcome: ClaimOutcome::Canonical(()),
@@ -1035,6 +1036,7 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
     );
     assert_eq!(bundle.rows().len(), 1);
     assert_eq!(bundle.linked().identity(), &identity);
+    assert_eq!(bundle.conformance().definition(), &identity);
 
     let different_runtime = RuntimeBindingSet::new(
         RUNTIME_BINDING_CONTRACT,
@@ -1412,6 +1414,7 @@ fn tc_002_effect_projection_requires_an_owner_effect_slot() {
         .expect("the linked effect context starts a non-retargetable assessment");
     assert_eq!(engine.compensation_inputs().len(), 2);
     assert_eq!(engine.compensation().registrations().len(), 2);
+    assert_eq!(engine.conformance().registrations().len(), 2);
     assert_eq!(engine.compensation_attempts().len(), 1);
     assert_eq!(engine.compensation_effects().len(), 1);
     assert_eq!(
@@ -1432,6 +1435,7 @@ fn tc_002_effect_projection_requires_an_owner_effect_slot() {
         &observed
     );
     assert_eq!(bundle.compensation().registrations().len(), 2);
+    assert_eq!(bundle.conformance().registrations().len(), 2);
     assert_eq!(bundle.compensation_attempts().len(), 1);
     assert_eq!(bundle.compensation_effects().len(), 1);
 }
