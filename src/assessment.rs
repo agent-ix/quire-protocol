@@ -38,6 +38,17 @@ pub struct ClaimRow<Row> {
     pub outcome: ClaimOutcome<Row>,
 }
 
+/// One result-owner input selected for an exact requested claim.
+///
+/// The Engine owns construction and strict rereading; callers supply only the
+/// independently typed subsystem facts required by the result owner.
+#[derive(Clone, Debug)]
+pub struct CanonicalRowInput<'a> {
+    pub claim: Claim,
+    pub input: result::Input<'a>,
+    pub limits: result::Limits,
+}
+
 /// The exact QObs event and QSL v2 request selected for one activation site.
 ///
 /// The request is already constructor-private and strict-read by QSL. This
@@ -406,6 +417,61 @@ impl<'a> Engine<'a> {
             Err(error) => crate::outcome::OperationOutcome::Refused(outcome_refusal(error)),
         }
     }
+
+    /// Construct and strict-read each canonical result row from typed owner
+    /// inputs. A result-owner refusal remains local to its selected claim.
+    pub fn construct_canonical(
+        self,
+        inputs: Vec<CanonicalRowInput<'a>>,
+    ) -> Result<AssessmentBundle<'a, result::ValidatedResult>, BundleRefusal> {
+        validate_input_claims(&self.requested, &inputs)?;
+        let mut rows = Vec::with_capacity(inputs.len());
+        for selected in inputs {
+            if claim_from_result_kind(selected.input.claim.kind) != selected.claim {
+                return Err(BundleRefusal::CanonicalClaimMismatch);
+            }
+            let outcome = match result::produce(selected.input.clone(), selected.limits) {
+                Ok(document) => match result::read(
+                    document.bytes(),
+                    result::Expected {
+                        input: selected.input,
+                        enclosing_digest: document.digest(),
+                    },
+                    selected.limits,
+                ) {
+                    Ok(validated) => ClaimOutcome::Canonical(validated),
+                    Err(refusal) => ClaimOutcome::Refused(refusal.envelope().clone()),
+                },
+                Err(refusal) => ClaimOutcome::Refused(refusal.envelope().clone()),
+            };
+            rows.push(ClaimRow {
+                claim: selected.claim,
+                outcome,
+            });
+        }
+        self.assemble_canonical(rows)
+    }
+}
+
+fn validate_input_claims(
+    requested: &[Claim],
+    inputs: &[CanonicalRowInput<'_>],
+) -> Result<(), BundleRefusal> {
+    for (index, input) in inputs.iter().enumerate() {
+        if !requested.contains(&input.claim) {
+            return Err(BundleRefusal::UnexpectedClaim);
+        }
+        if inputs[..index]
+            .iter()
+            .any(|previous| previous.claim == input.claim)
+        {
+            return Err(BundleRefusal::DuplicateClaimRow);
+        }
+    }
+    if inputs.len() != requested.len() {
+        return Err(BundleRefusal::MissingClaimRow);
+    }
+    Ok(())
 }
 
 const fn claim_from_result_kind(kind: ClaimKind) -> Claim {
