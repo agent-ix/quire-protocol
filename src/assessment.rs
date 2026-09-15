@@ -11,6 +11,10 @@ use crate::claims::Claim;
 use crate::closure::GlobalConformanceClosure;
 use crate::model::v2::{DefinitionIdentity, LinkedAssessment};
 use crate::outcome::ClaimOutcome;
+use crate::refusal::catalog::{CatalogSelection, CodeEntry, CodeModule, Provenance, RefusalCode};
+use crate::refusal::{
+    ProtocolRefusal, ProtocolStage, RefusalAxis, RefusalDomain, RetryDecision, Unavailability,
+};
 use crate::result::{self, ClaimKind};
 
 /// One claim outcome offered to an assessment bundle.
@@ -45,6 +49,35 @@ pub enum BundleRefusal {
     CanonicalClaimMismatch,
 }
 
+const BUNDLE_INVALID: CodeEntry = CodeEntry {
+    provenance: Provenance::Minted,
+    code: "assessment.bundle-invalid",
+    domain: RefusalDomain::Assessment,
+    retry: RetryDecision::AfterSelectionChange,
+    summary: "the assessment claim population cannot form one complete bundle",
+};
+
+/// Refusal codes minted by the assessment-bundle orchestration boundary.
+pub const CODES: CodeModule = CodeModule {
+    root: "assessment",
+    owner: "Task-006",
+    module_path: "quire_protocol::assessment",
+    entries: &[BUNDLE_INVALID],
+};
+
+fn outcome_refusal(_error: BundleRefusal) -> ProtocolRefusal {
+    let code = RefusalCode::of(&BUNDLE_INVALID);
+    ProtocolRefusal::legacy_builder(
+        code,
+        CatalogSelection::local(),
+        ProtocolStage::ClaimDispatch,
+        RefusalAxis::from_registered_code(code),
+    )
+    .expect("assessment bundle code belongs to claim dispatch")
+    .unavailable_location(Unavailability::NotApplicableToStage)
+    .emitting_nothing()
+}
+
 /// One non-retargetable assessment request.
 ///
 /// The engine borrows the constructor-validated linked assessment and retains
@@ -59,6 +92,16 @@ pub struct Engine<'a> {
 }
 
 impl<'a> Engine<'a> {
+    /// Start one assessment using the shared public operation outcome algebra.
+    pub fn start(
+        context: LinkedAssessment<'a>,
+        requested: Vec<Claim>,
+    ) -> crate::outcome::OperationOutcome<Self> {
+        match Self::new(context, requested) {
+            Ok(engine) => crate::outcome::OperationOutcome::Completed(engine),
+            Err(error) => crate::outcome::OperationOutcome::Refused(outcome_refusal(error)),
+        }
+    }
     /// Start one assessment over an exact linked context and claim population.
     pub fn new(
         context: LinkedAssessment<'a>,
@@ -86,6 +129,17 @@ impl<'a> Engine<'a> {
             identity: self.identity,
             rows,
         })
+    }
+
+    /// Assemble generic rows through the shared public operation outcome algebra.
+    pub fn assemble_outcome<Row>(
+        self,
+        rows: Vec<ClaimRow<Row>>,
+    ) -> crate::outcome::OperationOutcome<AssessmentBundle<'a, Row>> {
+        match self.assemble(rows) {
+            Ok(bundle) => crate::outcome::OperationOutcome::Completed(bundle),
+            Err(error) => crate::outcome::OperationOutcome::Refused(outcome_refusal(error)),
+        }
     }
 
     /// Assemble result-owner rows while verifying their retained FR-290 claim.
