@@ -234,6 +234,84 @@ fn tc_005_exact_premise_validation_does_not_admit_substitution() {
         .any(|defect| defect.kind == PremiseDefectKind::CorrespondenceMismatch));
 }
 
+fn empty_fragment(premises: &mut PremiseSet) {
+    premises.admitted_fragment.bytes = Box::new([]);
+}
+
+fn empty_backend(premises: &mut PremiseSet) {
+    premises.backend.version = Box::new([]);
+}
+
+fn duplicate_assumption(premises: &mut PremiseSet) {
+    premises.assumptions.push(premises.assumptions[0].clone());
+}
+
+fn remove_communication(premises: &mut PremiseSet) {
+    premises.communication.clear();
+}
+
+fn remove_visibility(premises: &mut PremiseSet) {
+    premises.visibility.clear();
+}
+
+fn remove_environment(premises: &mut PremiseSet) {
+    premises.environment.clear();
+}
+
+fn remove_source(premises: &mut PremiseSet) {
+    premises.sources.clear();
+}
+
+fn remove_derived_tuple(premises: &mut PremiseSet) {
+    premises
+        .derived_artifact
+        .as_mut()
+        .expect("derived artifact")
+        .source_tuple
+        .clear();
+}
+
+type PremiseMutation = (PremiseAxis, fn(&mut PremiseSet));
+
+/// Every premise axis remains independently checked even though execution is
+/// closed over the conformance report rather than delegated to a backend.
+#[trace("TC-005", "FR-030-AC-1", "FR-030-AC-2")]
+#[test]
+fn tc_005_every_premise_axis_refuses_without_erasing_a_sibling() {
+    let mutations: [PremiseMutation; 8] = [
+        (PremiseAxis::AdmittedFragment, empty_fragment),
+        (PremiseAxis::Backend, empty_backend),
+        (PremiseAxis::Assumption, duplicate_assumption),
+        (PremiseAxis::Communication, remove_communication),
+        (PremiseAxis::Visibility, remove_visibility),
+        (PremiseAxis::Environment, remove_environment),
+        (PremiseAxis::Source, remove_source),
+        (PremiseAxis::DerivedArtifact, remove_derived_tuple),
+    ];
+    for (axis, mutate) in mutations {
+        let correspondence = ExactCorrespondence;
+        let good = request("request:good", Claim::Conformance, &correspondence);
+        let mut broken = request("request:broken", Claim::Composition, &correspondence);
+        mutate(&mut broken.premises);
+        let dispatch = dispatch_from_conformance(
+            &[good, broken],
+            &report(GlobalDisposition::Conforms, AssessmentExecution::Completed),
+            Limits::default(),
+        )
+        .expect("closed dispatch");
+        assert_eq!(
+            dispatch.dispositions[0].decision,
+            Some(Decision::Established)
+        );
+        let failure = dispatch.dispositions[1]
+            .failure
+            .as_ref()
+            .expect("claim refusal");
+        assert_eq!(failure.code(), FailureCode::InvalidPremises);
+        assert!(failure.defects().iter().any(|defect| defect.axis == axis));
+    }
+}
+
 #[trace("TC-005", "FR-029-AC-5", "FR-029-AC-6")]
 #[test]
 fn tc_005_duplicate_identity_refuses_each_claim_without_a_second_execution() {
