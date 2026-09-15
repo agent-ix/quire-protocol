@@ -15,6 +15,11 @@ use quire_protocol::model::v2::{
     StaticSelection, StaticSlot, RUNTIME_BINDING_CONTRACT, STATIC_BINDING_CONTRACT,
 };
 use quire_protocol::wire::{BindingKind, Body, CausalEdge, ControlOperation, EdgeKind, Port};
+use quire_protocol::{
+    assessment::{ClaimRow, Engine},
+    claims::Claim,
+    outcome::{ClaimOutcome, OperationOutcome},
+};
 
 // The shared handoff reader carries all public mutation helpers; this focused
 // binding lane exercises only `Handoff`, so the remaining helper surface is
@@ -976,6 +981,34 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
     let identity = context
         .definition_identity()
         .expect("the admitted static selection has an FR-288 identity");
+
+    let engine = match Engine::start(context, vec![Claim::Conformance]) {
+        OperationOutcome::Completed(engine) => engine,
+        OperationOutcome::Refused(refusal) => {
+            panic!("linked context must start an engine: {refusal}")
+        }
+        OperationOutcome::ResourceIncomplete(incomplete) => {
+            panic!("engine startup has no resource work: {incomplete:?}")
+        }
+    };
+    let bundle = match engine.assemble_outcome(vec![ClaimRow {
+        claim: Claim::Conformance,
+        outcome: ClaimOutcome::Canonical(()),
+    }]) {
+        OperationOutcome::Completed(bundle) => bundle,
+        OperationOutcome::Refused(refusal) => {
+            panic!("complete claim population must assemble: {refusal}")
+        }
+        OperationOutcome::ResourceIncomplete(incomplete) => {
+            panic!("bundle assembly has no resource work: {incomplete:?}")
+        }
+    };
+    assert_eq!(bundle.identity(), &identity);
+    assert_eq!(
+        bundle.context().definition().selection(),
+        definition.selection()
+    );
+    assert_eq!(bundle.rows().len(), 1);
 
     let different_runtime = RuntimeBindingSet::new(
         RUNTIME_BINDING_CONTRACT,
