@@ -1301,7 +1301,7 @@ fn tc_009_every_production_site_has_below_at_above_boundary() {
         .iter()
         .map(|site| site.dimension())
         .collect();
-    let required: BTreeSet<_> = BudgetDimension::NFR_002.into_iter().collect();
+    let required: BTreeSet<_> = BudgetDimension::ALL.into_iter().collect();
     assert_eq!(
         covered, required,
         "every NFR-002 caller dimension has a real production charge point"
@@ -1312,14 +1312,17 @@ fn tc_009_every_production_site_has_below_at_above_boundary() {
             .grant(source.dimension(), 2)
             .expect("positive grant");
         let mut accountant = ResourceAccountant::new(budget, &inventory);
-        if source.dimension() == BudgetDimension::ElapsedTime {
+        if matches!(
+            source.dimension(),
+            BudgetDimension::ElapsedTime | BudgetDimension::ResolutionDeadline
+        ) {
             assert_eq!(
                 accountant.charge(source.id(), 1),
                 Err(ChargeError::TemporalDimensionChargedStatically {
                     site: source.id(),
-                    dimension: BudgetDimension::ElapsedTime,
+                    dimension: source.dimension(),
                 }),
-                "elapsed time must use the monotonic before/after mechanism"
+                "temporal work must use the monotonic before/after mechanism"
             );
             continue;
         }

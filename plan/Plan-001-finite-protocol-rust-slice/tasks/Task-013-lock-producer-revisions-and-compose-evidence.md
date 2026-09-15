@@ -2,13 +2,16 @@
 id: Task-013
 title: "Resolve external producer revisions into private capabilities"
 type: Task
-status: in_progress
+status: done
 track: Core
 priority: P0
 relationships:
   - { target: ix://agent-ix/quire-protocol/Task-016, type: depends_on }
   - { target: ix://agent-ix/quire-protocol/Task-017, type: depends_on }
   - { target: ix://agent-ix/quire-protocol/FR-009, type: references }
+  - { target: ix://agent-ix/quire-protocol/FR-012, type: references }
+  - { target: ix://agent-ix/quire-protocol/FR-016, type: references }
+  - { target: ix://agent-ix/quire-protocol/NFR-006, type: references }
   - { target: ix://agent-ix/quire-protocol/TC-013, type: verifies }
 ---
 # Task-013: Resolve External Producer Revisions into Private Capabilities
@@ -34,25 +37,27 @@ acceptances would leave the integrations with nothing to resolve against.
 
 ### Protocol-owned, unblocked — no external delivery required
 
-- [ ] Author the version-lock manifest artifact. None exists in the tree today,
+- [x] Author the version-lock manifest artifact. None exists in the tree today,
   so every scenario that presumes resolution currently presumes a mechanism that
   is unbuilt.
-- [ ] Implement resolution: the two-status model (`pinned`, `unresolved` with a
+- [x] Implement resolution: the two-status model (`pinned`, `unresolved` with a
   reason), the `(owner, contract version)` key, per-key typed refusal, duplicate
   key refusal before resolution, and entry independence.
-- [ ] Implement digest verification over the exact delivered bytes with no
+- [x] Implement digest verification over the exact delivered bytes with no
   canonicalization, passing the verified byte sequence through to the consumer,
   and refusing an interface-only entry that carries a digest.
-- [ ] Implement the resolution budget over entry count, bytes digested and a
+- [x] Implement the resolution budget over entry count, bytes digested and a
   deadline, returning resource-incomplete rather than a refusal.
-- [ ] Prove containment: resolution reads no version-control history, spawns no
+- [x] Prove containment: resolution reads no version-control history, spawns no
   process, opens no network connection.
-- [ ] Implement TC-013 against Protocol-owned fixtures.
-- [ ] Mint constructor-private `ResolvedArtifact<C>` and
+- [x] Implement the resolver portion of TC-013 against Protocol-owned fixtures.
+  Task-019/#66 owns the separately specified delivery-index controls that this
+  task never implemented and does not claim.
+- [x] Mint constructor-private `ResolvedArtifact<C>` and
   `ResolvedInterface<C>` only after all exact checks; bind each capability to
   the request/resolution identity, selected key/revision and verified bytes or
   adapter-compiled interface selection so it cannot authorize another request.
-- [ ] Validate required keys in deterministic lexicographic order and prove
+- [x] Validate required keys in deterministic lexicographic order and prove
   offered-manifest permutation changes neither the resolved set nor the first
   cause/partial state.
 
@@ -61,6 +66,9 @@ acceptances would leave the integrations with nothing to resolve against.
 - Task-009 records its concrete QSL entries, Task-010 its QObs/QSL temporal
   entries, and Task-011 its Engineering Assurance/E02/Quoin entries. Task-018
   composes their final evidence values.
+- Task-019/#66 implements the already-specified consumer-owned delivery index
+  and TC-017. An index has no authority to supply,
+  select, repair or widen a version-lock entry.
 - A consuming task whose owner contract is unresolved records the exact blocker
   and no capability; that does not block this mechanism from closing.
 
@@ -81,3 +89,6 @@ acceptance remains distributed to Tasks 009 through 011, and NFR-005/FR-017
 evidence composition closes under Task-018. This task establishes no temporal
 result, observation adequacy, replay agreement, evidence handoff or campaign
 completion.
+
+PR #50 implements this task. PR-time Rust review SR-103 and scoped semantic gap
+analysis SR-104 pass with no unresolved in-scope finding.

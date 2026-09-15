@@ -229,6 +229,7 @@ impl std::error::Error for BudgetError {}
 pub struct Budget {
     grants: [Option<usize>; BudgetDimension::ALL.len()],
     elapsed_time: Option<(Duration, usize)>,
+    resolution_deadline: Option<(Duration, usize)>,
 }
 
 impl Budget {
@@ -238,12 +239,14 @@ impl Budget {
         Self {
             grants: [None; BudgetDimension::ALL.len()],
             elapsed_time: None,
+            resolution_deadline: None,
         }
     }
 
     /// Add one positive grant without replacing an earlier selection.
-    /// `elapsed-time` is expressed as an exact nanosecond count and is retained
-    /// as a checked [`Duration`] for monotonic observation.
+    /// `elapsed-time` and `resolution-deadline` are expressed as exact
+    /// nanosecond counts and retained as checked [`Duration`] values for
+    /// monotonic observation.
     ///
     /// # Errors
     ///
@@ -261,10 +264,18 @@ impl Budget {
         if slot.is_some() {
             return Err(BudgetError::DuplicateGrant { dimension });
         }
-        if dimension == BudgetDimension::ElapsedTime {
+        if matches!(
+            dimension,
+            BudgetDimension::ElapsedTime | BudgetDimension::ResolutionDeadline
+        ) {
             let nanos = u64::try_from(granted)
                 .map_err(|_| BudgetError::UnrepresentableDuration { dimension, granted })?;
-            self.elapsed_time = Some((Duration::from_nanos(nanos), granted));
+            let value = Some((Duration::from_nanos(nanos), granted));
+            match dimension {
+                BudgetDimension::ElapsedTime => self.elapsed_time = value,
+                BudgetDimension::ResolutionDeadline => self.resolution_deadline = value,
+                _ => unreachable!("the temporal-dimension match above is exhaustive"),
+            }
         }
         *slot = Some(granted);
         Ok(self)
@@ -278,6 +289,10 @@ impl Budget {
 
     const fn elapsed_time(&self) -> Option<(Duration, usize)> {
         self.elapsed_time
+    }
+
+    const fn resolution_deadline(&self) -> Option<(Duration, usize)> {
+        self.resolution_deadline
     }
 }
 
@@ -1036,20 +1051,39 @@ struct RequestDeadline {
     granted: usize,
 }
 
+struct DeadlineTarget<'deadline> {
+    runtime: &'deadline mut Option<RequestDeadline>,
+    site: SiteId,
+    dimension: BudgetDimension,
+}
+
 /// Per-request caller-budget accounting over a reconciled inventory.
 pub struct ResourceAccountant<'inventory> {
     budget: Budget,
     usage: Usage,
     site_consumed: Box<[usize]>,
     inventory: &'inventory Inventory,
-    deadline: Option<RequestDeadline>,
+    request_deadline: Option<RequestDeadline>,
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "Task-013's private resolver is consumed by Tasks 009-011"
+        )
+    )]
+    resolution_deadline: Option<RequestDeadline>,
 }
 
 impl<'inventory> ResourceAccountant<'inventory> {
     /// Begin a fresh request with zero consumption.
     #[must_use]
     pub fn new(budget: Budget, inventory: &'inventory Inventory) -> Self {
-        Self::with_clock(budget, inventory, SystemMonotonicClock)
+        Self::with_deadline_clocks(
+            budget,
+            inventory,
+            SystemMonotonicClock,
+            SystemMonotonicClock,
+        )
     }
 
     /// Begin a fresh request with an injected monotonic clock.
@@ -1063,7 +1097,60 @@ impl<'inventory> ResourceAccountant<'inventory> {
     where
         C: Clock + 'static,
     {
-        let deadline = budget.elapsed_time().map(|(duration, granted)| {
+        Self::with_deadline_clocks(budget, inventory, clock, SystemMonotonicClock)
+    }
+
+    /// Begin a fresh resolution request with an injected resolution clock.
+    #[must_use]
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "Task-013's private resolver is consumed by Tasks 009-011"
+        )
+    )]
+    pub(crate) fn with_resolution_clock<C>(
+        budget: Budget,
+        inventory: &'inventory Inventory,
+        clock: C,
+    ) -> Self
+    where
+        C: Clock + 'static,
+    {
+        Self::with_deadline_clocks(budget, inventory, SystemMonotonicClock, clock)
+    }
+
+    fn with_deadline_clocks<RequestClock, ResolutionClock>(
+        budget: Budget,
+        inventory: &'inventory Inventory,
+        request_clock: RequestClock,
+        resolution_clock: ResolutionClock,
+    ) -> Self
+    where
+        RequestClock: Clock + 'static,
+        ResolutionClock: Clock + 'static,
+    {
+        let request_deadline = Self::deadline_runtime(budget.elapsed_time(), request_clock);
+        let resolution_deadline =
+            Self::deadline_runtime(budget.resolution_deadline(), resolution_clock);
+        Self {
+            budget,
+            usage: Usage::ZERO,
+            site_consumed: vec![0; inventory.entries.len()].into_boxed_slice(),
+            inventory,
+            request_deadline,
+            resolution_deadline,
+        }
+    }
+
+    fn deadline_runtime<C>(
+        selection: Option<(Duration, usize)>,
+        clock: C,
+    ) -> Option<RequestDeadline>
+    where
+        C: Clock + 'static,
+    {
+        selection.map(|(duration, granted)| {
             let clock: Box<dyn Clock + Send> = Box::new(clock);
             let guard = super::DeadlineGuard::start(clock.as_ref(), duration);
             RequestDeadline {
@@ -1071,14 +1158,7 @@ impl<'inventory> ResourceAccountant<'inventory> {
                 guard,
                 granted,
             }
-        });
-        Self {
-            budget,
-            usage: Usage::ZERO,
-            site_consumed: vec![0; inventory.entries.len()].into_boxed_slice(),
-            inventory,
-            deadline,
-        }
+        })
     }
 
     /// Usage charged so far.
@@ -1188,26 +1268,25 @@ impl<'inventory> ResourceAccountant<'inventory> {
         Ok(())
     }
 
-    fn observe_deadline(
-        &mut self,
+    fn observe_deadline_at(
+        inventory: &Inventory,
+        usage: &mut Usage,
+        target: DeadlineTarget<'_>,
         unit: UnitLabel,
         phase: Phase,
         token: Option<UnitToken>,
     ) -> Result<Option<UnitToken>, ChargeError> {
-        let Some(runtime) = self.deadline.as_mut() else {
+        let Some(runtime) = target.runtime.as_mut() else {
             return Ok(None);
         };
-        let deadline_site = super::REQUEST_DEADLINE_SOURCE.id();
-        let Some((_, entry)) = self.inventory.entry(deadline_site) else {
-            return Err(ChargeError::UnregisteredSite {
-                site: deadline_site,
-            });
+        let Some((_, entry)) = inventory.entry(target.site) else {
+            return Err(ChargeError::UnregisteredSite { site: target.site });
         };
-        if entry.source.dimension != BudgetDimension::ElapsedTime {
+        if entry.source.dimension != target.dimension {
             return Err(ChargeError::SiteDimensionMismatch {
-                site: deadline_site,
+                site: target.site,
                 declared: entry.source.dimension,
-                required: BudgetDimension::ElapsedTime,
+                required: target.dimension,
             });
         }
         let observation = match (phase, token) {
@@ -1230,7 +1309,7 @@ impl<'inventory> ResourceAccountant<'inventory> {
         let observed = runtime.guard.observed();
         let consumed = usize::try_from(observed.as_nanos())
             .map_err(|_| ChargeError::ElapsedTimeOverflow { observed })?;
-        self.usage.consumed[BudgetDimension::ElapsedTime.index()] = consumed;
+        usage.consumed[target.dimension.index()] = consumed;
         match observation {
             Ok(token) => Ok(token),
             Err(DeadlineRefusal::Expired {
@@ -1241,8 +1320,8 @@ impl<'inventory> ResourceAccountant<'inventory> {
                 overshoot,
             }) => Err(ChargeError::ResourceIncomplete(ResourceIncomplete {
                 code: IncompleteCode::BudgetExceeded,
-                dimension: BudgetDimension::ElapsedTime,
-                site: super::REQUEST_DEADLINE_SOURCE.id(),
+                dimension: target.dimension,
+                site: target.site,
                 granted: runtime.granted,
                 consumed,
                 requested: 0,
@@ -1266,6 +1345,53 @@ impl<'inventory> ResourceAccountant<'inventory> {
         }
     }
 
+    fn observe_request_deadline(
+        &mut self,
+        unit: UnitLabel,
+        phase: Phase,
+        token: Option<UnitToken>,
+    ) -> Result<Option<UnitToken>, ChargeError> {
+        Self::observe_deadline_at(
+            self.inventory,
+            &mut self.usage,
+            DeadlineTarget {
+                runtime: &mut self.request_deadline,
+                site: super::REQUEST_DEADLINE_SOURCE.id(),
+                dimension: BudgetDimension::ElapsedTime,
+            },
+            unit,
+            phase,
+            token,
+        )
+    }
+
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "Task-013's private resolver is consumed by Tasks 009-011"
+        )
+    )]
+    fn observe_resolution_deadline(
+        &mut self,
+        unit: UnitLabel,
+        phase: Phase,
+        token: Option<UnitToken>,
+    ) -> Result<Option<UnitToken>, ChargeError> {
+        Self::observe_deadline_at(
+            self.inventory,
+            &mut self.usage,
+            DeadlineTarget {
+                runtime: &mut self.resolution_deadline,
+                site: crate::version_lock::RESOLUTION_DEADLINE_SOURCE.id(),
+                dimension: BudgetDimension::ResolutionDeadline,
+            },
+            unit,
+            phase,
+            token,
+        )
+    }
+
     /// Execute one declared indivisible owner unit under the request deadline.
     ///
     /// The before observation occurs before `operation`. A successful or
@@ -1278,7 +1404,7 @@ impl<'inventory> ResourceAccountant<'inventory> {
         unit: UnitLabel,
         operation: impl FnOnce(&mut Self) -> OperationOutcome<T, E>,
     ) -> OperationOutcome<T, E> {
-        let token = match self.observe_deadline(unit, Phase::BeforeUnit, None) {
+        let token = match self.observe_request_deadline(unit, Phase::BeforeUnit, None) {
             Ok(token) => token,
             Err(error) => return OperationOutcome::from_charge(error),
         };
@@ -1287,7 +1413,39 @@ impl<'inventory> ResourceAccountant<'inventory> {
             &outcome,
             OperationOutcome::ResourceIncomplete(_) | OperationOutcome::AccountingFault(_)
         );
-        let finished = self.observe_deadline(unit, Phase::AfterUnit, token);
+        let finished = self.observe_request_deadline(unit, Phase::AfterUnit, token);
+        if stopped {
+            return outcome;
+        }
+        match finished {
+            Ok(_) => outcome,
+            Err(error) => OperationOutcome::from_charge(error),
+        }
+    }
+
+    /// Execute one resolution unit under the distinct FR-009 deadline.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "Task-013's private resolver is consumed by Tasks 009-011"
+        )
+    )]
+    pub(crate) fn run_resolution_unit<T, E>(
+        &mut self,
+        unit: UnitLabel,
+        operation: impl FnOnce(&mut Self) -> OperationOutcome<T, E>,
+    ) -> OperationOutcome<T, E> {
+        let token = match self.observe_resolution_deadline(unit, Phase::BeforeUnit, None) {
+            Ok(token) => token,
+            Err(error) => return OperationOutcome::from_charge(error),
+        };
+        let outcome = operation(self);
+        let stopped = matches!(
+            &outcome,
+            OperationOutcome::ResourceIncomplete(_) | OperationOutcome::AccountingFault(_)
+        );
+        let finished = self.observe_resolution_deadline(unit, Phase::AfterUnit, token);
         if stopped {
             return outcome;
         }
@@ -1764,6 +1922,24 @@ const RESULT_DEPTH: SourceSite = SourceSite::new(
     BudgetDimension::Operation,
     SiteKind::Traversal,
 );
+const RESOLUTION_ENTRY: SourceSite = SourceSite::new(
+    SiteId::new("resolution/entry/validate"),
+    "version_lock::resolve",
+    BudgetDimension::ResolutionEntryCount,
+    SiteKind::Iteration,
+);
+const RESOLUTION_BYTES: SourceSite = SourceSite::new(
+    SiteId::new("resolution/bytes/digest"),
+    "version_lock::resolve",
+    BudgetDimension::ResolutionBytesDigested,
+    SiteKind::Iteration,
+);
+const RESOLUTION_DEADLINE: SourceSite = SourceSite::new(
+    SiteId::new("resolution/unit/deadline"),
+    "version_lock::resolve",
+    BudgetDimension::ResolutionDeadline,
+    SiteKind::Iteration,
+);
 
 /// Production work sites derived from reviewed Rust interfaces and paths.
 ///
@@ -1771,6 +1947,9 @@ const RESULT_DEPTH: SourceSite = SourceSite::new(
 /// deletion or addition on either side therefore fails bidirectional
 /// reconciliation rather than changing both populations by construction.
 pub const PRODUCTION_SOURCES: &[SourceSite] = &[
+    crate::version_lock::RESOLUTION_ENTRY_SOURCE,
+    crate::version_lock::RESOLUTION_BYTES_SOURCE,
+    crate::version_lock::RESOLUTION_DEADLINE_SOURCE,
     crate::inventory::map::ADMISSION_INPUT_SOURCE,
     crate::inventory::map::ADMISSION_ALLOCATION_SOURCE,
     crate::link::DEFINITION_SOURCE,
@@ -1852,6 +2031,24 @@ const fn entry(
 
 /// Independently authored production inventory rows.
 pub const PRODUCTION_ENTRIES: &[InventoryEntry] = &[
+    entry(
+        RESOLUTION_ENTRY,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeIterate,
+        Termination::CollectionLength,
+    ),
+    entry(
+        RESOLUTION_BYTES,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeIterate,
+        Termination::InputLength,
+    ),
+    entry(
+        RESOLUTION_DEADLINE,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::AroundUnit,
+        Termination::CollectionLength,
+    ),
     entry(
         ADMISSION_INPUT,
         LimitAuthority::ConsumerOwner,
