@@ -84,5 +84,4 @@ code is compared only within its exact selected source contract.
 
 ## Status
 
-Draft. The envelope implementation is partial; Task-006 completes the remaining
-public-path coverage and TC-011.
+Implemented by Task-006 and TC-011 across the Protocol's current public paths.

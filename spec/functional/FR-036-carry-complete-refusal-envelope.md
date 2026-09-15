@@ -114,5 +114,4 @@ source context is represented as unavailable, not invented from display data.
 
 ## Status
 
-Draft. Existing public paths only partially use the common envelope; Task-006
-completes this requirement and TC-011.
+Implemented by Task-006 and TC-011 across the Protocol's current public paths.

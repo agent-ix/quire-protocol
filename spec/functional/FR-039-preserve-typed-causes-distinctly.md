@@ -90,5 +90,4 @@ the ordering authority as `source-wire`; it never invents a semantic sort key.
 
 ## Status
 
-Draft. The common-envelope implementation is partial; Task-006 completes the
-remaining paths and TC-011.
+Implemented by Task-006 and TC-011 across the Protocol's current public paths.

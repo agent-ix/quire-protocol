@@ -90,5 +90,4 @@ outcome, a refusal and a completed-empty result.
 
 ## Status
 
-Draft. Several subsystem paths already suppress success correctly; Task-006
-completes common-envelope coverage and TC-011.
+Implemented by Task-006 and TC-011 across the Protocol's current public paths.
