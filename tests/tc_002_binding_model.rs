@@ -1417,6 +1417,10 @@ fn tc_002_effect_projection_requires_an_owner_effect_slot() {
     assert_eq!(engine.compensation().registrations().len(), 2);
     assert_eq!(engine.conformance().registrations().len(), 2);
     assert_eq!(engine.conformance().obligations().len(), controls.len());
+    assert_eq!(
+        engine.conformance().causal_edges(),
+        engine.linked().causal_edges()
+    );
     assert_eq!(engine.compensation_attempts().len(), 1);
     assert_eq!(engine.compensation_effects().len(), 1);
     assert_eq!(
@@ -1439,6 +1443,10 @@ fn tc_002_effect_projection_requires_an_owner_effect_slot() {
     assert_eq!(bundle.compensation().registrations().len(), 2);
     assert_eq!(bundle.conformance().registrations().len(), 2);
     assert_eq!(bundle.conformance().obligations().len(), controls.len());
+    assert_eq!(
+        bundle.conformance().causal_edges(),
+        bundle.linked().causal_edges()
+    );
     assert_eq!(bundle.compensation_attempts().len(), 1);
     assert_eq!(bundle.compensation_effects().len(), 1);
 }

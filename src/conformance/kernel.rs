@@ -46,6 +46,7 @@ impl LinkedObligation {
 pub struct Kernel {
     definition: DefinitionIdentity,
     obligations: Vec<LinkedObligation>,
+    causal_edges: Vec<quire_spec_language::protocol_artifact::wire::CausalEdge>,
     registrations: Vec<Registration>,
 }
 
@@ -81,6 +82,7 @@ impl Kernel {
         Ok(Self {
             definition: linked.identity().clone(),
             obligations,
+            causal_edges: linked.causal_edges().to_vec(),
             registrations: compensation.registrations().to_vec(),
         })
     }
@@ -95,6 +97,16 @@ impl Kernel {
     #[must_use]
     pub fn obligations(&self) -> &[LinkedObligation] {
         &self.obligations
+    }
+
+    /// Returns QSL's exact authored causal graph edges in declaration order.
+    ///
+    /// These are retained alongside the control obligations so neither batch
+    /// nor incremental conformance can infer precedence from arrival order,
+    /// timestamps, or a caller-constructed substitute model.
+    #[must_use]
+    pub fn causal_edges(&self) -> &[quire_spec_language::protocol_artifact::wire::CausalEdge] {
+        &self.causal_edges
     }
 
     /// Returns replay-idempotent registrations in QSL declaration order.
