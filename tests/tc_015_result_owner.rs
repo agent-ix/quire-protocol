@@ -17,6 +17,10 @@ use quire_protocol::assessment::{CanonicalRowInput, Engine};
 use quire_protocol::bounds::inventory::{
     production_inventory, Budget, BudgetDimension, OperationOutcome, ResourceAccountant,
 };
+use quire_protocol::claims::dispatch::{
+    Decision, Disposition, Report as DispatchReport, Usage as DispatchUsage,
+};
+use quire_protocol::claims::premises::{BackendSelection, Component, PremiseSet};
 use quire_protocol::claims::Claim as DispatchClaim;
 use quire_protocol::closure::{AssessmentExecution, GlobalConformanceClosure, ScopeState};
 use quire_protocol::model::v2::{
@@ -571,6 +575,44 @@ fn base_input<'a>(fixture: &'a Fixture) -> Input<'a> {
     }
 }
 
+fn dispatch_report(claims: &[DispatchClaim]) -> DispatchReport {
+    let component = |identity: &str| {
+        Component::retained(
+            identity.as_bytes().to_vec().into_boxed_slice(),
+            identity.as_bytes().to_vec().into_boxed_slice(),
+        )
+    };
+    let premises = PremiseSet {
+        admitted_fragment: component("fragment:canonical-engine"),
+        backend: BackendSelection::retained(
+            b"backend:canonical-engine".to_vec().into_boxed_slice(),
+            b"v1".to_vec().into_boxed_slice(),
+        ),
+        assumptions: Vec::new(),
+        communication: Vec::new(),
+        visibility: Vec::new(),
+        environment: Vec::new(),
+        sources: Vec::new(),
+        derived_artifact: None,
+    };
+    DispatchReport {
+        dispositions: claims
+            .iter()
+            .enumerate()
+            .map(|(index, claim)| Disposition {
+                request_identity: format!("request:{index}").into_bytes().into_boxed_slice(),
+                claim: *claim,
+                strength: b"tested".to_vec().into_boxed_slice(),
+                execution: AssessmentExecution::Completed,
+                decision: Some(Decision::Established),
+                premises: premises.clone(),
+                failure: None,
+            })
+            .collect(),
+        usage: DispatchUsage::default(),
+    }
+}
+
 /// The public Engine boundary constructs and strict-reads owner rows against
 /// its one linked `/2` package; it has no caller-provided result document seam.
 #[test]
@@ -652,16 +694,22 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
     refusal_limits.max_output_bytes = 1;
     assert_eq!(input.checked_predicate.package_digest(), package.digest());
     assert_eq!(input.temporal_subject.package_digest(), package.digest());
-    let bundle = Engine::new(
-        context,
-        vec![DispatchClaim::Conformance, DispatchClaim::Monitorability],
-    )
-    .expect("linked assessment starts one engine")
-    .construct_canonical(vec![
-        CanonicalRowInput::new(DispatchClaim::Conformance, input, Limits::owner_max()),
-        CanonicalRowInput::new(DispatchClaim::Monitorability, refused_input, refusal_limits),
-    ])
-    .expect("the engine constructs and strict-reads its canonical row");
+    let requested = [DispatchClaim::Conformance, DispatchClaim::Monitorability];
+    let dispatch = dispatch_report(&requested);
+    let bundle = Engine::new(context, requested.to_vec())
+        .expect("linked assessment starts one engine")
+        .construct_canonical(
+            &dispatch,
+            vec![
+                CanonicalRowInput::new(DispatchClaim::Conformance, input, Limits::owner_max()),
+                CanonicalRowInput::new(
+                    DispatchClaim::Monitorability,
+                    refused_input,
+                    refusal_limits,
+                ),
+            ],
+        )
+        .expect("the engine constructs and strict-reads its canonical row");
     assert_eq!(bundle.rows().len(), 2);
     assert!(matches!(
         &bundle.rows()[0].outcome,

@@ -210,6 +210,8 @@ pub enum BundleRefusal {
     CanonicalClaimMismatch,
     /// A canonical input borrows a QSL view from another admitted package.
     CanonicalPackageMismatch,
+    /// The ordered claim-dispatch report differs from this Engine request or its rows.
+    DispatchReportMismatch,
     /// QSL v2 opaque trigger bytes differ from the selected QObs subject.
     ActivationSubjectMismatch,
     /// The QSL v2 temporal declaration is not selected by this protocol definition.
@@ -287,6 +289,11 @@ bundle_code!(
     RefusalDomain::Result
 );
 bundle_code!(
+    BUNDLE_DISPATCH_MISMATCH,
+    "assessment-result.bundle-dispatch-mismatch",
+    RefusalDomain::Result
+);
+bundle_code!(
     BUNDLE_ACTIVATION_SUBJECT,
     "assessment-activation.subject-mismatch",
     RefusalDomain::Assessment
@@ -356,7 +363,11 @@ pub const RESULT_CODES: CodeModule = CodeModule {
     root: "assessment-result",
     owner: "Task-006",
     module_path: "quire_protocol::assessment",
-    entries: &[BUNDLE_CLAIM_MISMATCH, BUNDLE_PACKAGE_MISMATCH],
+    entries: &[
+        BUNDLE_CLAIM_MISMATCH,
+        BUNDLE_PACKAGE_MISMATCH,
+        BUNDLE_DISPATCH_MISMATCH,
+    ],
 };
 
 /// Compensation-stage activation-binding codes.
@@ -398,6 +409,9 @@ fn outcome_refusal(error: BundleRefusal) -> ProtocolRefusal {
         }
         BundleRefusal::CanonicalPackageMismatch => {
             (&BUNDLE_PACKAGE_MISMATCH, ProtocolStage::ResultAssembly)
+        }
+        BundleRefusal::DispatchReportMismatch => {
+            (&BUNDLE_DISPATCH_MISMATCH, ProtocolStage::ResultAssembly)
         }
         BundleRefusal::ActivationSubjectMismatch => {
             (&BUNDLE_ACTIVATION_SUBJECT, ProtocolStage::Compensation)
@@ -1135,9 +1149,11 @@ impl<'a> Engine<'a> {
     /// inputs. A result-owner refusal remains local to its selected claim.
     pub fn construct_canonical(
         self,
+        dispatch: &DispatchReport,
         inputs: Vec<CanonicalRowInput<'a>>,
     ) -> Result<AssessmentBundle<'a, result::ValidatedResult>, BundleRefusal> {
         validate_input_claims(&self.requested, &inputs)?;
+        validate_dispatch_rows(&self.requested, dispatch, &inputs)?;
         let mut rows = Vec::with_capacity(inputs.len());
         for selected in inputs {
             validate_input_package(
@@ -1186,9 +1202,10 @@ impl<'a> Engine<'a> {
     /// bundle.
     pub fn construct_canonical_outcome(
         self,
+        dispatch: &DispatchReport,
         inputs: Vec<CanonicalRowInput<'a>>,
     ) -> crate::outcome::OperationOutcome<AssessmentBundle<'a, result::ValidatedResult>> {
-        match self.construct_canonical(inputs) {
+        match self.construct_canonical(dispatch, inputs) {
             Ok(bundle) => crate::outcome::OperationOutcome::Completed(bundle),
             Err(error) => crate::outcome::OperationOutcome::Refused(outcome_refusal(error)),
         }
@@ -1300,6 +1317,29 @@ fn validate_input_package(
     } else {
         Err(BundleRefusal::CanonicalPackageMismatch)
     }
+}
+
+/// Require the preceding closed dispatch stage to answer this Engine's exact
+/// claim population in the same declared order as canonical-row construction.
+fn validate_dispatch_rows(
+    requested: &[Claim],
+    dispatch: &DispatchReport,
+    inputs: &[CanonicalRowInput<'_>],
+) -> Result<(), BundleRefusal> {
+    if dispatch.dispositions.len() != requested.len() {
+        return Err(BundleRefusal::DispatchReportMismatch);
+    }
+    for ((requested, disposition), input) in
+        requested.iter().zip(&dispatch.dispositions).zip(inputs)
+    {
+        if disposition.claim != *requested || input.claim != *requested {
+            return Err(BundleRefusal::DispatchReportMismatch);
+        }
+        if input.input.execution != disposition.execution {
+            return Err(BundleRefusal::DispatchReportMismatch);
+        }
+    }
+    Ok(())
 }
 
 const fn claim_from_result_kind(kind: ClaimKind) -> Claim {
