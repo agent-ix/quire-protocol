@@ -5,10 +5,12 @@
 
 use crate::closure::AssessmentExecution;
 use crate::conformance::{GlobalDisposition, Report as ConformanceReport};
-use crate::refusal::catalog::{CatalogSelection, CodeEntry, CodeModule, Provenance, RefusalCode};
+use crate::refusal::catalog::{
+    CatalogSelection, CodeEntry, CodeModule, Provenance, RefusalCode, RetainedBytes,
+};
 use crate::refusal::{
-    AffectedIdentity, ProtocolRefusal, ProtocolStage, RefusalAxis, RefusalDomain, RetryDecision,
-    Unavailability,
+    AffectedIdentity, Prerequisite, PrerequisiteState, ProtocolCause, ProtocolRefusal,
+    ProtocolStage, RefusalAxis, RefusalCause, RefusalDomain, RetryDecision, Unavailability,
 };
 use crate::ByteDigest;
 
@@ -211,15 +213,31 @@ impl ClaimFailure {
         }
         let outcome_identity: Box<str> = format!("sha256:{:x}", ByteDigest::of(&preimage)).into();
         let refusal_code = RefusalCode::of(code.entry());
-        let builder = ProtocolRefusal::legacy_builder(
+        let mut causes = defects.iter().map(defect_cause);
+        let first_cause = causes.next().unwrap_or_else(|| {
+            ProtocolCause::ConflictingDefinition {
+                definition: RetainedBytes::new(request.identity.as_ref()),
+                conflicting_definition: RetainedBytes::new(request.identity.as_ref()),
+            }
+            .into()
+        });
+        let mut builder = ProtocolRefusal::builder(
             refusal_code,
             CatalogSelection::local(),
             ProtocolStage::ClaimDispatch,
             RefusalAxis::from_registered_code(refusal_code),
+            first_cause,
         )
         .expect("claim codes belong to claim dispatch")
+        .prerequisite(Prerequisite::new(
+            ProtocolStage::Conformance,
+            PrerequisiteState::Established,
+        ))
         .identity(AffectedIdentity::retained(request.identity.as_ref()))
         .unavailable_location(Unavailability::NotApplicableToStage);
+        for cause in causes {
+            builder = builder.cause(cause);
+        }
         let envelope = if retains_independent {
             builder
                 .retaining_independent((), Vec::new())
@@ -657,16 +675,46 @@ fn checked_increment(
 
 fn resource_refusal(usage: Usage) -> Refusal {
     let refusal_code = RefusalCode::of(&RESOURCE_INCOMPLETE);
-    let envelope = ProtocolRefusal::legacy_builder(
+    let envelope = ProtocolRefusal::builder(
         refusal_code,
         CatalogSelection::local(),
         ProtocolStage::ClaimDispatch,
         RefusalAxis::from_registered_code(refusal_code),
+        ProtocolCause::IncompleteEvidence {
+            evidence: RetainedBytes::new(b"claim-dispatch-owner-limit"),
+        }
+        .into(),
     )
     .expect("claim codes belong to claim dispatch")
+    .prerequisite(Prerequisite::new(
+        ProtocolStage::Conformance,
+        PrerequisiteState::Established,
+    ))
     .unavailable_location(Unavailability::NotApplicableToStage)
     .emitting_nothing();
     Refusal { usage, envelope }
+}
+
+fn defect_cause(defect: &PremiseDefect) -> RefusalCause {
+    let axis = premise_axis_tag(defect.axis).as_bytes();
+    let identity = defect.identity.as_deref().unwrap_or(axis);
+    match defect.kind {
+        premises::PremiseDefectKind::Missing
+        | premises::PremiseDefectKind::Empty
+        | premises::PremiseDefectKind::DanglingDependency => ProtocolCause::MissingDefinition {
+            definition: RetainedBytes::new(identity),
+        },
+        premises::PremiseDefectKind::Duplicate
+        | premises::PremiseDefectKind::CircularDependency => ProtocolCause::ConflictingDefinition {
+            definition: RetainedBytes::new(identity),
+            conflicting_definition: RetainedBytes::new(axis),
+        },
+        premises::PremiseDefectKind::CorrespondenceMismatch => ProtocolCause::IdentityMismatch {
+            expected: RetainedBytes::new(axis),
+            observed: RetainedBytes::new(identity),
+        },
+    }
+    .into()
 }
 
 fn push_part(target: &mut Vec<u8>, value: &[u8]) {

@@ -605,13 +605,6 @@ impl CauseChain {
     }
 
     /// Append a cause at the end of the declared order.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "Task-013 and Tasks 002-006 consume the private typed-cause constructor"
-        )
-    )]
     pub(crate) fn push(&mut self, cause: RefusalCause) {
         self.causes.push(cause);
     }
@@ -745,13 +738,6 @@ impl ProtocolRefusal {
     /// The arguments make code/catalog selection, local stage, refusal axis,
     /// and first typed cause mandatory. The stage/domain pair is validated
     /// before a builder is returned.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "Task-013 and Tasks 002-006 consume this constructor-private foundation"
-        )
-    )]
     pub(crate) fn builder(
         code: RefusalCode,
         catalog: CatalogSelection,
@@ -1011,13 +997,6 @@ pub(crate) struct RefusalBuilder {
 impl RefusalBuilder {
     /// Record a prerequisite of the originating stage.
     #[must_use]
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "Task-013 and Tasks 002-006 populate prerequisites through this private builder"
-        )
-    )]
     pub(crate) fn prerequisite(mut self, prerequisite: Prerequisite) -> Self {
         self.prerequisites.push(prerequisite);
         self
@@ -1056,13 +1035,6 @@ impl RefusalBuilder {
 
     /// Append a cause at the end of the declared order.
     #[must_use]
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "Task-013 and Tasks 002-006 populate typed causes through this private builder"
-        )
-    )]
     pub(crate) fn cause(mut self, cause: impl Into<RefusalCause>) -> Self {
         self.causes.push(cause.into());
         self

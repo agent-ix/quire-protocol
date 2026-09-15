@@ -42,9 +42,12 @@ use crate::model::v2::{
     LinkedAssessment, LinkedProtocol, RuntimeBinding, SlotCompatibility, SlotHandle,
 };
 use crate::outcome::ClaimOutcome;
-use crate::refusal::catalog::{CatalogSelection, CodeEntry, CodeModule, Provenance, RefusalCode};
+use crate::refusal::catalog::{
+    CatalogSelection, CodeEntry, CodeModule, Provenance, RefusalCode, RetainedBytes,
+};
 use crate::refusal::{
-    ProtocolRefusal, ProtocolStage, RefusalAxis, RefusalDomain, RetryDecision, Unavailability,
+    Prerequisite, PrerequisiteState, ProtocolCause, ProtocolRefusal, ProtocolStage, RefusalAxis,
+    RefusalDomain, RetryDecision, Unavailability,
 };
 use crate::result::{self, ClaimKind};
 
@@ -288,7 +291,7 @@ pub const RESULT_CODES: CodeModule = CodeModule {
     ],
 };
 
-/// Compensation-stage activation-binding codes.
+/// Conformance-stage activation-binding codes.
 pub const ACTIVATION_CODES: CodeModule = CodeModule {
     root: "assessment-activation",
     owner: "Task-006",
@@ -326,22 +329,80 @@ fn outcome_refusal(error: BundleRefusal) -> ProtocolRefusal {
             (&BUNDLE_DISPATCH_MISMATCH, ProtocolStage::ResultAssembly)
         }
         BundleRefusal::ActivationSubjectMismatch => {
-            (&BUNDLE_ACTIVATION_SUBJECT, ProtocolStage::Compensation)
+            (&BUNDLE_ACTIVATION_SUBJECT, ProtocolStage::Conformance)
         }
         BundleRefusal::ActivationDeclarationMismatch => {
-            (&BUNDLE_ACTIVATION_DECLARATION, ProtocolStage::Compensation)
+            (&BUNDLE_ACTIVATION_DECLARATION, ProtocolStage::Conformance)
         }
     };
     let code = RefusalCode::of(entry);
-    ProtocolRefusal::legacy_builder(
+    let mut builder = ProtocolRefusal::builder(
         code,
         CatalogSelection::local(),
         stage,
         RefusalAxis::from_registered_code(code),
+        bundle_cause(error, code),
     )
     .expect("assessment bundle code belongs to claim dispatch")
-    .unavailable_location(Unavailability::NotApplicableToStage)
-    .emitting_nothing()
+    .unavailable_location(Unavailability::NotApplicableToStage);
+    match stage {
+        ProtocolStage::Representation => {
+            builder = builder.prerequisite(Prerequisite::new(
+                ProtocolStage::Admission,
+                PrerequisiteState::Established,
+            ));
+        }
+        ProtocolStage::Conformance => {
+            builder = builder.prerequisite(Prerequisite::new(
+                ProtocolStage::Representation,
+                PrerequisiteState::Established,
+            ));
+        }
+        ProtocolStage::ResultAssembly => {
+            builder = builder.prerequisite(Prerequisite::new(
+                ProtocolStage::ClaimDispatch,
+                PrerequisiteState::Established,
+            ));
+        }
+        ProtocolStage::ContractResolution
+        | ProtocolStage::Admission
+        | ProtocolStage::Compensation
+        | ProtocolStage::ClaimDispatch
+        | ProtocolStage::ResultRead
+        | ProtocolStage::Projection
+        | ProtocolStage::EvidenceHandoff => {}
+    }
+    builder.emitting_nothing()
+}
+
+fn bundle_cause(error: BundleRefusal, code: RefusalCode) -> crate::refusal::RefusalCause {
+    let code = RetainedBytes::new(code.as_str().as_bytes());
+    match error {
+        BundleRefusal::EmptyRequest | BundleRefusal::MissingClaimRow => {
+            ProtocolCause::MissingDefinition { definition: code }
+        }
+        BundleRefusal::DuplicateRequestedClaim | BundleRefusal::DuplicateClaimRow => {
+            ProtocolCause::ConflictingDefinition {
+                definition: code.clone(),
+                conflicting_definition: code,
+            }
+        }
+        BundleRefusal::InvalidDefinitionIdentity
+        | BundleRefusal::InvalidLinkedProtocol
+        | BundleRefusal::InvalidConformanceKernel => {
+            ProtocolCause::IncompleteEvidence { evidence: code }
+        }
+        BundleRefusal::UnexpectedClaim
+        | BundleRefusal::CanonicalClaimMismatch
+        | BundleRefusal::CanonicalPackageMismatch
+        | BundleRefusal::DispatchReportMismatch
+        | BundleRefusal::ActivationSubjectMismatch
+        | BundleRefusal::ActivationDeclarationMismatch => ProtocolCause::IdentityMismatch {
+            expected: RetainedBytes::new(b"engine-bound-assessment-value"),
+            observed: code,
+        },
+    }
+    .into()
 }
 
 /// One refusal from the Engine's closed-dispatch boundary.
@@ -1535,7 +1596,15 @@ mod tests {
     /// Every whole-assessment refusal carries a source-bound envelope rather
     /// than using the absence of a bundle as its identity.
     #[test]
-    #[trace("TC-011", "FR-008-AC-1", "FR-008-AC-4", "FR-036-AC-1", "FR-040-AC-1")]
+    #[trace(
+        "TC-011",
+        "FR-008-AC-1",
+        "FR-008-AC-4",
+        "FR-008-AC-5",
+        "FR-036-AC-1",
+        "FR-039-AC-1",
+        "FR-040-AC-1"
+    )]
     fn tc_011_assessment_bundle_refusals_are_typed_and_distinct() {
         let reasons = [
             (
@@ -1596,12 +1665,12 @@ mod tests {
             (
                 BundleRefusal::ActivationSubjectMismatch,
                 RefusalDomain::Assessment,
-                ProtocolStage::Compensation,
+                ProtocolStage::Conformance,
             ),
             (
                 BundleRefusal::ActivationDeclarationMismatch,
                 RefusalDomain::Assessment,
-                ProtocolStage::Compensation,
+                ProtocolStage::Conformance,
             ),
         ];
         let mut codes = BTreeSet::new();
@@ -1611,6 +1680,7 @@ mod tests {
             assert_eq!(refusal.domain(), domain);
             assert_eq!(refusal.stage(), stage);
             assert_eq!(refusal.partial_output(), PartialOutput::NoneEmitted);
+            assert!(!refusal.causes().is_empty());
             assert!(codes.insert(refusal.code().as_str()));
             assert!(axes.insert(refusal.axis().as_bytes().to_vec()));
         }
