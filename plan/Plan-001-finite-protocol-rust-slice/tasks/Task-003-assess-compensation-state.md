@@ -51,6 +51,12 @@ production construction of compensation identities.
 ## Notes
 
 - Unblocks Task-004.
+- The accepted QObs pin `93bc565` exports authority-qualified FR-287 subjects
+  and FR-262 relationships, but no owner-published runtime effect or attempt
+  value. The old local Observation checkout's `Effect` enum predates that
+  accepted boundary and is not a consumable contract. The graph/runtime bridge
+  therefore remains unimplemented until the owner publishes an effect identity;
+  Protocol must not mint a substitute from its local `EffectId` newtype.
 - QSpec FR-236 does not yet partition its five labels between per-attempt and
   aggregate recovery facts. Comment the exact blocker on the ticket and leave
   only those mapping cases unexecuted; implement every independent subtask and
