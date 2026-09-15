@@ -20,7 +20,11 @@ use quire_protocol::{
         AxisInputs, BundleRefusal, ClaimRow, Engine, GlobalConformanceInput, GlobalPremise,
         PremiseKind,
     },
-    claims::Claim,
+    claims::{
+        dispatch::{ClaimRequest, Decision, Limits as DispatchLimits},
+        premises::{Assumption, AssumptionState, BackendSelection, Component, PremiseSet},
+        Claim,
+    },
     closure::{AssessmentExecution, GlobalConformanceClosure},
     conformance::{
         ActivatedAssessmentError, ActivatedIncremental, AdverseKind, ErrorCode, GlobalDisposition,
@@ -1222,7 +1226,16 @@ fn tc_002_linked_assessment_refuses_every_context_coordinate_mutation() {
 /// The full-assessment boundary accepts only an admitted `/2` protocol and
 /// retains its static and runtime capabilities without retargeting either one.
 #[test]
-#[trace("TC-002", "TC-004", "FR-002-AC-1", "FR-002-AC-3", "FR-004-AC-1")]
+#[trace(
+    "TC-002",
+    "TC-004",
+    "TC-005",
+    "FR-002-AC-1",
+    "FR-002-AC-3",
+    "FR-004-AC-1",
+    "FR-005-AC-1",
+    "FR-029-AC-1"
+)]
 fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
     let package = admitted_published_v2();
     let (declaration_handle, subject_slot) = protocol_coordinates(&package);
@@ -1532,6 +1545,45 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
         batch.obligations[0].disposition,
         ObligationDisposition::Conforms,
         "the QObs view is correlated only through its admitted activation occurrence"
+    );
+    let component = |identity: &[u8]| Component::retained(identity.to_vec(), identity.to_vec());
+    let dispatch_request = ClaimRequest {
+        identity: Box::from(*b"claim:conformance"),
+        claim: Claim::Conformance,
+        strength: Box::from(*b"strength:finite"),
+        premises: PremiseSet {
+            admitted_fragment: component(b"fragment:admitted"),
+            backend: BackendSelection::retained(b"qprotocol:conformance".to_vec(), b"v1".to_vec()),
+            assumptions: vec![Assumption {
+                component: component(b"assumption:one"),
+                state: Some(AssumptionState::Met),
+                dependencies: vec![],
+            }],
+            communication: vec![component(b"communication:one")],
+            visibility: vec![component(b"visibility:one")],
+            environment: vec![component(b"environment:one")],
+            sources: vec![component(b"source:one")],
+            derived_artifact: None,
+        },
+        correspondence: None,
+    };
+    let dispatched = engine
+        .dispatch_activated(
+            std::slice::from_ref(&dispatch_request),
+            std::slice::from_ref(&fact),
+            closed_axes(&decision, &surrounding),
+            &decision.completeness_complete,
+            &global,
+            AssessmentExecution::Completed,
+            ConformanceLimits::default(),
+            DispatchLimits::default(),
+        )
+        .expect("dispatch consumes only the engine's activation-derived report");
+    assert_eq!(dispatched.dispositions.len(), 1);
+    assert_eq!(
+        dispatched.dispositions[0].decision,
+        Some(Decision::Established),
+        "the claim result comes from the actual activation-derived conformance report"
     );
     let unexpected_fact = engine
         .conformance()

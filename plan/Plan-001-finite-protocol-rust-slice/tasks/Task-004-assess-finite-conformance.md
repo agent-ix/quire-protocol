@@ -45,4 +45,4 @@ uses one shared deterministic kernel for both public frontends.
 ## Notes
 
 - Unblocks Task-005.
-- SR-110/SR-111 record the passing scoped Rust review and gap analysis.
+- SR-112/SR-113 record the passing scoped Rust review and gap analysis.
