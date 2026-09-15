@@ -543,6 +543,16 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
         0,
         "compensation table coordinates remain distinct from runtime registrations"
     );
+    assert_eq!(
+        linked.compensations()[0].identity().definition(),
+        linked.identity(),
+        "a compensation key retains its full FR-288 definition selection"
+    );
+    assert_ne!(
+        linked.compensations()[0].identity(),
+        linked.compensations()[1].identity(),
+        "declaration-local compensation handles remain distinct within one definition"
+    );
     let Body::Protocol { causal_edges, .. } = &linked.declaration().body else {
         unreachable!("the linked declaration was checked as a protocol");
     };

@@ -1238,19 +1238,54 @@ pub struct LinkedProtocol<'a> {
 /// registration: that additionally needs the concrete observed forward effect.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct LinkedCompensationDefinition {
-    handle: u32,
+    identity: CompensationDefinitionIdentity,
     definition: quire_spec_language::protocol_artifact::wire::Compensation,
 }
 
 impl LinkedCompensationDefinition {
+    /// Returns the complete static identity used with an observed forward
+    /// effect to form the later replay-safe compensation-registration key.
+    #[must_use]
+    pub const fn identity(&self) -> &CompensationDefinitionIdentity {
+        &self.identity
+    }
+
+    /// Returns this definition's declaration-local coordinate.
     #[must_use]
     pub const fn handle(&self) -> u32 {
-        self.handle
+        self.identity.handle()
     }
 
     #[must_use]
     pub const fn definition(&self) -> &quire_spec_language::protocol_artifact::wire::Compensation {
         &self.definition
+    }
+}
+
+/// Exact static key for an authored compensation definition.
+///
+/// The key is deliberately componentwise: the complete selected FR-288
+/// definition remains distinct from the declaration-local compensation table
+/// coordinate. A later registration pairs this key with a concrete accepted
+/// forward-effect identity; neither half can be replaced by a display name,
+/// an operation attempt, or a transport delivery.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CompensationDefinitionIdentity {
+    definition: DefinitionIdentity,
+    handle: u32,
+}
+
+impl CompensationDefinitionIdentity {
+    /// Returns the selected componentwise protocol-definition identity.
+    #[must_use]
+    pub const fn definition(&self) -> &DefinitionIdentity {
+        &self.definition
+    }
+
+    /// Returns the exact compensation-table coordinate within that definition.
+    #[must_use]
+    pub const fn handle(&self) -> u32 {
+        self.handle
     }
 }
 
@@ -1496,8 +1531,12 @@ fn build_compensations(
         .iter()
         .enumerate()
         .map(|(index, definition)| {
+            let handle = u32::try_from(index).map_err(|_| LinkRefusal::InvalidIdentity)?;
             Ok(LinkedCompensationDefinition {
-                handle: u32::try_from(index).map_err(|_| LinkRefusal::InvalidIdentity)?,
+                identity: CompensationDefinitionIdentity {
+                    definition: identity.clone(),
+                    handle,
+                },
                 definition: definition.clone(),
             })
         })
