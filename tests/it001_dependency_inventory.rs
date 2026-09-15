@@ -46,6 +46,7 @@ const LIBRARY_MODULES: &[&str] = &[
     "closure.rs",
     "compensation",
     "conformance",
+    "delivery_index.rs",
     "digest",
     "ids.rs",
     "intake",
