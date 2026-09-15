@@ -15,7 +15,11 @@ use quire_protocol::model::v2::{
     StaticSelection, StaticSlot, RUNTIME_BINDING_CONTRACT, STATIC_BINDING_CONTRACT,
 };
 use quire_protocol::wire::{BindingKind, Body, CausalEdge, ControlOperation, EdgeKind, Port};
-use quire_protocol::{assessment::Engine, claims::Claim, outcome::OperationOutcome};
+use quire_protocol::{
+    assessment::{BundleRefusal, Engine},
+    claims::Claim,
+    outcome::OperationOutcome,
+};
 use quire_spec_language::protocol_artifact::{self as artifact, v2, v3, wire as qsl_wire, Limits};
 use quire_spec_language::protocol_artifact::{
     native_temporal::{self, request, v2 as temporal_v2},
@@ -1250,6 +1254,23 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
             .expect("mapped obligation")
             .operation(),
         &controls[usize::try_from(activation_control.index).unwrap()].operation
+    );
+    let unmapped_control = qsl_wire::Handle {
+        declaration: declaration_handle,
+        index: u32::MAX,
+    };
+    assert_eq!(
+        Engine::new_activated(
+            context,
+            vec![Claim::Conformance],
+            &activation_map,
+            &unmapped_control,
+            &activation_subject,
+            &request,
+            &result,
+        )
+        .expect_err("an event control absent from the strict v3 table cannot activate"),
+        BundleRefusal::ActivationMappingMismatch,
     );
     let engine = match Engine::start(context, vec![Claim::Conformance]) {
         OperationOutcome::Completed(engine) => engine,
