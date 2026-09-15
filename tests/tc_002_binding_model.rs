@@ -1420,6 +1420,19 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
     .into_result()
     .expect("changed strict temporal result reads");
     assert_eq!(
+        engine
+            .conformance()
+            .bind_activation(
+                engine.linked(),
+                &mappings,
+                &activation_subject,
+                &request,
+                &conflicting_result,
+            )
+            .expect_err("a temporal result cannot be substituted for another strict request"),
+        quire_protocol::conformance::KernelRefusal::ActivationResultMismatch
+    );
+    assert_eq!(
         activations
             .admit(
                 engine.conformance(),

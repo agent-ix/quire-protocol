@@ -27,7 +27,7 @@ uses one shared deterministic kernel for both public frontends.
 ## Subtasks
 
 - [x] Write TC-004 batch/incremental equivalence and legal-interleaving model cases first.
-- [ ] Report unexpected, missing, misordered, duplicate-effect, cross-workflow, and compensation violations against exact obligations.
+- [x] Report unexpected, missing, misordered, duplicate-effect, cross-workflow, and compensation violations against exact obligations.
 - [x] Admit each event-triggered obligation only from a complete QSpec FR-300
   activation binding validated against the linked definition/control.
 - [x] Remove the public caller-built `Model`/obligation construction path from
@@ -36,7 +36,7 @@ uses one shared deterministic kernel for both public frontends.
   progress/closure, complete-global-conformance closure, and open, incomplete,
   unsupported, failed and exhausted outcomes independently observable.
 - [ ] Ensure decisive open-subject results require the selected temporal rule and all declared decision support.
-- [ ] Exercise every boundary with deterministic scheduling and no hidden wall-clock ordering premise.
+- [x] Exercise every boundary with deterministic scheduling and no hidden wall-clock ordering premise.
 
 ## Deliverables
 
