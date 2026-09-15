@@ -5,9 +5,17 @@
 //! the result owner serializes them, but neither subsystem owns or re-derives
 //! the QObs facts or the declared global-closure premise set.
 
-use quire_observation::authority::{closure as observation_closure, progress};
+use quire_observation::authority::{
+    closure as observation_closure, observation as observation_record, position, progress,
+};
 use quire_observation::QualifiedSubject;
 use quire_spec_language::protocol_artifact::native_temporal::v2 as temporal_v2;
+use quire_spec_language::protocol_artifact::wire::{BindingKind, ControlOperation};
+use quire_spec_language::protocol_artifact::ProtocolNumber;
+use quire_spec_language::state::{
+    self as state_evaluation, EvaluationOutcome, EvaluationReport, StateView,
+    ValueKind as StateValueKind,
+};
 
 use crate::claims::dispatch::{
     self, ClaimRequest, Limits as DispatchLimits, Report as DispatchReport,
@@ -15,11 +23,20 @@ use crate::claims::dispatch::{
 use crate::claims::Claim;
 use crate::closure::GlobalConformanceClosure;
 use crate::compensation::registration::Snapshot as CompensationSnapshot;
+use crate::compensation::{
+    algebra::{AttemptOutcome, EffectDisposition, OrderingViolation},
+    graph::{
+        MissingEvidence as CompensationMissing, Outcome as CompensationOutcome,
+        Refusal as CompensationRefusal, Snapshot as CompensationState,
+        Transition as CompensationTransition,
+    },
+    registration::Registration as CompensationRegistration,
+};
 use crate::conformance::Kernel as ConformanceKernel;
 use crate::model::v2::{
     link as link_v2, CompensationAttemptInput, CompensationEffectInput,
     CompensationRegistrationInput, DefinitionIdentity, DefinitionRegistry, LinkedAssessment,
-    LinkedProtocol,
+    LinkedProtocol, RuntimeBinding, SlotCompatibility, SlotHandle,
 };
 use crate::outcome::ClaimOutcome;
 use crate::refusal::catalog::{CatalogSelection, CodeEntry, CodeModule, Provenance, RefusalCode};
@@ -342,6 +359,7 @@ pub struct Engine<'a> {
     linked: LinkedProtocol<'a>,
     compensation_inputs: Vec<CompensationRegistrationInput<'a>>,
     compensation: CompensationSnapshot,
+    compensation_state: CompensationState,
     conformance: ConformanceKernel,
     compensation_attempts: Vec<CompensationAttemptInput<'a>>,
     compensation_effects: Vec<CompensationEffectInput<'a>>,
@@ -395,9 +413,12 @@ impl<'a> Engine<'a> {
         let linked =
             link_v2(context, &mut definitions).map_err(|_| BundleRefusal::InvalidLinkedProtocol)?;
         let compensation_inputs = context.compensation_registration_inputs();
-        let compensation = CompensationSnapshot::from_inputs(&identity, &compensation_inputs);
-        let compensation_attempts = context.compensation_attempt_inputs();
-        let compensation_effects = context.compensation_effect_inputs();
+        // Runtime effect bindings are eligible inputs, not registrations.
+        // A registration is committed only after its exact admitted guard has
+        // completed true through `activate_compensation`.
+        let compensation = CompensationSnapshot::default();
+        let compensation_attempts = Vec::new();
+        let compensation_effects = Vec::new();
         let conformance = ConformanceKernel::new(
             &linked,
             &compensation,
@@ -411,6 +432,7 @@ impl<'a> Engine<'a> {
             linked,
             compensation_inputs,
             compensation,
+            compensation_state: CompensationState::default(),
             conformance,
             compensation_attempts,
             compensation_effects,
@@ -444,6 +466,13 @@ impl<'a> Engine<'a> {
     #[must_use]
     pub const fn compensation(&self) -> &CompensationSnapshot {
         &self.compensation
+    }
+
+    /// Returns the owned graph-derived attempt, effect, commit, ordering and
+    /// recovery state committed by this non-retargetable request.
+    #[must_use]
+    pub const fn compensation_state(&self) -> &CompensationState {
+        &self.compensation_state
     }
 
     /// Returns distinct admitted compensation attempts without treating an
@@ -496,6 +525,431 @@ impl<'a> Engine<'a> {
             .map_err(DispatchRefusal::Dispatch)
     }
 
+    /// Evaluate the exact admitted guard and transactionally create every
+    /// registration paired with the selected established forward effect.
+    ///
+    /// False, incomplete, refusing, exhausted, and non-Boolean evaluations
+    /// add no registration. The complete QSL report is returned unchanged.
+    pub fn activate_compensation(
+        &mut self,
+        compensation_handle: u32,
+        view: &StateView,
+        limits: state_evaluation::Limits,
+    ) -> CompensationOutcome {
+        let Some(definition) = self.linked.compensation(compensation_handle) else {
+            return CompensationOutcome::Refused(CompensationRefusal::UnknownCompensation(
+                compensation_handle,
+            ));
+        };
+        match evaluate_boolean(
+            self.context.package(),
+            self.identity.declaration_handle(),
+            definition.definition().guard.clone(),
+            view,
+            limits,
+        ) {
+            BooleanEvaluation::False(report) => CompensationOutcome::GuardFalse(report),
+            BooleanEvaluation::Source(report) => CompensationOutcome::Source(report),
+            BooleanEvaluation::Unsupported(report) => CompensationOutcome::Unsupported(report),
+            BooleanEvaluation::True(_report) => {
+                let matching = self
+                    .compensation_inputs
+                    .iter()
+                    .filter(|input| input.compensation_handle() == compensation_handle)
+                    .copied()
+                    .collect::<Vec<_>>();
+                if matching.is_empty() {
+                    return CompensationOutcome::Unavailable(CompensationMissing::ForwardEffect);
+                }
+                let mut candidate = self.compensation.clone();
+                let mut created = false;
+                for input in &matching {
+                    created |= candidate.ensure(&self.identity, input).1;
+                }
+                self.compensation = candidate;
+                CompensationOutcome::Completed(if created {
+                    CompensationTransition::Applied
+                } else {
+                    CompensationTransition::Replay
+                })
+            }
+        }
+    }
+
+    /// Admit one exact QObs compensation-attempt subject under QSL's authored
+    /// signed-64 bound and retry expression.
+    ///
+    /// The initial attempt counts as position one and needs no retry relation.
+    /// Every later distinct attempt must make the admitted retry expression
+    /// complete true. Exact replay is a no-op; changed replay and one-over-bound
+    /// candidates leave the prior snapshot unchanged.
+    pub fn admit_compensation_attempt(
+        &mut self,
+        compensation_handle: u32,
+        binding: &RuntimeBinding,
+        outcome: Option<AttemptOutcome>,
+        retry_view: Option<&StateView>,
+        limits: state_evaluation::Limits,
+    ) -> CompensationOutcome {
+        let Some(definition) = self.linked.compensation(compensation_handle) else {
+            return CompensationOutcome::Refused(CompensationRefusal::UnknownCompensation(
+                compensation_handle,
+            ));
+        };
+        let Some(registration) = self.registration(compensation_handle) else {
+            return CompensationOutcome::Unavailable(CompensationMissing::ForwardEffect);
+        };
+        let slot = SlotHandle::new(definition.definition().attempt_instance);
+        let subject = match self.runtime_subject(slot, BindingKind::CompensationAttempt, binding) {
+            Ok(subject) => subject,
+            Err(error) => return CompensationOutcome::Refused(error),
+        };
+        if let Some(existing) = self.compensation_state.attempt(&subject) {
+            return if existing.registration() == &registration && existing.outcome() == outcome {
+                CompensationOutcome::Completed(CompensationTransition::Replay)
+            } else {
+                CompensationOutcome::Refused(CompensationRefusal::ConflictingReplay)
+            };
+        }
+
+        let retained = self.compensation_state.attempts_for(&registration);
+        let attempted = match retained.checked_add(1) {
+            Some(value) => value,
+            None => {
+                return CompensationOutcome::Refused(CompensationRefusal::RetryBoundExceeded {
+                    bound: i64::MAX,
+                    attempted: usize::MAX,
+                })
+            }
+        };
+        let bound = match definition.definition().maximum_attempts.checked() {
+            Ok(ProtocolNumber::Integer(value)) if value.value() > 0 => value.value(),
+            Ok(ProtocolNumber::Integer(_)) | Ok(ProtocolNumber::Rational(_)) | Err(_) => {
+                return CompensationOutcome::Refused(CompensationRefusal::InvalidRetryBound)
+            }
+        };
+        if i128::try_from(attempted).unwrap_or(i128::MAX) > i128::from(bound) {
+            return CompensationOutcome::Refused(CompensationRefusal::RetryBoundExceeded {
+                bound,
+                attempted,
+            });
+        }
+
+        let retry = if retained == 0 {
+            None
+        } else {
+            let empty = StateView::default();
+            let view = retry_view.unwrap_or(&empty);
+            match evaluate_boolean(
+                self.context.package(),
+                self.identity.declaration_handle(),
+                definition.definition().retry.clone(),
+                view,
+                limits,
+            ) {
+                BooleanEvaluation::True(report) => Some(report),
+                BooleanEvaluation::False(_) => {
+                    return CompensationOutcome::Refused(CompensationRefusal::RetryNotAuthorized)
+                }
+                BooleanEvaluation::Source(report) => return CompensationOutcome::Source(report),
+                BooleanEvaluation::Unsupported(report) => {
+                    return CompensationOutcome::Unsupported(report)
+                }
+            }
+        };
+
+        let mut candidate = self.compensation_state.clone();
+        candidate.push_attempt(registration, subject, outcome, retry);
+        self.compensation_state = candidate;
+        CompensationOutcome::Completed(CompensationTransition::Applied)
+    }
+
+    /// Retain one independently established compensation effect.
+    ///
+    /// Successful sends, deliveries, attempts, and operation invocations cannot
+    /// enter this method because the linked slot must be exactly QSL's
+    /// `compensation_effect` requirement.
+    pub fn record_compensation_effect(
+        &mut self,
+        compensation_handle: u32,
+        binding: &RuntimeBinding,
+        disposition: Option<EffectDisposition>,
+    ) -> CompensationOutcome {
+        let Some(definition) = self.linked.compensation(compensation_handle) else {
+            return CompensationOutcome::Refused(CompensationRefusal::UnknownCompensation(
+                compensation_handle,
+            ));
+        };
+        let Some(registration) = self.registration(compensation_handle) else {
+            return CompensationOutcome::Unavailable(CompensationMissing::ForwardEffect);
+        };
+        let slot = SlotHandle::new(definition.definition().effect_instance);
+        let subject = match self.runtime_subject(slot, BindingKind::CompensationEffect, binding) {
+            Ok(subject) => subject,
+            Err(error) => return CompensationOutcome::Refused(error),
+        };
+        if let Some(existing) = self.compensation_state.effect(&subject) {
+            return if existing.registration() == &registration
+                && existing.disposition() == disposition
+            {
+                CompensationOutcome::Completed(CompensationTransition::Replay)
+            } else {
+                CompensationOutcome::Refused(CompensationRefusal::ConflictingReplay)
+            };
+        }
+        let mut candidate = self.compensation_state.clone();
+        candidate.push_effect(registration, subject, disposition);
+        self.compensation_state = candidate;
+        CompensationOutcome::Completed(CompensationTransition::Applied)
+    }
+
+    /// Retain only the exact commit node selected by this compensation.
+    pub fn record_compensation_commit(
+        &mut self,
+        compensation_handle: u32,
+        binding: &RuntimeBinding,
+    ) -> CompensationOutcome {
+        let Some(definition) = self.linked.compensation(compensation_handle) else {
+            return CompensationOutcome::Refused(CompensationRefusal::UnknownCompensation(
+                compensation_handle,
+            ));
+        };
+        let Some(registration) = self.registration(compensation_handle) else {
+            return CompensationOutcome::Unavailable(CompensationMissing::ForwardEffect);
+        };
+        let Some(commit) = definition.definition().commit.0.as_ref() else {
+            return CompensationOutcome::Refused(CompensationRefusal::CommitNotSelected);
+        };
+        let Some(control) = self
+            .conformance
+            .obligation(commit.index)
+            .filter(|_| commit.declaration == self.identity.declaration_handle())
+        else {
+            return CompensationOutcome::Refused(CompensationRefusal::InvalidCommitSelection);
+        };
+        let ControlOperation::Commit { instance, .. } = control.operation() else {
+            return CompensationOutcome::Refused(CompensationRefusal::InvalidCommitSelection);
+        };
+        let slot = SlotHandle::new(*instance);
+        let subject = match self.runtime_subject(slot, BindingKind::Commit, binding) {
+            Ok(subject) => subject,
+            Err(error) => return CompensationOutcome::Refused(error),
+        };
+        if let Some(existing) = self.compensation_state.commit(&registration) {
+            return if existing.subject() == &subject {
+                CompensationOutcome::Completed(CompensationTransition::Replay)
+            } else {
+                CompensationOutcome::Refused(CompensationRefusal::ConflictingReplay)
+            };
+        }
+        let mut candidate = self.compensation_state.clone();
+        candidate.push_commit(registration, subject);
+        self.compensation_state = candidate;
+        CompensationOutcome::Completed(CompensationTransition::Applied)
+    }
+
+    /// Evaluate and retain only the selected admitted QSL recovery expression.
+    ///
+    /// There is deliberately no callback parameter. QSL's complete report,
+    /// including its limits, usage, owner accounting version, and terminal
+    /// outcome, is preserved without conversion.
+    pub fn evaluate_compensation_recovery(
+        &mut self,
+        compensation_handle: u32,
+        view: &StateView,
+        limits: state_evaluation::Limits,
+    ) -> CompensationOutcome {
+        let Some(definition) = self.linked.compensation(compensation_handle) else {
+            return CompensationOutcome::Refused(CompensationRefusal::UnknownCompensation(
+                compensation_handle,
+            ));
+        };
+        let Some(registration) = self.registration(compensation_handle) else {
+            return CompensationOutcome::Unavailable(CompensationMissing::ForwardEffect);
+        };
+        if self
+            .compensation_state
+            .effects()
+            .iter()
+            .all(|effect| effect.registration() != &registration)
+        {
+            return CompensationOutcome::Unavailable(CompensationMissing::CompensationEffect);
+        }
+        if definition.definition().commit.0.is_some()
+            && self.compensation_state.commit(&registration).is_none()
+        {
+            return CompensationOutcome::Unavailable(CompensationMissing::Commit);
+        }
+        let report = match evaluate_boolean(
+            self.context.package(),
+            self.identity.declaration_handle(),
+            definition.definition().recover.clone(),
+            view,
+            limits,
+        ) {
+            BooleanEvaluation::True(report) | BooleanEvaluation::False(report) => report,
+            BooleanEvaluation::Source(report) => return CompensationOutcome::Source(report),
+            BooleanEvaluation::Unsupported(report) => {
+                return CompensationOutcome::Unsupported(report)
+            }
+        };
+        if self.compensation_state.recoveries().iter().any(|recovery| {
+            recovery.registration() == &registration && recovery.report() == &report
+        }) {
+            return CompensationOutcome::Completed(CompensationTransition::Replay);
+        }
+        let mut candidate = self.compensation_state.clone();
+        candidate.push_recovery(registration, report);
+        self.compensation_state = candidate;
+        CompensationOutcome::Completed(CompensationTransition::Applied)
+    }
+
+    /// Assess the three commit-ordering laws only from QSL's selected nodes and
+    /// QObs's strict observation/position authority.
+    pub fn assess_compensation_ordering(
+        &mut self,
+        compensation_handle: u32,
+        forward: &observation_record::View,
+        effect: &observation_record::View,
+        commit: Option<&observation_record::View>,
+        positions: &position::View,
+    ) -> CompensationOutcome {
+        let Some(definition) = self.linked.compensation(compensation_handle) else {
+            return CompensationOutcome::Refused(CompensationRefusal::UnknownCompensation(
+                compensation_handle,
+            ));
+        };
+        let Some(registration) = self.registration(compensation_handle) else {
+            return CompensationOutcome::Unavailable(CompensationMissing::ForwardEffect);
+        };
+        if !observation_matches(registration.key().forward_effect(), forward) {
+            return CompensationOutcome::Refused(CompensationRefusal::ObservationSubjectMismatch);
+        }
+        let Some(effect_fact) = self
+            .compensation_state
+            .effects()
+            .iter()
+            .find(|candidate| observation_matches(candidate.subject(), effect))
+        else {
+            return CompensationOutcome::Refused(CompensationRefusal::ObservationSubjectMismatch);
+        };
+        if effect_fact.registration() != &registration {
+            return CompensationOutcome::Refused(CompensationRefusal::ObservationSubjectMismatch);
+        }
+        let selected_commit = definition.definition().commit.0.is_some();
+        let commit_fact = self.compensation_state.commit(&registration);
+        let commit = match (selected_commit, commit_fact, commit) {
+            (true, Some(fact), Some(view)) if observation_matches(fact.subject(), view) => {
+                Some(view)
+            }
+            (true, _, None) => {
+                return CompensationOutcome::Unavailable(CompensationMissing::Commit)
+            }
+            (true, _, Some(_)) => {
+                return CompensationOutcome::Refused(
+                    CompensationRefusal::ObservationSubjectMismatch,
+                )
+            }
+            (false, _, None) => None,
+            (false, _, Some(_)) => {
+                return CompensationOutcome::Refused(CompensationRefusal::CommitNotSelected)
+            }
+        };
+        for observation in [Some(forward), Some(effect), commit].into_iter().flatten() {
+            let clock = observation.payload().clock();
+            if clock.identity != positions.payload().clock_identity()
+                || clock.revision != positions.payload().clock_revision()
+            {
+                return CompensationOutcome::Refused(
+                    CompensationRefusal::PositionAuthorityMismatch,
+                );
+            }
+        }
+        let Some(forward_position) = observation_position(positions, forward) else {
+            return CompensationOutcome::Unavailable(CompensationMissing::Position);
+        };
+        let Some(effect_position) = observation_position(positions, effect) else {
+            return CompensationOutcome::Unavailable(CompensationMissing::Position);
+        };
+        let commit_position = match commit {
+            Some(observation) => match observation_position(positions, observation) {
+                Some(value) => Some(value),
+                None => return CompensationOutcome::Unavailable(CompensationMissing::Position),
+            },
+            None => None,
+        };
+
+        let mut violations = Vec::new();
+        if commit_position.is_some_and(|position| position < forward_position) {
+            violations.push(OrderingViolation::RegistrationAfterCommit);
+        }
+        if effect_position < forward_position {
+            violations.push(OrderingViolation::CompensationBeforeForwardEffect);
+        }
+        if commit_position.is_some_and(|position| position < effect_position) {
+            violations.push(OrderingViolation::CompensationAfterCommit);
+        }
+        let mut candidate = self.compensation_state.clone();
+        let transition = candidate.replace_ordering(registration, violations);
+        self.compensation_state = candidate;
+        CompensationOutcome::Completed(transition)
+    }
+
+    fn registration(&self, compensation_handle: u32) -> Option<CompensationRegistration> {
+        self.compensation
+            .find(&self.identity, compensation_handle)
+            .cloned()
+    }
+
+    fn runtime_subject(
+        &self,
+        expected: SlotHandle,
+        expected_kind: BindingKind,
+        binding: &RuntimeBinding,
+    ) -> Result<QualifiedSubject, CompensationRefusal> {
+        if binding.slot() != expected {
+            return Err(CompensationRefusal::UnexpectedSlot {
+                expected,
+                actual: binding.slot(),
+            });
+        }
+        let Some(slot) = self
+            .context
+            .definition()
+            .slots()
+            .iter()
+            .find(|slot| slot.handle == expected)
+        else {
+            return Err(CompensationRefusal::UnselectedSlot(expected));
+        };
+        let Some(requirement) = self
+            .linked
+            .declaration()
+            .bindings
+            .get(usize::try_from(expected.get()).unwrap_or(usize::MAX))
+        else {
+            return Err(CompensationRefusal::UnselectedSlot(expected));
+        };
+        if requirement.kind != expected_kind {
+            return Err(CompensationRefusal::UnexpectedBindingKind(expected));
+        }
+        let Some(subject) = binding.subject_value() else {
+            return Err(CompensationRefusal::WrongRuntimeValue(expected));
+        };
+        if subject.authority() != self.context.definition().producer() {
+            return Err(CompensationRefusal::ForeignAuthority(expected));
+        }
+        match &slot.compatibility {
+            SlotCompatibility::Subject { kind } if subject.kind() == kind => Ok(subject.clone()),
+            SlotCompatibility::Subject { .. } => {
+                Err(CompensationRefusal::IncompatibleSubjectKind(expected))
+            }
+            SlotCompatibility::Relationship { .. } => {
+                Err(CompensationRefusal::WrongRuntimeValue(expected))
+            }
+        }
+    }
+
     /// Retain one independent outcome for every selected claim.
     pub fn assemble<Row>(
         self,
@@ -508,6 +962,7 @@ impl<'a> Engine<'a> {
             linked: self.linked,
             compensation_inputs: self.compensation_inputs,
             compensation: self.compensation,
+            compensation_state: self.compensation_state,
             conformance: self.conformance,
             compensation_attempts: self.compensation_attempts,
             compensation_effects: self.compensation_effects,
@@ -621,6 +1076,72 @@ impl<'a> Engine<'a> {
     }
 }
 
+enum BooleanEvaluation {
+    True(EvaluationReport),
+    False(EvaluationReport),
+    Source(EvaluationReport),
+    Unsupported(EvaluationReport),
+}
+
+fn evaluate_boolean(
+    package: &quire_spec_language::protocol_artifact::v2::AdmittedPackage,
+    declaration: u32,
+    value: quire_spec_language::protocol_artifact::wire::Handle,
+    view: &StateView,
+    limits: state_evaluation::Limits,
+) -> BooleanEvaluation {
+    let report = state_evaluation::evaluate_v2(
+        package,
+        state_evaluation::EvaluationRequest { declaration, value },
+        view,
+        limits,
+    );
+    let classification = match report.outcome() {
+        EvaluationOutcome::Completed(value) => match value.kind() {
+            StateValueKind::Boolean(true) => 0,
+            StateValueKind::Boolean(false) => 1,
+            StateValueKind::Number(_)
+            | StateValueKind::Text(_)
+            | StateValueKind::Enum(_)
+            | StateValueKind::Record(_)
+            | StateValueKind::Option(_)
+            | StateValueKind::Sequence(_)
+            | StateValueKind::Reference(_)
+            | StateValueKind::Object(_) => 2,
+        },
+        EvaluationOutcome::Incomplete(_)
+        | EvaluationOutcome::Refused(_)
+        | EvaluationOutcome::Exhausted(_) => 3,
+    };
+    match classification {
+        0 => BooleanEvaluation::True(report),
+        1 => BooleanEvaluation::False(report),
+        2 => BooleanEvaluation::Unsupported(report),
+        3 => BooleanEvaluation::Source(report),
+        _ => unreachable!("closed Boolean evaluation classification"),
+    }
+}
+
+fn observation_matches(subject: &QualifiedSubject, observation: &observation_record::View) -> bool {
+    let observed = observation.payload().subject();
+    let authority = subject.authority();
+    authority.bundle_identity == observed.authority.identity
+        && authority.bundle_revision == *observed.authority.revision
+        && authority.digest == *observed.authority.digest
+        && subject.kind().as_bytes() == observed.kind
+        && subject.identity().as_bytes() == observed.identity
+}
+
+fn observation_position(
+    positions: &position::View,
+    observation: &observation_record::View,
+) -> Option<usize> {
+    positions
+        .payload()
+        .positions()
+        .position(|(_, identity)| identity == observation.payload().observation_identity())
+}
+
 #[expect(
     dead_code,
     reason = "Task-006 retains the private result composition candidate until typed stage outputs are wired into Engine"
@@ -702,6 +1223,7 @@ pub struct AssessmentBundle<'a, Row> {
     linked: LinkedProtocol<'a>,
     compensation_inputs: Vec<CompensationRegistrationInput<'a>>,
     compensation: CompensationSnapshot,
+    compensation_state: CompensationState,
     conformance: ConformanceKernel,
     compensation_attempts: Vec<CompensationAttemptInput<'a>>,
     compensation_effects: Vec<CompensationEffectInput<'a>>,
@@ -739,6 +1261,11 @@ impl<Row> AssessmentBundle<'_, Row> {
     #[must_use]
     pub const fn compensation(&self) -> &CompensationSnapshot {
         &self.compensation
+    }
+    /// Exact graph-derived compensation state retained with this bundle.
+    #[must_use]
+    pub const fn compensation_state(&self) -> &CompensationState {
+        &self.compensation_state
     }
     /// Distinct admitted compensation attempts retained with this bundle.
     #[must_use]

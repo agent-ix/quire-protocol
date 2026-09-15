@@ -14,6 +14,8 @@
 pub mod activate;
 /// Replay-idempotent registration, causal commit ordering, and finite retry.
 pub mod algebra;
+/// Stateful graph-owned compensation facts and exact source outcomes.
+pub mod graph;
 /// Constructor-checked capability boundary for assessment purity.
 pub mod purity;
 /// Full and partial recovery through exact authored relation owners.
