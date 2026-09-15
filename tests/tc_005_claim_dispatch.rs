@@ -2,12 +2,13 @@
 //! TC-005: exact premise-bound, independent claim dispatch.
 
 use ix_trace_rs::trace;
+use quire_protocol::assessment::GlobalConformanceInput;
 use quire_protocol::bounds::inventory::{
     production_inventory, Budget, BudgetDimension, OperationOutcome, ResourceAccountant,
 };
 use quire_protocol::claims::dispatch::{
-    dispatch, dispatch_bounded, Backend, BackendExecution, BackendReply, ClaimRequest, Decision,
-    FailureCode, Limits,
+    dispatch, dispatch_bounded, dispatch_from_conformance, Backend, BackendExecution, BackendReply,
+    ClaimRequest, Decision, FailureCode, Limits,
 };
 use quire_protocol::claims::premises::{
     Assumption, AssumptionState, BackendSelection, Component, CorrespondenceAuthority,
@@ -15,6 +16,9 @@ use quire_protocol::claims::premises::{
 };
 use quire_protocol::claims::Claim;
 use quire_protocol::closure::AssessmentExecution;
+use quire_protocol::closure::GlobalConformanceClosure;
+use quire_protocol::conformance::batch::{PremiseSnapshot, RetainedDocument};
+use quire_protocol::conformance::{GlobalDisposition, Report as ConformanceReport, Usage};
 use quire_protocol::refusal::{PartialOutput, ProtocolStage};
 
 fn component(identity: &str) -> Component {
@@ -94,6 +98,52 @@ fn two_requests(correspondence: &dyn CorrespondenceAuthority) -> Vec<ClaimReques
             correspondence,
         ),
     ]
+}
+
+fn closed_conformance_report() -> ConformanceReport {
+    let document = || RetainedDocument {
+        identity: "owner:one".into(),
+        bytes: b"owner:one".to_vec(),
+    };
+    ConformanceReport {
+        protocol_identity: "protocol:one".into(),
+        obligations: Vec::new(),
+        adverse: Vec::new(),
+        incomplete: Vec::new(),
+        global_premise_defects: Vec::new(),
+        global: GlobalDisposition::Conforms,
+        observations: Vec::new(),
+        premises: PremiseSnapshot {
+            decision_scope_progress: document(),
+            decision_scope_closure: document(),
+            surrounding_execution_progress: document(),
+            surrounding_execution_closure: document(),
+            completeness: document(),
+            global_conformance: GlobalConformanceInput {
+                state: GlobalConformanceClosure::Closed,
+                required_premises: Vec::new(),
+                premises: Vec::new(),
+            },
+            execution: AssessmentExecution::Completed,
+        },
+        usage: Usage::default(),
+    }
+}
+
+#[trace("TC-005", "FR-005-AC-1", "FR-005-AC-3", "FR-029-AC-1", "FR-029-AC-3")]
+#[test]
+fn tc_005_closed_dispatch_uses_only_the_conformance_report() {
+    let correspondence = ExactCorrespondence;
+    let requests = two_requests(&correspondence);
+    let report =
+        dispatch_from_conformance(&requests, &closed_conformance_report(), Limits::default())
+            .expect("closed dispatch");
+    assert_eq!(report.dispositions.len(), 2);
+    assert_eq!(report.dispositions[0].decision, Some(Decision::Established));
+    assert_eq!(
+        report.dispositions[1].execution,
+        AssessmentExecution::Unsupported
+    );
 }
 
 struct FakeBackend {
