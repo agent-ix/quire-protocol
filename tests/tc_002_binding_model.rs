@@ -300,6 +300,34 @@ fn tc_002_binding_contract_and_slot_mutations_refuse_without_a_runtime_set() {
     assert_eq!(
         RuntimeBindingSet::new(
             RUNTIME_BINDING_CONTRACT,
+            &StaticSelection {
+                identity: definition.selection().identity.clone(),
+                revision: "2".into(),
+                digest: definition.selection().digest,
+            },
+            &definition,
+            &producer,
+            vec![binding.clone()],
+        ),
+        Err(RuntimeRefusal::ForeignStaticSelection)
+    );
+    assert_eq!(
+        RuntimeBindingSet::new(
+            RUNTIME_BINDING_CONTRACT,
+            &StaticSelection {
+                identity: definition.selection().identity.clone(),
+                revision: definition.selection().revision.clone(),
+                digest: [2; 32],
+            },
+            &definition,
+            &producer,
+            vec![binding.clone()],
+        ),
+        Err(RuntimeRefusal::ForeignStaticSelection)
+    );
+    assert_eq!(
+        RuntimeBindingSet::new(
+            RUNTIME_BINDING_CONTRACT,
             definition.selection(),
             &definition,
             &producer,
