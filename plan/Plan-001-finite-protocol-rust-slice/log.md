@@ -30,11 +30,11 @@ description: "Chronological log of changes to the Plan-001 bundle."
   across both revisions; the root `/1` signature/body and QSL `/1` refusal types
   are unchanged. The current mutual-refusal test now carries the exact
   FR-001-AC-5 and NFR-007-AC-3/AC-4 trace tags. `quire coverage` reports
-  150/342 rows and 265/265/271 Rust symbols bound/tagged/candidates; it still
-  reports FR-001 as 4/5 because the installed traceability model deliberately
-  cannot mint IT scenario IDs pending `quire-rs#244`, so the separately counted
-  integration-only credit remains backed by the executed IT-001 and SC-06a
-  evidence rather than being mislabeled engine-bound. PR-time review, final
+  153/342 rows and 266/266/272 Rust symbols bound/tagged/candidates, with
+  FR-001 at 5/5 and the three current executable NFR-007 criteria bound. The
+  installed model still cannot mint bullet-form IT scenario IDs pending
+  `quire-rs#244`, so SC-06a's two-revision evidence remains separately counted
+  rather than mislabeled as a persistent single-run test. PR-time review, final
   unchanged-head gate and promotion evidence remain before issue closure.
 
 * **2026-09-15** — Completed Task-003 / issue #5 on the exact QSL

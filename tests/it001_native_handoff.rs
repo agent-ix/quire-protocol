@@ -620,7 +620,8 @@ fn it_001_accepts_and_links_the_actual_four_unit_handoff() {
     let linked = model::v1::link_static(&admitted, 6).expect("static version-1 link");
     assert_eq!(linked.role_instances().len(), 2);
     assert_eq!(linked.channels().len(), 1);
-    assert!(!linked.controls().is_empty());
+    assert_eq!(linked.controls().len(), 16);
+    assert_eq!(linked.edges().len(), 36);
 }
 
 /// Tracing: IT-001, Task-009.

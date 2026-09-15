@@ -97,11 +97,11 @@ The five words below are not interchangeable, and no total mixes them.
 
   ```
   $ quire coverage --scope .
-  Coverage: 150/342 rows backed (43%)
+  Coverage: 153/342 rows backed (44%)
   ```
 
-  At the 2026-09-15 Task-009 checkpoint, 150 rows are engine-backed.
-  NFR-001 is 3 of 3, NFR-002 is 4 of 4, NFR-004 is 10 of 10, and 12 of the 17
+  At the 2026-09-15 Task-009 checkpoint, 153 rows are engine-backed.
+  NFR-001 is 3 of 3, NFR-002 is 4 of 4, NFR-004 is 10 of 10, and 13 of the 17
   test-case rows have at least one bound symbol. The remaining row-level gaps are enumerated by the
   same machine output and remain implementation work; this figure is not a
   qualification claim.
@@ -110,7 +110,7 @@ The five words below are not interchangeable, and no total mixes them.
   without being the measurement that criterion asks for:
 
   ```
-  rust: 265/265/271 bound/tagged/candidates (97% read; 97% authored; forms:
+  rust: 266/266/272 bound/tagged/candidates (97% read; 97% authored; forms:
   rust-trace-attribute, rust-trace-line, rust-comment-id, rust-test-name-id,
   rust-doc-comment-id)
   ```
@@ -128,10 +128,10 @@ The five words below are not interchangeable, and no total mixes them.
 
   Integration-only criteria remain a separately measured class. The installed
   traceability model cannot mint IT scenario IDs because they are bullet items,
-  not table rows (`quire-rs#244`); consequently FR-001-AC-5 remains outside the
-  150 engine-bound rows even though its tagged mutual-refusal test and SC-06a's
-  two-revision execution both pass. This is an engine limitation, not a claim
-  that the integration evidence is source-bound.
+  not table rows (`quire-rs#244`). FR-001-AC-5 and NFR-007-AC-3/AC-4/AC-7 are
+  nevertheless criterion-bound directly on the current executable tests;
+  SC-06a's two-revision result remains historical execution evidence rather
+  than a persistent single-run source binding.
 
   Separately, and verified by reading the source rather than by this line: every
   marker is a **bare** `#[trace(...)]` over an imported `ix_trace_rs::trace`.
@@ -214,7 +214,7 @@ The five words below are not interchangeable, and no total mixes them.
 
   The 265 test-backed criteria and 149 engine-bound rows are not contradictory:
   the two words have different denominators, and the definitions above say so.
-  **Read 150/342 as the coverage figure.** "Test-backed" says a criterion has
+  **Read 153/342 as the coverage figure.** "Test-backed" says a criterion has
   somewhere to be tested; "engine-bound" says a trace reaches a repository row.
 
   The gap closes by tagging, never by editing this table. A trace attribute is
@@ -435,7 +435,7 @@ a coverage claim in this matrix.
 Row counts, recomputed from the tree. Every matrix row above is counted exactly
 once, and `Blocked` means unexecutable — neither passing nor failing.
 
-Engine-measured binding at the current implementation checkpoint is 150 of 342
+Engine-measured binding at the current implementation checkpoint is 153 of 342
 rows (42%) — see **Engine-bound** above. The table below counts matrix rows and
 their planned state; it does not measure binding.
 

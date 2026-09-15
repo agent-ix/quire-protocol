@@ -36,9 +36,8 @@ substitution, or identity reinterpretation.
 - [x] Mutate version, digest, feature, binding, baseline-selection state, numeric
   representation, and digest domain independently and prove refusal precedes evaluation.
 - [x] Bind each IT-001 public-API case to the FR-001 acceptance criterion it
-  evidences, run `quire coverage`, and record the installed engine's declared
-  integration-ID limitation (`quire-rs#244`) rather than misreporting an
-  integration-only criterion as engine-bound.
+  evidences; `quire coverage` reports FR-001 at 5/5 and binds the three current
+  executable NFR-007 criteria without treating task-only tags as matrix rows.
 - [x] Inventory the dependency graph and first-party source path positively to prove
   that the A-owned public reader is the only native frontend; a denylist of
   foreign-runtime crates is not sufficient.
