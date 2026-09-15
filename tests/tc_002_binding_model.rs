@@ -342,6 +342,24 @@ fn activated_request(
     .expect("strict-read opaque temporal request")
 }
 
+fn activated_result(request: &temporal_v2::ValidatedRequest) -> temporal_v2::ValidatedResult {
+    let document = temporal_v2::evaluate(
+        request,
+        temporal_v2::Relation::Original,
+        native_temporal::Limits::default(),
+    )
+    .into_result()
+    .expect("evaluate opaque temporal result");
+    temporal_v2::read_result(
+        document.bytes(),
+        request,
+        temporal_v2::Relation::Original,
+        native_temporal::Limits::default(),
+    )
+    .into_result()
+    .expect("strict-read opaque temporal result")
+}
+
 fn order_shipment(producer: &quire_observation::AdmittedStaticBundle) -> Relationship {
     order_shipment_with_identity(
         producer,
@@ -1128,11 +1146,13 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
         .expect("the admitted static selection has an FR-288 identity");
 
     let request = activated_request(&package, activation_subject.identity().as_bytes());
+    let result = activated_result(&request);
     let activated = Engine::new_activated(
         context,
         vec![Claim::Conformance],
         &activation_subject,
         &request,
+        &result,
     )
     .expect("strict QSL request and QObs subject activate this linked engine");
     assert_eq!(
@@ -1161,9 +1181,23 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
             vec![Claim::Conformance],
             &mismatched_subject,
             &request,
+            &result,
         )
         .expect_err("different QObs subject cannot reuse a strict temporal request"),
         BundleRefusal::ActivationSubjectMismatch
+    );
+    let other_request = activated_request(&package, b"order:43");
+    let other_result = activated_result(&other_request);
+    assert_eq!(
+        Engine::new_activated(
+            context,
+            vec![Claim::Conformance],
+            &activation_subject,
+            &request,
+            &other_result,
+        )
+        .expect_err("a strict result from another request cannot activate this engine"),
+        BundleRefusal::ActivationResultMismatch
     );
 
     let engine = match Engine::start(context, vec![Claim::Conformance]) {

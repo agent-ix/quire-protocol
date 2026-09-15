@@ -73,16 +73,18 @@ pub(crate) struct CanonicalRowInput<'a> {
     pub(crate) limits: result::Limits,
 }
 
-/// The exact QObs event and QSL v2 request selected for one activation site.
+/// The exact QObs event and QSL v2 request/result pair selected for one activation site.
 ///
 /// The request is already constructor-private and strict-read by QSL. This
-/// boundary only binds its opaque trigger bytes to the QObs-authoritative
-/// subject and proves that the temporal declaration belongs to this immutable
-/// protocol definition; it does not interpret either owner value.
+/// boundary binds their opaque trigger/request identity to the
+/// QObs-authoritative subject and proves that the temporal declaration belongs
+/// to this immutable protocol definition; it does not interpret either owner
+/// value.
 #[derive(Clone, Copy)]
 pub struct ActivationBinding<'a> {
     subject: &'a QualifiedSubject,
     request: &'a temporal_v2::ValidatedRequest,
+    result: &'a temporal_v2::ValidatedResult,
 }
 
 impl core::fmt::Debug for ActivationBinding<'_> {
@@ -96,12 +98,13 @@ impl core::fmt::Debug for ActivationBinding<'_> {
 }
 
 impl<'a> ActivationBinding<'a> {
-    /// Bind one strict QSL v2 request to the selected QObs subject and static
-    /// definition identity.
+    /// Bind one strict QSL v2 request/result pair to the selected QObs subject
+    /// and static definition identity.
     pub fn new(
         identity: &DefinitionIdentity,
         subject: &'a QualifiedSubject,
         request: &'a temporal_v2::ValidatedRequest,
+        result: &'a temporal_v2::ValidatedResult,
     ) -> Result<Self, BundleRefusal> {
         if request.semantic_trigger() != subject.identity().as_bytes() {
             return Err(BundleRefusal::ActivationSubjectMismatch);
@@ -113,7 +116,16 @@ impl<'a> ActivationBinding<'a> {
         {
             return Err(BundleRefusal::ActivationDeclarationMismatch);
         }
-        Ok(Self { subject, request })
+        if result.semantic_trigger() != request.semantic_trigger()
+            || result.request_identity() != request.document().identity()
+        {
+            return Err(BundleRefusal::ActivationResultMismatch);
+        }
+        Ok(Self {
+            subject,
+            request,
+            result,
+        })
     }
 
     #[must_use]
@@ -124,6 +136,12 @@ impl<'a> ActivationBinding<'a> {
     #[must_use]
     pub const fn request(&self) -> &'a temporal_v2::ValidatedRequest {
         self.request
+    }
+
+    /// Returns the exact strictly read QSL result that checked this activation.
+    #[must_use]
+    pub const fn result(&self) -> &'a temporal_v2::ValidatedResult {
+        self.result
     }
 }
 
@@ -152,6 +170,8 @@ pub enum BundleRefusal {
     ActivationSubjectMismatch,
     /// The QSL v2 temporal declaration is not selected by this protocol definition.
     ActivationDeclarationMismatch,
+    /// The strict QSL result does not belong to the selected request/trigger.
+    ActivationResultMismatch,
 }
 
 macro_rules! bundle_code {
@@ -221,6 +241,11 @@ bundle_code!(
     "assessment-activation.declaration-mismatch",
     RefusalDomain::Assessment
 );
+bundle_code!(
+    BUNDLE_ACTIVATION_RESULT,
+    "assessment-activation.result-mismatch",
+    RefusalDomain::Assessment
+);
 
 /// Refusal codes minted by the assessment-bundle orchestration boundary.
 pub const CODES: CodeModule = CodeModule {
@@ -265,7 +290,11 @@ pub const ACTIVATION_CODES: CodeModule = CodeModule {
     root: "assessment-activation",
     owner: "Task-006",
     module_path: "quire_protocol::assessment",
-    entries: &[BUNDLE_ACTIVATION_SUBJECT, BUNDLE_ACTIVATION_DECLARATION],
+    entries: &[
+        BUNDLE_ACTIVATION_SUBJECT,
+        BUNDLE_ACTIVATION_DECLARATION,
+        BUNDLE_ACTIVATION_RESULT,
+    ],
 };
 
 fn outcome_refusal(error: BundleRefusal) -> ProtocolRefusal {
@@ -296,6 +325,9 @@ fn outcome_refusal(error: BundleRefusal) -> ProtocolRefusal {
         }
         BundleRefusal::ActivationDeclarationMismatch => {
             (&BUNDLE_ACTIVATION_DECLARATION, ProtocolStage::Compensation)
+        }
+        BundleRefusal::ActivationResultMismatch => {
+            (&BUNDLE_ACTIVATION_RESULT, ProtocolStage::Compensation)
         }
     };
     let code = RefusalCode::of(entry);
@@ -392,11 +424,12 @@ impl<'a> Engine<'a> {
         requested: Vec<Claim>,
         subject: &'a QualifiedSubject,
         request: &'a temporal_v2::ValidatedRequest,
+        result: &'a temporal_v2::ValidatedResult,
     ) -> Result<Self, BundleRefusal> {
         let identity = context
             .definition_identity()
             .map_err(|_| BundleRefusal::InvalidDefinitionIdentity)?;
-        let activation = ActivationBinding::new(&identity, subject, request)?;
+        let activation = ActivationBinding::new(&identity, subject, request, result)?;
         Self::new_bound(context, requested, Some(activation))
     }
 
@@ -1423,6 +1456,11 @@ mod tests {
             ),
             (
                 BundleRefusal::ActivationDeclarationMismatch,
+                RefusalDomain::Assessment,
+                ProtocolStage::Compensation,
+            ),
+            (
+                BundleRefusal::ActivationResultMismatch,
                 RefusalDomain::Assessment,
                 ProtocolStage::Compensation,
             ),
