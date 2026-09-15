@@ -9,9 +9,9 @@ use quire_observation::authority::{
     closure as observation_closure, observation as observation_record, position, progress,
 };
 use quire_observation::QualifiedSubject;
-use quire_spec_language::protocol_artifact::native_temporal::v2 as temporal_v2;
-use quire_spec_language::protocol_artifact::wire::{BindingKind, ControlOperation};
+use quire_spec_language::protocol_artifact::wire::{BindingKind, ControlOperation, Handle};
 use quire_spec_language::protocol_artifact::ProtocolNumber;
+use quire_spec_language::protocol_artifact::{native_temporal::v2 as temporal_v2, v3};
 use quire_spec_language::state::{
     self as state_evaluation, EvaluationOutcome, EvaluationReport, StateView,
     ValueKind as StateValueKind,
@@ -80,8 +80,9 @@ pub(crate) struct CanonicalRowInput<'a> {
 /// QObs-authoritative subject and proves that the temporal declaration belongs
 /// to this immutable protocol definition; it does not interpret either owner
 /// value.
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct ActivationBinding<'a> {
+    control: Handle,
     subject: &'a QualifiedSubject,
     request: &'a temporal_v2::ValidatedRequest,
     result: &'a temporal_v2::ValidatedResult,
@@ -92,6 +93,7 @@ impl core::fmt::Debug for ActivationBinding<'_> {
         formatter
             .debug_struct("ActivationBinding")
             .field("subject", self.subject)
+            .field("control", &self.control)
             .field("temporal_declaration", &self.request.declaration())
             .finish_non_exhaustive()
     }
@@ -102,10 +104,35 @@ impl<'a> ActivationBinding<'a> {
     /// and static definition identity.
     pub fn new(
         identity: &DefinitionIdentity,
+        package: &quire_spec_language::protocol_artifact::v2::AdmittedPackage,
+        mappings: &v3::AdmittedPackage,
+        control: &Handle,
         subject: &'a QualifiedSubject,
         request: &'a temporal_v2::ValidatedRequest,
         result: &'a temporal_v2::ValidatedResult,
     ) -> Result<Self, BundleRefusal> {
+        let mut retained_v2 = package.package().inherited.clone();
+        retained_v2.wire = mappings.package().inherited.wire.clone();
+        retained_v2.media = mappings.package().inherited.media.clone();
+        retained_v2.schema = mappings.package().inherited.schema.clone();
+        if retained_v2 != mappings.package().inherited
+            || package.package().temporal_bindings != mappings.package().temporal_bindings
+        {
+            return Err(BundleRefusal::ActivationPackageMismatch);
+        }
+        if control.declaration != identity.declaration_handle() {
+            return Err(BundleRefusal::ActivationControlMismatch);
+        }
+        let Some(mapping) = mappings
+            .activation_mappings()
+            .iter()
+            .find(|mapping| mapping.control == *control)
+        else {
+            return Err(BundleRefusal::ActivationMappingMismatch);
+        };
+        if mapping.temporal_declaration != request.declaration() {
+            return Err(BundleRefusal::ActivationMappingMismatch);
+        }
         if request.semantic_trigger() != subject.identity().as_bytes() {
             return Err(BundleRefusal::ActivationSubjectMismatch);
         }
@@ -122,6 +149,7 @@ impl<'a> ActivationBinding<'a> {
             return Err(BundleRefusal::ActivationResultMismatch);
         }
         Ok(Self {
+            control: control.clone(),
             subject,
             request,
             result,
@@ -131,6 +159,12 @@ impl<'a> ActivationBinding<'a> {
     #[must_use]
     pub const fn subject(&self) -> &'a QualifiedSubject {
         self.subject
+    }
+
+    /// Returns the exact declaration-local event control admitted by QSL `/3`.
+    #[must_use]
+    pub const fn control(&self) -> &Handle {
+        &self.control
     }
 
     #[must_use]
@@ -172,6 +206,12 @@ pub enum BundleRefusal {
     ActivationDeclarationMismatch,
     /// The strict QSL result does not belong to the selected request/trigger.
     ActivationResultMismatch,
+    /// The `/3` artifact does not retain the exact linked `/2` graph.
+    ActivationPackageMismatch,
+    /// The offered `/3` control is outside this linked protocol definition.
+    ActivationControlMismatch,
+    /// The offered control-to-temporal row is absent or selects another temporal declaration.
+    ActivationMappingMismatch,
 }
 
 macro_rules! bundle_code {
@@ -246,6 +286,21 @@ bundle_code!(
     "assessment-activation.result-mismatch",
     RefusalDomain::Assessment
 );
+bundle_code!(
+    BUNDLE_ACTIVATION_PACKAGE,
+    "assessment-representation.activation-package-mismatch",
+    RefusalDomain::Representation
+);
+bundle_code!(
+    BUNDLE_ACTIVATION_CONTROL,
+    "assessment-activation.control-mismatch",
+    RefusalDomain::Assessment
+);
+bundle_code!(
+    BUNDLE_ACTIVATION_MAPPING,
+    "assessment-activation.mapping-mismatch",
+    RefusalDomain::Assessment
+);
 
 /// Refusal codes minted by the assessment-bundle orchestration boundary.
 pub const CODES: CodeModule = CodeModule {
@@ -266,7 +321,11 @@ pub const REPRESENTATION_CODES: CodeModule = CodeModule {
     root: "assessment-representation",
     owner: "Task-006",
     module_path: "quire_protocol::assessment",
-    entries: &[BUNDLE_INVALID_IDENTITY, BUNDLE_INVALID_LINKED_PROTOCOL],
+    entries: &[
+        BUNDLE_INVALID_IDENTITY,
+        BUNDLE_INVALID_LINKED_PROTOCOL,
+        BUNDLE_ACTIVATION_PACKAGE,
+    ],
 };
 
 /// Conformance-stage assessment setup codes.
@@ -294,6 +353,8 @@ pub const ACTIVATION_CODES: CodeModule = CodeModule {
         BUNDLE_ACTIVATION_SUBJECT,
         BUNDLE_ACTIVATION_DECLARATION,
         BUNDLE_ACTIVATION_RESULT,
+        BUNDLE_ACTIVATION_CONTROL,
+        BUNDLE_ACTIVATION_MAPPING,
     ],
 };
 
@@ -328,6 +389,15 @@ fn outcome_refusal(error: BundleRefusal) -> ProtocolRefusal {
         }
         BundleRefusal::ActivationResultMismatch => {
             (&BUNDLE_ACTIVATION_RESULT, ProtocolStage::Compensation)
+        }
+        BundleRefusal::ActivationPackageMismatch => {
+            (&BUNDLE_ACTIVATION_PACKAGE, ProtocolStage::Representation)
+        }
+        BundleRefusal::ActivationControlMismatch => {
+            (&BUNDLE_ACTIVATION_CONTROL, ProtocolStage::Conformance)
+        }
+        BundleRefusal::ActivationMappingMismatch => {
+            (&BUNDLE_ACTIVATION_MAPPING, ProtocolStage::Conformance)
         }
     };
     let code = RefusalCode::of(entry);
@@ -422,6 +492,8 @@ impl<'a> Engine<'a> {
     pub fn new_activated(
         context: LinkedAssessment<'a>,
         requested: Vec<Claim>,
+        mappings: &v3::AdmittedPackage,
+        control: &Handle,
         subject: &'a QualifiedSubject,
         request: &'a temporal_v2::ValidatedRequest,
         result: &'a temporal_v2::ValidatedResult,
@@ -429,7 +501,15 @@ impl<'a> Engine<'a> {
         let identity = context
             .definition_identity()
             .map_err(|_| BundleRefusal::InvalidDefinitionIdentity)?;
-        let activation = ActivationBinding::new(&identity, subject, request, result)?;
+        let activation = ActivationBinding::new(
+            &identity,
+            context.package(),
+            mappings,
+            control,
+            subject,
+            request,
+            result,
+        )?;
         Self::new_bound(context, requested, Some(activation))
     }
 
@@ -457,6 +537,7 @@ impl<'a> Engine<'a> {
             &compensation,
             &compensation_attempts,
             &compensation_effects,
+            activation.as_ref(),
         )
         .map_err(|_| BundleRefusal::InvalidConformanceKernel)?;
         Ok(Self {
@@ -524,8 +605,8 @@ impl<'a> Engine<'a> {
 
     /// Returns the immutable activation pair where this assessment is event-triggered.
     #[must_use]
-    pub const fn activation(&self) -> Option<ActivationBinding<'a>> {
-        self.activation
+    pub fn activation(&self) -> Option<ActivationBinding<'a>> {
+        self.activation.clone()
     }
 
     /// Dispatch this assessment's exact claim population through the closed

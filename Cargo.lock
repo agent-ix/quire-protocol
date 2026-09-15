@@ -713,7 +713,7 @@ dependencies = [
 [[package]]
 name = "quire-spec-language"
 version = "0.2.0"
-source = "git+https://github.com/agent-ix/quire-spec-language?rev=e5795ab#e5795ab121f2d491d1b44908365ab11cf67c3325"
+source = "git+https://github.com/agent-ix/quire-spec-language?rev=40c775d#40c775d8f62f8f0e1f2e3eb84567536cc1184eb6"
 dependencies = [
  "agent-ix-baseline-producer",
  "logos",

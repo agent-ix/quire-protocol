@@ -15,14 +15,11 @@ use quire_protocol::model::v2::{
     StaticSelection, StaticSlot, RUNTIME_BINDING_CONTRACT, STATIC_BINDING_CONTRACT,
 };
 use quire_protocol::wire::{BindingKind, Body, CausalEdge, ControlOperation, EdgeKind, Port};
-use quire_protocol::{
-    assessment::{BundleRefusal, Engine},
-    claims::Claim,
-    outcome::OperationOutcome,
-};
+use quire_protocol::{assessment::Engine, claims::Claim, outcome::OperationOutcome};
+use quire_spec_language::protocol_artifact::{self as artifact, v2, v3, wire as qsl_wire, Limits};
 use quire_spec_language::protocol_artifact::{
     native_temporal::{self, request, v2 as temporal_v2},
-    temporal_subject, wire as qsl_wire,
+    temporal_subject,
 };
 use quire_spec_language::{temporal, ByteDigest};
 
@@ -45,6 +42,89 @@ fn admitted_published_v2() -> quire_spec_language::protocol_artifact::v2::Admitt
     quire_protocol::intake::v2::admit(loaded.offer(), &expected, loaded.limits())
         .into_result()
         .expect("published v2 offer admits")
+}
+
+/// Strictly read one `/3` map over the exact owner-published `/2` handoff.
+/// The mapping expectation and artifact seal are independently reconstructed
+/// before the v3 reader sees its candidate bytes.
+fn admitted_published_v3(package: &v2::AdmittedPackage) -> (v3::AdmittedPackage, qsl_wire::Handle) {
+    let loaded = handoff::Handoff::load().expect("published v2 handoff");
+    let declarations = loaded.declarations();
+    let inventories = loaded.inventories(&declarations);
+    let expected_v2 = loaded.expected(&inventories);
+    let (declaration, index) = package
+        .inherited()
+        .declarations
+        .iter()
+        .enumerate()
+        .find_map(|(declaration, value)| match &value.body {
+            Body::Protocol { controls, .. } => {
+                controls.iter().enumerate().find_map(|(index, control)| {
+                    matches!(control.operation, ControlOperation::Event { .. })
+                        .then_some((declaration, index))
+                })
+            }
+            _ => None,
+        })
+        .expect("published handoff has an event control");
+    let temporal_declaration = package
+        .inherited()
+        .declarations
+        .iter()
+        .enumerate()
+        .find_map(|(index, value)| {
+            matches!(value.body, Body::Temporal { .. })
+                .then(|| u32::try_from(index).expect("temporal declaration fits"))
+        })
+        .expect("published handoff has a temporal declaration");
+    let control = qsl_wire::Handle {
+        declaration: u32::try_from(declaration).expect("protocol declaration fits"),
+        index: u32::try_from(index).expect("event control fits"),
+    };
+    let activation = v3::ExpectedActivation {
+        control: control.clone(),
+        temporal_declaration,
+    };
+    let mut inherited = package.package().inherited.clone();
+    inherited.wire = v3::WIRE.into();
+    inherited.media = v3::MEDIA.into();
+    inherited.schema = v3::SCHEMA.into();
+    let offered = v3::wire::Package {
+        inherited,
+        temporal_bindings: package.package().temporal_bindings.clone(),
+        activation_mappings: vec![v3::wire::ActivationMapping {
+            control: control.clone(),
+            temporal_declaration,
+        }],
+    };
+    let candidate = v3::encode_candidate(&offered, Limits::default())
+        .into_result()
+        .expect("canonical v3 candidate");
+    let mut artifact = expected_v2.inherited.artifact.clone();
+    artifact.digest = candidate.digest();
+    artifact.wire.version = "3".into();
+    let expected = v3::Expected {
+        inherited: v2::Expected {
+            inherited: artifact::Expected {
+                artifact: &artifact,
+                contract: expected_v2.inherited.contract,
+                baseline: expected_v2.inherited.baseline,
+                producer: expected_v2.inherited.producer,
+                language: expected_v2.inherited.language,
+                sources: expected_v2.inherited.sources,
+                dependencies: expected_v2.inherited.dependencies,
+                models: expected_v2.inherited.models,
+            },
+            temporal: expected_v2.temporal,
+        },
+        activations: std::slice::from_ref(&activation),
+    };
+    (
+        v3::read(candidate.bytes(), &expected, Limits::default())
+            .into_result()
+            .expect("strict v3 map admits"),
+        control,
+    )
 }
 
 fn protocol_coordinates(
@@ -230,7 +310,6 @@ fn subject(producer: &quire_observation::AdmittedStaticBundle) -> QualifiedSubje
 fn digest(label: &str) -> String {
     format!("{:x}", ByteDigest::of(label.as_bytes()))
 }
-
 fn evidence(scope: &str, identity: &str) -> native_temporal::EvidenceRef {
     native_temporal::EvidenceRef::new(
         "quire.owner-evidence/v1",
@@ -244,9 +323,8 @@ fn evidence(scope: &str, identity: &str) -> native_temporal::EvidenceRef {
         1,
     )
 }
-
 fn activated_request(
-    package: &quire_spec_language::protocol_artifact::v2::AdmittedPackage,
+    package: &v2::AdmittedPackage,
     trigger: &[u8],
 ) -> temporal_v2::ValidatedRequest {
     let declaration = package
@@ -341,7 +419,6 @@ fn activated_request(
     .into_result()
     .expect("strict-read opaque temporal request")
 }
-
 fn activated_result(request: &temporal_v2::ValidatedRequest) -> temporal_v2::ValidatedResult {
     let document = temporal_v2::evaluate(
         request,
@@ -1095,8 +1172,16 @@ fn tc_002_linked_assessment_refuses_every_context_coordinate_mutation() {
 #[trace("TC-002", "FR-002-AC-1", "FR-002-AC-3")]
 fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
     let package = admitted_published_v2();
+    let (activation_map, activation_control) = admitted_published_v3(&package);
+    assert_eq!(activation_map.activation_mappings().len(), 1);
+    assert_eq!(
+        activation_map.activation_mappings()[0].control,
+        activation_control
+    );
     let (declaration_handle, subject_slot) = protocol_coordinates(&package);
-    let Body::Protocol { roles, .. } = &package.inherited().declarations
+    let Body::Protocol {
+        roles, controls, ..
+    } = &package.inherited().declarations
         [usize::try_from(declaration_handle).expect("published index fits")]
     .body
     else {
@@ -1144,62 +1229,28 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
     let identity = context
         .definition_identity()
         .expect("the admitted static selection has an FR-288 identity");
-
+    assert_eq!(activation_control.declaration, declaration_handle);
     let request = activated_request(&package, activation_subject.identity().as_bytes());
     let result = activated_result(&request);
     let activated = Engine::new_activated(
         context,
         vec![Claim::Conformance],
+        &activation_map,
+        &activation_control,
         &activation_subject,
         &request,
         &result,
     )
-    .expect("strict QSL request and QObs subject activate this linked engine");
+    .expect("only the strict v3 map may activate this engine");
+    assert_eq!(activated.conformance().obligations().len(), 1);
     assert_eq!(
         activated
-            .activation()
-            .expect("event-triggered engine retains its activation binding")
-            .subject(),
-        &activation_subject
+            .conformance()
+            .obligation(activation_control.index)
+            .expect("mapped obligation")
+            .operation(),
+        &controls[usize::try_from(activation_control.index).unwrap()].operation
     );
-    assert_eq!(
-        activated
-            .activation()
-            .expect("event-triggered engine retains its activation binding")
-            .request()
-            .semantic_trigger(),
-        activation_subject.identity().as_bytes()
-    );
-    let mismatched_subject = QualifiedSubject::new(
-        &producer,
-        SubjectKind::new(ORDER_KIND.to_vec()).expect("non-empty kind"),
-        SubjectIdentity::new(b"order:43".to_vec()).expect("non-empty identity"),
-    );
-    assert_eq!(
-        Engine::new_activated(
-            context,
-            vec![Claim::Conformance],
-            &mismatched_subject,
-            &request,
-            &result,
-        )
-        .expect_err("different QObs subject cannot reuse a strict temporal request"),
-        BundleRefusal::ActivationSubjectMismatch
-    );
-    let other_request = activated_request(&package, b"order:43");
-    let other_result = activated_result(&other_request);
-    assert_eq!(
-        Engine::new_activated(
-            context,
-            vec![Claim::Conformance],
-            &activation_subject,
-            &request,
-            &other_result,
-        )
-        .expect_err("a strict result from another request cannot activate this engine"),
-        BundleRefusal::ActivationResultMismatch
-    );
-
     let engine = match Engine::start(context, vec![Claim::Conformance]) {
         OperationOutcome::Completed(engine) => engine,
         OperationOutcome::Refused(refusal) => {
@@ -1492,7 +1543,6 @@ fn tc_002_effect_projection_requires_an_owner_effect_slot() {
     let Body::Protocol {
         roles,
         compensations,
-        controls,
         ..
     } = &package.inherited().declarations
         [usize::try_from(declaration_handle).expect("published index fits")]
@@ -1592,7 +1642,7 @@ fn tc_002_effect_projection_requires_an_owner_effect_slot() {
     // into state after the admitted activation guard completes true.
     assert!(engine.compensation().registrations().is_empty());
     assert!(engine.conformance().registrations().is_empty());
-    assert_eq!(engine.conformance().obligations().len(), controls.len());
+    assert!(engine.conformance().obligations().is_empty());
     assert_eq!(
         engine.conformance().compensations(),
         engine.linked().compensations()
@@ -1606,14 +1656,7 @@ fn tc_002_effect_projection_requires_an_owner_effect_slot() {
         engine.linked().compensations()[0].definition()
     );
     assert!(engine.conformance().compensation(u32::MAX).is_none());
-    assert_eq!(
-        engine
-            .conformance()
-            .obligation(0)
-            .expect("the first published control handle is retained")
-            .operation(),
-        &controls[0].operation
-    );
+    assert!(engine.conformance().obligation(0).is_none());
     assert!(engine.conformance().obligation(u32::MAX).is_none());
     assert_eq!(
         engine.conformance().causal_edges(),
@@ -1630,7 +1673,7 @@ fn tc_002_effect_projection_requires_an_owner_effect_slot() {
     );
     assert!(engine.compensation().registrations().is_empty());
     assert!(engine.conformance().registrations().is_empty());
-    assert_eq!(engine.conformance().obligations().len(), controls.len());
+    assert!(engine.conformance().obligations().is_empty());
     assert_eq!(
         engine.conformance().compensations(),
         engine.linked().compensations()

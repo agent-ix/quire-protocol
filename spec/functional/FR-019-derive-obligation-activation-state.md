@@ -114,8 +114,9 @@ pre-report lifecycle state.
 QSpec main `316743b` adds FR-300 and closes the event-triggered bridge: an
 activation binding is the exact source for a dynamic FR-230 instance. This
 library owns the graph-validated binding operation and does not define a
-parallel QObs/QSL join. QSL `4842e64` extends FR-053's strict v2 views with the
-checked activation state, immutable captures and evaluation anchor; QSL retains
+parallel QObs/QSL join. QSL `40c775d` extends FR-053's strict v2 views with the
+checked activation state, immutable captures, evaluation anchor and FR-054
+strict `/3` activation mapping; QSL retains
 no QObs subject or protocol control, so it cannot construct the binding. The
 opaque trigger remains byte-exact for comparison to QObs's qualified subject.
 

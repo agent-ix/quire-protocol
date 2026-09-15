@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! One immutable conformance input assembled from linked static and compensation facts.
 
+use crate::assessment::ActivationBinding;
 use crate::compensation::registration::{Registration, Snapshot as CompensationSnapshot};
 use crate::model::v2::{
     CompensationAttemptInput, CompensationEffectInput, DefinitionIdentity,
@@ -20,6 +21,8 @@ pub enum Refusal {
     UnknownRegistration,
     /// A selected QSL control table is too large for its published `u32` handle domain.
     UnrepresentableControl,
+    /// An activation row does not select this linked protocol declaration.
+    ForeignActivationControl,
 }
 
 /// One exact QSL control retained as a conformance obligation.
@@ -108,6 +111,7 @@ impl Kernel {
         compensation: &CompensationSnapshot,
         attempts: &[CompensationAttemptInput<'_>],
         effects: &[CompensationEffectInput<'_>],
+        activation: Option<&ActivationBinding<'_>>,
     ) -> Result<Self, Refusal> {
         for registration in compensation.registrations() {
             if registration.key().definition() != linked.identity() {
@@ -124,14 +128,23 @@ impl Kernel {
         let Body::Protocol { controls, .. } = &linked.declaration().body else {
             unreachable!("LinkedProtocol only retains a QSL protocol declaration");
         };
-        let mut obligations = Vec::with_capacity(controls.len());
-        for (index, control) in controls.iter().enumerate() {
-            let handle = u32::try_from(index).map_err(|_| Refusal::UnrepresentableControl)?;
-            obligations.push(LinkedObligation {
-                handle,
-                operation: control.operation.clone(),
-            });
-        }
+        let obligations = activation
+            .map(|activation| {
+                if activation.control().declaration != linked.identity().declaration_handle() {
+                    return Err(Refusal::ForeignActivationControl);
+                }
+                let index = usize::try_from(activation.control().index)
+                    .map_err(|_| Refusal::UnrepresentableControl)?;
+                let control = controls
+                    .get(index)
+                    .ok_or(Refusal::ForeignActivationControl)?;
+                Ok(vec![LinkedObligation {
+                    handle: activation.control().index,
+                    operation: control.operation.clone(),
+                }])
+            })
+            .transpose()?
+            .unwrap_or_default();
         let attempts = attempts
             .iter()
             .map(|attempt| {
@@ -169,7 +182,7 @@ impl Kernel {
         &self.definition
     }
 
-    /// Returns every QSL control in exact declaration-table order.
+    /// Returns only `/3`-admitted event-triggered obligations in exact mapping order.
     #[must_use]
     pub fn obligations(&self) -> &[LinkedObligation] {
         &self.obligations
@@ -183,8 +196,8 @@ impl Kernel {
     #[must_use]
     pub fn obligation(&self, handle: u32) -> Option<&LinkedObligation> {
         self.obligations
-            .get(usize::try_from(handle).ok()?)
-            .filter(|obligation| obligation.handle() == handle)
+            .iter()
+            .find(|obligation| obligation.handle() == handle)
     }
 
     /// Returns QSL's exact authored causal graph edges in declaration order.
