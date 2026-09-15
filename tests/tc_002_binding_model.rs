@@ -23,7 +23,8 @@ use quire_protocol::{
     claims::Claim,
     closure::{AssessmentExecution, GlobalConformanceClosure},
     conformance::{
-        ActivatedIncremental, GlobalDisposition, Limits as ConformanceLimits, ObligationDisposition,
+        ActivatedAssessmentError, ActivatedIncremental, ErrorCode, GlobalDisposition,
+        Limits as ConformanceLimits, ObligationDisposition,
     },
     outcome::{ClaimOutcome, OperationOutcome},
 };
@@ -48,7 +49,7 @@ const ORDER_KIND: &[u8] = b"ix://agent-ix/commerce/type/Order";
 const SHIPMENT_KIND: &[u8] = b"ix://agent-ix/commerce/type/Shipment";
 const ORDER_SHIPMENT: &str = "ix://agent-ix/commerce/relationship/Order-shipment";
 
-fn closed_global_conformance() -> GlobalConformanceInput {
+fn global_conformance(state: GlobalConformanceClosure) -> GlobalConformanceInput {
     let premises = vec![
         GlobalPremise {
             kind: PremiseKind::Execution,
@@ -70,10 +71,14 @@ fn closed_global_conformance() -> GlobalConformanceInput {
         },
     ];
     GlobalConformanceInput {
-        state: GlobalConformanceClosure::Closed,
+        state,
         required_premises: premises.clone(),
         premises,
     }
+}
+
+fn closed_global_conformance() -> GlobalConformanceInput {
+    global_conformance(GlobalConformanceClosure::Closed)
 }
 
 fn closed_axes<'a>(
@@ -1515,6 +1520,116 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
         ObligationDisposition::Conforms,
         "the QObs view is correlated only through its admitted activation occurrence"
     );
+    for (state, expected) in [
+        (GlobalConformanceClosure::Open, GlobalDisposition::Pending),
+        (
+            GlobalConformanceClosure::Incomplete,
+            GlobalDisposition::Pending,
+        ),
+        (
+            GlobalConformanceClosure::Contradicted,
+            GlobalDisposition::Violates,
+        ),
+    ] {
+        let report = engine
+            .conformance()
+            .assess_activated(
+                std::slice::from_ref(&fact),
+                closed_axes(&decision, &surrounding),
+                &decision.completeness_complete,
+                &global_conformance(state),
+                AssessmentExecution::Completed,
+                ConformanceLimits::default(),
+            )
+            .expect("each required global-closure state remains independently observable");
+        assert_eq!(report.global, expected);
+    }
+    assert!(matches!(
+        engine.conformance().assess_activated(
+            std::slice::from_ref(&fact),
+            closed_axes(&decision, &surrounding),
+            &decision.completeness_complete,
+            &global_conformance(GlobalConformanceClosure::NotRequired),
+            AssessmentExecution::Completed,
+            ConformanceLimits::default(),
+        ),
+        Err(ActivatedAssessmentError::Conformance(refusal))
+            if refusal.code() == ErrorCode::InvalidPremises
+    ));
+    for axes in [
+        AxisInputs {
+            decision_scope_progress: &decision.progress_open,
+            decision_scope_closure: &decision.closure_closed,
+            surrounding_execution_progress: &surrounding.progress_closed,
+            surrounding_execution_closure: &surrounding.closure_closed,
+        },
+        AxisInputs {
+            decision_scope_progress: &decision.progress_closed,
+            decision_scope_closure: &decision.closure_open,
+            surrounding_execution_progress: &surrounding.progress_closed,
+            surrounding_execution_closure: &surrounding.closure_closed,
+        },
+        AxisInputs {
+            decision_scope_progress: &decision.progress_closed,
+            decision_scope_closure: &decision.closure_closed,
+            surrounding_execution_progress: &surrounding.progress_open,
+            surrounding_execution_closure: &surrounding.closure_closed,
+        },
+        AxisInputs {
+            decision_scope_progress: &decision.progress_closed,
+            decision_scope_closure: &decision.closure_closed,
+            surrounding_execution_progress: &surrounding.progress_closed,
+            surrounding_execution_closure: &surrounding.closure_open,
+        },
+    ] {
+        let report = engine
+            .conformance()
+            .assess_activated(
+                std::slice::from_ref(&fact),
+                axes,
+                &decision.completeness_complete,
+                &global,
+                AssessmentExecution::Completed,
+                ConformanceLimits::default(),
+            )
+            .expect("each open scope axis remains independently observable");
+        assert_eq!(report.global, GlobalDisposition::Pending);
+    }
+    let incomplete = engine
+        .conformance()
+        .assess_activated(
+            std::slice::from_ref(&fact),
+            closed_axes(&decision, &surrounding),
+            &decision.completeness_incomplete,
+            &global,
+            AssessmentExecution::Completed,
+            ConformanceLimits::default(),
+        )
+        .expect("incomplete QObs authority remains independently observable");
+    assert_eq!(incomplete.global, GlobalDisposition::Unavailable);
+    for execution in [
+        AssessmentExecution::Refused,
+        AssessmentExecution::Unsupported,
+        AssessmentExecution::ResourceIncomplete,
+        AssessmentExecution::Failed,
+    ] {
+        let report = engine
+            .conformance()
+            .assess_activated(
+                std::slice::from_ref(&fact),
+                closed_axes(&decision, &surrounding),
+                &decision.completeness_complete,
+                &global,
+                execution,
+                ConformanceLimits::default(),
+            )
+            .expect("each non-completed execution remains independently observable");
+        assert_eq!(report.global, GlobalDisposition::Unavailable);
+        assert_eq!(
+            report.obligations[0].disposition,
+            ObligationDisposition::Unavailable
+        );
+    }
     let other = occurrence_schema
         .nodes()
         .iter()

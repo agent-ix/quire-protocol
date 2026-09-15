@@ -32,7 +32,7 @@ uses one shared deterministic kernel for both public frontends.
   activation binding validated against the linked definition/control.
 - [x] Remove the public caller-built `Model`/obligation construction path from
   production.
-- [ ] Keep decision-scope progress/closure, surrounding-execution
+- [x] Keep decision-scope progress/closure, surrounding-execution
   progress/closure, complete-global-conformance closure, and open, incomplete,
   unsupported, failed and exhausted outcomes independently observable.
 - [ ] Ensure decisive open-subject results require the selected temporal rule and all declared decision support.
