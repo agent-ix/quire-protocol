@@ -18,11 +18,13 @@ use quire_protocol::bounds::inventory::{
     production_inventory, Budget, BudgetDimension, OperationOutcome, ResourceAccountant,
 };
 use quire_protocol::claims::dispatch::{
-    Decision, Disposition, Report as DispatchReport, Usage as DispatchUsage,
+    dispatch_from_conformance, ClaimRequest, Limits as DispatchLimits, Report as DispatchReport,
 };
 use quire_protocol::claims::premises::{BackendSelection, Component, PremiseSet};
 use quire_protocol::claims::Claim as DispatchClaim;
 use quire_protocol::closure::{AssessmentExecution, GlobalConformanceClosure, ScopeState};
+use quire_protocol::conformance::batch::{PremiseSnapshot, RetainedDocument};
+use quire_protocol::conformance::{GlobalDisposition, Report as ConformanceReport, Usage};
 use quire_protocol::model::v2::{
     Internality, LinkedAssessment, RoleClassification, RuntimeBinding, RuntimeBindingSet,
     SlotCompatibility, SlotHandle, StaticBindingDefinition, StaticSelection, StaticSlot,
@@ -575,42 +577,81 @@ fn base_input<'a>(fixture: &'a Fixture) -> Input<'a> {
     }
 }
 
-fn dispatch_report(claims: &[DispatchClaim]) -> DispatchReport {
-    let component = |identity: &str| {
+/// Exercise the public closed dispatcher rather than fabricating the failure
+/// consumed at the result-composition boundary. The second request has no
+/// admitted fragment, so Task-005 returns a claim-local refusal while retaining
+/// the established conformance disposition beside it.
+fn dispatch_with_claim_refusal() -> DispatchReport {
+    let component = |identity: &[u8]| {
         Component::retained(
-            identity.as_bytes().to_vec().into_boxed_slice(),
-            identity.as_bytes().to_vec().into_boxed_slice(),
+            identity.to_vec().into_boxed_slice(),
+            identity.to_vec().into_boxed_slice(),
         )
     };
-    let premises = PremiseSet {
-        admitted_fragment: component("fragment:canonical-engine"),
+    let premises = |fragment: &[u8]| PremiseSet {
+        admitted_fragment: component(fragment),
         backend: BackendSelection::retained(
             b"backend:canonical-engine".to_vec().into_boxed_slice(),
             b"v1".to_vec().into_boxed_slice(),
         ),
         assumptions: Vec::new(),
-        communication: Vec::new(),
-        visibility: Vec::new(),
-        environment: Vec::new(),
-        sources: Vec::new(),
+        communication: vec![component(b"communication:canonical-engine")],
+        visibility: vec![component(b"visibility:canonical-engine")],
+        environment: vec![component(b"environment:canonical-engine")],
+        sources: vec![component(b"source:canonical-engine")],
         derived_artifact: None,
     };
-    DispatchReport {
-        dispositions: claims
-            .iter()
-            .enumerate()
-            .map(|(index, claim)| Disposition {
-                request_identity: format!("request:{index}").into_bytes().into_boxed_slice(),
-                claim: *claim,
-                strength: b"tested".to_vec().into_boxed_slice(),
-                execution: AssessmentExecution::Completed,
-                decision: Some(Decision::Established),
-                premises: premises.clone(),
-                failure: None,
-            })
-            .collect(),
-        usage: DispatchUsage::default(),
-    }
+    let request = |identity: &[u8], claim, fragment: &[u8]| ClaimRequest {
+        identity: identity.to_vec().into_boxed_slice(),
+        claim,
+        strength: b"tested".to_vec().into_boxed_slice(),
+        premises: premises(fragment),
+        correspondence: None,
+    };
+    let document = || RetainedDocument {
+        identity: "owner:canonical-engine".into(),
+        bytes: b"owner:canonical-engine".to_vec(),
+    };
+    let conformance = ConformanceReport {
+        protocol_identity: "protocol:canonical-engine".into(),
+        obligations: Vec::new(),
+        adverse: Vec::new(),
+        incomplete: Vec::new(),
+        global_premise_defects: Vec::new(),
+        global: GlobalDisposition::Conforms,
+        observations: Vec::new(),
+        premises: PremiseSnapshot {
+            decision_scope_progress: document(),
+            decision_scope_closure: document(),
+            surrounding_execution_progress: document(),
+            surrounding_execution_closure: document(),
+            completeness: document(),
+            execution: AssessmentExecution::Completed,
+            global_conformance: GlobalConformanceInput {
+                state: GlobalConformanceClosure::Closed,
+                required_premises: Vec::new(),
+                premises: Vec::new(),
+            },
+        },
+        usage: Usage::default(),
+    };
+    dispatch_from_conformance(
+        &[
+            request(
+                b"request:conformance",
+                DispatchClaim::Conformance,
+                b"fragment:canonical-engine",
+            ),
+            request(
+                b"request:monitorability",
+                DispatchClaim::Monitorability,
+                b"",
+            ),
+        ],
+        &conformance,
+        DispatchLimits::default(),
+    )
+    .expect("closed dispatch returns independent claim dispositions")
 }
 
 /// The public Engine boundary constructs and strict-reads owner rows against
@@ -690,12 +731,25 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
     let input = base_input(&fixture);
     let mut refused_input = input.clone();
     refused_input.claim.kind = ClaimKind::Monitorability;
-    let mut refusal_limits = Limits::owner_max();
-    refusal_limits.max_output_bytes = 1;
+    refused_input.execution = AssessmentExecution::Refused;
     assert_eq!(input.checked_predicate.package_digest(), package.digest());
     assert_eq!(input.temporal_subject.package_digest(), package.digest());
     let requested = [DispatchClaim::Conformance, DispatchClaim::Monitorability];
-    let dispatch = dispatch_report(&requested);
+    let dispatch = dispatch_with_claim_refusal();
+    assert_eq!(dispatch.dispositions[0].claim, DispatchClaim::Conformance);
+    assert_eq!(
+        dispatch.dispositions[0].execution,
+        AssessmentExecution::Completed
+    );
+    assert_eq!(
+        dispatch.dispositions[1].claim,
+        DispatchClaim::Monitorability
+    );
+    assert_eq!(
+        dispatch.dispositions[1].execution,
+        AssessmentExecution::Refused
+    );
+    assert!(dispatch.dispositions[1].failure.is_some());
     let bundle = Engine::new(context, requested.to_vec())
         .expect("linked assessment starts one engine")
         .construct_canonical(
@@ -705,7 +759,7 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
                 CanonicalRowInput::new(
                     DispatchClaim::Monitorability,
                     refused_input,
-                    refusal_limits,
+                    Limits::owner_max(),
                 ),
             ],
         )
@@ -721,6 +775,10 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
     assert_eq!(
         refusal.partial_output(),
         quire_protocol::refusal::PartialOutput::IndependentResultsRetained
+    );
+    assert_eq!(
+        refusal.stage(),
+        quire_protocol::refusal::ProtocolStage::ClaimDispatch
     );
 }
 
