@@ -129,7 +129,7 @@ shared result-domain values. Each has one Protocol owner and no adapter-local co
 - [x] **TC-014**: consumer identity discipline.
 - [x] **TC-015**: canonical reader and complete structural Contract-IR result view.
 - [ ] **TC-016**: final scenario-evidence composition and cross-record refusal-axis distinctness.
-- [ ] **TC-017**: exact consumer delivery-index identity/state, typed absence,
+- [x] **TC-017**: exact consumer delivery-index identity/state, typed absence,
   byte retention, binding/limit rules and version-lock non-authority.
 
 ### Integration tests
@@ -229,7 +229,7 @@ track names are subsystems and are not agent assignments; Agent B remains on TL.
 | Task-016 | Architecture Gate | AD-001, FR-001..FR-009 | TC-002..TC-013 | done; SR-089..SR-100 pass under #61 |
 | Task-017 | Cross-cutting Foundation | FR-008, FR-014, FR-016 | TC-011 | done; 30 focused tests and SR-101/SR-102 pass under #62 |
 | Task-018 | Qualification | FR-017, NFR-005 | TC-016 | planned |
-| Task-019 | Producer Integration | FR-018, NFR-006 | TC-017 | planned; issue #66 corrects previously unowned implementation |
+| Task-019 | Producer Integration | FR-018, NFR-006 | TC-017 | done; exact bounded consumer index cannot affect version-lock resolution |
 
 ## Coordination Rules
 

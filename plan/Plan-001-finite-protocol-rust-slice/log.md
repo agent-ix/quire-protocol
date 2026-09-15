@@ -7,6 +7,20 @@ description: "Chronological log of changes to the Plan-001 bundle."
 
 ## History
 
+* **2026-09-14** — Completed Task-019 / issue #66 as the consumer-authored
+  FR-018 delivery index. `DeliveryIndex` retains exact delivery-root and
+  producer-revision identity separately from offer, input, temporal, limit and
+  mutation state; it rejects every named absence or ambiguity without a default,
+  preserves producer bytes verbatim, validates A's declaration cardinality and
+  order without inventing an upstream key, and keeps Protocol versus
+  compiled-protocol dimensions as a non-substitutable tagged union. Its bounded
+  assembly charges exact retained bytes and allocation through reconciled source
+  inventory entries. TC-017 covers identity, byte retention, input/temporal/
+  mutation/limit rejection, adapter absence, fresh-budget behavior and the
+  structural proof that no delivery index can supply or repair a version-lock
+  resolution. The active full suite passes; the generated `/1` corpus remains
+  an explicit ignored integration lane under Task-009.
+
 * **2026-09-14** — Completed Task-013 / issue #49 as the Protocol-owned version-lock resolver over Task-017 baseline `0cba759`. The resolver validates exact non-empty (`owner`, `contract version`) keys in deterministic order, retains the two-state manifest without state-to-identity substitution, verifies exact delivered bytes, authenticates interface selections independently and mints only request/key/revision/contract-bound private capabilities. Seventeen typed refusal axes retain exact affected identities and causes; entry count, bytes digested and monotonic deadline use the shared accountant and return resource-incomplete one-short. Eleven TC-013 tests pass with no ignored case. Rust review SR-103 fixed accidental aggregate equality, a wrong interface subject cause, weak refusal-identity assertions and a panic-capable deadline conversion; semantic gap review SR-104 passes. The review also found that no `DeliveryIndex` exists despite prior FR-018 credit, so #66/Task-019 and TC-017 now own that already-specified object and Quire reports its rows honestly unbacked. Coverage is 144/342 with 247/247 Rust candidates tagged/bound. The exact unchanged-head local gate passes on Rust/Cargo 1.98.1; Cargo.lock remains SHA-256 `2824b45d644459229f0eb2293cc6f1bff12ee77dd16dd83c73e93f9fc0cbd3b5`, no dependency/workflow/native-v1 surface changes, and no hosted CI dispatch.
 
 * **2026-09-14** — Completed Task-017 / issue #62 over architecture baseline `8a2d915`. The crate now exposes the exact three-member composed `OperationOutcome<T>` and per-claim `ClaimOutcome<Row>` while keeping `ResourceIncomplete` structurally separate from `ProtocolRefusal`. The Protocol-owned `quire.protocol/refusal/1` foundation carries seven closed domains, ten closed stages with the exact map, a non-empty axis, ten structurally distinct typed local causes, exact known-source interiors and opaque unknown-source retention. Refusal/source construction is crate-private; existing conformance, claim and result envelopes use typed legacy axes without inventing final Task-006 cause mappings, and result assembly versus result read now retain their actual stages. PR-time Rust review SR-101 found and fixed public construction, result-stage mislabelling, double boxing, stale task-only trace tags and lost registry mutations; scoped gap review SR-102 passes. TC-011 now has 30 focused tests, preserving the entire pre-existing registry mutation inventory while adding all 70 stage/domain pairs, outcome non-substitution, claim sibling retention, source-contract mismatch and interior-collision controls. Repository-wide Quire coverage is 128/341 with no Task-017 untracked symbol; remaining route/resource/full-envelope rows stay explicitly assigned to Task-006 and Task-008. The exact unchanged-head local gate passes with no dependency, feature, workflow or `resources/native-v1/` change and no hosted dispatch.
