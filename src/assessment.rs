@@ -312,7 +312,7 @@ fn outcome_refusal(error: BundleRefusal) -> ProtocolRefusal {
 
 /// One refusal from the Engine's closed-dispatch boundary.
 ///
-/// This wrapper deliberately preserves the inner refusal envelope.  A
+/// This wrapper deliberately preserves the inner refusal envelope. A
 /// whole-request dispatch limit is owned by dispatch, while an attempt to
 /// retarget the Engine's fixed claim population is owned by the bundle; neither
 /// is collapsed into a synthetic generic error.
@@ -793,15 +793,14 @@ impl<'a> Engine<'a> {
                 return CompensationOutcome::Unsupported(report)
             }
         };
-        if self.compensation_state.recoveries().iter().any(|recovery| {
-            recovery.registration() == &registration && recovery.report() == &report
-        }) {
-            return CompensationOutcome::Completed(CompensationTransition::Replay);
-        }
         let mut candidate = self.compensation_state.clone();
-        candidate.push_recovery(registration, report);
-        self.compensation_state = candidate;
-        CompensationOutcome::Completed(CompensationTransition::Applied)
+        match candidate.retain_recovery(registration, report) {
+            Ok(transition) => {
+                self.compensation_state = candidate;
+                CompensationOutcome::Completed(transition)
+            }
+            Err(error) => CompensationOutcome::Refused(error),
+        }
     }
 
     /// Assess the three commit-ordering laws only from QSL's selected nodes and
@@ -890,9 +889,13 @@ impl<'a> Engine<'a> {
             violations.push(OrderingViolation::CompensationAfterCommit);
         }
         let mut candidate = self.compensation_state.clone();
-        let transition = candidate.replace_ordering(registration, violations);
-        self.compensation_state = candidate;
-        CompensationOutcome::Completed(transition)
+        match candidate.retain_ordering(registration, violations) {
+            Ok(transition) => {
+                self.compensation_state = candidate;
+                CompensationOutcome::Completed(transition)
+            }
+            Err(error) => CompensationOutcome::Refused(error),
+        }
     }
 
     fn registration(&self, compensation_handle: u32) -> Option<CompensationRegistration> {
@@ -1096,10 +1099,16 @@ fn evaluate_boolean(
         view,
         limits,
     );
+    enum Classification {
+        True,
+        False,
+        Unsupported,
+        Source,
+    }
     let classification = match report.outcome() {
         EvaluationOutcome::Completed(value) => match value.kind() {
-            StateValueKind::Boolean(true) => 0,
-            StateValueKind::Boolean(false) => 1,
+            StateValueKind::Boolean(true) => Classification::True,
+            StateValueKind::Boolean(false) => Classification::False,
             StateValueKind::Number(_)
             | StateValueKind::Text(_)
             | StateValueKind::Enum(_)
@@ -1107,18 +1116,17 @@ fn evaluate_boolean(
             | StateValueKind::Option(_)
             | StateValueKind::Sequence(_)
             | StateValueKind::Reference(_)
-            | StateValueKind::Object(_) => 2,
+            | StateValueKind::Object(_) => Classification::Unsupported,
         },
         EvaluationOutcome::Incomplete(_)
         | EvaluationOutcome::Refused(_)
-        | EvaluationOutcome::Exhausted(_) => 3,
+        | EvaluationOutcome::Exhausted(_) => Classification::Source,
     };
     match classification {
-        0 => BooleanEvaluation::True(report),
-        1 => BooleanEvaluation::False(report),
-        2 => BooleanEvaluation::Unsupported(report),
-        3 => BooleanEvaluation::Source(report),
-        _ => unreachable!("closed Boolean evaluation classification"),
+        Classification::True => BooleanEvaluation::True(report),
+        Classification::False => BooleanEvaluation::False(report),
+        Classification::Unsupported => BooleanEvaluation::Unsupported(report),
+        Classification::Source => BooleanEvaluation::Source(report),
     }
 }
 

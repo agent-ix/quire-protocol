@@ -102,9 +102,9 @@ shared result-domain values. Each has one Protocol owner and no adapter-local co
 ### Property and model tests
 
 - [x] **TC-001**: exact versioned admission and all one-axis admission refusals.
-- [ ] **TC-002**: exact graph/binding identity, exhaustive typed content, FIFO,
+- [x] **TC-002**: exact graph/binding identity, exhaustive typed content, FIFO,
   relationship replay/ambiguity, causal interleavings and fatal refusals.
-- [ ] **TC-003**: graph-derived compensation, activation, commit, retry, recovery,
+- [x] **TC-003**: graph-derived compensation, activation, commit, retry, recovery,
   replay, transactionality and zero business calls.
 - [ ] **TC-004**: graph-derived batch/incremental agreement across legal semantic
   permutations, progress/closure and contradiction states.
@@ -212,8 +212,8 @@ track names are subsystems and are not agent assignments; Agent B remains on TL.
 | Task | Track | Owns | Verified by | Status |
 | --- | --- | --- | --- | --- |
 | Task-001 | Core | FR-001 | TC-001 | done |
-| Task-002 | Core | FR-002 | TC-002 | in_progress |
-| Task-003 | Core | FR-003 | TC-003 | in_progress; standalone kernel exists |
+| Task-002 | Core | FR-002 | TC-002 | done; PR #67 / `2a3ef19` |
+| Task-003 | Core | FR-003 | TC-003 | done; graph-owned Engine bridge and exact QSL/QObs evidence |
 | Task-004 | Core | FR-004 | TC-004 | in_progress; standalone kernel exists |
 | Task-005 | Core | FR-005 | TC-005 | in_progress; standalone kernel exists |
 | Task-006 | Core | FR-006, FR-008 | TC-006, TC-011 | in_progress; result/map slice landed |

@@ -1574,8 +1574,10 @@ fn tc_002_effect_projection_requires_an_owner_effect_slot() {
     let engine = Engine::new(context, vec![Claim::Conformance])
         .expect("the linked effect context starts a non-retargetable assessment");
     assert_eq!(engine.compensation_inputs().len(), 2);
-    assert_eq!(engine.compensation().registrations().len(), 2);
-    assert_eq!(engine.conformance().registrations().len(), 2);
+    // Task-002 projects eligible exact inputs; Task-003 alone may turn them
+    // into state after the admitted activation guard completes true.
+    assert!(engine.compensation().registrations().is_empty());
+    assert!(engine.conformance().registrations().is_empty());
     assert_eq!(engine.conformance().obligations().len(), controls.len());
     assert_eq!(
         engine.conformance().compensations(),
@@ -1603,24 +1605,10 @@ fn tc_002_effect_projection_requires_an_owner_effect_slot() {
         engine.conformance().causal_edges(),
         engine.linked().causal_edges()
     );
-    assert_eq!(engine.compensation_attempts().len(), 1);
-    assert_eq!(engine.compensation_effects().len(), 1);
-    assert_eq!(engine.conformance().attempts().len(), 1);
-    assert_eq!(engine.conformance().effects().len(), 1);
-    assert_eq!(
-        engine.conformance().attempts()[0].subject(),
-        engine.compensation_attempts()[0].subject()
-    );
-    assert_eq!(
-        engine.conformance().effects()[0].subject(),
-        engine.compensation_effects()[0].subject()
-    );
-    assert_eq!(
-        engine.compensation().registrations()[0]
-            .key()
-            .forward_effect(),
-        &observed
-    );
+    assert!(engine.compensation_attempts().is_empty());
+    assert!(engine.compensation_effects().is_empty());
+    assert!(engine.conformance().attempts().is_empty());
+    assert!(engine.conformance().effects().is_empty());
     let bundle = engine
         .assemble(vec![ClaimRow {
             claim: Claim::Conformance,
@@ -1632,8 +1620,8 @@ fn tc_002_effect_projection_requires_an_owner_effect_slot() {
         bundle.compensation_inputs()[0].effect().subject(),
         &observed
     );
-    assert_eq!(bundle.compensation().registrations().len(), 2);
-    assert_eq!(bundle.conformance().registrations().len(), 2);
+    assert!(bundle.compensation().registrations().is_empty());
+    assert!(bundle.conformance().registrations().is_empty());
     assert_eq!(bundle.conformance().obligations().len(), controls.len());
     assert_eq!(
         bundle.conformance().compensations(),
@@ -1643,8 +1631,8 @@ fn tc_002_effect_projection_requires_an_owner_effect_slot() {
         bundle.conformance().causal_edges(),
         bundle.linked().causal_edges()
     );
-    assert_eq!(bundle.compensation_attempts().len(), 1);
-    assert_eq!(bundle.compensation_effects().len(), 1);
-    assert_eq!(bundle.conformance().attempts().len(), 1);
-    assert_eq!(bundle.conformance().effects().len(), 1);
+    assert!(bundle.compensation_attempts().is_empty());
+    assert!(bundle.compensation_effects().is_empty());
+    assert!(bundle.conformance().attempts().is_empty());
+    assert!(bundle.conformance().effects().is_empty());
 }
