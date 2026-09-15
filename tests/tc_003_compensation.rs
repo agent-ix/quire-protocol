@@ -611,6 +611,10 @@ fn state(identity: &str, value: &str) -> State {
     .expect("bounded state")
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "TC-003 names each independently authoritative recovery fact explicitly"
+)]
 fn recovery_fact(
     recovery: &RecoveryId,
     registration: &quire_protocol::compensation::algebra::Registration,
