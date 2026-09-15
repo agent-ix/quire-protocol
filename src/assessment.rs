@@ -10,7 +10,10 @@ use quire_observation::authority::{closure as observation_closure, progress};
 use crate::claims::Claim;
 use crate::closure::GlobalConformanceClosure;
 use crate::compensation::registration::Snapshot as CompensationSnapshot;
-use crate::model::v2::{CompensationRegistrationInput, DefinitionIdentity, LinkedAssessment};
+use crate::model::v2::{
+    CompensationAttemptInput, CompensationEffectInput, CompensationRegistrationInput,
+    DefinitionIdentity, LinkedAssessment,
+};
 use crate::outcome::ClaimOutcome;
 use crate::refusal::catalog::{CatalogSelection, CodeEntry, CodeModule, Provenance, RefusalCode};
 use crate::refusal::{
@@ -129,6 +132,8 @@ pub struct Engine<'a> {
     identity: DefinitionIdentity,
     compensation_inputs: Vec<CompensationRegistrationInput<'a>>,
     compensation: CompensationSnapshot,
+    compensation_attempts: Vec<CompensationAttemptInput<'a>>,
+    compensation_effects: Vec<CompensationEffectInput<'a>>,
     requested: Vec<Claim>,
 }
 
@@ -154,11 +159,15 @@ impl<'a> Engine<'a> {
             .map_err(|_| BundleRefusal::InvalidDefinitionIdentity)?;
         let compensation_inputs = context.compensation_registration_inputs();
         let compensation = CompensationSnapshot::from_inputs(&identity, &compensation_inputs);
+        let compensation_attempts = context.compensation_attempt_inputs();
+        let compensation_effects = context.compensation_effect_inputs();
         Ok(Self {
             context,
             identity,
             compensation_inputs,
             compensation,
+            compensation_attempts,
+            compensation_effects,
             requested,
         })
     }
@@ -176,6 +185,20 @@ impl<'a> Engine<'a> {
         &self.compensation
     }
 
+    /// Returns distinct admitted compensation attempts without treating an
+    /// attempt as either a forward or compensating effect.
+    #[must_use]
+    pub fn compensation_attempts(&self) -> &[CompensationAttemptInput<'a>] {
+        &self.compensation_attempts
+    }
+
+    /// Returns distinct admitted compensation effects without deriving one
+    /// from an attempt, transport result, or registration.
+    #[must_use]
+    pub fn compensation_effects(&self) -> &[CompensationEffectInput<'a>] {
+        &self.compensation_effects
+    }
+
     /// Retain one independent outcome for every selected claim.
     pub fn assemble<Row>(
         self,
@@ -187,6 +210,8 @@ impl<'a> Engine<'a> {
             identity: self.identity,
             compensation_inputs: self.compensation_inputs,
             compensation: self.compensation,
+            compensation_attempts: self.compensation_attempts,
+            compensation_effects: self.compensation_effects,
             rows,
         })
     }
@@ -281,6 +306,8 @@ pub struct AssessmentBundle<'a, Row> {
     identity: DefinitionIdentity,
     compensation_inputs: Vec<CompensationRegistrationInput<'a>>,
     compensation: CompensationSnapshot,
+    compensation_attempts: Vec<CompensationAttemptInput<'a>>,
+    compensation_effects: Vec<CompensationEffectInput<'a>>,
     rows: Vec<ClaimRow<Row>>,
 }
 
@@ -305,6 +332,16 @@ impl<Row> AssessmentBundle<'_, Row> {
     #[must_use]
     pub const fn compensation(&self) -> &CompensationSnapshot {
         &self.compensation
+    }
+    /// Distinct admitted compensation attempts retained with this bundle.
+    #[must_use]
+    pub fn compensation_attempts(&self) -> &[CompensationAttemptInput<'_>] {
+        &self.compensation_attempts
+    }
+    /// Distinct admitted compensation effects retained with this bundle.
+    #[must_use]
+    pub fn compensation_effects(&self) -> &[CompensationEffectInput<'_>] {
+        &self.compensation_effects
     }
     /// One ordered outcome for every requested claim.
     #[must_use]

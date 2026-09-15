@@ -1311,12 +1311,19 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
 fn tc_002_effect_projection_requires_an_owner_effect_slot() {
     let package = admitted_published_v2();
     let (declaration_handle, effect_slot) = effect_coordinates(&package);
-    let Body::Protocol { roles, .. } = &package.inherited().declarations
+    let Body::Protocol {
+        roles,
+        compensations,
+        ..
+    } = &package.inherited().declarations
         [usize::try_from(declaration_handle).expect("published index fits")]
     .body
     else {
         unreachable!("selected declaration was found as a protocol")
     };
+    let first_compensation = compensations
+        .first()
+        .expect("published protocol has one compensation definition");
     let producer = producer();
     let definition = StaticBindingDefinition::new(
         STATIC_BINDING_CONTRACT,
@@ -1331,12 +1338,26 @@ fn tc_002_effect_projection_requires_an_owner_effect_slot() {
                 internality: Internality::Internal,
             })
             .collect(),
-        vec![StaticSlot {
-            handle: SlotHandle::new(effect_slot),
-            compatibility: SlotCompatibility::Subject {
-                kind: SubjectKind::new(ORDER_KIND.to_vec()).expect("non-empty kind"),
+        vec![
+            StaticSlot {
+                handle: SlotHandle::new(effect_slot),
+                compatibility: SlotCompatibility::Subject {
+                    kind: SubjectKind::new(ORDER_KIND.to_vec()).expect("non-empty kind"),
+                },
             },
-        }],
+            StaticSlot {
+                handle: SlotHandle::new(first_compensation.attempt_instance),
+                compatibility: SlotCompatibility::Subject {
+                    kind: SubjectKind::new(ORDER_KIND.to_vec()).expect("non-empty kind"),
+                },
+            },
+            StaticSlot {
+                handle: SlotHandle::new(first_compensation.effect_instance),
+                compatibility: SlotCompatibility::Subject {
+                    kind: SubjectKind::new(ORDER_KIND.to_vec()).expect("non-empty kind"),
+                },
+            },
+        ],
     )
     .expect("an exact selected QObs subject kind is admitted for the effect slot");
     let observed = subject(&producer);
@@ -1345,10 +1366,27 @@ fn tc_002_effect_projection_requires_an_owner_effect_slot() {
         definition.selection(),
         &definition,
         &producer,
-        vec![RuntimeBinding::subject(
-            SlotHandle::new(effect_slot),
-            observed.clone(),
-        )],
+        vec![
+            RuntimeBinding::subject(SlotHandle::new(effect_slot), observed.clone()),
+            RuntimeBinding::subject(
+                SlotHandle::new(first_compensation.attempt_instance),
+                QualifiedSubject::new(
+                    &producer,
+                    SubjectKind::new(ORDER_KIND.to_vec()).expect("non-empty kind"),
+                    SubjectIdentity::new(b"compensation-attempt:1".to_vec())
+                        .expect("non-empty identity"),
+                ),
+            ),
+            RuntimeBinding::subject(
+                SlotHandle::new(first_compensation.effect_instance),
+                QualifiedSubject::new(
+                    &producer,
+                    SubjectKind::new(ORDER_KIND.to_vec()).expect("non-empty kind"),
+                    SubjectIdentity::new(b"compensation-effect:1".to_vec())
+                        .expect("non-empty identity"),
+                ),
+            ),
+        ],
     )
     .expect("the owner subject satisfies the selected effect slot");
     let context = LinkedAssessment::new(&package, &definition, &runtime)
@@ -1365,11 +1403,15 @@ fn tc_002_effect_projection_requires_an_owner_effect_slot() {
     assert_eq!(registrations[1].compensation_handle(), 1);
     assert_eq!(registrations[0].effect().subject(), &observed);
     assert_eq!(registrations[1].effect().subject(), &observed);
+    assert_eq!(context.compensation_attempt_inputs().len(), 1);
+    assert_eq!(context.compensation_effect_inputs().len(), 1);
 
     let engine = Engine::new(context, vec![Claim::Conformance])
         .expect("the linked effect context starts a non-retargetable assessment");
     assert_eq!(engine.compensation_inputs().len(), 2);
     assert_eq!(engine.compensation().registrations().len(), 2);
+    assert_eq!(engine.compensation_attempts().len(), 1);
+    assert_eq!(engine.compensation_effects().len(), 1);
     assert_eq!(
         engine.compensation().registrations()[0]
             .key()
@@ -1388,4 +1430,6 @@ fn tc_002_effect_projection_requires_an_owner_effect_slot() {
         &observed
     );
     assert_eq!(bundle.compensation().registrations().len(), 2);
+    assert_eq!(bundle.compensation_attempts().len(), 1);
+    assert_eq!(bundle.compensation_effects().len(), 1);
 }

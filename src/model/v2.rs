@@ -498,6 +498,48 @@ impl<'a> CompensationRegistrationInput<'a> {
     }
 }
 
+/// One exact QObs subject admitted at a QSL compensation-attempt requirement.
+#[derive(Clone, Copy, Debug)]
+pub struct CompensationAttemptInput<'a> {
+    registration: CompensationRegistrationInput<'a>,
+    subject: &'a QualifiedSubject,
+}
+
+impl<'a> CompensationAttemptInput<'a> {
+    /// Returns the exact registration this attempt belongs to.
+    #[must_use]
+    pub const fn registration(&self) -> CompensationRegistrationInput<'a> {
+        self.registration
+    }
+
+    /// Returns QObs's complete authority-qualified attempt subject.
+    #[must_use]
+    pub const fn subject(&self) -> &'a QualifiedSubject {
+        self.subject
+    }
+}
+
+/// One exact QObs subject admitted at a QSL compensation-effect requirement.
+#[derive(Clone, Copy, Debug)]
+pub struct CompensationEffectInput<'a> {
+    registration: CompensationRegistrationInput<'a>,
+    subject: &'a QualifiedSubject,
+}
+
+impl<'a> CompensationEffectInput<'a> {
+    /// Returns the exact registration this compensation effect belongs to.
+    #[must_use]
+    pub const fn registration(&self) -> CompensationRegistrationInput<'a> {
+        self.registration
+    }
+
+    /// Returns QObs's complete authority-qualified compensation-effect subject.
+    #[must_use]
+    pub const fn subject(&self) -> &'a QualifiedSubject {
+        self.subject
+    }
+}
+
 impl<'a> LinkedAssessment<'a> {
     /// Validates that exact static and runtime selections target one admitted
     /// version-2 protocol declaration.
@@ -616,6 +658,61 @@ impl<'a> LinkedAssessment<'a> {
                 })
             })
             .collect()
+    }
+
+    /// Returns admitted QObs compensation attempts for exact registrations.
+    ///
+    /// An unselected, absent, or wrong-kind runtime slot produces no attempt;
+    /// it is never manufactured from a forward effect or transport outcome.
+    #[must_use]
+    pub fn compensation_attempt_inputs(&self) -> Vec<CompensationAttemptInput<'a>> {
+        self.compensation_registration_inputs()
+            .into_iter()
+            .filter_map(|registration| {
+                let slot = SlotHandle::new(registration.compensation().attempt_instance);
+                self.subject_at_kind(slot, BindingKind::CompensationAttempt)
+                    .map(|subject| CompensationAttemptInput {
+                        registration,
+                        subject,
+                    })
+            })
+            .collect()
+    }
+
+    /// Returns admitted QObs compensation effects for exact registrations.
+    ///
+    /// A compensation effect is distinct from its attempt and is selected only
+    /// by QSL's `compensation_effect` requirement.
+    #[must_use]
+    pub fn compensation_effect_inputs(&self) -> Vec<CompensationEffectInput<'a>> {
+        self.compensation_registration_inputs()
+            .into_iter()
+            .filter_map(|registration| {
+                let slot = SlotHandle::new(registration.compensation().effect_instance);
+                self.subject_at_kind(slot, BindingKind::CompensationEffect)
+                    .map(|subject| CompensationEffectInput {
+                        registration,
+                        subject,
+                    })
+            })
+            .collect()
+    }
+
+    fn subject_at_kind(&self, slot: SlotHandle, kind: BindingKind) -> Option<&'a QualifiedSubject> {
+        let declaration = self
+            .package
+            .inherited()
+            .declarations
+            .get(usize::try_from(self.definition.declaration_handle()).ok()?)?;
+        let requirement = declaration
+            .bindings
+            .get(usize::try_from(slot.get()).ok()?)?;
+        (requirement.kind == kind).then_some(())?;
+        self.runtime
+            .bindings()
+            .iter()
+            .find(|binding| binding.slot() == slot)
+            .and_then(RuntimeBinding::subject_value)
     }
 }
 
