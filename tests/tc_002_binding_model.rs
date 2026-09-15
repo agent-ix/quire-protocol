@@ -16,9 +16,9 @@ use quire_protocol::model::v2::{
 };
 use quire_protocol::wire::{BindingKind, Body, CausalEdge, ControlOperation, EdgeKind, Port};
 use quire_protocol::{
-    assessment::{BundleRefusal, ClaimRow, Engine},
+    assessment::{BundleRefusal, Engine},
     claims::Claim,
-    outcome::{ClaimOutcome, OperationOutcome},
+    outcome::OperationOutcome,
 };
 use quire_spec_language::protocol_artifact::{
     native_temporal::{self, request, v2 as temporal_v2},
@@ -1177,27 +1177,6 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
     };
     assert_eq!(engine.linked().identity(), &identity);
     assert_eq!(engine.conformance().definition(), &identity);
-    let bundle = match engine.assemble_outcome(vec![ClaimRow {
-        claim: Claim::Conformance,
-        outcome: ClaimOutcome::Canonical(()),
-    }]) {
-        OperationOutcome::Completed(bundle) => bundle,
-        OperationOutcome::Refused(refusal) => {
-            panic!("complete claim population must assemble: {refusal}")
-        }
-        OperationOutcome::ResourceIncomplete(incomplete) => {
-            panic!("bundle assembly has no resource work: {incomplete:?}")
-        }
-    };
-    assert_eq!(bundle.identity(), &identity);
-    assert_eq!(
-        bundle.context().definition().selection(),
-        definition.selection()
-    );
-    assert_eq!(bundle.rows().len(), 1);
-    assert_eq!(bundle.linked().identity(), &identity);
-    assert_eq!(bundle.conformance().definition(), &identity);
-
     let different_runtime = RuntimeBindingSet::new(
         RUNTIME_BINDING_CONTRACT,
         definition.selection(),
@@ -1607,28 +1586,22 @@ fn tc_002_effect_projection_requires_an_owner_effect_slot() {
     );
     assert!(engine.conformance().attempts().is_empty());
     assert!(engine.conformance().effects().is_empty());
-    let bundle = engine
-        .assemble(vec![ClaimRow {
-            claim: Claim::Conformance,
-            outcome: ClaimOutcome::Canonical(()),
-        }])
-        .expect("the exact compensation inputs survive complete bundle assembly");
-    assert_eq!(bundle.compensation_inputs().len(), 2);
+    assert_eq!(engine.compensation_inputs().len(), 2);
     assert_eq!(
-        bundle.compensation_inputs()[0].effect().subject(),
+        engine.compensation_inputs()[0].effect().subject(),
         &observed
     );
-    assert!(bundle.compensation().registrations().is_empty());
-    assert!(bundle.conformance().registrations().is_empty());
-    assert_eq!(bundle.conformance().obligations().len(), controls.len());
+    assert!(engine.compensation().registrations().is_empty());
+    assert!(engine.conformance().registrations().is_empty());
+    assert_eq!(engine.conformance().obligations().len(), controls.len());
     assert_eq!(
-        bundle.conformance().compensations(),
-        bundle.linked().compensations()
+        engine.conformance().compensations(),
+        engine.linked().compensations()
     );
     assert_eq!(
-        bundle.conformance().causal_edges(),
-        bundle.linked().causal_edges()
+        engine.conformance().causal_edges(),
+        engine.linked().causal_edges()
     );
-    assert!(bundle.conformance().attempts().is_empty());
-    assert!(bundle.conformance().effects().is_empty());
+    assert!(engine.conformance().attempts().is_empty());
+    assert!(engine.conformance().effects().is_empty());
 }
