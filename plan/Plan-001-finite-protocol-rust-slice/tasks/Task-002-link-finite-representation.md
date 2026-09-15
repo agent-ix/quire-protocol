@@ -49,10 +49,10 @@ admitted selected profile while retaining the frozen root `/1`
   typed declaration plus accepted static-binding consistency content; refuse
   same-FR-288/different-content through the linker registry while excluding
   concrete runtime values from FR-288.
-- [ ] Retain all five FR-216 channel premises, including the complete typed FIFO
+- [x] Retain all five FR-216 channel premises, including the complete typed FIFO
   expression definition, and expose an exact generic runtime partition over
   static channel plus owner-typed evaluated value.
-- [ ] Adopt FR-262 replay and contradiction semantics without converting a
+- [x] Adopt FR-262 replay and contradiction semantics without converting a
   relationship into a subject or collapsing a second exact key.
 - [ ] Extend TC-002 so every newly accepted identity/content/binding axis has a
   positive control and a failing one-axis mutation; every source
