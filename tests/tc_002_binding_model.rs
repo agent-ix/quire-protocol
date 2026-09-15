@@ -22,7 +22,10 @@ use quire_protocol::{
     },
     claims::Claim,
     closure::{AssessmentExecution, GlobalConformanceClosure},
-    conformance::{compare, ActivatedIncremental, Limits as ConformanceLimits},
+    conformance::{
+        compare, ActivatedIncremental, GlobalDisposition, Limits as ConformanceLimits,
+        ObligationDisposition,
+    },
     outcome::{ClaimOutcome, OperationOutcome},
 };
 use quire_spec_language::protocol_artifact::{
@@ -1473,12 +1476,12 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
         derived_model.obligations()[0].workflow_identity.as_ref(),
         "workflow:one"
     );
-    let decision = observation_owner::scope_views("activation-derived-decision");
+    let decision = observation_owner::scope_views("42");
     let surrounding = observation_owner::scope_views("activation-derived-surrounding");
     let global = closed_global_conformance();
     let fact = engine
         .conformance()
-        .activation_fact(derived_occurrence.clone(), None);
+        .activation_fact(derived_occurrence.clone(), Some(&decision.observation));
     let batch = engine
         .conformance()
         .assess_activated(
@@ -1495,6 +1498,17 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
         std::slice::from_ref(&derived_occurrence),
     )
     .expect("the activation-derived incremental frontend uses the same derived model");
+    let pushed = incremental
+        .push(
+            &fact,
+            closed_axes(&decision, &surrounding),
+            &decision.completeness_complete,
+            &global,
+            AssessmentExecution::Completed,
+            ConformanceLimits::default(),
+        )
+        .expect("the activation-derived incremental frontend admits the same QObs fact")
+        .clone();
     let incremental = incremental
         .finish(
             closed_axes(&decision, &surrounding),
@@ -1503,11 +1517,20 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
             AssessmentExecution::Completed,
             ConformanceLimits::default(),
         )
-        .expect(
-            "the activation-derived incremental frontend finishes without a caller-built model",
-        );
+        .expect("the activation-derived path finishes with the admitted QObs fact")
+        .clone();
     compare(&batch, incremental)
         .expect("activation-derived batch and incremental reports agree exactly");
+    assert_eq!(
+        pushed, incremental,
+        "a closed admitted prefix stays settled"
+    );
+    assert_eq!(batch.global, GlobalDisposition::Conforms);
+    assert_eq!(
+        batch.obligations[0].disposition,
+        ObligationDisposition::Conforms,
+        "the QObs view is correlated only through its admitted activation occurrence"
+    );
     let other = occurrence_schema
         .nodes()
         .iter()
