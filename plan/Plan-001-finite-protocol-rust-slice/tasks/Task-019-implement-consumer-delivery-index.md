@@ -2,7 +2,7 @@
 id: Task-019
 title: "Implement the consumer-owned delivery index"
 type: Task
-status: planned
+status: in_progress
 track: Producer Integration
 priority: P0
 relationships:
@@ -35,7 +35,7 @@ architecture; it does not add or redesign architecture.
 - [x] Key limits by exact accountant owner/contract version and exact typed
   owner dimension, refuse duplicate keys, and retain deterministic non-causal
   ordering without Protocol/compiled-protocol substitution.
-- [ ] Prove with TC-017 that editing or deleting the index
+- [x] Prove with TC-017 that editing or deleting the index
   supplies, selects, repairs or widens no version-lock entry and changes no
   resolver outcome.
 - [ ] Add the final delivery-index source-inventory and resource sites before
