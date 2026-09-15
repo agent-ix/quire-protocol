@@ -1418,6 +1418,15 @@ fn tc_002_effect_projection_requires_an_owner_effect_slot() {
     assert_eq!(engine.conformance().registrations().len(), 2);
     assert_eq!(engine.conformance().obligations().len(), controls.len());
     assert_eq!(
+        engine
+            .conformance()
+            .obligation(0)
+            .expect("the first published control handle is retained")
+            .operation(),
+        &controls[0].operation
+    );
+    assert!(engine.conformance().obligation(u32::MAX).is_none());
+    assert_eq!(
         engine.conformance().causal_edges(),
         engine.linked().causal_edges()
     );

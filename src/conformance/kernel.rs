@@ -99,6 +99,18 @@ impl Kernel {
         &self.obligations
     }
 
+    /// Selects one exact QSL control obligation by its published handle.
+    ///
+    /// The lookup is declaration-local to this kernel's fixed FR-288
+    /// definition and never treats a display name or caller ordering as a
+    /// substitute coordinate.
+    #[must_use]
+    pub fn obligation(&self, handle: u32) -> Option<&LinkedObligation> {
+        self.obligations
+            .get(usize::try_from(handle).ok()?)
+            .filter(|obligation| obligation.handle() == handle)
+    }
+
     /// Returns QSL's exact authored causal graph edges in declaration order.
     ///
     /// These are retained alongside the control obligations so neither batch
