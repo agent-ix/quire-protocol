@@ -648,7 +648,7 @@ impl<'a> LinkedAssessment<'a> {
                     let Subject::Control { control } = &requirement.subject else {
                         return None;
                     };
-                    (compensation.forward_effect == *control).then(|| {
+                    (compensation.forward_effect == *control).then_some({
                         CompensationRegistrationInput {
                             compensation_handle,
                             compensation,
