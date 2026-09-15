@@ -12,9 +12,10 @@ use quire_protocol::compensation::activate::{
     assess as assess_activation, Activation, Binding, Guard, IdentityAxis, TriggerEvidence,
 };
 use quire_protocol::compensation::algebra::{
-    assess_ordering, AttemptAdmission, AttemptFact, AttemptLedger, AttemptOutcome, AuthoredOrder,
-    CausalEdge, Definition, ForwardFact, Limits as AlgebraLimits, Milestone, MissingOrderingInput,
-    OrderingViolation, Registry, Resource as AlgebraResource,
+    assess_ordering, AggregateRecoveryDisposition, AttemptAdmission, AttemptFact, AttemptLedger,
+    AttemptOutcome, AuthoredOrder, CausalEdge, Definition, EffectDisposition, ForwardFact,
+    Limits as AlgebraLimits, Milestone, MissingOrderingInput, OrderingViolation, Registry,
+    Resource as AlgebraResource,
 };
 use quire_protocol::compensation::purity::{Capability, CapabilityInventory, PureAssessment};
 use quire_protocol::compensation::recovery::{
@@ -548,20 +549,17 @@ fn tc_003_attempts_effects_outcomes_and_retry_bound_stay_distinct() {
     ));
     assert_eq!(ledger.attempts(), before);
 
-    let labels: Vec<_> = [
+    let attempt_labels: Vec<_> = [
         AttemptOutcome::Failed,
         AttemptOutcome::TimedOut,
-        AttemptOutcome::Duplicate,
-        AttemptOutcome::Pending,
         AttemptOutcome::Successful,
     ]
     .into_iter()
     .map(AttemptOutcome::label)
     .collect();
-    assert_eq!(
-        labels,
-        ["failed", "timed-out", "duplicate", "pending", "successful"]
-    );
+    assert_eq!(attempt_labels, ["failed", "timed-out", "successful"]);
+    assert_eq!(EffectDisposition::Duplicate.label(), "duplicate");
+    assert_eq!(AggregateRecoveryDisposition::Pending.label(), "pending");
     let absent = AttemptFact {
         attempt: AttemptId::new(b"attempt:unknown", "unknown outcome"),
         registration: registration.identity.clone(),

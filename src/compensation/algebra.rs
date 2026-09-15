@@ -644,13 +644,16 @@ fn pair_precedes(
         .is_some_and(|(before, after)| order.precedes(before, after))
 }
 
-/// Adopted FR-236 exact attempt outcome vocabulary.
+/// Established per-attempt outcome under FR-236.
+///
+/// An attempt without an established outcome retains `None`; it is never
+/// defaulted to an aggregate-recovery pending disposition. Duplicate business
+/// effects and aggregate recovery availability belong to their own domains
+/// below, so neither can be relabelled as an attempt result.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum AttemptOutcome {
     Failed,
     TimedOut,
-    Duplicate,
-    Pending,
     Successful,
 }
 
@@ -661,9 +664,47 @@ impl AttemptOutcome {
         match self {
             Self::Failed => "failed",
             Self::TimedOut => "timed-out",
-            Self::Duplicate => "duplicate",
-            Self::Pending => "pending",
             Self::Successful => "successful",
+        }
+    }
+}
+
+/// Disposition of one concrete compensation business effect.
+///
+/// This is intentionally not an [`AttemptOutcome`]: a repeated attempt and a
+/// second established business-effect key are different QSpec FR-058 facts.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum EffectDisposition {
+    /// A second concrete business effect claimed one singleton occurrence.
+    Duplicate,
+}
+
+impl EffectDisposition {
+    /// Exact owner label.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Duplicate => "duplicate",
+        }
+    }
+}
+
+/// Aggregate recovery disposition for one registration.
+///
+/// A missing state, commit, population, membership, completeness authority, or
+/// compensation effect is recorded here; it is never attached to an attempt.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum AggregateRecoveryDisposition {
+    /// A required recovery premise is not yet established.
+    Pending,
+}
+
+impl AggregateRecoveryDisposition {
+    /// Exact owner label.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Pending => "pending",
         }
     }
 }
