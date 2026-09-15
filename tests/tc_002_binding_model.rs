@@ -973,6 +973,35 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
     assert_eq!(context.package().digest(), package.digest());
     assert_eq!(context.definition().selection(), definition.selection());
     assert_eq!(context.runtime().target(), definition.selection());
+    let identity = context
+        .definition_identity()
+        .expect("the admitted static selection has an FR-288 identity");
+
+    let different_runtime = RuntimeBindingSet::new(
+        RUNTIME_BINDING_CONTRACT,
+        definition.selection(),
+        &definition,
+        &producer,
+        vec![RuntimeBinding::subject(
+            SlotHandle::new(subject_slot),
+            QualifiedSubject::new(
+                &producer,
+                SubjectKind::new(ORDER_KIND.to_vec()).expect("non-empty kind"),
+                SubjectIdentity::new(b"order:43".to_vec()).expect("non-empty identity"),
+            ),
+        )],
+    )
+    .expect("another selected runtime subject admits");
+    let different_runtime_context =
+        LinkedAssessment::new(&package, &definition, &different_runtime)
+            .expect("a changed runtime subject cannot retarget the static context");
+    assert_eq!(
+        different_runtime_context
+            .definition_identity()
+            .expect("runtime values are outside the FR-288 identity"),
+        identity,
+        "concrete runtime subjects do not independently change FR-288"
+    );
 
     let mut registry = DefinitionRegistry::default();
     registry
@@ -981,6 +1010,9 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
     registry
         .register(&context)
         .expect("exact static definition replay is idempotent");
+    registry
+        .register(&different_runtime_context)
+        .expect("a changed concrete runtime subject is the same static definition");
     assert_eq!(registry.len(), 1);
     let linked = link_v2(context, &mut registry)
         .expect("validated context links through the static definition registry");
@@ -1142,7 +1174,7 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
         selection(),
         producer.key().clone(),
         declaration_handle,
-        contradictory_roles,
+        contradictory_roles.clone(),
         vec![StaticSlot {
             handle: SlotHandle::new(subject_slot),
             compatibility: SlotCompatibility::Subject {
@@ -1169,4 +1201,47 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
         registry.register(&contradictory_context),
         Err(RegistryRefusal::ContentContradiction)
     );
+
+    let revised_definition = StaticBindingDefinition::new(
+        STATIC_BINDING_CONTRACT,
+        StaticSelection {
+            identity: selection().identity,
+            revision: "2".into(),
+            digest: [2; 32],
+        },
+        producer.key().clone(),
+        declaration_handle,
+        contradictory_roles,
+        vec![StaticSlot {
+            handle: SlotHandle::new(subject_slot),
+            compatibility: SlotCompatibility::Subject {
+                kind: SubjectKind::new(ORDER_KIND.to_vec()).expect("non-empty kind"),
+            },
+        }],
+    )
+    .expect("changed static content must arrive under a new selected definition");
+    let revised_runtime = RuntimeBindingSet::new(
+        RUNTIME_BINDING_CONTRACT,
+        revised_definition.selection(),
+        &revised_definition,
+        &producer,
+        vec![RuntimeBinding::subject(
+            SlotHandle::new(subject_slot),
+            subject(&producer),
+        )],
+    )
+    .expect("the new selected static definition accepts its runtime value");
+    let revised_context = LinkedAssessment::new(&package, &revised_definition, &revised_runtime)
+        .expect("the revised static definition still targets the admitted protocol");
+    assert_ne!(
+        revised_context
+            .definition_identity()
+            .expect("the revised static definition has an FR-288 identity"),
+        identity,
+        "a changed accepted static binding definition changes FR-288"
+    );
+    registry
+        .register(&revised_context)
+        .expect("a changed static definition is not a contradictory replay");
+    assert_eq!(registry.len(), 2);
 }
