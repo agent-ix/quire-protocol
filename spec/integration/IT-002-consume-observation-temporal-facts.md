@@ -32,7 +32,7 @@ QObs publishes the accepted typed Rust runtime facts and topology at revision
 `93bc565`. Protocol's current direct pin is older and must be repinned before
 these scenarios execute. QSL publishes the native-temporal request/result and
 checked activation-guard selection at Protocol's current exact revision
-`f1700a9264d6d3bcdd07e0f77b70f3dae9ed4c07`. QSL `40c775d` publishes the
+`f1700a9264d6d3bcdd07e0f77b70f3dae9ed4c07`. QSL `0c2f13e` publishes the
 native-temporal v2 opaque-trigger and activation-fact interface, plus the
 source-authorized strict `/3` activation-mapping producer and reader Protocol
 uses to validate FR-300 bindings. Protocol invokes no temporal

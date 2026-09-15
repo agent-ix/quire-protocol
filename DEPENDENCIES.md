@@ -10,10 +10,10 @@ record discharges.
 
 | Crate | Pinned revision | Declared license | Role |
 | --- | --- | --- | --- |
-| `quire-spec-language` | `40c775d` | `AGPL-3.0-or-later` | Supplies the accepted `quire.compiled-protocol/1`, `/2`, and FR-054 source-authorized strict `/3` activation producer and reader for authored control-to-temporal activation mappings, alongside the FR-053 opaque native-temporal v2 trigger identity, checked activation, immutable capture/evaluation-anchor accessors, and exact bounded compensation evaluator. Release `v0.2.0` is its ancestor at `6eccb05`. |
+| `quire-spec-language` | `0c2f13e` | `AGPL-3.0-or-later` | Supplies the accepted `quire.compiled-protocol/1`, `/2`, and FR-054 source-authorized strict `/3` activation producer and reader for authored control-to-temporal activation mappings, alongside the FR-053 opaque native-temporal v2 trigger identity, checked activation, immutable capture/evaluation-anchor accessors, and exact bounded compensation evaluator. Release `v0.2.0` is its ancestor at `6eccb05`. |
 | `quire-observation` | `93bc565072fb05d1ecf29f15725b75c0a77378fb` | `AGPL-3.0-or-later` | Direct observation authority dependency used by the current compensation, conformance and result kernels. This accepted revision publishes the FR-287/FR-262 authority-qualified runtime-reference and finite-topology contracts Task-002 consumes; Protocol imports those types rather than mirroring their wire vocabulary. |
 | `agent-ix-baseline-producer` | `404288282402d60de007295ccbafa960532b955e` | `AGPL-3.0-only` | Transitive baseline producer reached through `quire-spec-language`; sourced from `agent-ix/filament-core-data`. |
-| `quire-contract-ir` | `53cc03c639e2e26528132d34d96dc56449df78e8` | `MIT OR Apache-2.0` | Direct test type and the exact transitive contract-IR revision selected by `quire-spec-language` `40c775d`; one identity type is present in the resolved graph. |
+| `quire-contract-ir` | `53cc03c639e2e26528132d34d96dc56449df78e8` | `MIT OR Apache-2.0` | Direct test type and the exact transitive contract-IR revision selected by `quire-spec-language` `0c2f13e`; one identity type is present in the resolved graph. |
 | `ix-trace-rs` | `2ce4ebf47f726b9d76388220545cd0abda8a5cfb` | `AGPL-3.0-or-later` | Test-only trace attributes binding tests to acceptance criteria. |
 
 All five are compatible with this repository's `AGPL-3.0-or-later` decision:
