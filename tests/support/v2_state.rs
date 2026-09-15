@@ -300,6 +300,8 @@ pub fn retry_view(
     trigger: w::Handle,
     earlier: w::Handle,
     later: w::Handle,
+    earlier_tally: i64,
+    later_tally: i64,
 ) -> StateView {
     let declaration = &package.inherited().declarations[earlier.declaration as usize];
     let total = field_export(package, 0, "Workflow", "total");
@@ -342,8 +344,8 @@ pub fn retry_view(
     let (retry_binders, retry_population) = object_population(
         package,
         &[
-            (earlier, "earlier", vec![tally_field(1)]),
-            (later, "later", vec![tally_field(2)]),
+            (earlier, "earlier", vec![tally_field(earlier_tally)]),
+            (later, "later", vec![tally_field(later_tally)]),
         ],
     );
     binders.extend(retry_binders);

@@ -3,10 +3,13 @@
 //!
 //! The subsystem is deliberately split by authority rather than by workflow
 //! step: [`activate`] owns obligation activation, [`algebra`] owns established
-//! effects/registration/authored order/retry, [`recovery`] owns relation-bound
-//! recovery, and [`purity`] constructs the capability-free witness required by
-//! every operation. This facade only composes already-typed facts; it neither
-//! runs a business operation nor infers one fact from another.
+//! effects/registration/authored order/retry, [`graph`] owns production
+//! request-state transitions and exact QSL evaluation reports, and [`purity`]
+//! constructs the capability-free witness required by every operation. The
+//! retained [`recovery`] kernel exposes output vocabulary and crate-private
+//! test seams; production recovery is evaluated directly by the assessment
+//! Engine. This facade neither runs a business operation nor infers one fact
+//! from another.
 
 #![deny(clippy::wildcard_enum_match_arm)]
 
@@ -18,7 +21,7 @@ pub mod algebra;
 pub mod graph;
 /// Constructor-checked capability boundary for assessment purity.
 pub mod purity;
-/// Full and partial recovery through exact authored relation owners.
+/// Recovery output vocabulary and crate-private legacy assessment seam.
 pub mod recovery;
 /// Derived registration keys over QSL and QObs owner values.
 pub mod registration;

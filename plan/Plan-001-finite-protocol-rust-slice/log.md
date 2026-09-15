@@ -17,6 +17,9 @@ description: "Chronological log of changes to the Plan-001 bundle."
   refused, unsupported and exhausted paths cannot become success; exact replay
   is a no-op and conflicts preserve the prior snapshot. Full and partial
   recovery execute independently over the same target/achieved values. The
+  graph retains each QSL operand view and owner report, each attempt's optional
+  independently established effect, and the complete QObs causal-order views;
+  changed evidence therefore cannot pass as an exact replay. The
   former `RecoveryRelation` callback is absent from production (with an
   external compile-fail proof), while the existing capability-mutation harness
   continues to prove zero business and compensation calls. TC-003 now has eight
