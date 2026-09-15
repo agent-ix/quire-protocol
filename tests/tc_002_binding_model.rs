@@ -102,6 +102,21 @@ fn producer() -> quire_observation::AdmittedStaticBundle {
         .expect("shared FCD static bundle is admitted")
 }
 
+fn foreign_producer() -> quire_observation::AdmittedStaticBundle {
+    let mut offer: StaticProducerBundle =
+        serde_json::from_slice(include_bytes!("fixtures/fcd-static-bundle-1.2.json"))
+            .expect("shared FCD static offer decodes through its owner type");
+    offer.bundle_identity = Some("ix://agent-ix/commerce/bundle/foreign-static".to_owned());
+    offer.digest = Some(
+        offer
+            .canonical_digest_selection()
+            .expect("the owner recomputes a valid foreign bundle digest"),
+    );
+    offer
+        .admit()
+        .expect("the independent producer-owned static offer admits")
+}
+
 fn selection() -> StaticSelection {
     StaticSelection {
         identity: "binding-definition:orders".into(),
@@ -274,6 +289,34 @@ fn tc_002_binding_contract_and_slot_mutations_refuse_without_a_runtime_set() {
             vec![binding.clone(), binding],
         ),
         Err(RuntimeRefusal::DuplicateSlot(SlotHandle::new(11)))
+    );
+}
+
+/// The runtime producer authority is selected by the static definition. A
+/// separately admitted static bundle cannot supply a concrete runtime value to
+/// that definition even when its subject kind and identity spelling match.
+#[test]
+#[trace("TC-002", "FR-002-AC-1", "FR-002-AC-3")]
+fn tc_002_runtime_bindings_refuse_a_foreign_selected_producer() {
+    let definition = definition();
+    let foreign = foreign_producer();
+    assert_ne!(
+        definition.producer(),
+        foreign.key(),
+        "the test varies only the producer authority selected by the static definition"
+    );
+    assert_eq!(
+        RuntimeBindingSet::new(
+            RUNTIME_BINDING_CONTRACT,
+            definition.selection(),
+            &definition,
+            &foreign,
+            vec![RuntimeBinding::subject(
+                SlotHandle::new(11),
+                subject(&foreign),
+            )],
+        ),
+        Err(RuntimeRefusal::ForeignStaticProducer)
     );
 }
 
