@@ -27,6 +27,46 @@ const ORDER_KIND: &[u8] = b"ix://agent-ix/commerce/type/Order";
 const SHIPMENT_KIND: &[u8] = b"ix://agent-ix/commerce/type/Shipment";
 const ORDER_SHIPMENT: &str = "ix://agent-ix/commerce/relationship/Order-shipment";
 
+fn admitted_published_v2() -> quire_spec_language::protocol_artifact::v2::AdmittedPackage {
+    let loaded = handoff::Handoff::load().expect("published v2 handoff");
+    let declarations = loaded.declarations();
+    let inventories = loaded.inventories(&declarations);
+    let expected = loaded.expected(&inventories);
+    quire_protocol::intake::v2::admit(loaded.offer(), &expected, loaded.limits())
+        .into_result()
+        .expect("published v2 offer admits")
+}
+
+fn protocol_coordinates(
+    package: &quire_spec_language::protocol_artifact::v2::AdmittedPackage,
+) -> (u32, u32) {
+    package
+        .inherited()
+        .declarations
+        .iter()
+        .enumerate()
+        .find_map(|(index, declaration)| {
+            let Body::Protocol { .. } = &declaration.body else {
+                return None;
+            };
+            let subject_slot = declaration
+                .bindings
+                .iter()
+                .position(|binding| binding.kind != BindingKind::Relationship)?;
+            Some((
+                u32::try_from(index).expect("published declaration index fits"),
+                u32::try_from(subject_slot).expect("published slot index fits"),
+            ))
+        })
+        .expect("published handoff has a protocol with a subject slot")
+}
+
+fn context_refusal(
+    result: Result<LinkedAssessment<'_>, quire_protocol::model::v2::ContextRefusal>,
+) -> quire_protocol::model::v2::ContextRefusal {
+    result.expect_err("the one-axis context mutation must refuse")
+}
+
 /// An owner-declared causal endpoint reduced only to its local table coordinate
 /// and its closed owner port tag. This test helper never constructs QSL edges.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -666,35 +706,187 @@ fn tc_002_relationship_replay_is_idempotent_and_distinct_keys_are_not_collapsed(
 /// The full-assessment boundary accepts only an admitted `/2` protocol and
 /// retains its static and runtime capabilities without retargeting either one.
 #[test]
-#[trace("TC-002", "FR-002-AC-1", "FR-002-AC-3")]
-fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
-    let loaded = handoff::Handoff::load().expect("published v2 handoff");
-    let declarations = loaded.declarations();
-    let inventories = loaded.inventories(&declarations);
-    let expected = loaded.expected(&inventories);
-    let package = quire_protocol::intake::v2::admit(loaded.offer(), &expected, loaded.limits())
-        .into_result()
-        .expect("published v2 offer admits");
-    let (declaration_handle, roles, subject_slot) = package
+#[trace("TC-002", "FR-002-AC-3")]
+fn tc_002_linked_assessment_refuses_every_context_coordinate_mutation() {
+    let package = admitted_published_v2();
+    let (declaration_handle, subject_slot) = protocol_coordinates(&package);
+    let Body::Protocol { roles, .. } = &package.inherited().declarations
+        [usize::try_from(declaration_handle).expect("published index fits")]
+    .body
+    else {
+        unreachable!("selected declaration was found as a protocol")
+    };
+    let classifications = || {
+        roles
+            .iter()
+            .enumerate()
+            .map(|(index, _)| RoleClassification {
+                role_handle: u32::try_from(index).expect("published role index fits"),
+                internality: Internality::Internal,
+            })
+            .collect::<Vec<_>>()
+    };
+    let selected_producer = producer();
+    let subject_slot_definition = |selection, declaration_handle, roles, slot| {
+        StaticBindingDefinition::new(
+            STATIC_BINDING_CONTRACT,
+            selection,
+            selected_producer.key().clone(),
+            declaration_handle,
+            roles,
+            vec![StaticSlot {
+                handle: SlotHandle::new(slot),
+                compatibility: SlotCompatibility::Subject {
+                    kind: SubjectKind::new(ORDER_KIND.to_vec()).expect("non-empty kind"),
+                },
+            }],
+        )
+        .expect("independently valid static binding capability")
+    };
+    let runtime_for = |definition: &StaticBindingDefinition, slot| {
+        RuntimeBindingSet::new(
+            RUNTIME_BINDING_CONTRACT,
+            definition.selection(),
+            definition,
+            &selected_producer,
+            vec![RuntimeBinding::subject(slot, subject(&selected_producer))],
+        )
+        .expect("runtime binding only validates its static capability")
+    };
+
+    let unknown_declaration =
+        subject_slot_definition(selection(), u32::MAX, classifications(), subject_slot);
+    let runtime = runtime_for(&unknown_declaration, SlotHandle::new(subject_slot));
+    assert_eq!(
+        context_refusal(LinkedAssessment::new(
+            &package,
+            &unknown_declaration,
+            &runtime
+        )),
+        quire_protocol::model::v2::ContextRefusal::UnknownDeclaration
+    );
+
+    let non_protocol_handle = package
         .inherited()
         .declarations
         .iter()
         .enumerate()
         .find_map(|(index, declaration)| {
-            let Body::Protocol { roles, .. } = &declaration.body else {
-                return None;
-            };
-            let subject_slot = declaration
-                .bindings
-                .iter()
-                .position(|binding| binding.kind != BindingKind::Relationship)?;
-            Some((
-                u32::try_from(index).expect("published index fits"),
-                roles,
-                subject_slot,
-            ))
+            (!matches!(declaration.body, Body::Protocol { .. }))
+                .then(|| u32::try_from(index).expect("published declaration index fits"))
         })
-        .expect("published handoff has a protocol with a subject slot");
+        .expect("published package has a non-protocol declaration");
+    let non_protocol =
+        subject_slot_definition(selection(), non_protocol_handle, vec![], subject_slot);
+    let runtime = runtime_for(&non_protocol, SlotHandle::new(subject_slot));
+    assert_eq!(
+        context_refusal(LinkedAssessment::new(&package, &non_protocol, &runtime)),
+        quire_protocol::model::v2::ContextRefusal::NotProtocol
+    );
+
+    let base = subject_slot_definition(
+        selection(),
+        declaration_handle,
+        classifications(),
+        subject_slot,
+    );
+    let runtime = runtime_for(&base, SlotHandle::new(subject_slot));
+    let retargeted = subject_slot_definition(
+        StaticSelection {
+            identity: "different-static-selection".into(),
+            revision: "1".into(),
+            digest: [1; 32],
+        },
+        declaration_handle,
+        classifications(),
+        subject_slot,
+    );
+    assert_eq!(
+        context_refusal(LinkedAssessment::new(&package, &retargeted, &runtime)),
+        quire_protocol::model::v2::ContextRefusal::RuntimeTargetMismatch
+    );
+
+    let unknown_role = subject_slot_definition(
+        selection(),
+        declaration_handle,
+        vec![RoleClassification {
+            role_handle: u32::MAX,
+            internality: Internality::Internal,
+        }],
+        subject_slot,
+    );
+    let runtime = runtime_for(&unknown_role, SlotHandle::new(subject_slot));
+    assert_eq!(
+        context_refusal(LinkedAssessment::new(&package, &unknown_role, &runtime)),
+        quire_protocol::model::v2::ContextRefusal::UnknownRole
+    );
+
+    let missing_role =
+        subject_slot_definition(selection(), declaration_handle, vec![], subject_slot);
+    let runtime = runtime_for(&missing_role, SlotHandle::new(subject_slot));
+    assert_eq!(
+        context_refusal(LinkedAssessment::new(&package, &missing_role, &runtime)),
+        quire_protocol::model::v2::ContextRefusal::MissingRoleClassification
+    );
+
+    let unknown_slot =
+        subject_slot_definition(selection(), declaration_handle, classifications(), u32::MAX);
+    let runtime = runtime_for(&unknown_slot, SlotHandle::new(u32::MAX));
+    assert_eq!(
+        context_refusal(LinkedAssessment::new(&package, &unknown_slot, &runtime)),
+        quire_protocol::model::v2::ContextRefusal::UnknownSlot
+    );
+
+    let wrong_family = StaticBindingDefinition::new(
+        STATIC_BINDING_CONTRACT,
+        selection(),
+        selected_producer.key().clone(),
+        declaration_handle,
+        classifications(),
+        vec![StaticSlot {
+            handle: SlotHandle::new(subject_slot),
+            compatibility: SlotCompatibility::Relationship {
+                declaration_identity: ORDER_SHIPMENT.into(),
+                source_kind: SubjectKind::new(ORDER_KIND.to_vec()).expect("non-empty kind"),
+                target_kind: SubjectKind::new(SHIPMENT_KIND.to_vec()).expect("non-empty kind"),
+            },
+        }],
+    )
+    .expect("the opposite static family is independently valid");
+    let relationship_runtime = RuntimeBindingSet::new(
+        RUNTIME_BINDING_CONTRACT,
+        wrong_family.selection(),
+        &wrong_family,
+        &selected_producer,
+        vec![RuntimeBinding::relationship(
+            SlotHandle::new(subject_slot),
+            order_shipment(&selected_producer),
+        )],
+    )
+    .expect("relationship satisfies the opposite static family");
+    assert_eq!(
+        context_refusal(LinkedAssessment::new(
+            &package,
+            &wrong_family,
+            &relationship_runtime,
+        )),
+        quire_protocol::model::v2::ContextRefusal::WrongSlotFamily
+    );
+}
+
+/// The full-assessment boundary accepts only an admitted `/2` protocol and
+/// retains its static and runtime capabilities without retargeting either one.
+#[test]
+#[trace("TC-002", "FR-002-AC-1", "FR-002-AC-3")]
+fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
+    let package = admitted_published_v2();
+    let (declaration_handle, subject_slot) = protocol_coordinates(&package);
+    let Body::Protocol { roles, .. } = &package.inherited().declarations
+        [usize::try_from(declaration_handle).expect("published index fits")]
+    .body
+    else {
+        unreachable!("selected declaration was found as a protocol")
+    };
     let definition = StaticBindingDefinition::new(
         STATIC_BINDING_CONTRACT,
         selection(),
@@ -709,7 +901,7 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
             })
             .collect(),
         vec![StaticSlot {
-            handle: SlotHandle::new(u32::try_from(subject_slot).expect("published slot fits")),
+            handle: SlotHandle::new(subject_slot),
             compatibility: SlotCompatibility::Subject {
                 kind: SubjectKind::new(ORDER_KIND.to_vec()).expect("non-empty kind"),
             },
@@ -723,7 +915,7 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
         &definition,
         &producer,
         vec![RuntimeBinding::subject(
-            SlotHandle::new(u32::try_from(subject_slot).expect("published slot fits")),
+            SlotHandle::new(subject_slot),
             subject(&producer),
         )],
     )
