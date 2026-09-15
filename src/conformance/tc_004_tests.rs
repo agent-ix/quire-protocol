@@ -15,7 +15,7 @@ use quire_protocol::conformance::{
     AdverseKind, AdverseObservation, ErrorCode, GlobalDisposition, GlobalPremiseDefectKind,
     IncompleteCause, Limits, ObligationDisposition, ObligationId,
 };
-use quire_protocol::refusal::ProtocolStage;
+use quire_protocol::refusal::{ProtocolCauseKind, ProtocolStage, RefusalCause};
 
 #[path = "../../tests/support/observation_owner.rs"]
 #[allow(dead_code)]
@@ -437,7 +437,17 @@ fn tc_004_missing_valuation_is_incomplete_not_false() {
 
 /// Resource ceilings discriminate exact/one-over requests, and path divergence
 /// has a stable refusal axis and its own identity.
-#[trace("TC-004", "FR-041-AC-3", "FR-041-AC-4", "NFR-002-AC-2")]
+#[trace(
+    "TC-004",
+    "TC-011",
+    "FR-008-AC-1",
+    "FR-008-AC-5",
+    "FR-036-AC-1",
+    "FR-039-AC-1",
+    "FR-041-AC-3",
+    "FR-041-AC-4",
+    "NFR-002-AC-2"
+)]
 #[test]
 fn tc_004_bounds_and_path_divergence_are_typed() {
     let decision = scope_views("decision-refusal");
@@ -474,6 +484,15 @@ fn tc_004_bounds_and_path_divergence_are_typed() {
     let divergence = compare(&report, &divergent).expect_err("different value");
     assert_eq!(divergence.code(), ErrorCode::PathDivergence);
     assert_ne!(divergence.outcome_identity(), resource.outcome_identity());
+    assert_ne!(divergence.envelope().axis(), resource.envelope().axis());
+    assert!(matches!(
+        resource.envelope().causes().declared_order(),
+        [RefusalCause::Protocol(cause)] if cause.kind() == ProtocolCauseKind::IncompleteEvidence
+    ));
+    assert!(matches!(
+        divergence.envelope().causes().declared_order(),
+        [RefusalCause::Protocol(cause)] if cause.kind() == ProtocolCauseKind::ConflictingDefinition
+    ));
 }
 
 #[trace("TC-004", "TC-009", "NFR-002-AC-1", "FR-016-AC-2", "FR-016-AC-4")]

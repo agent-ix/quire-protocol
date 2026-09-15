@@ -724,9 +724,9 @@ fn tc_011_mapping_preserves_both_non_success_variants() {
     ));
 }
 
-/// Tracing: TC-011, FR-008-AC-1, FR-036-AC-1, Task-017.
+/// Tracing: TC-011, FR-008-AC-1, FR-008-AC-5, FR-036-AC-1, FR-039-AC-1.
 #[test]
-#[trace("TC-011", "FR-008-AC-1", "FR-036-AC-1")]
+#[trace("TC-011", "FR-008-AC-1", "FR-008-AC-5", "FR-036-AC-1", "FR-039-AC-1")]
 fn tc_011_result_constructors_retain_the_actual_local_stage() {
     let assembly = crate::result::Refusal::assembly(
         crate::result::ErrorCode::InvalidSelection,
@@ -742,4 +742,26 @@ fn tc_011_result_constructors_retain_the_actual_local_stage() {
     );
     assert_eq!(assembly.envelope().stage(), ProtocolStage::ResultAssembly);
     assert_eq!(read.envelope().stage(), ProtocolStage::ResultRead);
+    assert!(matches!(
+        assembly.envelope().causes().declared_order(),
+        [RefusalCause::Protocol(cause)] if cause.kind() == ProtocolCauseKind::IncompleteEvidence
+    ));
+    assert!(matches!(
+        read.envelope().causes().declared_order(),
+        [RefusalCause::Protocol(cause)] if cause.kind() == ProtocolCauseKind::IncompleteEvidence
+    ));
+    assert_eq!(
+        assembly.envelope().prerequisites(),
+        [Prerequisite::new(
+            ProtocolStage::ClaimDispatch,
+            PrerequisiteState::Established
+        )]
+    );
+    assert_eq!(
+        read.envelope().prerequisites(),
+        [Prerequisite::new(
+            ProtocolStage::ResultAssembly,
+            PrerequisiteState::Unavailable
+        )]
+    );
 }

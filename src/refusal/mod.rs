@@ -378,13 +378,6 @@ impl RefusalAxis {
     /// # Errors
     ///
     /// Returns [`EmptyRefusalAxis`] when no axis was supplied.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "Task-013 and Tasks 002-006 construct exact composed scenario axes"
-        )
-    )]
     pub(crate) fn new(axis: &[u8]) -> Result<Self, EmptyRefusalAxis> {
         if axis.is_empty() {
             Err(EmptyRefusalAxis)
@@ -757,32 +750,6 @@ impl ProtocolRefusal {
             identity: AffectedIdentity::NotApplicable,
             location: Location::Unavailable(Unavailability::NotReportedBySource),
             causes,
-            rendering: Rendering::default(),
-        })
-    }
-
-    /// Build an envelope for an existing subsystem route that has not yet
-    /// completed its Task-006 cause mapping.
-    ///
-    /// Crate-private on purpose: new public callers must use [`Self::builder`]
-    /// and supply a typed cause. Keeping this temporary adapter empty avoids
-    /// approximating a subsystem-specific cause before its owning ticket.
-    pub(crate) fn legacy_builder(
-        code: RefusalCode,
-        catalog: CatalogSelection,
-        stage: ProtocolStage,
-        axis: RefusalAxis,
-    ) -> Result<RefusalBuilder, StageDomainMismatch> {
-        stage.validate_domain(code.domain())?;
-        Ok(RefusalBuilder {
-            code,
-            catalog,
-            stage,
-            axis,
-            prerequisites: Vec::new(),
-            identity: AffectedIdentity::NotApplicable,
-            location: Location::Unavailable(Unavailability::NotReportedBySource),
-            causes: CauseChain::new(),
             rendering: Rendering::default(),
         })
     }

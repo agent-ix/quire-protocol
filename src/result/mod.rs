@@ -15,10 +15,12 @@ pub mod record;
 /// Reversible opaque runtime-reference carrier for string-only result fields.
 pub mod runtime_reference;
 
-use crate::refusal::catalog::{CatalogSelection, CodeEntry, CodeModule, Provenance, RefusalCode};
+use crate::refusal::catalog::{
+    CatalogSelection, CodeEntry, CodeModule, Provenance, RefusalCode, RetainedBytes,
+};
 use crate::refusal::{
-    AffectedIdentity, ProtocolRefusal, ProtocolStage, RefusalAxis, RefusalDomain, RetryDecision,
-    Unavailability,
+    AffectedIdentity, Prerequisite, PrerequisiteState, ProtocolCause, ProtocolRefusal,
+    ProtocolStage, RefusalAxis, RefusalDomain, RetryDecision, Unavailability,
 };
 
 pub use crate::assessment::{AxisInputs, GlobalConformanceInput, GlobalPremise, PremiseKind};
@@ -121,14 +123,36 @@ impl Refusal {
         stage: ProtocolStage,
     ) -> Self {
         let refusal_code = RefusalCode::of(code.entry());
-        let mut builder = ProtocolRefusal::legacy_builder(
+        let mut builder = ProtocolRefusal::builder(
             refusal_code,
             CatalogSelection::local(),
             stage,
             RefusalAxis::from_registered_code(refusal_code),
+            result_cause(code, identity).into(),
         )
         .expect("result codes belong to a result stage")
         .unavailable_location(Unavailability::NotApplicableToStage);
+        builder = match stage {
+            ProtocolStage::ResultAssembly => builder.prerequisite(Prerequisite::new(
+                ProtocolStage::ClaimDispatch,
+                PrerequisiteState::Established,
+            )),
+            ProtocolStage::ResultRead => builder.prerequisite(Prerequisite::new(
+                ProtocolStage::ResultAssembly,
+                PrerequisiteState::Unavailable,
+            )),
+            ProtocolStage::Projection => builder.prerequisite(Prerequisite::new(
+                ProtocolStage::ResultRead,
+                PrerequisiteState::Established,
+            )),
+            ProtocolStage::ContractResolution
+            | ProtocolStage::Admission
+            | ProtocolStage::Representation
+            | ProtocolStage::Compensation
+            | ProtocolStage::Conformance
+            | ProtocolStage::ClaimDispatch
+            | ProtocolStage::EvidenceHandoff => builder,
+        };
         if let Some(identity) = identity {
             builder = builder.identity(AffectedIdentity::retained(identity.as_bytes()));
         }
@@ -162,6 +186,37 @@ impl Refusal {
     #[must_use]
     pub fn envelope(&self) -> &ProtocolRefusal {
         &self.envelope
+    }
+}
+
+fn result_cause(code: ErrorCode, identity: Option<&str>) -> ProtocolCause {
+    let code_bytes = RetainedBytes::new(code.as_str().as_bytes());
+    let affected = identity
+        .map(|identity| RetainedBytes::new(identity.as_bytes()))
+        .unwrap_or_else(|| RetainedBytes::new(b"result-input"));
+    match code {
+        ErrorCode::InvalidSelection
+        | ErrorCode::ResourceIncomplete
+        | ErrorCode::InvalidJson
+        | ErrorCode::NonCanonical
+        | ErrorCode::ContractMismatch => ProtocolCause::IncompleteEvidence {
+            evidence: code_bytes,
+        },
+        ErrorCode::IdentityMismatch
+        | ErrorCode::DigestMismatch
+        | ErrorCode::AxisMismatch
+        | ErrorCode::GlobalPremiseMismatch
+        | ErrorCode::MappingMismatch => ProtocolCause::IdentityMismatch {
+            expected: code_bytes,
+            observed: affected,
+        },
+        ErrorCode::InvalidCombination => ProtocolCause::LogicalViolation {
+            obligation: affected,
+        },
+        ErrorCode::LineageInvalid => ProtocolCause::ConflictingDefinition {
+            definition: affected,
+            conflicting_definition: code_bytes,
+        },
     }
 }
 

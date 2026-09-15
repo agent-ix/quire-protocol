@@ -12,10 +12,12 @@ pub(crate) mod incremental;
 /// Immutable composition of one linked graph and derived compensation state.
 pub mod kernel;
 
-use crate::refusal::catalog::{CatalogSelection, CodeEntry, CodeModule, Provenance, RefusalCode};
+use crate::refusal::catalog::{
+    CatalogSelection, CodeEntry, CodeModule, Provenance, RefusalCode, RetainedBytes,
+};
 use crate::refusal::{
-    AffectedIdentity, ProtocolRefusal, ProtocolStage, RefusalAxis, RefusalDomain, RetryDecision,
-    Unavailability,
+    AffectedIdentity, Prerequisite, PrerequisiteState, ProtocolCause, ProtocolRefusal,
+    ProtocolStage, RefusalAxis, RefusalDomain, RetryDecision, Unavailability,
 };
 use crate::ByteDigest;
 
@@ -94,13 +96,22 @@ impl Refusal {
         preimage.extend_from_slice(discriminator);
         let outcome_identity = format!("sha256:{:x}", ByteDigest::of(&preimage));
         let refusal_code = RefusalCode::of(code.entry());
-        let mut builder = ProtocolRefusal::legacy_builder(
+        let mut builder = ProtocolRefusal::builder(
             refusal_code,
             CatalogSelection::local(),
             ProtocolStage::Conformance,
-            RefusalAxis::from_registered_code(refusal_code),
+            RefusalAxis::new(&preimage).expect("code-prefixed conformance axis is non-empty"),
+            conformance_cause(code, affected, discriminator).into(),
         )
         .expect("conformance codes belong to the conformance stage")
+        .prerequisite(Prerequisite::new(
+            ProtocolStage::Representation,
+            PrerequisiteState::Established,
+        ))
+        .prerequisite(Prerequisite::new(
+            ProtocolStage::Compensation,
+            PrerequisiteState::Established,
+        ))
         .unavailable_location(Unavailability::NotApplicableToStage);
         if let Some(identity) = affected {
             builder = builder.identity(AffectedIdentity::retained(identity.as_str().as_bytes()));
@@ -142,6 +153,35 @@ impl Refusal {
     #[must_use]
     pub fn envelope(&self) -> &ProtocolRefusal {
         &self.envelope
+    }
+}
+
+fn conformance_cause(
+    code: ErrorCode,
+    affected: Option<&ObligationId>,
+    discriminator: &[u8],
+) -> ProtocolCause {
+    let affected = affected
+        .map(|identity| RetainedBytes::new(identity.as_str().as_bytes()))
+        .unwrap_or_else(|| RetainedBytes::new(discriminator));
+    let discriminator = RetainedBytes::new(discriminator);
+    match code {
+        ErrorCode::InvalidModel | ErrorCode::InvalidPremises | ErrorCode::ResourceIncomplete => {
+            ProtocolCause::IncompleteEvidence {
+                evidence: discriminator,
+            }
+        }
+        ErrorCode::InvalidBinding => ProtocolCause::WrongAnchor {
+            expected: affected,
+            observed: discriminator,
+        },
+        ErrorCode::SettlementReopened => ProtocolCause::LogicalViolation {
+            obligation: affected,
+        },
+        ErrorCode::PathDivergence => ProtocolCause::ConflictingDefinition {
+            definition: affected,
+            conflicting_definition: discriminator,
+        },
     }
 }
 
