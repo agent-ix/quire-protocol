@@ -7,7 +7,131 @@
 
 use quire_observation::authority::{closure as observation_closure, progress};
 
+use crate::claims::Claim;
 use crate::closure::GlobalConformanceClosure;
+use crate::model::v2::{DefinitionIdentity, LinkedAssessment};
+use crate::outcome::ClaimOutcome;
+
+/// One claim outcome offered to an assessment bundle.
+///
+/// The row remains generic because canonical result-row construction belongs to
+/// the result owner. The engine owns only the exact linked assessment and the
+/// one-row-or-one-refusal cardinality shared by every claim producer.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ClaimRow<Row> {
+    /// Exact requested claim this outcome answers.
+    pub claim: Claim,
+    /// Either the claim's canonical row or its claim-local refusal.
+    pub outcome: ClaimOutcome<Row>,
+}
+
+/// Why an exact linked assessment cannot become one complete claim bundle.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum BundleRefusal {
+    /// No claim was selected for this assessment request.
+    EmptyRequest,
+    /// The caller selected one claim more than once.
+    DuplicateRequestedClaim,
+    /// A row names a claim not selected by this exact engine.
+    UnexpectedClaim,
+    /// More than one row answers one selected claim.
+    DuplicateClaimRow,
+    /// A selected claim has neither a canonical row nor a claim-local refusal.
+    MissingClaimRow,
+    /// The admitted linked context cannot derive its static definition identity.
+    InvalidDefinitionIdentity,
+}
+
+/// One non-retargetable assessment request.
+///
+/// The engine borrows the constructor-validated linked assessment and retains
+/// its derived FR-288 identity at construction. It exposes no setter for either
+/// value, so a later row assembly cannot select another protocol while reusing
+/// this request's claim state.
+#[derive(Clone, Debug)]
+pub struct Engine<'a> {
+    context: LinkedAssessment<'a>,
+    identity: DefinitionIdentity,
+    requested: Vec<Claim>,
+}
+
+impl<'a> Engine<'a> {
+    /// Start one assessment over an exact linked context and claim population.
+    pub fn new(
+        context: LinkedAssessment<'a>,
+        requested: Vec<Claim>,
+    ) -> Result<Self, BundleRefusal> {
+        if requested.is_empty() {
+            return Err(BundleRefusal::EmptyRequest);
+        }
+        for (index, claim) in requested.iter().enumerate() {
+            if requested[..index].contains(claim) {
+                return Err(BundleRefusal::DuplicateRequestedClaim);
+            }
+        }
+        let identity = context
+            .definition_identity()
+            .map_err(|_| BundleRefusal::InvalidDefinitionIdentity)?;
+        Ok(Self {
+            context,
+            identity,
+            requested,
+        })
+    }
+
+    /// Retain one independent outcome for every selected claim.
+    pub fn assemble<Row>(
+        self,
+        rows: Vec<ClaimRow<Row>>,
+    ) -> Result<AssessmentBundle<'a, Row>, BundleRefusal> {
+        for row in &rows {
+            if !self.requested.contains(&row.claim) {
+                return Err(BundleRefusal::UnexpectedClaim);
+            }
+            if rows.iter().filter(|other| other.claim == row.claim).count() > 1 {
+                return Err(BundleRefusal::DuplicateClaimRow);
+            }
+        }
+        if self
+            .requested
+            .iter()
+            .any(|claim| !rows.iter().any(|row| row.claim == *claim))
+        {
+            return Err(BundleRefusal::MissingClaimRow);
+        }
+        Ok(AssessmentBundle {
+            context: self.context,
+            identity: self.identity,
+            rows,
+        })
+    }
+}
+
+/// Complete, non-retargetable claim population for one linked assessment.
+#[derive(Clone, Debug)]
+pub struct AssessmentBundle<'a, Row> {
+    context: LinkedAssessment<'a>,
+    identity: DefinitionIdentity,
+    rows: Vec<ClaimRow<Row>>,
+}
+
+impl<Row> AssessmentBundle<'_, Row> {
+    /// The exact linked assessment the rows answer.
+    #[must_use]
+    pub const fn context(&self) -> &LinkedAssessment<'_> {
+        &self.context
+    }
+    /// The fixed FR-288 definition identity for all rows.
+    #[must_use]
+    pub const fn identity(&self) -> &DefinitionIdentity {
+        &self.identity
+    }
+    /// One ordered outcome for every requested claim.
+    #[must_use]
+    pub fn rows(&self) -> &[ClaimRow<Row>] {
+        &self.rows
+    }
+}
 
 /// Required global-closure premise kind.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
