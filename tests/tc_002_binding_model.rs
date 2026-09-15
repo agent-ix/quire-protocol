@@ -361,6 +361,26 @@ fn tc_002_static_definition_mutations_refuse_before_runtime_values_exist() {
     assert_eq!(
         StaticBindingDefinition::new(
             STATIC_BINDING_CONTRACT,
+            StaticSelection {
+                identity: "binding-definition:orders".into(),
+                revision: String::new().into(),
+                digest: [1; 32],
+            },
+            selected_producer.clone(),
+            3,
+            vec![],
+            vec![StaticSlot {
+                handle: SlotHandle::new(11),
+                compatibility: SlotCompatibility::Subject {
+                    kind: SubjectKind::new(ORDER_KIND.to_vec()).expect("non-empty kind"),
+                },
+            }],
+        ),
+        Err(StaticRefusal::EmptySelection)
+    );
+    assert_eq!(
+        StaticBindingDefinition::new(
+            STATIC_BINDING_CONTRACT,
             selection(),
             selected_producer.clone(),
             3,
