@@ -1687,6 +1687,15 @@ impl<'a> LinkedProtocol<'a> {
         &self.compensations
     }
 
+    /// Selects one exact compensation definition by its declaration-local
+    /// QSL table coordinate.
+    #[must_use]
+    pub fn compensation(&self, handle: u32) -> Option<&LinkedCompensationDefinition> {
+        self.compensations
+            .get(usize::try_from(handle).ok()?)
+            .filter(|definition| definition.handle() == handle)
+    }
+
     /// Returns every admitted causal edge in its owner-declared order.
     ///
     /// These are QSL's complete typed edges, retained beside the linked
