@@ -2,6 +2,10 @@
 //! Bounded batch conformance over exact QObs views and authored obligations.
 
 #![deny(clippy::wildcard_enum_match_arm)]
+#![allow(
+    dead_code,
+    reason = "the crate-private standalone evaluator is exercised by TC-004 unit tests; production enters through activation-derived frontends"
+)]
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 

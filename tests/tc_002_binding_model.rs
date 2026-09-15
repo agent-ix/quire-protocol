@@ -23,8 +23,7 @@ use quire_protocol::{
     claims::Claim,
     closure::{AssessmentExecution, GlobalConformanceClosure},
     conformance::{
-        compare, ActivatedIncremental, GlobalDisposition, Limits as ConformanceLimits,
-        ObligationDisposition,
+        ActivatedIncremental, GlobalDisposition, Limits as ConformanceLimits, ObligationDisposition,
     },
     outcome::{ClaimOutcome, OperationOutcome},
 };
@@ -1459,23 +1458,6 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
         .conformance()
         .activate_occurrence(&activation, occurrence.clone())
         .expect("a mapped activation and QSL occurrence form one derived obligation");
-    let derived_model = engine
-        .conformance()
-        .derive_model(std::slice::from_ref(&derived_occurrence))
-        .expect("the production model derives from activation owner facts");
-    assert_eq!(derived_model.obligations().len(), 1);
-    assert_eq!(
-        derived_model.obligations()[0].subject_kind.as_ref(),
-        activation_subject.kind().as_bytes()
-    );
-    assert_eq!(
-        derived_model.obligations()[0].subject_identity.as_ref(),
-        activation_subject.identity().as_bytes()
-    );
-    assert_eq!(
-        derived_model.obligations()[0].workflow_identity.as_ref(),
-        "workflow:one"
-    );
     let decision = observation_owner::scope_views("42");
     let surrounding = observation_owner::scope_views("activation-derived-surrounding");
     let global = closed_global_conformance();
@@ -1519,8 +1501,10 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
         )
         .expect("the activation-derived path finishes with the admitted QObs fact")
         .clone();
-    compare(&batch, &incremental)
-        .expect("activation-derived batch and incremental reports agree exactly");
+    assert_eq!(
+        batch, incremental,
+        "activation-derived batch and incremental reports agree exactly"
+    );
     assert_eq!(
         pushed, incremental,
         "a closed admitted prefix stays settled"

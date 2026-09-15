@@ -26,11 +26,11 @@ uses one shared deterministic kernel for both public frontends.
 
 ## Subtasks
 
-- [ ] Write TC-004 batch/incremental equivalence and legal-interleaving model cases first.
+- [x] Write TC-004 batch/incremental equivalence and legal-interleaving model cases first.
 - [ ] Report unexpected, missing, misordered, duplicate-effect, cross-workflow, and compensation violations against exact obligations.
 - [x] Admit each event-triggered obligation only from a complete QSpec FR-300
   activation binding validated against the linked definition/control.
-- [ ] Remove the public caller-built `Model`/obligation construction path from
+- [x] Remove the public caller-built `Model`/obligation construction path from
   production.
 - [ ] Keep decision-scope progress/closure, surrounding-execution
   progress/closure, complete-global-conformance closure, and open, incomplete,

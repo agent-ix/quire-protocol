@@ -659,7 +659,10 @@ impl Kernel {
     /// from QSL's occurrence key, and predecessor membership comes only from
     /// authored non-repeat causal edges. A QObs observation is later matched by
     /// its complete selected subject, never by a caller-supplied association.
-    pub fn derive_model(&self, activations: &[ActivatedOccurrence<'_>]) -> Result<Model, Refusal> {
+    pub(crate) fn derive_model(
+        &self,
+        activations: &[ActivatedOccurrence<'_>],
+    ) -> Result<Model, Refusal> {
         let mut obligations = Vec::with_capacity(activations.len());
         for activation in activations {
             if activation.activation.definition != self.definition {

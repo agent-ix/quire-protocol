@@ -15,8 +15,9 @@ use quire_protocol::claims::premises::{
 };
 use quire_protocol::claims::Claim;
 use quire_protocol::closure::{AssessmentExecution, GlobalConformanceClosure};
-use quire_protocol::conformance::batch::{PremiseSnapshot, RetainedDocument};
-use quire_protocol::conformance::{GlobalDisposition, Report as ConformanceReport, Usage};
+use quire_protocol::conformance::{
+    GlobalDisposition, PremiseSnapshot, Report as ConformanceReport, RetainedDocument, Usage,
+};
 use quire_protocol::refusal::{PartialOutput, ProtocolStage};
 
 fn component(identity: &str) -> Component {

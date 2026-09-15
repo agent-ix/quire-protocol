@@ -7,14 +7,17 @@ use quire_protocol::bounds::inventory::{
     production_inventory, Budget, BudgetDimension, OperationOutcome, ResourceAccountant,
 };
 use quire_protocol::closure::{AssessmentExecution, GlobalConformanceClosure};
+use quire_protocol::conformance::batch::{
+    assess, assess_bounded, BoundObservation, Model, ObservationObligation, Request,
+};
+use quire_protocol::conformance::incremental::{compare, Incremental, IncrementalContext};
 use quire_protocol::conformance::{
-    assess, assess_bounded, compare, AdverseKind, AdverseObservation, BoundObservation, ErrorCode,
-    GlobalDisposition, GlobalPremiseDefectKind, IncompleteCause, Incremental, IncrementalContext,
-    Limits, Model, ObligationDisposition, ObligationId, ObservationObligation, Request,
+    AdverseKind, AdverseObservation, ErrorCode, GlobalDisposition, GlobalPremiseDefectKind,
+    IncompleteCause, Limits, ObligationDisposition, ObligationId,
 };
 use quire_protocol::refusal::ProtocolStage;
 
-#[path = "support/observation_owner.rs"]
+#[path = "../../tests/support/observation_owner.rs"]
 #[allow(dead_code)]
 mod observation_owner;
 

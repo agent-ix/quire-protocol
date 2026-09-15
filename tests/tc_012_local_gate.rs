@@ -532,6 +532,9 @@ fn tc_012_every_conditional_site_is_selected_and_phantom_features_refuse() {
                 path: "src/assessment.rs".to_owned(),
             },
             Condition::Test {
+                path: "src/conformance/mod.rs".to_owned(),
+            },
+            Condition::Test {
                 path: "src/link/interleaving.rs".to_owned(),
             },
             Condition::Test {
