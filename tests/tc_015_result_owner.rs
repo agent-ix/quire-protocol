@@ -13,10 +13,17 @@ use quire_observation::{
     ResourceLimits, ScopeKind, ScopeSelection, SubjectIdentity, SubjectKind, ValueState,
     Visibility, NATIVE_LINKED_PACKAGE_FORMAT,
 };
+use quire_protocol::assessment::{CanonicalRowInput, Engine};
 use quire_protocol::bounds::inventory::{
     production_inventory, Budget, BudgetDimension, OperationOutcome, ResourceAccountant,
 };
+use quire_protocol::claims::Claim as DispatchClaim;
 use quire_protocol::closure::{AssessmentExecution, GlobalConformanceClosure, ScopeState};
+use quire_protocol::model::v2::{
+    Internality, LinkedAssessment, RoleClassification, RuntimeBinding, RuntimeBindingSet,
+    SlotCompatibility, SlotHandle, StaticBindingDefinition, StaticSelection, StaticSlot,
+    RUNTIME_BINDING_CONTRACT, STATIC_BINDING_CONTRACT,
+};
 use quire_protocol::refusal::ProtocolStage;
 use quire_protocol::repro::{CorpusIdentity, ReproductionInputs, Seed, ToolchainIdentity};
 use quire_protocol::result::{
@@ -562,6 +569,98 @@ fn base_input<'a>(fixture: &'a Fixture) -> Input<'a> {
         },
         correction: None,
     }
+}
+
+/// The public Engine boundary constructs and strict-reads owner rows against
+/// its one linked `/2` package; it has no caller-provided result document seam.
+#[test]
+#[trace("TC-006", "FR-006-AC-1", "FR-006-AC-2", "FR-008-AC-1", "Task-006")]
+fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
+    let loaded = handoff::Handoff::load().expect("published v2 handoff");
+    let declarations = loaded.declarations();
+    let inventories = loaded.inventories(&declarations);
+    let expected = loaded.expected(&inventories);
+    let package = quire_protocol::intake::v2::admit(loaded.offer(), &expected, loaded.limits())
+        .into_result()
+        .expect("strict v2 package");
+    let (declaration_handle, roles, subject_slot) = package
+        .inherited()
+        .declarations
+        .iter()
+        .enumerate()
+        .find_map(|(declaration, value)| {
+            let w::Body::Protocol { roles, .. } = &value.body else {
+                return None;
+            };
+            let subject_slot = value
+                .bindings
+                .iter()
+                .position(|binding| binding.kind != w::BindingKind::Relationship)?;
+            Some((
+                u32::try_from(declaration).ok()?,
+                roles,
+                u32::try_from(subject_slot).ok()?,
+            ))
+        })
+        .expect("published handoff has a protocol subject slot");
+    let producer = producer();
+    let subject = runtime_subject(&producer, "canonical-engine");
+    let definition = StaticBindingDefinition::new(
+        STATIC_BINDING_CONTRACT,
+        StaticSelection {
+            identity: "binding-definition:canonical-engine".into(),
+            revision: "1".into(),
+            digest: [0x61; 32],
+        },
+        producer.key().clone(),
+        declaration_handle,
+        roles
+            .iter()
+            .enumerate()
+            .map(|(index, _)| RoleClassification {
+                role_handle: u32::try_from(index).expect("published role index fits"),
+                internality: Internality::Internal,
+            })
+            .collect(),
+        vec![StaticSlot {
+            handle: SlotHandle::new(subject_slot),
+            compatibility: SlotCompatibility::Subject {
+                kind: SubjectKind::new(ORDER_KIND.as_bytes().to_vec()).expect("non-empty kind"),
+            },
+        }],
+    )
+    .expect("selected static binding definition admits");
+    let runtime = RuntimeBindingSet::new(
+        RUNTIME_BINDING_CONTRACT,
+        definition.selection(),
+        &definition,
+        &producer,
+        vec![RuntimeBinding::subject(
+            SlotHandle::new(subject_slot),
+            subject,
+        )],
+    )
+    .expect("selected runtime binding admits");
+    let context = LinkedAssessment::new(&package, &definition, &runtime)
+        .expect("one exact linked assessment");
+
+    let fixture = fixture();
+    let input = base_input(&fixture);
+    assert_eq!(input.checked_predicate.package_digest(), package.digest());
+    assert_eq!(input.temporal_subject.package_digest(), package.digest());
+    let bundle = Engine::new(context, vec![DispatchClaim::Conformance])
+        .expect("linked assessment starts one engine")
+        .construct_canonical(vec![CanonicalRowInput::new(
+            DispatchClaim::Conformance,
+            input,
+            Limits::owner_max(),
+        )])
+        .expect("the engine constructs and strict-reads its canonical row");
+    assert_eq!(bundle.rows().len(), 1);
+    assert!(matches!(
+        &bundle.rows()[0].outcome,
+        quire_protocol::outcome::ClaimOutcome::Canonical(_)
+    ));
 }
 
 fn validated<'a>(input: Input<'a>) -> result::ValidatedResult {
