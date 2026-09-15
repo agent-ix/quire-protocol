@@ -476,6 +476,7 @@ impl DeliveryIndex {
     /// No filesystem, transport, manifest, resolver, or version-lock value is
     /// accepted here. Consequently this conversion cannot affect resolution.
     pub fn observed(key: DeliveryIndexKey, read: IndexRead) -> Result<Self, DeliveryIndexError> {
+        validate_key(&key)?;
         match read {
             IndexRead::MissingRoot => {
                 Err(DeliveryIndexError::MissingRoot(key.delivery_root().clone()))
@@ -521,12 +522,7 @@ impl DeliveryIndex {
         key: DeliveryIndexKey,
         contents: DeliveryIndexContents,
     ) -> Result<Self, DeliveryIndexError> {
-        if key.delivery_root().as_bytes().is_empty() {
-            return Err(DeliveryIndexError::EmptyDeliveryRoot);
-        }
-        if key.producer_revision().as_bytes().is_empty() {
-            return Err(DeliveryIndexError::EmptyProducerRevision);
-        }
+        validate_key(&key)?;
         let mut input_roles = BTreeSet::new();
         for input in &contents.inputs {
             if !input_roles.insert(input.role.clone()) {
@@ -645,6 +641,16 @@ impl DeliveryIndex {
     pub fn mutations(&self) -> &[IndexedMutation] {
         &self.contents.mutations
     }
+}
+
+fn validate_key(key: &DeliveryIndexKey) -> Result<(), DeliveryIndexError> {
+    if key.delivery_root().as_bytes().is_empty() {
+        return Err(DeliveryIndexError::EmptyDeliveryRoot);
+    }
+    if key.producer_revision().as_bytes().is_empty() {
+        return Err(DeliveryIndexError::EmptyProducerRevision);
+    }
+    Ok(())
 }
 
 fn retained_bytes(

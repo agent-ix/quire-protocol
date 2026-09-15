@@ -206,6 +206,10 @@ fn tc_017_refuses_each_local_ambiguity_without_repair() {
 #[test]
 #[trace("TC-017", "FR-018-AC-5", "FR-018-AC-6")]
 fn tc_017_preserves_every_adapter_absence_as_a_distinct_outcome() {
+    assert_eq!(
+        DeliveryIndex::observed(key(b"", b"producer-revision-1"), IndexRead::MissingRoot),
+        Err(DeliveryIndexError::EmptyDeliveryRoot)
+    );
     let selected = key(b"delivery-a", b"producer-revision-1");
     assert!(matches!(
         DeliveryIndex::observed(selected.clone(), IndexRead::MissingRoot),
