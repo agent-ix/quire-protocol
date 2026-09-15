@@ -1155,7 +1155,7 @@ impl<'a> Engine<'a> {
         validate_input_claims(&self.requested, &inputs)?;
         validate_dispatch_rows(&self.requested, dispatch, &inputs)?;
         let mut rows = Vec::with_capacity(inputs.len());
-        for selected in inputs {
+        for (selected, disposition) in inputs.into_iter().zip(&dispatch.dispositions) {
             validate_input_package(
                 self.context.package().digest(),
                 selected.input.checked_predicate.package_digest(),
@@ -1164,19 +1164,23 @@ impl<'a> Engine<'a> {
             if claim_from_result_kind(selected.input.claim.kind) != selected.claim {
                 return Err(BundleRefusal::CanonicalClaimMismatch);
             }
-            let outcome = match result::produce(selected.input.clone(), selected.limits) {
-                Ok(document) => match result::read(
-                    document.bytes(),
-                    result::Expected {
-                        input: selected.input,
-                        enclosing_digest: document.digest(),
+            let outcome = if let Some(failure) = &disposition.failure {
+                ClaimOutcome::Refused(failure.envelope().clone())
+            } else {
+                match result::produce(selected.input.clone(), selected.limits) {
+                    Ok(document) => match result::read(
+                        document.bytes(),
+                        result::Expected {
+                            input: selected.input,
+                            enclosing_digest: document.digest(),
+                        },
+                        selected.limits,
+                    ) {
+                        Ok(validated) => ClaimOutcome::Canonical(validated),
+                        Err(refusal) => ClaimOutcome::Refused(refusal.envelope().clone()),
                     },
-                    selected.limits,
-                ) {
-                    Ok(validated) => ClaimOutcome::Canonical(validated),
                     Err(refusal) => ClaimOutcome::Refused(refusal.envelope().clone()),
-                },
-                Err(refusal) => ClaimOutcome::Refused(refusal.envelope().clone()),
+                }
             };
             rows.push(ClaimRow {
                 claim: selected.claim,
