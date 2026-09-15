@@ -1307,7 +1307,7 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
 /// QSL `effect` requirement.  A static coordinate never becomes a replacement
 /// runtime identity, and the subject's opaque owner key remains unchanged.
 #[test]
-#[trace("TC-002", "FR-002-AC-1", "FR-003-AC-3")]
+#[trace("TC-002", "TC-003", "FR-002-AC-1", "FR-003-AC-3")]
 fn tc_002_effect_projection_requires_an_owner_effect_slot() {
     let package = admitted_published_v2();
     let (declaration_handle, effect_slot) = effect_coordinates(&package);
@@ -1369,6 +1369,13 @@ fn tc_002_effect_projection_requires_an_owner_effect_slot() {
     let engine = Engine::new(context, vec![Claim::Conformance])
         .expect("the linked effect context starts a non-retargetable assessment");
     assert_eq!(engine.compensation_inputs().len(), 2);
+    assert_eq!(engine.compensation().registrations().len(), 2);
+    assert_eq!(
+        engine.compensation().registrations()[0]
+            .key()
+            .forward_effect(),
+        &observed
+    );
     let bundle = engine
         .assemble(vec![ClaimRow {
             claim: Claim::Conformance,
@@ -1380,4 +1387,5 @@ fn tc_002_effect_projection_requires_an_owner_effect_slot() {
         bundle.compensation_inputs()[0].effect().subject(),
         &observed
     );
+    assert_eq!(bundle.compensation().registrations().len(), 2);
 }

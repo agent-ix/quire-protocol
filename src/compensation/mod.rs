@@ -18,6 +18,8 @@ pub mod algebra;
 pub mod purity;
 /// Full and partial recovery through exact authored relation owners.
 pub mod recovery;
+/// Derived registration keys over QSL and QObs owner values.
+pub mod registration;
 
 use crate::bounds::inventory::{BudgetDimension, OperationOutcome, ResourceAccountant, SourceSite};
 use crate::bounds::{SiteId, SiteKind, UnitLabel};

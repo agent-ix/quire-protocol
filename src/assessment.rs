@@ -9,6 +9,7 @@ use quire_observation::authority::{closure as observation_closure, progress};
 
 use crate::claims::Claim;
 use crate::closure::GlobalConformanceClosure;
+use crate::compensation::registration::Snapshot as CompensationSnapshot;
 use crate::model::v2::{CompensationRegistrationInput, DefinitionIdentity, LinkedAssessment};
 use crate::outcome::ClaimOutcome;
 use crate::refusal::catalog::{CatalogSelection, CodeEntry, CodeModule, Provenance, RefusalCode};
@@ -127,6 +128,7 @@ pub struct Engine<'a> {
     context: LinkedAssessment<'a>,
     identity: DefinitionIdentity,
     compensation_inputs: Vec<CompensationRegistrationInput<'a>>,
+    compensation: CompensationSnapshot,
     requested: Vec<Claim>,
 }
 
@@ -151,10 +153,12 @@ impl<'a> Engine<'a> {
             .definition_identity()
             .map_err(|_| BundleRefusal::InvalidDefinitionIdentity)?;
         let compensation_inputs = context.compensation_registration_inputs();
+        let compensation = CompensationSnapshot::from_inputs(&identity, &compensation_inputs);
         Ok(Self {
             context,
             identity,
             compensation_inputs,
+            compensation,
             requested,
         })
     }
@@ -164,6 +168,12 @@ impl<'a> Engine<'a> {
     #[must_use]
     pub fn compensation_inputs(&self) -> &[CompensationRegistrationInput<'a>] {
         &self.compensation_inputs
+    }
+
+    /// Returns the replay-idempotent registrations derived for this request.
+    #[must_use]
+    pub const fn compensation(&self) -> &CompensationSnapshot {
+        &self.compensation
     }
 
     /// Retain one independent outcome for every selected claim.
@@ -176,6 +186,7 @@ impl<'a> Engine<'a> {
             context: self.context,
             identity: self.identity,
             compensation_inputs: self.compensation_inputs,
+            compensation: self.compensation,
             rows,
         })
     }
@@ -269,6 +280,7 @@ pub struct AssessmentBundle<'a, Row> {
     context: LinkedAssessment<'a>,
     identity: DefinitionIdentity,
     compensation_inputs: Vec<CompensationRegistrationInput<'a>>,
+    compensation: CompensationSnapshot,
     rows: Vec<ClaimRow<Row>>,
 }
 
@@ -288,6 +300,11 @@ impl<Row> AssessmentBundle<'_, Row> {
     #[must_use]
     pub fn compensation_inputs(&self) -> &[CompensationRegistrationInput<'_>] {
         &self.compensation_inputs
+    }
+    /// Replay-idempotent registrations derived from this bundle's exact inputs.
+    #[must_use]
+    pub const fn compensation(&self) -> &CompensationSnapshot {
+        &self.compensation
     }
     /// One ordered outcome for every requested claim.
     #[must_use]
