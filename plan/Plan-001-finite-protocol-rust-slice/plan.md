@@ -137,9 +137,10 @@ shared result-domain values. Each has one Protocol owner and no adapter-local co
 - [x] **IT-001 `/1` SC-01..SC-05 and SC-06a**: default-running admission plus
   local-link regression and before/after compatibility comparison. The `/2`
   SC-06..SC-09 handoff is already complete under Task-012.
-- [ ] **IT-002**: exact QObs runtime/authority facts and QSL native-temporal
-  results traverse compensation, conformance and canonical results without QCI
-  as an upstream dependency.
+- [ ] **IT-002**: Task-010's ten non-record scenarios now traverse exact QObs
+  runtime/authority facts and QSL native-temporal results through compensation,
+  conformance and canonical results without QCI upstream. SC-07a/SC-07b final
+  record composition and record-set distinctness remain under Task-018.
 - [ ] **IT-003**: validated Protocol results project to E02, execute through the
   Engineering Assurance boundary and hand a complete FR-017 value to Quoin.
 
@@ -178,8 +179,9 @@ shared result-domain values. Each has one Protocol owner and no adapter-local co
 - **Native = Task-009 (done)** `/1` compatibility lane — the complete owner
   corpus runs by default through admission and linking, and SC-06a passes at
   both historical revisions around the `/2` addition.
-- **Facts = Task-010** QObs/QSL native-temporal lane — may run after Task-006;
-  exit: all selected facts and adverse mutations reach results unchanged.
+- **Facts = Task-010 (done)** QObs/QSL native-temporal lane — exact selected
+  facts, adverse mutations, incremental/batch paths, bounds and resolution
+  controls reach results unchanged; final FR-017 records remain Task-018-owned.
 - **E02 = Task-007** Portable projection — may run after Task-006 and accepted
   qverify promotion; exit: every FR-062 row passes the target strict reader.
 
@@ -221,7 +223,7 @@ track names are subsystems and are not agent assignments; Agent B remains on TL.
 | Task-007 | Producer Integration | FR-007 | TC-007 | blocked on E02 owner acceptance reconciliation |
 | Task-008 | Cross-cutting Closure | NFR-001, NFR-002 | TC-008, TC-009 | in_progress; current-site inventory exists |
 | Task-009 | Producer Integration | FR-001, FR-002 | IT-001 | done; default `/1` admission/static link and SC-06a two-revision comparison pass |
-| Task-010 | Producer Integration | FR-003, FR-004, FR-006 | IT-002 | in_progress; QObs delivered, core bridge remains |
+| Task-010 | Producer Integration | FR-003, FR-004, FR-006, FR-009 | IT-002 | done; ten non-record scenarios pass and retain exact Task-018 attribution inputs; SC-07 record composition remains Task-018-owned |
 | Task-011 | Qualification | StR-001, FR-006, FR-007, NFR-003 | IT-003, TC-010 | blocked on E02/Quoin and predecessors |
 | Task-012 | Producer Integration | FR-001, FR-002, NFR-002 | IT-001 | done |
 | Task-013 | Core | FR-009, FR-012, FR-016, NFR-006 | TC-013 | done; PR #50, SR-103/SR-104 pass |

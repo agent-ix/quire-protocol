@@ -7,6 +7,27 @@ description: "Chronological log of changes to the Plan-001 bundle."
 
 ## History
 
+* **2026-09-15** — Completed Task-010's observation/native-temporal integration
+  allocation against accepted QObs `93bc565` and QSL native-temporal v1
+  `f1700a9` / opaque-trigger v2 `0c2f13e`. A closed 14-contract inventory now
+  resolves through Task-013's bounded request-bound capabilities before the
+  public composed assessment completes; foreign request reuse and every absent,
+  unpinned, unresolved, duplicate or repointed entry refuse. IT-002's ten
+  non-record scenario units run by default from QSL's published `/2` handoff and
+  strict `/3` activation map through QObs subjects, activation-derived batch and
+  settled-incremental conformance, claim dispatch and canonical result readback.
+  The lane preserves every scoped axis, completeness state, operative global
+  closure state and exact global-premise defect; proves early settlement,
+  non-singleton permitted-order invariance, changed-premise agreement and exact/
+  one-short/fresh request bounds; and fixes obligation identity to include
+  workflow and repeat ordinals. Completed bundles retain the resolved manifest,
+  selected contracts, resolver usage, caller grants and assessment usage as
+  typed inputs to Task-018. Final FR-017 record composition and SC-07b record-set
+  distinctness remain exclusively Task-018-owned; they are not pre-credited.
+  SR-118/SR-119 pass the Rust and scoped gap reviews. The exact serialized,
+  locked NFR-004 format, all-target Clippy-with-warnings-denied and full test
+  gate passes on the reconciled candidate, including 43 doc-tests.
+
 * **2026-09-15** — Completed the Task-006 / issue #8 candidate as one atomic
   activation-to-result Engine operation. Exact conformance axes, completeness
   and global closure now flow through sealed dispatch into private canonical
