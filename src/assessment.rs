@@ -6,7 +6,8 @@
 //! the QObs facts or the declared global-closure premise set.
 
 use quire_observation::authority::{
-    closure as observation_closure, observation as observation_record, position, progress,
+    closure as observation_closure, completeness, observation as observation_record, position,
+    progress,
 };
 use quire_observation::QualifiedSubject;
 use quire_spec_language::protocol_artifact::native_temporal::v2 as temporal_v2;
@@ -32,7 +33,10 @@ use crate::compensation::{
     },
     registration::Registration as CompensationRegistration,
 };
-use crate::conformance::Kernel as ConformanceKernel;
+use crate::conformance::{
+    ActivatedAssessmentError, ActivationFact, Kernel as ConformanceKernel,
+    Limits as ConformanceLimits,
+};
 use crate::model::v2::{
     link as link_v2, CompensationRegistrationInput, DefinitionIdentity, DefinitionRegistry,
     LinkedAssessment, LinkedProtocol, RuntimeBinding, SlotCompatibility, SlotHandle,
@@ -345,6 +349,31 @@ impl core::fmt::Display for DispatchRefusal {
 
 impl std::error::Error for DispatchRefusal {}
 
+/// Failure from dispatching the Engine's activation-derived conformance result.
+///
+/// This keeps a rejected activation/conformance input distinct from a
+/// claim-local or whole-dispatch refusal. In particular, dispatch cannot turn
+/// a missing, conflicting, or otherwise non-admissible activation fact into an
+/// unsupported claim result.
+#[derive(Debug)]
+pub enum ActivatedDispatchError {
+    /// The exact activation-derived conformance input could not be assessed.
+    Assessment(ActivatedAssessmentError),
+    /// The fixed claim population or closed dispatcher rejected its own input.
+    Dispatch(DispatchRefusal),
+}
+
+impl core::fmt::Display for ActivatedDispatchError {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Assessment(error) => error.fmt(formatter),
+            Self::Dispatch(error) => error.fmt(formatter),
+        }
+    }
+}
+
+impl std::error::Error for ActivatedDispatchError {}
+
 /// One non-retargetable assessment request.
 ///
 /// The engine borrows the constructor-validated linked assessment and retains
@@ -475,7 +504,7 @@ impl<'a> Engine<'a> {
     /// The supplied report is produced by QProtocol's conformance owner; this
     /// method neither accepts a backend callback nor permits a dispatch request
     /// to add, omit, or retarget one of this engine's selected claims.
-    pub fn dispatch_conformance(
+    pub(crate) fn dispatch_conformance(
         &self,
         requests: &[ClaimRequest<'_>],
         report: &crate::conformance::Report,
@@ -497,6 +526,40 @@ impl<'a> Engine<'a> {
         }
         dispatch::dispatch_from_conformance(requests, report, limits)
             .map_err(DispatchRefusal::Dispatch)
+    }
+
+    /// Dispatch this Engine's exact requested claims from an admitted
+    /// activation-derived conformance assessment.
+    ///
+    /// This is the production bridge for Task-005: it obtains the report from
+    /// the same graph/compensation kernel that owns the request rather than
+    /// accepting a report selected by a caller. The report-taking evaluator is
+    /// crate-private and exists only for semantic model tests.
+    #[allow(clippy::too_many_arguments)]
+    pub fn dispatch_activated(
+        &self,
+        requests: &[ClaimRequest<'_>],
+        facts: &[ActivationFact<'_>],
+        axes: AxisInputs<'_>,
+        completeness: &completeness::View,
+        global_conformance: &GlobalConformanceInput,
+        execution: crate::closure::AssessmentExecution,
+        conformance_limits: ConformanceLimits,
+        dispatch_limits: DispatchLimits,
+    ) -> Result<DispatchReport, ActivatedDispatchError> {
+        let report = self
+            .conformance
+            .assess_activated(
+                facts,
+                axes,
+                completeness,
+                global_conformance,
+                execution,
+                conformance_limits,
+            )
+            .map_err(ActivatedDispatchError::Assessment)?;
+        self.dispatch_conformance(requests, &report, dispatch_limits)
+            .map_err(ActivatedDispatchError::Dispatch)
     }
 
     /// Evaluate the exact admitted guard and transactionally create every

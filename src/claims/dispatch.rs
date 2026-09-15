@@ -321,7 +321,7 @@ pub type Result<T> = std::result::Result<T, Refusal>;
 /// conformance owner, while every other claim remains explicitly unsupported.
 /// The legacy backend seam remains only while its migration tests are being
 /// replaced; callers of this entry point cannot substitute an implementation.
-pub fn dispatch_from_conformance(
+pub(crate) fn dispatch_from_conformance(
     requests: &[ClaimRequest<'_>],
     conformance: &ConformanceReport,
     limits: Limits,
@@ -403,7 +403,11 @@ pub fn dispatch_from_conformance(
 /// module's immutable owner maxima remain independently enforced by
 /// [`dispatch_from_conformance`]; caller grants can lower work admitted at this boundary but
 /// cannot raise those maxima.
-pub fn dispatch_bounded(
+#[allow(
+    dead_code,
+    reason = "the crate-private bounded evaluator is exercised by the retained TC-005/TC-009 semantic tests; production enters through Engine::dispatch_activated"
+)]
+pub(crate) fn dispatch_bounded(
     requests: &[ClaimRequest<'_>],
     conformance: &ConformanceReport,
     limits: Limits,
@@ -414,6 +418,10 @@ pub fn dispatch_bounded(
     })
 }
 
+#[allow(
+    dead_code,
+    reason = "the crate-private bounded evaluator is exercised by the retained TC-005/TC-009 semantic tests; production enters through Engine::dispatch_activated"
+)]
 fn dispatch_bounded_unit(
     requests: &[ClaimRequest<'_>],
     conformance: &ConformanceReport,

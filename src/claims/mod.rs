@@ -197,6 +197,10 @@ pub mod premises;
 /// backend failure invokes no fallback.
 pub mod dispatch;
 
+#[cfg(test)]
+#[path = "tc_005_tests.rs"]
+mod tc_005_tests;
+
 // ---------------------------------------------------------------------------
 // The claim registry
 // ---------------------------------------------------------------------------
