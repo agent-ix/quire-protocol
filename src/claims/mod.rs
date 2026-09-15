@@ -195,7 +195,19 @@ pub mod premises;
 /// Will own pre-dispatch rejection of circular assumptions and backend
 /// identity/version mismatches as distinct codes, and the rule that a selected
 /// backend failure invokes no fallback.
+///
+/// The raw report evaluator is deliberately crate-private: an external caller
+/// must enter through [`crate::assessment::Engine::dispatch_activated`], which
+/// first derives the report from the Engine's exact activation/graph state.
+///
+/// ```compile_fail,E0603
+/// use quire_protocol::claims::dispatch::dispatch_from_conformance;
+/// ```
 pub mod dispatch;
+
+#[cfg(test)]
+#[path = "tc_005_tests.rs"]
+mod tc_005_tests;
 
 // ---------------------------------------------------------------------------
 // The claim registry

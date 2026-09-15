@@ -2,7 +2,7 @@
 id: Task-005
 title: "Dispatch independent protocol claims"
 type: Task
-status: in_progress
+status: done
 track: Core
 priority: P0
 relationships:
@@ -23,14 +23,14 @@ caller backend callback from the supported path.
 
 ## Subtasks
 
-- [ ] Write TC-005 controls for every supported and unsupported claim combination first.
-- [ ] Define separate conformance, monitorability, projection, realizability, refinement, and composition dispositions.
-- [ ] Reject circular assumptions and backend identity/version mismatches before dispatch.
-- [ ] Retain and strictly match each claim's exact admitted fragment, backend,
+- [x] Write TC-005 controls for every supported and unsupported claim combination first.
+- [x] Define separate conformance, monitorability, projection, realizability, refinement, and composition dispositions.
+- [x] Reject circular assumptions and backend identity/version mismatches before dispatch.
+- [x] Retain and strictly match each claim's exact admitted fragment, backend,
   assumptions, communication/visibility/environment premises, source identities,
   and derived-artifact correspondence.
-- [ ] Preserve finite conformance when another requested claim is unsupported or fails.
-- [ ] Seal backend dispatch to accepted local implementations and verify no
+- [x] Preserve finite conformance when another requested claim is unsupported or fails.
+- [x] Seal backend dispatch to accepted local implementations and verify no
   local heuristic, caller callback or alternate backend converts a missing
   capability into success.
 
@@ -42,3 +42,4 @@ caller backend callback from the supported path.
 
 - Advanced algorithms remain outside this plan until E03 admission.
 - Unblocks Task-006.
+- SR-114/SR-115 record the passing scoped Rust review and gap analysis.

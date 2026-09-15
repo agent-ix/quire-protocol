@@ -8,6 +8,10 @@
 
 #![forbid(unsafe_code)]
 
+// Lets in-crate semantic test modules retain the same absolute paths as their
+// former integration-test location without exporting a second crate surface.
+extern crate self as quire_protocol;
+
 // ---------------------------------------------------------------------------
 // Facade reservation (chunk C-00).
 //

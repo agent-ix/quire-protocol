@@ -38,8 +38,40 @@ fn contents(
     )
 }
 
+fn build(
+    key: DeliveryIndexKey,
+    contents: DeliveryIndexContents,
+) -> Result<DeliveryIndex, DeliveryIndexError> {
+    let inventory = production_inventory().expect("production sites reconcile");
+    let budget = Budget::nothing_granted()
+        .grant(BudgetDimension::InputByte, 1024 * 1024)
+        .expect("positive byte budget")
+        .grant(BudgetDimension::AccountedAllocation, 1)
+        .expect("positive allocation budget");
+    let mut resources = ResourceAccountant::new(budget, &inventory);
+    match DeliveryIndex::new_bounded(key, contents, &mut resources) {
+        OperationOutcome::Completed(index) => Ok(index),
+        OperationOutcome::DomainError(error) => Err(error),
+        other => panic!("generous fixture budget must not stop assembly: {other:?}"),
+    }
+}
+
+fn observe(
+    key: DeliveryIndexKey,
+    read: IndexRead,
+) -> OperationOutcome<DeliveryIndex, DeliveryIndexError> {
+    let inventory = production_inventory().expect("production sites reconcile");
+    let budget = Budget::nothing_granted()
+        .grant(BudgetDimension::InputByte, 1024 * 1024)
+        .expect("positive byte budget")
+        .grant(BudgetDimension::AccountedAllocation, 1)
+        .expect("positive allocation budget");
+    let mut resources = ResourceAccountant::new(budget, &inventory);
+    DeliveryIndex::observed(key, read, &mut resources)
+}
+
 fn valid() -> DeliveryIndex {
-    DeliveryIndex::new(
+    build(
         key(b"delivery-a", b"producer-revision-1"),
         contents(
             vec![IndexedInput::new(
@@ -97,8 +129,12 @@ fn tc_017_retains_exact_state_and_keeps_identity_separate() {
         index.validate_temporal_declarations(&[4, 9, 10]),
         Err(DeliveryIndexError::MissingDeclaration(10))
     );
+    assert_eq!(
+        index.validate_temporal_declarations(&[4, 4, 9]),
+        Err(DeliveryIndexError::RepeatedDeclaration(4))
+    );
 
-    let same_identity_different_state = DeliveryIndex::new(
+    let same_identity_different_state = build(
         key(b"delivery-a", b"producer-revision-1"),
         contents(
             vec![],
@@ -111,11 +147,19 @@ fn tc_017_retains_exact_state_and_keeps_identity_separate() {
     assert_eq!(index, same_identity_different_state);
     assert_ne!(
         index,
-        DeliveryIndex::new(
+        build(
             key(b"delivery-b", b"producer-revision-1"),
             contents(vec![], vec![], vec![], vec![])
         )
         .expect("other root")
+    );
+    assert_ne!(
+        index,
+        build(
+            key(b"delivery-a", b"producer-revision-2"),
+            contents(vec![], vec![], vec![], vec![])
+        )
+        .expect("other producer revision")
     );
 }
 
@@ -123,19 +167,19 @@ fn tc_017_retains_exact_state_and_keeps_identity_separate() {
 #[trace("TC-017", "FR-018-AC-3", "FR-018-AC-5", "FR-018-AC-9")]
 fn tc_017_refuses_each_local_ambiguity_without_repair() {
     assert_eq!(
-        DeliveryIndex::new(
+        build(
             key(b"", b"revision"),
             contents(vec![], vec![], vec![], vec![]),
         ),
         Err(DeliveryIndexError::EmptyDeliveryRoot)
     );
     assert_eq!(
-        DeliveryIndex::new(key(b"root", b""), contents(vec![], vec![], vec![], vec![]),),
+        build(key(b"root", b""), contents(vec![], vec![], vec![], vec![]),),
         Err(DeliveryIndexError::EmptyProducerRevision)
     );
     let role = InputRole::new(b"clock-input");
     assert!(matches!(
-        DeliveryIndex::new(
+        build(
             key(b"root", b"rev"),
             contents(
                 vec![
@@ -150,7 +194,7 @@ fn tc_017_refuses_each_local_ambiguity_without_repair() {
         Err(DeliveryIndexError::RepeatedInputRole(_))
     ));
     assert_eq!(
-        DeliveryIndex::new(
+        build(
             key(b"root", b"rev"),
             contents(
                 vec![],
@@ -165,7 +209,7 @@ fn tc_017_refuses_each_local_ambiguity_without_repair() {
         Err(DeliveryIndexError::RepeatedDeclaration(2))
     );
     assert_eq!(
-        DeliveryIndex::new(
+        build(
             key(b"root", b"rev"),
             contents(
                 vec![],
@@ -183,7 +227,7 @@ fn tc_017_refuses_each_local_ambiguity_without_repair() {
         })
     );
     assert!(matches!(
-        DeliveryIndex::new(key(b"root", b"rev"), contents(vec![], vec![], vec![], vec![IndexedMutation::new(b"one", b"seal", b"one.json"), IndexedMutation::new(b"two", b"seal", b"two.json")])),
+        build(key(b"root", b"rev"), contents(vec![], vec![], vec![], vec![IndexedMutation::new(b"one", b"seal", b"one.json"), IndexedMutation::new(b"two", b"seal", b"two.json")])),
         Err(DeliveryIndexError::AmbiguousMutation(scenario)) if scenario.as_bytes() == b"seal"
     ));
     let duplicate = IndexedLimit::new(
@@ -192,7 +236,7 @@ fn tc_017_refuses_each_local_ambiguity_without_repair() {
         1,
     );
     assert!(matches!(
-        DeliveryIndex::new(
+        build(
             key(b"root", b"rev"),
             contents(vec![], vec![], vec![duplicate.clone(), duplicate], vec![])
         ),
@@ -207,21 +251,21 @@ fn tc_017_refuses_each_local_ambiguity_without_repair() {
 #[trace("TC-017", "FR-018-AC-5", "FR-018-AC-6")]
 fn tc_017_preserves_every_adapter_absence_as_a_distinct_outcome() {
     assert_eq!(
-        DeliveryIndex::observed(key(b"", b"producer-revision-1"), IndexRead::MissingRoot),
-        Err(DeliveryIndexError::EmptyDeliveryRoot)
+        observe(key(b"", b"producer-revision-1"), IndexRead::MissingRoot),
+        OperationOutcome::DomainError(DeliveryIndexError::EmptyDeliveryRoot)
     );
     let selected = key(b"delivery-a", b"producer-revision-1");
     assert!(matches!(
-        DeliveryIndex::observed(selected.clone(), IndexRead::MissingRoot),
-        Err(DeliveryIndexError::MissingRoot(root)) if root.as_bytes() == b"delivery-a"
+        observe(selected.clone(), IndexRead::MissingRoot),
+        OperationOutcome::DomainError(DeliveryIndexError::MissingRoot(root)) if root.as_bytes() == b"delivery-a"
     ));
     assert!(matches!(
-        DeliveryIndex::observed(selected.clone(), IndexRead::MissingIndex),
-        Err(DeliveryIndexError::MissingIndex(root)) if root.as_bytes() == b"delivery-a"
+        observe(selected.clone(), IndexRead::MissingIndex),
+        OperationOutcome::DomainError(DeliveryIndexError::MissingIndex(root)) if root.as_bytes() == b"delivery-a"
     ));
     assert!(matches!(
-        DeliveryIndex::observed(selected, IndexRead::Unreadable(quire_protocol::version_lock::ExactBytes::new(b"invalid json"))),
-        Err(DeliveryIndexError::UnreadableIndex { reason, .. }) if reason.as_bytes() == b"invalid json"
+        observe(selected, IndexRead::Unreadable(quire_protocol::version_lock::ExactBytes::new(b"invalid json"))),
+        OperationOutcome::DomainError(DeliveryIndexError::UnreadableIndex { reason, .. }) if reason.as_bytes() == b"invalid json"
     ));
     assert!(matches!(
         IndexedMember::observed(b"missing.json", Err(MemberReadError::Missing)),
@@ -251,7 +295,7 @@ fn tc_017_limit_vocabulary_is_typed_and_ordered_without_substitution() {
 }
 
 #[test]
-#[trace("TC-017", "NFR-002-AC-2")]
+#[trace("TC-017", "NFR-002-AC-1", "NFR-002-AC-3")]
 fn tc_017_bounded_assembly_charges_exact_retained_bytes_before_the_index_exists() {
     let inventory = production_inventory().expect("production sites reconcile");
     let bounded_contents = || {
@@ -295,6 +339,107 @@ fn tc_017_bounded_assembly_charges_exact_retained_bytes_before_the_index_exists(
             .usage()
             .consumed(BudgetDimension::AccountedAllocation),
         0
+    );
+
+    let allocation_short = Budget::nothing_granted()
+        .grant(BudgetDimension::InputByte, exact_retained_bytes * 2)
+        .expect("positive byte budget");
+    let allocation_short = allocation_short
+        .grant(BudgetDimension::AccountedAllocation, 1)
+        .expect("positive allocation budget");
+    let mut allocation_resources = ResourceAccountant::new(allocation_short, &inventory);
+    assert!(matches!(
+        DeliveryIndex::new_bounded(
+            key(b"delivery-a", b"producer-revision-1"),
+            bounded_contents(),
+            &mut allocation_resources,
+        ),
+        OperationOutcome::Completed(_)
+    ));
+    let outcome = DeliveryIndex::new_bounded(
+        key(b"delivery-a", b"producer-revision-1"),
+        bounded_contents(),
+        &mut allocation_resources,
+    );
+    assert!(matches!(
+        outcome,
+        OperationOutcome::ResourceIncomplete(value)
+            if value.dimension() == BudgetDimension::AccountedAllocation
+    ));
+    assert_eq!(
+        allocation_resources
+            .usage()
+            .consumed(BudgetDimension::InputByte),
+        exact_retained_bytes,
+        "a later allocation refusal must preserve only the first transaction's byte charge"
+    );
+    assert_eq!(
+        allocation_resources
+            .usage()
+            .consumed(BudgetDimension::AccountedAllocation),
+        1
+    );
+
+    let invalid_budget = Budget::nothing_granted()
+        .grant(BudgetDimension::InputByte, exact_retained_bytes)
+        .expect("positive byte budget")
+        .grant(BudgetDimension::AccountedAllocation, 1)
+        .expect("positive allocation budget");
+    let mut invalid_resources = ResourceAccountant::new(invalid_budget, &inventory);
+    let role = InputRole::new(b"clock-input");
+    let invalid = contents(
+        vec![
+            IndexedInput::new(role.clone(), IndexedMember::new(b"one", b"1")),
+            IndexedInput::new(role, IndexedMember::new(b"two", b"2")),
+        ],
+        vec![],
+        vec![],
+        vec![],
+    );
+    assert!(matches!(
+        DeliveryIndex::new_bounded(
+            key(b"delivery-a", b"producer-revision-1"),
+            invalid,
+            &mut invalid_resources,
+        ),
+        OperationOutcome::DomainError(DeliveryIndexError::RepeatedInputRole(_))
+    ));
+    assert_eq!(
+        invalid_resources
+            .usage()
+            .consumed(BudgetDimension::InputByte),
+        0,
+        "domain-invalid input cannot consume request budget"
+    );
+    assert_eq!(
+        invalid_resources
+            .usage()
+            .consumed(BudgetDimension::AccountedAllocation),
+        0,
+        "domain-invalid input cannot allocate the retained index"
+    );
+
+    let observed_budget = Budget::nothing_granted()
+        .grant(BudgetDimension::InputByte, exact_retained_bytes - 1)
+        .expect("positive byte budget")
+        .grant(BudgetDimension::AccountedAllocation, 1)
+        .expect("positive allocation budget");
+    let mut observed_resources = ResourceAccountant::new(observed_budget, &inventory);
+    assert!(matches!(
+        DeliveryIndex::observed(
+            key(b"delivery-a", b"producer-revision-1"),
+            IndexRead::Present(bounded_contents()),
+            &mut observed_resources,
+        ),
+        OperationOutcome::ResourceIncomplete(value)
+            if value.dimension() == BudgetDimension::InputByte
+    ));
+    assert_eq!(
+        observed_resources
+            .usage()
+            .consumed(BudgetDimension::InputByte),
+        0,
+        "the adapter-present path must not bypass bounded construction"
     );
 
     let sufficient = Budget::nothing_granted()

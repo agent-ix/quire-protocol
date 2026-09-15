@@ -6,12 +6,13 @@
 //! the QObs facts or the declared global-closure premise set.
 
 use quire_observation::authority::{
-    closure as observation_closure, observation as observation_record, position, progress,
+    closure as observation_closure, completeness, observation as observation_record, position,
+    progress,
 };
 use quire_observation::QualifiedSubject;
-use quire_spec_language::protocol_artifact::wire::{BindingKind, Body, ControlOperation, Handle};
+use quire_spec_language::protocol_artifact::native_temporal::v2 as temporal_v2;
+use quire_spec_language::protocol_artifact::wire::{BindingKind, ControlOperation};
 use quire_spec_language::protocol_artifact::ProtocolNumber;
-use quire_spec_language::protocol_artifact::{native_temporal::v2 as temporal_v2, v3};
 use quire_spec_language::state::{
     self as state_evaluation, EvaluationOutcome, EvaluationReport, StateView,
     ValueKind as StateValueKind,
@@ -32,11 +33,13 @@ use crate::compensation::{
     },
     registration::Registration as CompensationRegistration,
 };
-use crate::conformance::Kernel as ConformanceKernel;
+use crate::conformance::{
+    ActivatedAssessmentError, ActivationFact, Kernel as ConformanceKernel,
+    Limits as ConformanceLimits,
+};
 use crate::model::v2::{
-    link as link_v2, CompensationAttemptInput, CompensationEffectInput,
-    CompensationRegistrationInput, DefinitionIdentity, DefinitionRegistry, LinkedAssessment,
-    LinkedProtocol, RuntimeBinding, SlotCompatibility, SlotHandle,
+    link as link_v2, CompensationRegistrationInput, DefinitionIdentity, DefinitionRegistry,
+    LinkedAssessment, LinkedProtocol, RuntimeBinding, SlotCompatibility, SlotHandle,
 };
 use crate::outcome::ClaimOutcome;
 use crate::refusal::catalog::{CatalogSelection, CodeEntry, CodeModule, Provenance, RefusalCode};
@@ -81,19 +84,16 @@ impl<'a> CanonicalRowInput<'a> {
     }
 }
 
-/// The exact QObs event and QSL v2 request/result pair selected for one activation site.
+/// The exact QObs event and QSL v2 request selected for one activation site.
 ///
 /// The request is already constructor-private and strict-read by QSL. This
-/// boundary binds their opaque trigger/request identity to the
-/// QObs-authoritative subject and proves that the temporal declaration belongs
-/// to this immutable protocol definition; it does not interpret either owner
-/// value.
-#[derive(Clone)]
+/// boundary only binds its opaque trigger bytes to the QObs-authoritative
+/// subject and proves that the temporal declaration belongs to this immutable
+/// protocol definition; it does not interpret either owner value.
+#[derive(Clone, Copy)]
 pub struct ActivationBinding<'a> {
-    control: Handle,
     subject: &'a QualifiedSubject,
     request: &'a temporal_v2::ValidatedRequest,
-    result: &'a temporal_v2::ValidatedResult,
 }
 
 impl core::fmt::Debug for ActivationBinding<'_> {
@@ -101,46 +101,19 @@ impl core::fmt::Debug for ActivationBinding<'_> {
         formatter
             .debug_struct("ActivationBinding")
             .field("subject", self.subject)
-            .field("control", &self.control)
             .field("temporal_declaration", &self.request.declaration())
             .finish_non_exhaustive()
     }
 }
 
 impl<'a> ActivationBinding<'a> {
-    /// Bind one strict QSL v2 request/result pair to the selected QObs subject
-    /// and static definition identity.
+    /// Bind one strict QSL v2 request to the selected QObs subject and static
+    /// definition identity.
     pub fn new(
         identity: &DefinitionIdentity,
-        package: &quire_spec_language::protocol_artifact::v2::AdmittedPackage,
-        mappings: &v3::AdmittedPackage,
-        control: &Handle,
         subject: &'a QualifiedSubject,
         request: &'a temporal_v2::ValidatedRequest,
-        result: &'a temporal_v2::ValidatedResult,
     ) -> Result<Self, BundleRefusal> {
-        let mut retained_v2 = package.package().inherited.clone();
-        retained_v2.wire = mappings.package().inherited.wire.clone();
-        retained_v2.media = mappings.package().inherited.media.clone();
-        retained_v2.schema = mappings.package().inherited.schema.clone();
-        if retained_v2 != mappings.package().inherited
-            || package.package().temporal_bindings != mappings.package().temporal_bindings
-        {
-            return Err(BundleRefusal::ActivationPackageMismatch);
-        }
-        if control.declaration != identity.declaration_handle() {
-            return Err(BundleRefusal::ActivationControlMismatch);
-        }
-        let Some(mapping) = mappings
-            .activation_mappings()
-            .iter()
-            .find(|mapping| mapping.control == *control)
-        else {
-            return Err(BundleRefusal::ActivationMappingMismatch);
-        };
-        if mapping.temporal_declaration != request.declaration() {
-            return Err(BundleRefusal::ActivationMappingMismatch);
-        }
         if request.semantic_trigger() != subject.identity().as_bytes() {
             return Err(BundleRefusal::ActivationSubjectMismatch);
         }
@@ -151,17 +124,7 @@ impl<'a> ActivationBinding<'a> {
         {
             return Err(BundleRefusal::ActivationDeclarationMismatch);
         }
-        if result.semantic_trigger() != request.semantic_trigger()
-            || result.request_identity() != request.document().identity()
-        {
-            return Err(BundleRefusal::ActivationResultMismatch);
-        }
-        Ok(Self {
-            control: control.clone(),
-            subject,
-            request,
-            result,
-        })
+        Ok(Self { subject, request })
     }
 
     #[must_use]
@@ -169,21 +132,9 @@ impl<'a> ActivationBinding<'a> {
         self.subject
     }
 
-    /// Returns the exact declaration-local event control admitted by QSL `/3`.
-    #[must_use]
-    pub const fn control(&self) -> &Handle {
-        &self.control
-    }
-
     #[must_use]
     pub const fn request(&self) -> &'a temporal_v2::ValidatedRequest {
         self.request
-    }
-
-    /// Returns the exact strictly read QSL result that checked this activation.
-    #[must_use]
-    pub const fn result(&self) -> &'a temporal_v2::ValidatedResult {
-        self.result
     }
 }
 
@@ -216,14 +167,6 @@ pub enum BundleRefusal {
     ActivationSubjectMismatch,
     /// The QSL v2 temporal declaration is not selected by this protocol definition.
     ActivationDeclarationMismatch,
-    /// The strict QSL result does not belong to the selected request/trigger.
-    ActivationResultMismatch,
-    /// The `/3` artifact does not retain the exact linked `/2` graph.
-    ActivationPackageMismatch,
-    /// The offered `/3` control is outside this linked protocol definition.
-    ActivationControlMismatch,
-    /// The offered control-to-temporal row is absent or selects another temporal declaration.
-    ActivationMappingMismatch,
 }
 
 macro_rules! bundle_code {
@@ -303,27 +246,6 @@ bundle_code!(
     "assessment-activation.declaration-mismatch",
     RefusalDomain::Assessment
 );
-bundle_code!(
-    BUNDLE_ACTIVATION_RESULT,
-    "assessment-activation.result-mismatch",
-    RefusalDomain::Assessment
-);
-bundle_code!(
-    BUNDLE_ACTIVATION_PACKAGE,
-    "assessment-representation.activation-package-mismatch",
-    RefusalDomain::Representation
-);
-bundle_code!(
-    BUNDLE_ACTIVATION_CONTROL,
-    "assessment-activation.control-mismatch",
-    RefusalDomain::Assessment
-);
-bundle_code!(
-    BUNDLE_ACTIVATION_MAPPING,
-    "assessment-activation.mapping-mismatch",
-    RefusalDomain::Assessment
-);
-
 /// Refusal codes minted by the assessment-bundle orchestration boundary.
 pub const CODES: CodeModule = CodeModule {
     root: "assessment-input",
@@ -343,11 +265,7 @@ pub const REPRESENTATION_CODES: CodeModule = CodeModule {
     root: "assessment-representation",
     owner: "Task-006",
     module_path: "quire_protocol::assessment",
-    entries: &[
-        BUNDLE_INVALID_IDENTITY,
-        BUNDLE_INVALID_LINKED_PROTOCOL,
-        BUNDLE_ACTIVATION_PACKAGE,
-    ],
+    entries: &[BUNDLE_INVALID_IDENTITY, BUNDLE_INVALID_LINKED_PROTOCOL],
 };
 
 /// Conformance-stage assessment setup codes.
@@ -375,13 +293,7 @@ pub const ACTIVATION_CODES: CodeModule = CodeModule {
     root: "assessment-activation",
     owner: "Task-006",
     module_path: "quire_protocol::assessment",
-    entries: &[
-        BUNDLE_ACTIVATION_SUBJECT,
-        BUNDLE_ACTIVATION_DECLARATION,
-        BUNDLE_ACTIVATION_RESULT,
-        BUNDLE_ACTIVATION_CONTROL,
-        BUNDLE_ACTIVATION_MAPPING,
-    ],
+    entries: &[BUNDLE_ACTIVATION_SUBJECT, BUNDLE_ACTIVATION_DECLARATION],
 };
 
 fn outcome_refusal(error: BundleRefusal) -> ProtocolRefusal {
@@ -418,18 +330,6 @@ fn outcome_refusal(error: BundleRefusal) -> ProtocolRefusal {
         }
         BundleRefusal::ActivationDeclarationMismatch => {
             (&BUNDLE_ACTIVATION_DECLARATION, ProtocolStage::Compensation)
-        }
-        BundleRefusal::ActivationResultMismatch => {
-            (&BUNDLE_ACTIVATION_RESULT, ProtocolStage::Compensation)
-        }
-        BundleRefusal::ActivationPackageMismatch => {
-            (&BUNDLE_ACTIVATION_PACKAGE, ProtocolStage::Representation)
-        }
-        BundleRefusal::ActivationControlMismatch => {
-            (&BUNDLE_ACTIVATION_CONTROL, ProtocolStage::Conformance)
-        }
-        BundleRefusal::ActivationMappingMismatch => {
-            (&BUNDLE_ACTIVATION_MAPPING, ProtocolStage::Conformance)
         }
     };
     let code = RefusalCode::of(entry);
@@ -480,6 +380,31 @@ impl core::fmt::Display for DispatchRefusal {
 
 impl std::error::Error for DispatchRefusal {}
 
+/// Failure from dispatching the Engine's activation-derived conformance result.
+///
+/// This keeps a rejected activation/conformance input distinct from a
+/// claim-local or whole-dispatch refusal. In particular, dispatch cannot turn
+/// a missing, conflicting, or otherwise non-admissible activation fact into an
+/// unsupported claim result.
+#[derive(Debug)]
+pub enum ActivatedDispatchError {
+    /// The exact activation-derived conformance input could not be assessed.
+    Assessment(ActivatedAssessmentError),
+    /// The fixed claim population or closed dispatcher rejected its own input.
+    Dispatch(DispatchRefusal),
+}
+
+impl core::fmt::Display for ActivatedDispatchError {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Assessment(error) => error.fmt(formatter),
+            Self::Dispatch(error) => error.fmt(formatter),
+        }
+    }
+}
+
+impl std::error::Error for ActivatedDispatchError {}
+
 /// One non-retargetable assessment request.
 ///
 /// The engine borrows the constructor-validated linked assessment and retains
@@ -495,8 +420,6 @@ pub struct Engine<'a> {
     compensation: CompensationSnapshot,
     compensation_state: CompensationState,
     conformance: ConformanceKernel,
-    compensation_attempts: Vec<CompensationAttemptInput<'a>>,
-    compensation_effects: Vec<CompensationEffectInput<'a>>,
     activation: Option<ActivationBinding<'a>>,
     requested: Vec<Claim>,
 }
@@ -524,24 +447,13 @@ impl<'a> Engine<'a> {
     pub fn new_activated(
         context: LinkedAssessment<'a>,
         requested: Vec<Claim>,
-        mappings: &v3::AdmittedPackage,
-        control: &Handle,
         subject: &'a QualifiedSubject,
         request: &'a temporal_v2::ValidatedRequest,
-        result: &'a temporal_v2::ValidatedResult,
     ) -> Result<Self, BundleRefusal> {
         let identity = context
             .definition_identity()
             .map_err(|_| BundleRefusal::InvalidDefinitionIdentity)?;
-        let activation = ActivationBinding::new(
-            &identity,
-            context.package(),
-            mappings,
-            control,
-            subject,
-            request,
-            result,
-        )?;
+        let activation = ActivationBinding::new(&identity, subject, request)?;
         Self::new_bound(context, requested, Some(activation))
     }
 
@@ -562,16 +474,8 @@ impl<'a> Engine<'a> {
         // A registration is committed only after its exact admitted guard has
         // completed true through `activate_compensation`.
         let compensation = CompensationSnapshot::default();
-        let compensation_attempts = Vec::new();
-        let compensation_effects = Vec::new();
-        let conformance = ConformanceKernel::new(
-            &linked,
-            &compensation,
-            &compensation_attempts,
-            &compensation_effects,
-            activation.as_ref(),
-        )
-        .map_err(|_| BundleRefusal::InvalidConformanceKernel)?;
+        let conformance = ConformanceKernel::new(&linked, &compensation, &[], &[])
+            .map_err(|_| BundleRefusal::InvalidConformanceKernel)?;
         Ok(Self {
             context,
             identity,
@@ -580,8 +484,6 @@ impl<'a> Engine<'a> {
             compensation,
             compensation_state: CompensationState::default(),
             conformance,
-            compensation_attempts,
-            compensation_effects,
             activation,
             requested,
         })
@@ -614,31 +516,17 @@ impl<'a> Engine<'a> {
         &self.compensation
     }
 
-    /// Returns the owned graph-derived attempt, effect, commit, ordering and
-    /// recovery state committed by this non-retargetable request.
+    /// Returns the owned graph-derived activation, attempt, effect, commit,
+    /// ordering and recovery state committed by this non-retargetable request.
     #[must_use]
     pub const fn compensation_state(&self) -> &CompensationState {
         &self.compensation_state
     }
 
-    /// Returns distinct admitted compensation attempts without treating an
-    /// attempt as either a forward or compensating effect.
-    #[must_use]
-    pub fn compensation_attempts(&self) -> &[CompensationAttemptInput<'a>] {
-        &self.compensation_attempts
-    }
-
-    /// Returns distinct admitted compensation effects without deriving one
-    /// from an attempt, transport result, or registration.
-    #[must_use]
-    pub fn compensation_effects(&self) -> &[CompensationEffectInput<'a>] {
-        &self.compensation_effects
-    }
-
     /// Returns the immutable activation pair where this assessment is event-triggered.
     #[must_use]
-    pub fn activation(&self) -> Option<ActivationBinding<'a>> {
-        self.activation.clone()
+    pub const fn activation(&self) -> Option<ActivationBinding<'a>> {
+        self.activation
     }
 
     /// Dispatch this assessment's exact claim population through the closed
@@ -647,7 +535,7 @@ impl<'a> Engine<'a> {
     /// The supplied report is produced by QProtocol's conformance owner; this
     /// method neither accepts a backend callback nor permits a dispatch request
     /// to add, omit, or retarget one of this engine's selected claims.
-    pub fn dispatch_conformance(
+    pub(crate) fn dispatch_conformance(
         &self,
         requests: &[ClaimRequest<'_>],
         report: &crate::conformance::Report,
@@ -669,6 +557,40 @@ impl<'a> Engine<'a> {
         }
         dispatch::dispatch_from_conformance(requests, report, limits)
             .map_err(DispatchRefusal::Dispatch)
+    }
+
+    /// Dispatch this Engine's exact requested claims from an admitted
+    /// activation-derived conformance assessment.
+    ///
+    /// This is the production bridge for Task-005: it obtains the report from
+    /// the same graph/compensation kernel that owns the request rather than
+    /// accepting a report selected by a caller. The report-taking evaluator is
+    /// crate-private and exists only for semantic model tests.
+    #[allow(clippy::too_many_arguments)]
+    pub fn dispatch_activated(
+        &self,
+        requests: &[ClaimRequest<'_>],
+        facts: &[ActivationFact<'_>],
+        axes: AxisInputs<'_>,
+        completeness: &completeness::View,
+        global_conformance: &GlobalConformanceInput,
+        execution: crate::closure::AssessmentExecution,
+        conformance_limits: ConformanceLimits,
+        dispatch_limits: DispatchLimits,
+    ) -> Result<DispatchReport, ActivatedDispatchError> {
+        let report = self
+            .conformance
+            .assess_activated(
+                facts,
+                axes,
+                completeness,
+                global_conformance,
+                execution,
+                conformance_limits,
+            )
+            .map_err(ActivatedDispatchError::Assessment)?;
+        self.dispatch_conformance(requests, &report, dispatch_limits)
+            .map_err(ActivatedDispatchError::Dispatch)
     }
 
     /// Evaluate the exact admitted guard and transactionally create every
@@ -697,27 +619,50 @@ impl<'a> Engine<'a> {
             BooleanEvaluation::False(report) => CompensationOutcome::GuardFalse(report),
             BooleanEvaluation::Source(report) => CompensationOutcome::Source(report),
             BooleanEvaluation::Unsupported(report) => CompensationOutcome::Unsupported(report),
-            BooleanEvaluation::True(_report) => {
-                let matching = self
+            BooleanEvaluation::True(report) => {
+                let mut matching = self
                     .compensation_inputs
                     .iter()
                     .filter(|input| input.compensation_handle() == compensation_handle)
                     .copied()
-                    .collect::<Vec<_>>();
-                if matching.is_empty() {
-                    return CompensationOutcome::Unavailable(CompensationMissing::ForwardEffect);
+                    .peekable();
+                if matching.peek().is_none() {
+                    return CompensationOutcome::UnavailableAfterEvaluation {
+                        missing: CompensationMissing::ForwardEffect,
+                        report,
+                    };
                 }
-                let mut candidate = self.compensation.clone();
+                let mut registration_candidate = self.compensation.clone();
+                let mut state_candidate = self.compensation_state.clone();
+                let activation = match state_candidate.retain_activation(
+                    compensation_handle,
+                    view.clone(),
+                    report,
+                ) {
+                    Ok(transition) => transition,
+                    Err(error) => return CompensationOutcome::Refused(error),
+                };
                 let mut created = false;
-                for input in &matching {
-                    created |= candidate.ensure(&self.identity, input).1;
+                for input in matching {
+                    created |= registration_candidate.ensure(&self.identity, &input).1;
                 }
-                self.compensation = candidate;
-                CompensationOutcome::Completed(if created {
-                    CompensationTransition::Applied
-                } else {
-                    CompensationTransition::Replay
-                })
+                // The candidate registrations are derived exclusively from
+                // this Engine's immutable linked/runtime capability. Replace
+                // only that owned population before either state is committed,
+                // so the conformance and compensation snapshots cannot diverge.
+                let conformance = self
+                    .conformance
+                    .with_engine_compensation(&registration_candidate);
+                self.compensation = registration_candidate;
+                self.compensation_state = state_candidate;
+                self.conformance = conformance;
+                CompensationOutcome::Completed(
+                    if created || activation == CompensationTransition::Applied {
+                        CompensationTransition::Applied
+                    } else {
+                        CompensationTransition::Replay
+                    },
+                )
             }
         }
     }
@@ -727,12 +672,15 @@ impl<'a> Engine<'a> {
     ///
     /// The initial attempt counts as position one and needs no retry relation.
     /// Every later distinct attempt must make the admitted retry expression
-    /// complete true. Exact replay is a no-op; changed replay and one-over-bound
-    /// candidates leave the prior snapshot unchanged.
+    /// complete true. An offered related effect must already be retained as an
+    /// independently established compensation effect for this registration.
+    /// Exact replay is a no-op; changed replay and one-over-bound candidates
+    /// leave the prior snapshot unchanged.
     pub fn admit_compensation_attempt(
         &mut self,
         compensation_handle: u32,
         binding: &RuntimeBinding,
+        established_effect: Option<&RuntimeBinding>,
         outcome: Option<AttemptOutcome>,
         retry_view: Option<&StateView>,
         limits: state_evaluation::Limits,
@@ -750,11 +698,58 @@ impl<'a> Engine<'a> {
             Ok(subject) => subject,
             Err(error) => return CompensationOutcome::Refused(error),
         };
+        let established_effect = match established_effect {
+            Some(binding) => {
+                let slot = SlotHandle::new(definition.definition().effect_instance);
+                let subject =
+                    match self.runtime_subject(slot, BindingKind::CompensationEffect, binding) {
+                        Ok(subject) => subject,
+                        Err(error) => return CompensationOutcome::Refused(error),
+                    };
+                let Some(effect) = self.compensation_state.effect(&subject) else {
+                    return CompensationOutcome::Unavailable(
+                        CompensationMissing::CompensationEffect,
+                    );
+                };
+                if effect.registration() != &registration {
+                    return CompensationOutcome::Refused(CompensationRefusal::ConflictingReplay);
+                }
+                Some(subject)
+            }
+            None => None,
+        };
         if let Some(existing) = self.compensation_state.attempt(&subject) {
-            return if existing.registration() == &registration && existing.outcome() == outcome {
-                CompensationOutcome::Completed(CompensationTransition::Replay)
-            } else {
-                CompensationOutcome::Refused(CompensationRefusal::ConflictingReplay)
+            if existing.registration() != &registration
+                || existing.established_effect() != established_effect.as_ref()
+                || existing.outcome() != outcome
+            {
+                return CompensationOutcome::Refused(CompensationRefusal::ConflictingReplay);
+            }
+            if existing.retry().is_none() {
+                return CompensationOutcome::Completed(CompensationTransition::Replay);
+            }
+            let empty = StateView::default();
+            let view = retry_view.unwrap_or(&empty);
+            return match evaluate_boolean(
+                self.context.package(),
+                self.identity.declaration_handle(),
+                definition.definition().retry.clone(),
+                view,
+                limits,
+            ) {
+                BooleanEvaluation::True(report)
+                    if existing.retry_view() == Some(view) && existing.retry() == Some(&report) =>
+                {
+                    CompensationOutcome::Completed(CompensationTransition::Replay)
+                }
+                BooleanEvaluation::True(_) => {
+                    CompensationOutcome::Refused(CompensationRefusal::ConflictingReplay)
+                }
+                BooleanEvaluation::False(report) => CompensationOutcome::Refused(
+                    CompensationRefusal::RetryNotAuthorized(Box::new(report)),
+                ),
+                BooleanEvaluation::Source(report) => CompensationOutcome::Source(report),
+                BooleanEvaluation::Unsupported(report) => CompensationOutcome::Unsupported(report),
             };
         }
 
@@ -781,8 +776,8 @@ impl<'a> Engine<'a> {
             });
         }
 
-        let retry = if retained == 0 {
-            None
+        let (retry_view, retry) = if retained == 0 {
+            (None, None)
         } else {
             let empty = StateView::default();
             let view = retry_view.unwrap_or(&empty);
@@ -793,9 +788,11 @@ impl<'a> Engine<'a> {
                 view,
                 limits,
             ) {
-                BooleanEvaluation::True(report) => Some(report),
-                BooleanEvaluation::False(_) => {
-                    return CompensationOutcome::Refused(CompensationRefusal::RetryNotAuthorized)
+                BooleanEvaluation::True(report) => (Some(view.clone()), Some(report)),
+                BooleanEvaluation::False(report) => {
+                    return CompensationOutcome::Refused(CompensationRefusal::RetryNotAuthorized(
+                        Box::new(report),
+                    ))
                 }
                 BooleanEvaluation::Source(report) => return CompensationOutcome::Source(report),
                 BooleanEvaluation::Unsupported(report) => {
@@ -805,7 +802,14 @@ impl<'a> Engine<'a> {
         };
 
         let mut candidate = self.compensation_state.clone();
-        candidate.push_attempt(registration, subject, outcome, retry);
+        candidate.push_attempt(
+            registration,
+            subject,
+            established_effect,
+            outcome,
+            retry_view,
+            retry,
+        );
         self.compensation_state = candidate;
         CompensationOutcome::Completed(CompensationTransition::Applied)
     }
@@ -866,17 +870,14 @@ impl<'a> Engine<'a> {
         let Some(commit) = definition.definition().commit.0.as_ref() else {
             return CompensationOutcome::Refused(CompensationRefusal::CommitNotSelected);
         };
-        if commit.declaration != self.identity.declaration_handle() {
-            return CompensationOutcome::Refused(CompensationRefusal::InvalidCommitSelection);
-        }
-        let Body::Protocol { controls, .. } = &self.linked.declaration().body else {
-            unreachable!("LinkedProtocol retains only a protocol declaration");
-        };
-        let Some(control) = controls.get(usize::try_from(commit.index).unwrap_or(usize::MAX))
+        let Some(control) = self
+            .conformance
+            .obligation(commit.index)
+            .filter(|_| commit.declaration == self.identity.declaration_handle())
         else {
             return CompensationOutcome::Refused(CompensationRefusal::InvalidCommitSelection);
         };
-        let ControlOperation::Commit { instance, .. } = &control.operation else {
+        let ControlOperation::Commit { instance, .. } = control.operation() else {
             return CompensationOutcome::Refused(CompensationRefusal::InvalidCommitSelection);
         };
         let slot = SlotHandle::new(*instance);
@@ -943,7 +944,7 @@ impl<'a> Engine<'a> {
             }
         };
         let mut candidate = self.compensation_state.clone();
-        match candidate.retain_recovery(registration, report) {
+        match candidate.retain_recovery(registration, view.clone(), report) {
             Ok(transition) => {
                 self.compensation_state = candidate;
                 CompensationOutcome::Completed(transition)
@@ -1038,7 +1039,14 @@ impl<'a> Engine<'a> {
             violations.push(OrderingViolation::CompensationAfterCommit);
         }
         let mut candidate = self.compensation_state.clone();
-        match candidate.retain_ordering(registration, violations) {
+        match candidate.retain_ordering(
+            registration,
+            forward.clone(),
+            effect.clone(),
+            commit.cloned(),
+            positions.clone(),
+            violations,
+        ) {
             Ok(transition) => {
                 self.compensation_state = candidate;
                 CompensationOutcome::Completed(transition)
@@ -1120,8 +1128,6 @@ impl<'a> Engine<'a> {
             compensation: self.compensation,
             compensation_state: self.compensation_state,
             conformance: self.conformance,
-            compensation_attempts: self.compensation_attempts,
-            compensation_effects: self.compensation_effects,
             rows,
         })
     }
@@ -1405,8 +1411,6 @@ pub struct AssessmentBundle<'a, Row> {
     compensation: CompensationSnapshot,
     compensation_state: CompensationState,
     conformance: ConformanceKernel,
-    compensation_attempts: Vec<CompensationAttemptInput<'a>>,
-    compensation_effects: Vec<CompensationEffectInput<'a>>,
     rows: Vec<ClaimRow<Row>>,
 }
 
@@ -1446,16 +1450,6 @@ impl<Row> AssessmentBundle<'_, Row> {
     #[must_use]
     pub const fn compensation_state(&self) -> &CompensationState {
         &self.compensation_state
-    }
-    /// Distinct admitted compensation attempts retained with this bundle.
-    #[must_use]
-    pub fn compensation_attempts(&self) -> &[CompensationAttemptInput<'_>] {
-        &self.compensation_attempts
-    }
-    /// Distinct admitted compensation effects retained with this bundle.
-    #[must_use]
-    pub fn compensation_effects(&self) -> &[CompensationEffectInput<'_>] {
-        &self.compensation_effects
     }
     /// One ordered outcome for every requested claim.
     #[must_use]
@@ -1610,26 +1604,6 @@ mod tests {
                 BundleRefusal::ActivationDeclarationMismatch,
                 RefusalDomain::Assessment,
                 ProtocolStage::Compensation,
-            ),
-            (
-                BundleRefusal::ActivationResultMismatch,
-                RefusalDomain::Assessment,
-                ProtocolStage::Compensation,
-            ),
-            (
-                BundleRefusal::ActivationPackageMismatch,
-                RefusalDomain::Representation,
-                ProtocolStage::Representation,
-            ),
-            (
-                BundleRefusal::ActivationControlMismatch,
-                RefusalDomain::Assessment,
-                ProtocolStage::Conformance,
-            ),
-            (
-                BundleRefusal::ActivationMappingMismatch,
-                RefusalDomain::Assessment,
-                ProtocolStage::Conformance,
             ),
         ];
         let mut codes = BTreeSet::new();

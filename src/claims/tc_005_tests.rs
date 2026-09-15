@@ -15,8 +15,9 @@ use quire_protocol::claims::premises::{
 };
 use quire_protocol::claims::Claim;
 use quire_protocol::closure::{AssessmentExecution, GlobalConformanceClosure};
-use quire_protocol::conformance::batch::{PremiseSnapshot, RetainedDocument};
-use quire_protocol::conformance::{GlobalDisposition, Report as ConformanceReport, Usage};
+use quire_protocol::conformance::{
+    GlobalDisposition, PremiseSnapshot, Report as ConformanceReport, RetainedDocument, Usage,
+};
 use quire_protocol::refusal::{PartialOutput, ProtocolStage};
 
 fn component(identity: &str) -> Component {
@@ -29,7 +30,7 @@ fn component(identity: &str) -> Component {
 fn premise_set() -> PremiseSet {
     PremiseSet {
         admitted_fragment: component("fragment:one"),
-        backend: BackendSelection::retained(b"conformance-report".to_vec(), b"v1".to_vec()),
+        backend: BackendSelection::retained(b"qprotocol:conformance".to_vec(), b"v1".to_vec()),
         assumptions: vec![
             Assumption {
                 component: component("assumption:root"),
@@ -242,6 +243,10 @@ fn empty_backend(premises: &mut PremiseSet) {
     premises.backend.version = Box::new([]);
 }
 
+fn substitute_backend(premises: &mut PremiseSet) {
+    premises.backend.identity = b"caller:alternate".to_vec().into_boxed_slice();
+}
+
 fn duplicate_assumption(premises: &mut PremiseSet) {
     premises.assumptions.push(premises.assumptions[0].clone());
 }
@@ -310,6 +315,56 @@ fn tc_005_every_premise_axis_refuses_without_erasing_a_sibling() {
         assert_eq!(failure.code(), FailureCode::InvalidPremises);
         assert!(failure.defects().iter().any(|defect| defect.axis == axis));
     }
+}
+
+/// The closed supported backend is not replaceable by an alternate caller
+/// identity, and a failed conformance execution stays failed without promoting
+/// the independent unsupported projection claim.
+#[trace("TC-005", "FR-005-AC-4", "FR-029-AC-4", "FR-030-AC-3")]
+#[test]
+fn tc_005_selected_backend_has_no_alternate_or_fallback() {
+    let correspondence = ExactCorrespondence;
+    let mut substituted = request("request:conformance", Claim::Conformance, &correspondence);
+    substitute_backend(&mut substituted.premises);
+    let refused = dispatch_from_conformance(
+        &[substituted],
+        &report(GlobalDisposition::Conforms, AssessmentExecution::Completed),
+        Limits::default(),
+    )
+    .expect("a backend mismatch is claim-local");
+    assert_eq!(
+        refused.dispositions[0].execution,
+        AssessmentExecution::Refused
+    );
+    assert!(refused.dispositions[0]
+        .failure
+        .as_ref()
+        .expect("mismatch refusal")
+        .defects()
+        .iter()
+        .any(|defect| defect.axis == PremiseAxis::Backend
+            && defect.kind == PremiseDefectKind::CorrespondenceMismatch));
+
+    let requests = [
+        request("request:conformance", Claim::Conformance, &correspondence),
+        request("request:projection", Claim::Projection, &correspondence),
+    ];
+    let failed = dispatch_from_conformance(
+        &requests,
+        &report(GlobalDisposition::Conforms, AssessmentExecution::Failed),
+        Limits::default(),
+    )
+    .expect("a failed selected execution preserves every claim row");
+    assert_eq!(
+        failed.dispositions[0].execution,
+        AssessmentExecution::Failed
+    );
+    assert_eq!(failed.dispositions[0].decision, None);
+    assert_eq!(
+        failed.dispositions[1].execution,
+        AssessmentExecution::Unsupported,
+        "no unsupported claim is repaired by the failed selected capability"
+    );
 }
 
 #[trace("TC-005", "FR-029-AC-5", "FR-029-AC-6")]

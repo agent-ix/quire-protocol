@@ -7,6 +7,70 @@ description: "Chronological log of changes to the Plan-001 bundle."
 
 ## History
 
+* **2026-09-15** — Completed Task-005 / issue #7 as the activation-derived
+  independent-claim bridge. The public Engine now assesses strict FR-300 facts
+  through its graph/compensation kernel before dispatch; the raw report
+  evaluator and its bounded semantic harness are crate-private. Every request
+  keeps its ordered identity, strength and exact fragment/backend/assumption/
+  communication/visibility/environment/source/derived-artifact premises.
+  `qprotocol:conformance/v1` is the sole supported local backend; alternate
+  identities refuse claim-locally, and unsupported or failed sibling claims
+  never receive a fallback or erase another result. TC-005 retains total
+  disposition, premise mutation, duplicate, correspondence, resource and
+  no-fallback controls, while a real FR-300 fixture proves the Engine entry
+  point. SR-114/SR-115 pass. The live QSL default and Protocol pin are both
+  `0c2f13e`; the stale `6c8c401` campaign reference was corrected on #7/#14.
+  The Task-004 review-ID collision with Task-009 was repaired as SR-112/SR-113.
+  Task-006/#8 remains Agent B's serial consumer.
+
+* **2026-09-15** — Completed Task-004 / issue #6 as the strict
+  activation-derived finite-conformance bridge. Production no longer exposes a
+  caller-built conformance `Model`: exact QSL FR-300 bindings retain the linked
+  definition/control/subject/semantic-trigger/result identity, derive the
+  internal evaluator model, and correlate admitted QObs facts to that
+  occurrence. The Engine transactionally rebuilds the kernel against its
+  candidate compensation registration snapshot before committing either state,
+  so batch and settled-incremental frontends always assess the same graph-owned
+  facts. TC-004 retains legal interleavings, adverse/mismatched facts,
+  independent decision/execution/global closure axes, owner non-successes and
+  compensation synchronization. SR-112 removed the public construction bypass,
+  stale snapshot and panic-capable replacement path; SR-113 finds no remaining
+  Task-004 trace, matrix, reverse-code or stub gap. `quire coverage` reports
+  154/342 repository rows backed and 266/266 tagged/bound Rust symbols (272
+  candidates); unrelated remaining rows remain visible. The exact local Rust
+  gate passes with no feature, workflow, hosted-CI or `resources/native-v1/`
+  change. Task-005 remains the next serial core consumer.
+
+* **2026-09-15** — Completed the Task-009 / issue #11 candidate against QSL
+  `6c8c401bb807a417215fae7593ef27fd9bab051e`. QSL #112 supplies the committed
+  owner-addressed `/1` handoff and #114 supplies distinct Service/Provider model
+  authorities. Protocol imports A's public selection/dependency types and member
+  constants, retains its independently reviewed selection before reading the
+  offer, and invokes neither a producer nor an ambient fixture. All 24 current
+  IT-001 version-1 tests run by default: the corpus admits through
+  `intake::v1::admit`, reaches `model::v1::link_static`, preserves four sources,
+  seven declarations, two role instances and one channel, and keeps every
+  numeric, digest, identity, feature and referenced-binding refusal explicit.
+  A paired version-1/version-2 test additionally changes each of the eight
+  inherited `Expected` selections and proves both readers refuse every axis;
+  version-2-only temporal axes remain separate in A's 28-case manifest.
+  The positive source/dependency inventory identifies exactly one A reader per
+  versioned intake and no B parser/frontend module. SC-06a was executed as the
+  required two-revision comparison rather than inferred from the current run:
+  the identical historical 23-case corpus passed 23/23 at Protocol `0e5ec292`
+  with QSL `5690c2b2` and 23/23 at Protocol `5ce9070e` with QSL `d03e4ca5`.
+  The historical test blob `96b7ecc816b43ea2328c032d8c5b843ef000cc29`
+  and selection blob `309af51873ef103a2331edf6e361aad85170b6d0` match
+  across both revisions; the root `/1` signature/body and QSL `/1` refusal types
+  are unchanged. The current mutual-refusal test now carries the exact
+  FR-001-AC-5 and NFR-007-AC-3/AC-4 trace tags. `quire coverage` reports
+  153/342 rows and 266/266/272 Rust symbols bound/tagged/candidates, with
+  FR-001 at 5/5 and the three current executable NFR-007 criteria bound. The
+  installed model still cannot mint bullet-form IT scenario IDs pending
+  `quire-rs#244`, so SC-06a's two-revision evidence remains separately counted
+  rather than mislabeled as a persistent single-run test. PR-time review, final
+  unchanged-head gate and promotion evidence remain before issue closure.
+
 * **2026-09-15** — Completed Task-003 / issue #5 on the exact QSL
   `c0deb7b3ab66d6e8cb64a0fd7769bd0af82b61b7` owner evaluator delivered by
   QSL #101/#105/#108. The request-scoped Engine begins with eligible linked
@@ -17,12 +81,15 @@ description: "Chronological log of changes to the Plan-001 bundle."
   refused, unsupported and exhausted paths cannot become success; exact replay
   is a no-op and conflicts preserve the prior snapshot. Full and partial
   recovery execute independently over the same target/achieved values. The
+  graph retains each QSL operand view and owner report, each attempt's optional
+  independently established effect, and the complete QObs causal-order views;
+  changed evidence therefore cannot pass as an exact replay. The
   former `RecoveryRelation` callback is absent from production (with an
   external compile-fail proof), while the existing capability-mutation harness
   continues to prove zero business and compensation calls. TC-003 now has eight
   retained pure-kernel tests and two graph-owned Engine tests; focused default-
-  free tests and doc tests pass. PR-time reviews and the unchanged-head full
-  local gate are the remaining promotion steps.
+  free tests and doc tests pass. SR-106/SR-107 and the exact unchanged-head
+  local gate passed; PR #73 merged as `15fae62` and closed issue #5.
 
 * **2026-09-14** — Completed Task-019 / issue #66 as the consumer-authored
   FR-018 delivery index. `DeliveryIndex` retains exact delivery-root and
@@ -35,8 +102,14 @@ description: "Chronological log of changes to the Plan-001 bundle."
   inventory entries. TC-017 covers identity, byte retention, input/temporal/
   mutation/limit rejection, adapter absence, fresh-budget behavior and the
   structural proof that no delivery index can supply or repair a version-lock
-  resolution. The active full suite passes; the generated `/1` corpus remains
-  an explicit ignored integration lane under Task-009.
+  resolution. Ticket-specific review SR-108 removed the public unbounded
+  construction path, made exact-byte and allocation charging transactional,
+  moved domain validation before accounting, rejected duplicate selected
+  declarations and made limit ordering exhaustively typed. TC-017 now kills
+  each former bypass and confirms that invalid input consumes no request budget;
+  SR-109 finds no remaining Task-019 trace, matrix, reverse-code or tracking gap.
+  The generated `/1` corpus remains an explicit ignored integration lane under
+  Task-009.
 
 * **2026-09-14** — Completed Task-013 / issue #49 as the Protocol-owned version-lock resolver over Task-017 baseline `0cba759`. The resolver validates exact non-empty (`owner`, `contract version`) keys in deterministic order, retains the two-state manifest without state-to-identity substitution, verifies exact delivered bytes, authenticates interface selections independently and mints only request/key/revision/contract-bound private capabilities. Seventeen typed refusal axes retain exact affected identities and causes; entry count, bytes digested and monotonic deadline use the shared accountant and return resource-incomplete one-short. Eleven TC-013 tests pass with no ignored case. Rust review SR-103 fixed accidental aggregate equality, a wrong interface subject cause, weak refusal-identity assertions and a panic-capable deadline conversion; semantic gap review SR-104 passes. The review also found that no `DeliveryIndex` exists despite prior FR-018 credit, so #66/Task-019 and TC-017 now own that already-specified object and Quire reports its rows honestly unbacked. Coverage is 144/342 with 247/247 Rust candidates tagged/bound. The exact unchanged-head local gate passes on Rust/Cargo 1.98.1; Cargo.lock remains SHA-256 `2824b45d644459229f0eb2293cc6f1bff12ee77dd16dd83c73e93f9fc0cbd3b5`, no dependency/workflow/native-v1 surface changes, and no hosted CI dispatch.
 

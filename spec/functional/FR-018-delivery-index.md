@@ -221,9 +221,10 @@ or names the owner that has not:
 
 ## Status
 
-Draft. This artifact records planned consumer-owned meaning. The superseded
-pre-delivery index and scenario vocabulary were retired when the version 2 lane
-began consuming A's published `MutationManifest` directly. A's manifest is
-producer-owned and does not instantiate this consumer-authored object; the
-concrete delivery-index implementation is assigned to Task-019/#66 rather than
-being claimed by Task-013's resolver or IT-001's handoff loader.
+Implemented under Task-019/#66. Five default-running TC-017 tests exercise every
+Test-designated criterion, including exact identity and bytes, typed absence and
+ambiguity, producer declaration rules, typed limit ordering, transactional
+resource charging, and version-lock non-authority. SR-108 and SR-109 record the
+PR-time Rust and gap reviews. The superseded pre-delivery corpus remains retired;
+A's `MutationManifest` is producer-owned and does not instantiate this
+consumer-authored object.

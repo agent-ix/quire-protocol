@@ -8,11 +8,12 @@ Admission and linking are separate operations. The published root `/1`
 `admit_and_link` remains a narrow compatibility facade; normal integrations
 select versioned intake/model modules explicitly.
 
-The pinned QSL dependency publishes the default-running `/2` handoff and its
-expected selections. A producer-emitted expectation is evidence, not consumer
-authority: the caller independently selects the artifact, dependency closure,
-profile and version-lock entries before Protocol reads producer values. The
-broader `/1` compatibility corpus remains Task-009 work.
+The pinned QSL dependency publishes default-running `/1` and `/2` handoffs and
+their owner-defined selection records. A producer-emitted expectation is
+evidence, not consumer authority: the caller independently selects the
+artifact, dependency closure, profile and version-lock entries before Protocol
+reads producer values. Task-009's `/1` compatibility corpus now runs from the
+committed owner address with no environment selector.
 
 `quire-protocol` is the private, first-party Rust implementation home for the
 selected native Quire finite protocol slice. It will own strict protocol

@@ -2,7 +2,7 @@
 id: Task-004
 title: "Assess finite global conformance"
 type: Task
-status: in_progress
+status: done
 track: Core
 priority: P0
 relationships:
@@ -26,16 +26,17 @@ uses one shared deterministic kernel for both public frontends.
 
 ## Subtasks
 
-- [ ] Write TC-004 batch/incremental equivalence and legal-interleaving model cases first.
-- [ ] Report unexpected, missing, misordered, duplicate-effect, cross-workflow, and compensation violations against exact obligations.
-- [ ] Admit each event-triggered obligation only from a complete QSpec FR-300
-  activation binding validated against the linked definition/control; remove the
-  public caller-built `Model`/obligation construction path from production.
-- [ ] Keep decision-scope progress/closure, surrounding-execution
+- [x] Write TC-004 batch/incremental equivalence and legal-interleaving model cases first.
+- [x] Report unexpected, missing, misordered, duplicate-effect, cross-workflow, and compensation violations against exact obligations.
+- [x] Admit each event-triggered obligation only from a complete QSpec FR-300
+  activation binding validated against the linked definition/control.
+- [x] Remove the public caller-built `Model`/obligation construction path from
+  production.
+- [x] Keep decision-scope progress/closure, surrounding-execution
   progress/closure, complete-global-conformance closure, and open, incomplete,
   unsupported, failed and exhausted outcomes independently observable.
-- [ ] Ensure decisive open-subject results require the selected temporal rule and all declared decision support.
-- [ ] Exercise every boundary with deterministic scheduling and no hidden wall-clock ordering premise.
+- [x] Ensure decisive open-subject results require the selected temporal rule and all declared decision support.
+- [x] Exercise every boundary with deterministic scheduling and no hidden wall-clock ordering premise.
 
 ## Deliverables
 
@@ -44,3 +45,4 @@ uses one shared deterministic kernel for both public frontends.
 ## Notes
 
 - Unblocks Task-005.
+- SR-112/SR-113 record the passing scoped Rust review and gap analysis.

@@ -70,3 +70,9 @@ production construction of compensation identities.
   replay, missing-source and resource-exhaustion transactionality. The earlier
   pure kernels remain as internal building blocks and their action-capability
   mutation test continues to prove zero business/compensation calls.
+- The graph snapshot retains the exact QSL state views used for successful
+  guard, retry and recovery evaluation, the complete owner reports, each
+  attempt's independently established related effect when present, and the
+  complete QObs observation/position views used for causal ordering. Replay
+  compares these inputs as well as their derived outcomes; changed evidence
+  cannot pass as an exact replay.
