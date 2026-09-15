@@ -33,6 +33,8 @@ pub mod closure;
 pub mod compensation;
 /// Batch and settled-incremental conformance evaluation. Owner chunks: C-20, C-21.
 pub mod conformance;
+/// Consumer-authored evidence index for one pinned producer delivery.
+pub mod delivery_index;
 /// Producer-domain and result-domain digests. Owner chunks: C-10, C-11.
 pub mod digest;
 /// Protocol identity newtypes. Owner chunk: C-07.

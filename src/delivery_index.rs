@@ -1,0 +1,534 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//! FR-018: consumer-authored evidence for one already-pinned delivery.
+//!
+//! This module is deliberately an in-memory value boundary.  It neither reads a
+//! filesystem nor accepts a version-lock manifest or resolver capability, so an
+//! index cannot discover, supply, select, or repair a version-lock entry.
+
+use core::fmt;
+use core::hash::{Hash, Hasher};
+use std::collections::BTreeSet;
+
+use quire_spec_language::protocol_artifact::Dimension as CompiledDimension;
+
+use crate::bounds::inventory::BudgetDimension;
+use crate::version_lock::{EntryKey, ExactBytes};
+
+/// Exact consumer-selected root for a delivered producer revision.
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd, Hash)]
+pub struct DeliveryRoot(ExactBytes);
+
+impl DeliveryRoot {
+    /// Retain a non-empty root exactly as selected.
+    #[must_use]
+    pub fn new(bytes: &[u8]) -> Self {
+        Self(ExactBytes::new(bytes))
+    }
+
+    /// Exact selected root bytes.
+    #[must_use]
+    pub fn as_bytes(&self) -> &[u8] {
+        self.0.as_bytes()
+    }
+}
+
+/// Exact immutable producer revision copied into an index.
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd, Hash)]
+pub struct ProducerRevision(ExactBytes);
+
+impl ProducerRevision {
+    /// Retain the producer revision without normalization.
+    #[must_use]
+    pub fn new(bytes: &[u8]) -> Self {
+        Self(ExactBytes::new(bytes))
+    }
+
+    /// Exact producer revision bytes.
+    #[must_use]
+    pub fn as_bytes(&self) -> &[u8] {
+        self.0.as_bytes()
+    }
+}
+
+/// Componentwise identity of one consumer-authored delivery index.
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd, Hash)]
+pub struct DeliveryIndexKey {
+    delivery_root: DeliveryRoot,
+    producer_revision: ProducerRevision,
+}
+
+impl DeliveryIndexKey {
+    /// Build the only identity an index owns.
+    #[must_use]
+    pub const fn new(delivery_root: DeliveryRoot, producer_revision: ProducerRevision) -> Self {
+        Self {
+            delivery_root,
+            producer_revision,
+        }
+    }
+
+    /// The selected delivery root.
+    #[must_use]
+    pub const fn delivery_root(&self) -> &DeliveryRoot {
+        &self.delivery_root
+    }
+
+    /// The copied producer revision.
+    #[must_use]
+    pub const fn producer_revision(&self) -> &ProducerRevision {
+        &self.producer_revision
+    }
+}
+
+/// One byte-bearing member as observed under the delivery root.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct IndexedMember {
+    path: ExactBytes,
+    bytes: ExactBytes,
+}
+
+impl IndexedMember {
+    /// Retain a member path and its exact delivered bytes.
+    #[must_use]
+    pub fn new(path: &[u8], bytes: &[u8]) -> Self {
+        Self {
+            path: ExactBytes::new(path),
+            bytes: ExactBytes::new(bytes),
+        }
+    }
+
+    /// Path relative to the delivery root.
+    #[must_use]
+    pub const fn path(&self) -> &ExactBytes {
+        &self.path
+    }
+
+    /// Exact submitted bytes. No digest is synthesized here.
+    #[must_use]
+    pub const fn bytes(&self) -> &ExactBytes {
+        &self.bytes
+    }
+}
+
+/// A producer input role as named by the selected producer delivery.
+///
+/// The producer owns the role vocabulary. This consumer retains its exact
+/// spelling and only owns duplicate detection in one index; it does not create
+/// a parallel role enumeration.
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd, Hash)]
+pub struct InputRole(ExactBytes);
+
+impl InputRole {
+    /// Retain the producer role spelling exactly.
+    #[must_use]
+    pub fn new(bytes: &[u8]) -> Self {
+        Self(ExactBytes::new(bytes))
+    }
+
+    /// Exact producer role bytes.
+    #[must_use]
+    pub fn as_bytes(&self) -> &[u8] {
+        self.0.as_bytes()
+    }
+}
+
+/// An exact input-role member.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct IndexedInput {
+    role: InputRole,
+    member: IndexedMember,
+}
+
+impl IndexedInput {
+    /// Associate one producer input role with its observed member.
+    #[must_use]
+    pub const fn new(role: InputRole, member: IndexedMember) -> Self {
+        Self { role, member }
+    }
+
+    /// The exact producer role.
+    #[must_use]
+    pub const fn role(&self) -> &InputRole {
+        &self.role
+    }
+
+    /// The retained member.
+    #[must_use]
+    pub const fn member(&self) -> &IndexedMember {
+        &self.member
+    }
+}
+
+/// One producer temporal binding retained under its owner, declaration and path.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TemporalBindingRecord {
+    owner: ExactBytes,
+    declaration: u32,
+    path: ExactBytes,
+}
+
+impl TemporalBindingRecord {
+    /// Retain the producer's binding record; its order is validated by [`DeliveryIndex`].
+    #[must_use]
+    pub fn new(owner: &[u8], declaration: u32, path: &[u8]) -> Self {
+        Self {
+            owner: ExactBytes::new(owner),
+            declaration,
+            path: ExactBytes::new(path),
+        }
+    }
+
+    /// Exact owner spelling.
+    #[must_use]
+    pub const fn owner(&self) -> &ExactBytes {
+        &self.owner
+    }
+    /// Producer declaration handle.
+    #[must_use]
+    pub const fn declaration(&self) -> u32 {
+        self.declaration
+    }
+    /// Retained binding path.
+    #[must_use]
+    pub const fn path(&self) -> &ExactBytes {
+        &self.path
+    }
+}
+
+/// A dimension owned either by Protocol or the compiled-protocol reader.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum LimitDimension {
+    /// A caller-facing Protocol dimension.
+    Protocol(BudgetDimension),
+    /// A compiled-protocol reader dimension.
+    CompiledProtocol(CompiledDimension),
+}
+
+impl LimitDimension {
+    fn order_key(self) -> (u8, u8) {
+        match self {
+            Self::Protocol(value) => (0, value as u8),
+            Self::CompiledProtocol(value) => (
+                1,
+                CompiledDimension::ALL
+                    .iter()
+                    .position(|candidate| *candidate == value)
+                    .expect("closed compiled dimension") as u8,
+            ),
+        }
+    }
+}
+
+impl Ord for LimitDimension {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.order_key().cmp(&other.order_key())
+    }
+}
+
+impl PartialOrd for LimitDimension {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Hash for LimitDimension {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.order_key().hash(state);
+    }
+}
+
+/// One caller-supplied limit retained by exact accountant key and dimension.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct IndexedLimit {
+    accountant: EntryKey,
+    dimension: LimitDimension,
+    bound: u64,
+}
+
+impl IndexedLimit {
+    /// Construct one exact typed limit entry.
+    #[must_use]
+    pub const fn new(accountant: EntryKey, dimension: LimitDimension, bound: u64) -> Self {
+        Self {
+            accountant,
+            dimension,
+            bound,
+        }
+    }
+    /// Exact accountant owner and contract version.
+    #[must_use]
+    pub const fn accountant(&self) -> &EntryKey {
+        &self.accountant
+    }
+    /// The non-substitutable owner vocabulary and member.
+    #[must_use]
+    pub const fn dimension(&self) -> LimitDimension {
+        self.dimension
+    }
+    /// Caller-provided bound.
+    #[must_use]
+    pub const fn bound(&self) -> u64 {
+        self.bound
+    }
+}
+
+/// One producer mutation fixture indexed by scenario.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct IndexedMutation {
+    fixture: ExactBytes,
+    scenario: ExactBytes,
+    path: ExactBytes,
+}
+
+impl IndexedMutation {
+    /// Retain a producer-provided fixture record exactly.
+    #[must_use]
+    pub fn new(fixture: &[u8], scenario: &[u8], path: &[u8]) -> Self {
+        Self {
+            fixture: ExactBytes::new(fixture),
+            scenario: ExactBytes::new(scenario),
+            path: ExactBytes::new(path),
+        }
+    }
+    /// Fixture name.
+    #[must_use]
+    pub const fn fixture(&self) -> &ExactBytes {
+        &self.fixture
+    }
+    /// Scenario key.
+    #[must_use]
+    pub const fn scenario(&self) -> &ExactBytes {
+        &self.scenario
+    }
+    /// Fixture member path.
+    #[must_use]
+    pub const fn path(&self) -> &ExactBytes {
+        &self.path
+    }
+}
+
+/// The exact non-identity state retained for one index.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DeliveryIndexContents {
+    offer: IndexedMember,
+    artifact_reference: ExactBytes,
+    inputs: Vec<IndexedInput>,
+    temporal_profile: ExactBytes,
+    temporal_bindings: Vec<TemporalBindingRecord>,
+    limits: Vec<IndexedLimit>,
+    mutations: Vec<IndexedMutation>,
+}
+
+impl DeliveryIndexContents {
+    /// Build the retained delivery state before validation.
+    #[must_use]
+    pub fn new(
+        offer: IndexedMember,
+        artifact_reference: &[u8],
+        inputs: Vec<IndexedInput>,
+        temporal_profile: &[u8],
+        temporal_bindings: Vec<TemporalBindingRecord>,
+        limits: Vec<IndexedLimit>,
+        mutations: Vec<IndexedMutation>,
+    ) -> Self {
+        Self {
+            offer,
+            artifact_reference: ExactBytes::new(artifact_reference),
+            inputs,
+            temporal_profile: ExactBytes::new(temporal_profile),
+            temporal_bindings,
+            limits,
+            mutations,
+        }
+    }
+}
+
+/// A distinct failure while assembling consumer-owned delivery evidence.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum DeliveryIndexError {
+    /// The selected root was not available.
+    MissingRoot(DeliveryRoot),
+    /// No index was available under the selected root.
+    MissingIndex(DeliveryRoot),
+    /// The index record could not be read.
+    UnreadableIndex {
+        root: DeliveryRoot,
+        reason: ExactBytes,
+    },
+    /// A named member was absent.
+    MissingMember(ExactBytes),
+    /// A named member could not be read.
+    UnreadableMember {
+        path: ExactBytes,
+        reason: ExactBytes,
+    },
+    /// A requested input role has no index entry.
+    UnindexedInputRole(InputRole),
+    /// Two input entries name the same role.
+    RepeatedInputRole(InputRole),
+    /// Two temporal records name one declaration.
+    RepeatedDeclaration(u32),
+    /// A temporal declaration expected by the selected producer package is absent.
+    MissingDeclaration(u32),
+    /// An indexed temporal record names no selected temporal declaration.
+    SurplusDeclaration(u32),
+    /// Temporal declarations are not in producer-required ascending order.
+    UnsortedBindings { previous: u32, declaration: u32 },
+    /// More than one mutation fixture names one scenario.
+    AmbiguousMutation(ExactBytes),
+    /// More than one limit names one exact accountant and typed dimension.
+    RepeatedLimit {
+        accountant: EntryKey,
+        dimension: LimitDimension,
+    },
+}
+
+impl fmt::Display for DeliveryIndexError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "delivery index assembly failed: {self:?}")
+    }
+}
+impl std::error::Error for DeliveryIndexError {}
+
+/// A validated consumer-owned delivery record.
+///
+/// Equality is solely [`DeliveryIndexKey`], intentionally excluding every
+/// retained state field.
+#[derive(Clone, Debug)]
+pub struct DeliveryIndex {
+    key: DeliveryIndexKey,
+    contents: DeliveryIndexContents,
+}
+
+impl PartialEq for DeliveryIndex {
+    fn eq(&self, other: &Self) -> bool {
+        self.key == other.key
+    }
+}
+impl Eq for DeliveryIndex {}
+
+impl DeliveryIndex {
+    /// Validate and retain one complete delivery index.
+    pub fn new(
+        key: DeliveryIndexKey,
+        contents: DeliveryIndexContents,
+    ) -> Result<Self, DeliveryIndexError> {
+        let mut input_roles = BTreeSet::new();
+        for input in &contents.inputs {
+            if !input_roles.insert(input.role.clone()) {
+                return Err(DeliveryIndexError::RepeatedInputRole(input.role.clone()));
+            }
+        }
+        let mut prior = None;
+        for binding in &contents.temporal_bindings {
+            if let Some(previous) = prior {
+                if binding.declaration == previous {
+                    return Err(DeliveryIndexError::RepeatedDeclaration(binding.declaration));
+                }
+                if binding.declaration < previous {
+                    return Err(DeliveryIndexError::UnsortedBindings {
+                        previous,
+                        declaration: binding.declaration,
+                    });
+                }
+            }
+            prior = Some(binding.declaration);
+        }
+        let mut mutation_scenarios = BTreeSet::new();
+        for mutation in &contents.mutations {
+            if !mutation_scenarios.insert(mutation.scenario.clone()) {
+                return Err(DeliveryIndexError::AmbiguousMutation(
+                    mutation.scenario.clone(),
+                ));
+            }
+        }
+        let mut limit_keys = BTreeSet::new();
+        for limit in &contents.limits {
+            let limit_key = (limit.accountant.clone(), limit.dimension);
+            if !limit_keys.insert(limit_key) {
+                return Err(DeliveryIndexError::RepeatedLimit {
+                    accountant: limit.accountant.clone(),
+                    dimension: limit.dimension,
+                });
+            }
+        }
+        Ok(Self { key, contents })
+    }
+
+    /// Consumer-authored index identity.
+    #[must_use]
+    pub const fn key(&self) -> &DeliveryIndexKey {
+        &self.key
+    }
+    /// Exact offered artifact member.
+    #[must_use]
+    pub const fn offer(&self) -> &IndexedMember {
+        &self.contents.offer
+    }
+    /// Producer's verbatim external artifact reference.
+    #[must_use]
+    pub const fn artifact_reference(&self) -> &ExactBytes {
+        &self.contents.artifact_reference
+    }
+    /// Indexed input members.
+    #[must_use]
+    pub fn inputs(&self) -> &[IndexedInput] {
+        &self.contents.inputs
+    }
+    /// Look up a role without defaulting an absent entry.
+    pub fn input(&self, role: &InputRole) -> Result<&IndexedMember, DeliveryIndexError> {
+        self.contents
+            .inputs
+            .iter()
+            .find(|input| input.role == *role)
+            .map(IndexedInput::member)
+            .ok_or_else(|| DeliveryIndexError::UnindexedInputRole(role.clone()))
+    }
+    /// Indexed temporal profile path.
+    #[must_use]
+    pub const fn temporal_profile(&self) -> &ExactBytes {
+        &self.contents.temporal_profile
+    }
+    /// Producer-ordered temporal binding records.
+    #[must_use]
+    pub fn temporal_bindings(&self) -> &[TemporalBindingRecord] {
+        &self.contents.temporal_bindings
+    }
+
+    /// Check the producer's exact cardinality rule against selected temporal declarations.
+    ///
+    /// This method deliberately compares only declaration handles: it does not
+    /// invent a stronger binding identity or an order beyond the producer's
+    /// already-validated ascending declaration order.
+    pub fn validate_temporal_declarations(
+        &self,
+        selected: &[u32],
+    ) -> Result<(), DeliveryIndexError> {
+        let actual: BTreeSet<_> = self
+            .contents
+            .temporal_bindings
+            .iter()
+            .map(TemporalBindingRecord::declaration)
+            .collect();
+        let expected: BTreeSet<_> = selected.iter().copied().collect();
+        if let Some(declaration) = expected.difference(&actual).next() {
+            return Err(DeliveryIndexError::MissingDeclaration(*declaration));
+        }
+        if let Some(declaration) = actual.difference(&expected).next() {
+            return Err(DeliveryIndexError::SurplusDeclaration(*declaration));
+        }
+        Ok(())
+    }
+    /// Deterministically ordered, non-causal limits.
+    #[must_use]
+    pub fn limits(&self) -> Vec<&IndexedLimit> {
+        let mut ordered: Vec<_> = self.contents.limits.iter().collect();
+        ordered.sort_by_key(|limit| (limit.accountant.clone(), limit.dimension));
+        ordered
+    }
+    /// One-at-most mutation fixture per scenario.
+    #[must_use]
+    pub fn mutations(&self) -> &[IndexedMutation] {
+        &self.contents.mutations
+    }
+}
