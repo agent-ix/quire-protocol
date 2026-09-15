@@ -403,6 +403,11 @@ fn tc_003_engine_is_graph_owned_exact_and_transactional() {
     );
     assert_eq!(engine.compensation().registrations().len(), 1);
     assert_eq!(
+        engine.conformance().registrations().len(),
+        1,
+        "the conformance kernel retains the same committed compensation snapshot"
+    );
+    assert_eq!(
         engine.activate_compensation(0, &guard, StateLimits::default()),
         Outcome::Completed(Transition::Replay)
     );

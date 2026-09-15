@@ -552,8 +552,18 @@ impl<'a> Engine<'a> {
                 for input in matching {
                     created |= registration_candidate.ensure(&self.identity, &input).1;
                 }
+                // The candidate registrations are derived exclusively from
+                // this Engine's immutable linked graph and runtime capability,
+                // which are the exact invariants `ConformanceKernel::new`
+                // checks. Rebuild before either state is committed so the
+                // conformance and compensation snapshots cannot diverge.
+                let conformance =
+                    ConformanceKernel::new(&self.linked, &registration_candidate, &[], &[]).expect(
+                        "engine-derived compensation registrations belong to its fixed graph",
+                    );
                 self.compensation = registration_candidate;
                 self.compensation_state = state_candidate;
+                self.conformance = conformance;
                 CompensationOutcome::Completed(
                     if created || activation == CompensationTransition::Applied {
                         CompensationTransition::Applied
