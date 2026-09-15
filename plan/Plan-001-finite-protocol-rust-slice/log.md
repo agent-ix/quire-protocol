@@ -7,6 +7,24 @@ description: "Chronological log of changes to the Plan-001 bundle."
 
 ## History
 
+* **2026-09-15** — Completed Task-004 / issue #6 as the strict
+  activation-derived finite-conformance bridge. Production no longer exposes a
+  caller-built conformance `Model`: exact QSL FR-300 bindings retain the linked
+  definition/control/subject/semantic-trigger/result identity, derive the
+  internal evaluator model, and correlate admitted QObs facts to that
+  occurrence. The Engine transactionally rebuilds the kernel against its
+  candidate compensation registration snapshot before committing either state,
+  so batch and settled-incremental frontends always assess the same graph-owned
+  facts. TC-004 retains legal interleavings, adverse/mismatched facts,
+  independent decision/execution/global closure axes, owner non-successes and
+  compensation synchronization. SR-110 removed the public construction bypass,
+  stale snapshot and panic-capable replacement path; SR-111 finds no remaining
+  Task-004 trace, matrix, reverse-code or stub gap. `quire coverage` reports
+  154/342 repository rows backed and 266/266 tagged/bound Rust symbols (272
+  candidates); unrelated remaining rows remain visible. The exact local Rust
+  gate passes with no feature, workflow, hosted-CI or `resources/native-v1/`
+  change. Task-005 remains the next serial core consumer.
+
 * **2026-09-15** — Completed the Task-009 / issue #11 candidate against QSL
   `6c8c401bb807a417215fae7593ef27fd9bab051e`. QSL #112 supplies the committed
   owner-addressed `/1` handoff and #114 supplies distinct Service/Provider model

@@ -3,8 +3,9 @@
 `a-four-unit-selections.json` is B's reviewed acceptance selection for IT-001.
 It is derived against the original sources, admitted model, contract and
 dependency bytes produced by `native_protocol_handoff` at `quire-spec-language`
-`6c8c401bb807a417215fae7593ef27fd9bab051e` — the QSL revision pinned by this
-crate — and retained
+`6c8c401bb807a417215fae7593ef27fd9bab051e` — an ancestor of the QSL revision
+`0c2f13e261c0ffeaf89f0638931b573ec038e99b` currently pinned by this crate —
+and retained
 here as an AGPL-3.0-only compatibility fixture. JSON does not support an SPDX
 header; this provenance record supplies the applicable license notice.
 

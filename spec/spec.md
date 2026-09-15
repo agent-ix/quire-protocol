@@ -246,9 +246,10 @@ complete under Task-019/#66. Task status and executable coverage are stated
 only by TM-001 and Plan-001; module presence does not close an aggregate
 requirement.
 
-The current accepted compiler pin is QSL `6c8c401`; both compiled-protocol
-handoffs are owner-addressed and the `/1` Service/Provider authorities are
-distinct. The direct QObs pin is the accepted FR-287/FR-262 revision `93bc565`.
+The current accepted compiler pin is QSL `0c2f13e`; the compiled-protocol `/1`,
+`/2`, and `/3` handoffs are owner-addressed and the `/1` Service/Provider
+authorities are distinct. The direct QObs pin is the accepted FR-287/FR-262
+revision `93bc565`.
 E02 has an implemented draft-2 reader whose owner acceptance prose is still
 contradictory, and Quoin has a Rust evidence implementation but no Protocol
 scenario-record intake. These are explicit gates, not permission to substitute

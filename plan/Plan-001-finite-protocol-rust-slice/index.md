@@ -13,7 +13,7 @@ okf_version: "0.1"
 * [Task-001: Admit the selected profile and establish the Rust crate](./tasks/Task-001-admit-profile-establish-crate.md) - Done: exact admission, owner mutation refusal, independent baseline selection and numeric boundaries execute against the pinned published handoff; Task-009 has since closed FR-001-AC-5.
 * [Task-002: Link the finite protocol representation](./tasks/Task-002-link-finite-representation.md) - Done under PR #67: exact versioned graph/runtime linking, componentwise FR-288 identity, owner-typed bindings and complete mutation coverage.
 * [Task-003: Assess compensation state](./tasks/Task-003-assess-compensation-state.md) - Done: the request-scoped Engine derives activation, registration, retry, selected commit, QObs ordering and QSL recovery transactionally with no production recovery callback.
-* [Task-004: Assess finite global conformance](./tasks/Task-004-assess-finite-conformance.md) - Implement bounded batch and incremental conformance.
+* [Task-004: Assess finite global conformance](./tasks/Task-004-assess-finite-conformance.md) - Done: strict FR-300 activation facts derive one graph/compensation conformance kernel for both public frontends; SR-110/SR-111 pass.
 * [Task-005: Dispatch independent claims](./tasks/Task-005-dispatch-independent-claims.md) - Preserve independent claim outcomes and explicit unsupported states.
 * [Task-006: Produce canonical results and typed refusals](./tasks/Task-006-canonical-results-refusals.md) - Implement strict result, lineage, JCS, and refusal contracts.
 * [Task-007: Project canonical results to E02](./tasks/Task-007-project-e02.md) - Implement the selected total projection and strict-reader check.

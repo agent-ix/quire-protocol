@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Settled incremental conformance and exact batch-path comparison.
 
+#![allow(
+    dead_code,
+    reason = "the crate-private standalone evaluator is exercised by TC-004 unit tests; production enters through activation-derived frontends"
+)]
+
 use quire_observation::authority::completeness;
 
 use crate::assessment::{AxisInputs, GlobalConformanceInput};

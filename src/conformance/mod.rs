@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Finite protocol conformance over strict QObs owner views.
 //!
-//! [`batch`] owns deterministic assessment of an explicit obligation model and
-//! [`incremental`] owns prefix settlement plus exact comparison with batch.
-//! Neither path parses source, derives causality from timestamps, repairs an
-//! admitted observation, or evaluates a temporal predicate.
+//! Production callers enter through the activation-derived kernel frontends.
+//! The standalone explicit-model evaluator is crate-private and used only by
+//! this crate's semantic model tests. Neither path parses source, derives
+//! causality from timestamps, repairs an admitted observation, or evaluates a
+//! temporal predicate.
 
-pub mod batch;
-pub mod incremental;
+pub(crate) mod batch;
+pub(crate) mod incremental;
 /// Immutable composition of one linked graph and derived compensation state.
 pub mod kernel;
 
@@ -19,16 +20,19 @@ use crate::refusal::{
 use crate::ByteDigest;
 
 pub use batch::{
-    assess, assess_bounded, AdverseKind, AdverseObservation, BoundObservation, GlobalDisposition,
-    GlobalPremiseDefect, GlobalPremiseDefectKind, IncompleteCause, Limits, Model,
-    ObligationDisposition, ObligationId, ObligationResult, ObservationObligation, Report, Request,
-    Usage,
+    AdverseKind, AdverseObservation, GlobalDisposition, GlobalPremiseDefect,
+    GlobalPremiseDefectKind, IncompleteCause, Limits, ObligationDisposition, ObligationId,
+    ObligationResult, PremiseSnapshot, Report, RetainedDocument, RetainedObservation, Usage,
 };
-pub use incremental::{compare, Incremental, IncrementalContext};
 pub use kernel::{
-    Kernel, LinkedCompensationAttempt, LinkedCompensationEffect, LinkedObligation,
-    Refusal as KernelRefusal,
+    ActivatedAssessmentError, ActivatedIncremental, ActivatedOccurrence, ActivationBinding,
+    ActivationFact, ActivationRegistry, Kernel, LinkedCompensationAttempt,
+    LinkedCompensationEffect, LinkedObligation, Refusal as KernelRefusal,
 };
+
+#[cfg(test)]
+#[path = "tc_004_tests.rs"]
+mod tc_004_tests;
 
 /// Stable conformance refusal cause.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]

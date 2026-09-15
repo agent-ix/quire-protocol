@@ -16,13 +16,21 @@ use quire_protocol::model::v2::{
 };
 use quire_protocol::wire::{BindingKind, Body, CausalEdge, ControlOperation, EdgeKind, Port};
 use quire_protocol::{
-    assessment::{BundleRefusal, ClaimRow, Engine},
+    assessment::{
+        AxisInputs, BundleRefusal, ClaimRow, Engine, GlobalConformanceInput, GlobalPremise,
+        PremiseKind,
+    },
     claims::Claim,
+    closure::{AssessmentExecution, GlobalConformanceClosure},
+    conformance::{
+        ActivatedAssessmentError, ActivatedIncremental, AdverseKind, ErrorCode, GlobalDisposition,
+        Limits as ConformanceLimits, ObligationDisposition,
+    },
     outcome::{ClaimOutcome, OperationOutcome},
 };
 use quire_spec_language::protocol_artifact::{
     native_temporal::{self, request, v2 as temporal_v2},
-    temporal_subject, wire as qsl_wire,
+    occurrence_key_schema, temporal_subject, v3, wire as qsl_wire, WorkflowInstanceIdentity,
 };
 use quire_spec_language::{temporal, ByteDigest};
 
@@ -33,9 +41,57 @@ use quire_spec_language::{temporal, ByteDigest};
 #[path = "support/v2_handoff/mod.rs"]
 mod handoff;
 
+#[path = "support/observation_owner.rs"]
+#[allow(dead_code)]
+mod observation_owner;
+
 const ORDER_KIND: &[u8] = b"ix://agent-ix/commerce/type/Order";
 const SHIPMENT_KIND: &[u8] = b"ix://agent-ix/commerce/type/Shipment";
 const ORDER_SHIPMENT: &str = "ix://agent-ix/commerce/relationship/Order-shipment";
+
+fn global_conformance(state: GlobalConformanceClosure) -> GlobalConformanceInput {
+    let premises = vec![
+        GlobalPremise {
+            kind: PremiseKind::Execution,
+            identity: "premise:activation:execution".into(),
+            scope_identity: "scope:activation:execution".into(),
+            authority_identity: "authority:activation:execution".into(),
+        },
+        GlobalPremise {
+            kind: PremiseKind::Branch,
+            identity: "premise:activation:branch".into(),
+            scope_identity: "scope:activation:branch".into(),
+            authority_identity: "authority:activation:branch".into(),
+        },
+        GlobalPremise {
+            kind: PremiseKind::Workflow,
+            identity: "premise:activation:workflow".into(),
+            scope_identity: "scope:activation:workflow".into(),
+            authority_identity: "authority:activation:workflow".into(),
+        },
+    ];
+    GlobalConformanceInput {
+        state,
+        required_premises: premises.clone(),
+        premises,
+    }
+}
+
+fn closed_global_conformance() -> GlobalConformanceInput {
+    global_conformance(GlobalConformanceClosure::Closed)
+}
+
+fn closed_axes<'a>(
+    decision: &'a observation_owner::ScopeViews,
+    surrounding: &'a observation_owner::ScopeViews,
+) -> AxisInputs<'a> {
+    AxisInputs {
+        decision_scope_progress: &decision.progress_closed,
+        decision_scope_closure: &decision.closure_closed,
+        surrounding_execution_progress: &surrounding.progress_closed,
+        surrounding_execution_closure: &surrounding.closure_closed,
+    }
+}
 
 fn admitted_published_v2() -> quire_spec_language::protocol_artifact::v2::AdmittedPackage {
     let loaded = handoff::Handoff::load().expect("published v2 handoff");
@@ -45,6 +101,90 @@ fn admitted_published_v2() -> quire_spec_language::protocol_artifact::v2::Admitt
     quire_protocol::intake::v2::admit(loaded.offer(), &expected, loaded.limits())
         .into_result()
         .expect("published v2 offer admits")
+}
+
+/// Strictly admit the published `/2` graph with one independently authored
+/// `/3` event-to-temporal mapping.  The test owns the offer and independent
+/// expectation separately so the Protocol kernel never needs a local mapping
+/// mirror.
+fn admitted_published_v3(
+    package: &quire_spec_language::protocol_artifact::v2::AdmittedPackage,
+) -> v3::AdmittedPackage {
+    let loaded = handoff::Handoff::load().expect("published v2 handoff");
+    let declarations = loaded.declarations();
+    let inventories = loaded.inventories(&declarations);
+    let (declaration, control) = package
+        .inherited()
+        .declarations
+        .iter()
+        .enumerate()
+        .find_map(|(declaration, item)| {
+            let Body::Protocol { controls, .. } = &item.body else {
+                return None;
+            };
+            controls.iter().enumerate().find_map(|(control, item)| {
+                matches!(item.operation, ControlOperation::Event { .. }).then_some((
+                    u32::try_from(declaration).expect("published declaration index fits"),
+                    u32::try_from(control).expect("published control index fits"),
+                ))
+            })
+        })
+        .expect("published handoff has an event control");
+    let temporal_declaration = match &package.inherited().declarations
+        [usize::try_from(declaration).expect("published declaration index fits")]
+    .body
+    {
+        Body::Protocol {
+            temporal_requirements,
+            ..
+        } => *temporal_requirements
+            .first()
+            .expect("selected protocol requires one temporal declaration"),
+        _ => unreachable!("selected declaration is a protocol"),
+    };
+    let activation = v3::ExpectedActivation {
+        control: qsl_wire::Handle {
+            declaration,
+            index: control,
+        },
+        temporal_declaration,
+    };
+    let mut inherited = package.inherited().clone();
+    inherited.wire = v3::WIRE.into();
+    inherited.media = v3::MEDIA.into();
+    inherited.schema = v3::SCHEMA.into();
+    let offer = v3::wire::Package {
+        inherited,
+        temporal_bindings: package.package().temporal_bindings.clone(),
+        activation_mappings: vec![v3::wire::ActivationMapping {
+            control: activation.control.clone(),
+            temporal_declaration,
+        }],
+    };
+    let candidate = v3::encode_candidate(
+        &offer,
+        quire_spec_language::protocol_artifact::Limits::default(),
+    )
+    .into_result()
+    .expect("canonical v3 mapping offer encodes");
+    let mut seal = package
+        .artifact()
+        .expect("strict v2 handoff retained its artifact seal")
+        .clone();
+    seal.wire.version = "3".into();
+    seal.digest = candidate.digest();
+    let inherited = loaded.expected_for(&inventories, &seal);
+    let expected = v3::Expected {
+        inherited,
+        activations: std::slice::from_ref(&activation),
+    };
+    v3::read(
+        candidate.bytes(),
+        &expected,
+        quire_spec_language::protocol_artifact::Limits::default(),
+    )
+    .into_result()
+    .expect("strict v3 mapping package admits")
 }
 
 fn protocol_coordinates(
@@ -249,6 +389,14 @@ fn activated_request(
     package: &quire_spec_language::protocol_artifact::v2::AdmittedPackage,
     trigger: &[u8],
 ) -> temporal_v2::ValidatedRequest {
+    activated_request_at(package, trigger, "origin")
+}
+
+fn activated_request_at(
+    package: &quire_spec_language::protocol_artifact::v2::AdmittedPackage,
+    trigger: &[u8],
+    anchor: &str,
+) -> temporal_v2::ValidatedRequest {
     let declaration = package
         .inherited()
         .declarations
@@ -295,10 +443,10 @@ fn activated_request(
                 valuations: BTreeMap::from([(leaf, true)]),
             },
         }],
-        anchor: "origin".into(),
+        anchor: anchor.into(),
         triggers: vec![temporal_v2::TriggerInput {
             receipt: "receipt:1".into(),
-            anchor: "origin".into(),
+            anchor: anchor.into(),
             payload: String::new(),
             guard: None,
             captures: Vec::new(),
@@ -1074,7 +1222,7 @@ fn tc_002_linked_assessment_refuses_every_context_coordinate_mutation() {
 /// The full-assessment boundary accepts only an admitted `/2` protocol and
 /// retains its static and runtime capabilities without retargeting either one.
 #[test]
-#[trace("TC-002", "FR-002-AC-1", "FR-002-AC-3")]
+#[trace("TC-002", "TC-004", "FR-002-AC-1", "FR-002-AC-3", "FR-004-AC-1")]
 fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
     let package = admitted_published_v2();
     let (declaration_handle, subject_slot) = protocol_coordinates(&package);
@@ -1177,6 +1325,365 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
     };
     assert_eq!(engine.linked().identity(), &identity);
     assert_eq!(engine.conformance().definition(), &identity);
+
+    let mappings = admitted_published_v3(&package);
+    let result_document = temporal_v2::evaluate(
+        &request,
+        temporal_v2::Relation::Original,
+        native_temporal::Limits::default(),
+    )
+    .into_result()
+    .expect("strict temporal result evaluates");
+    let result = temporal_v2::read_result(
+        result_document.bytes(),
+        &request,
+        temporal_v2::Relation::Original,
+        native_temporal::Limits::default(),
+    )
+    .into_result()
+    .expect("strict temporal result reads");
+    match engine.conformance().bind_activation(
+        engine.linked(),
+        &mappings,
+        &mismatched_subject,
+        &request,
+        &result,
+    ) {
+        Err(refusal) => assert_eq!(
+            refusal,
+            quire_protocol::conformance::KernelRefusal::ActivationSubjectMismatch
+        ),
+        Ok(_) => panic!("a strict request cannot be substituted onto another QObs subject"),
+    }
+    let activation = engine
+        .conformance()
+        .bind_activation(
+            engine.linked(),
+            &mappings,
+            &activation_subject,
+            &request,
+            &result,
+        )
+        .expect("only the strict /3 mapping joins the selected event activation");
+    assert_eq!(activation.definition(), &identity);
+    assert_eq!(activation.subject(), &activation_subject);
+    assert_eq!(
+        activation.semantic_trigger(),
+        activation_subject.identity().as_bytes()
+    );
+    assert_eq!(activation.evaluation_anchor(), "origin");
+    assert_eq!(activation.control().declaration, declaration_handle);
+    assert!(matches!(
+        activation.activation(),
+        native_temporal::result::ActivationState::Active
+    ));
+    let mut activations = quire_protocol::conformance::ActivationRegistry::default();
+    activations
+        .admit(
+            engine.conformance(),
+            engine.linked(),
+            &mappings,
+            &activation_subject,
+            &request,
+            &result,
+        )
+        .expect("first strict activation retains");
+    activations
+        .admit(
+            engine.conformance(),
+            engine.linked(),
+            &mappings,
+            &activation_subject,
+            &request,
+            &result,
+        )
+        .expect("an exact strict activation replay is idempotent");
+    assert_eq!(activations.bindings().len(), 1);
+    let conflicting_request = activated_request_at(
+        &package,
+        activation_subject.identity().as_bytes(),
+        "other-origin",
+    );
+    let conflicting_result_document = temporal_v2::evaluate(
+        &conflicting_request,
+        temporal_v2::Relation::Original,
+        native_temporal::Limits::default(),
+    )
+    .into_result()
+    .expect("changed strict temporal request evaluates");
+    let conflicting_result = temporal_v2::read_result(
+        conflicting_result_document.bytes(),
+        &conflicting_request,
+        temporal_v2::Relation::Original,
+        native_temporal::Limits::default(),
+    )
+    .into_result()
+    .expect("changed strict temporal result reads");
+    assert_eq!(
+        engine
+            .conformance()
+            .bind_activation(
+                engine.linked(),
+                &mappings,
+                &activation_subject,
+                &request,
+                &conflicting_result,
+            )
+            .expect_err("a temporal result cannot be substituted for another strict request"),
+        quire_protocol::conformance::KernelRefusal::ActivationResultMismatch
+    );
+    assert_eq!(
+        activations
+            .admit(
+                engine.conformance(),
+                engine.linked(),
+                &mappings,
+                &activation_subject,
+                &conflicting_request,
+                &conflicting_result,
+            )
+            .expect_err("a changed checked anchor cannot overwrite the same FR-300 key"),
+        quire_protocol::conformance::KernelRefusal::ConflictingActivation
+    );
+    assert_eq!(activations.bindings().len(), 1);
+    let occurrence_schema = occurrence_key_schema(
+        &package,
+        declaration_handle,
+        quire_spec_language::protocol_artifact::Limits::default(),
+    )
+    .into_result()
+    .expect("selected protocol produces a strict occurrence-key schema");
+    let node = occurrence_schema
+        .nodes()
+        .get(usize::try_from(activation.control().index).expect("control index fits"))
+        .expect("selected activation control has an occurrence schema");
+    assert!(
+        node.repeats().is_empty(),
+        "published selected activation control has no repeat dimensions"
+    );
+    let occurrence = occurrence_schema
+        .bind(
+            WorkflowInstanceIdentity::new("workflow:one").expect("nonempty workflow identity"),
+            activation.control(),
+            node.role().clone(),
+            &[],
+        )
+        .expect("QSL validates the selected event occurrence");
+    activation
+        .require_occurrence(&occurrence)
+        .expect("the activation cannot be retargeted away from its mapped control");
+    let derived_occurrence = engine
+        .conformance()
+        .activate_occurrence(&activation, occurrence.clone())
+        .expect("a mapped activation and QSL occurrence form one derived obligation");
+    let decision = observation_owner::scope_views("42");
+    let surrounding = observation_owner::scope_views("activation-derived-surrounding");
+    let global = closed_global_conformance();
+    let fact = engine
+        .conformance()
+        .activation_fact(derived_occurrence.clone(), Some(&decision.observation));
+    let batch = engine
+        .conformance()
+        .assess_activated(
+            std::slice::from_ref(&fact),
+            closed_axes(&decision, &surrounding),
+            &decision.completeness_complete,
+            &global,
+            AssessmentExecution::Completed,
+            ConformanceLimits::default(),
+        )
+        .expect("the activation-derived batch frontend has no caller-built model");
+    let mut incremental = ActivatedIncremental::new(
+        engine.conformance(),
+        std::slice::from_ref(&derived_occurrence),
+    )
+    .expect("the activation-derived incremental frontend uses the same derived model");
+    let pushed = incremental
+        .push(
+            &fact,
+            closed_axes(&decision, &surrounding),
+            &decision.completeness_complete,
+            &global,
+            AssessmentExecution::Completed,
+            ConformanceLimits::default(),
+        )
+        .expect("the activation-derived incremental frontend admits the same QObs fact")
+        .clone();
+    let incremental = incremental
+        .finish(
+            closed_axes(&decision, &surrounding),
+            &decision.completeness_complete,
+            &global,
+            AssessmentExecution::Completed,
+            ConformanceLimits::default(),
+        )
+        .expect("the activation-derived path finishes with the admitted QObs fact")
+        .clone();
+    assert_eq!(
+        batch, incremental,
+        "activation-derived batch and incremental reports agree exactly"
+    );
+    assert_eq!(
+        pushed, incremental,
+        "a closed admitted prefix stays settled"
+    );
+    assert_eq!(batch.global, GlobalDisposition::Conforms);
+    assert_eq!(
+        batch.obligations[0].disposition,
+        ObligationDisposition::Conforms,
+        "the QObs view is correlated only through its admitted activation occurrence"
+    );
+    let unexpected_fact = engine
+        .conformance()
+        .activation_fact(derived_occurrence.clone(), Some(&surrounding.observation));
+    let unexpected = engine
+        .conformance()
+        .assess_activated(
+            std::slice::from_ref(&unexpected_fact),
+            closed_axes(&decision, &surrounding),
+            &decision.completeness_complete,
+            &global,
+            AssessmentExecution::Completed,
+            ConformanceLimits::default(),
+        )
+        .expect("a mismatched admitted QObs view is reported, not repaired");
+    assert_eq!(unexpected.global, GlobalDisposition::Violates);
+    assert_eq!(
+        unexpected.obligations[0].disposition,
+        ObligationDisposition::Violates
+    );
+    assert_eq!(unexpected.adverse.len(), 1);
+    assert_eq!(unexpected.adverse[0].kind, AdverseKind::Unexpected);
+    for (state, expected) in [
+        (GlobalConformanceClosure::Open, GlobalDisposition::Pending),
+        (
+            GlobalConformanceClosure::Incomplete,
+            GlobalDisposition::Pending,
+        ),
+        (
+            GlobalConformanceClosure::Contradicted,
+            GlobalDisposition::Violates,
+        ),
+    ] {
+        let report = engine
+            .conformance()
+            .assess_activated(
+                std::slice::from_ref(&fact),
+                closed_axes(&decision, &surrounding),
+                &decision.completeness_complete,
+                &global_conformance(state),
+                AssessmentExecution::Completed,
+                ConformanceLimits::default(),
+            )
+            .expect("each required global-closure state remains independently observable");
+        assert_eq!(report.global, expected);
+    }
+    assert!(matches!(
+        engine.conformance().assess_activated(
+            std::slice::from_ref(&fact),
+            closed_axes(&decision, &surrounding),
+            &decision.completeness_complete,
+            &global_conformance(GlobalConformanceClosure::NotRequired),
+            AssessmentExecution::Completed,
+            ConformanceLimits::default(),
+        ),
+        Err(ActivatedAssessmentError::Conformance(refusal))
+            if refusal.code() == ErrorCode::InvalidPremises
+    ));
+    for axes in [
+        AxisInputs {
+            decision_scope_progress: &decision.progress_open,
+            decision_scope_closure: &decision.closure_closed,
+            surrounding_execution_progress: &surrounding.progress_closed,
+            surrounding_execution_closure: &surrounding.closure_closed,
+        },
+        AxisInputs {
+            decision_scope_progress: &decision.progress_closed,
+            decision_scope_closure: &decision.closure_open,
+            surrounding_execution_progress: &surrounding.progress_closed,
+            surrounding_execution_closure: &surrounding.closure_closed,
+        },
+        AxisInputs {
+            decision_scope_progress: &decision.progress_closed,
+            decision_scope_closure: &decision.closure_closed,
+            surrounding_execution_progress: &surrounding.progress_open,
+            surrounding_execution_closure: &surrounding.closure_closed,
+        },
+        AxisInputs {
+            decision_scope_progress: &decision.progress_closed,
+            decision_scope_closure: &decision.closure_closed,
+            surrounding_execution_progress: &surrounding.progress_closed,
+            surrounding_execution_closure: &surrounding.closure_open,
+        },
+    ] {
+        let report = engine
+            .conformance()
+            .assess_activated(
+                std::slice::from_ref(&fact),
+                axes,
+                &decision.completeness_complete,
+                &global,
+                AssessmentExecution::Completed,
+                ConformanceLimits::default(),
+            )
+            .expect("each open scope axis remains independently observable");
+        assert_eq!(report.global, GlobalDisposition::Pending);
+    }
+    let incomplete = engine
+        .conformance()
+        .assess_activated(
+            std::slice::from_ref(&fact),
+            closed_axes(&decision, &surrounding),
+            &decision.completeness_incomplete,
+            &global,
+            AssessmentExecution::Completed,
+            ConformanceLimits::default(),
+        )
+        .expect("incomplete QObs authority remains independently observable");
+    assert_eq!(incomplete.global, GlobalDisposition::Unavailable);
+    for execution in [
+        AssessmentExecution::Refused,
+        AssessmentExecution::Unsupported,
+        AssessmentExecution::ResourceIncomplete,
+        AssessmentExecution::Failed,
+    ] {
+        let report = engine
+            .conformance()
+            .assess_activated(
+                std::slice::from_ref(&fact),
+                closed_axes(&decision, &surrounding),
+                &decision.completeness_complete,
+                &global,
+                execution,
+                ConformanceLimits::default(),
+            )
+            .expect("each non-completed execution remains independently observable");
+        assert_eq!(report.global, GlobalDisposition::Unavailable);
+        assert_eq!(
+            report.obligations[0].disposition,
+            ObligationDisposition::Unavailable
+        );
+    }
+    let other = occurrence_schema
+        .nodes()
+        .iter()
+        .find(|candidate| {
+            candidate.node() != activation.control() && candidate.repeats().is_empty()
+        })
+        .expect("published protocol has another non-repeating control occurrence");
+    let other_occurrence = occurrence_schema
+        .bind(
+            WorkflowInstanceIdentity::new("workflow:one").expect("nonempty workflow identity"),
+            other.node(),
+            other.role().clone(),
+            &[],
+        )
+        .expect("QSL validates a distinct control occurrence");
+    assert_eq!(
+        activation.require_occurrence(&other_occurrence),
+        Err(quire_protocol::conformance::KernelRefusal::ActivationOccurrenceMismatch)
+    );
+
     let bundle = match engine.assemble_outcome(vec![ClaimRow {
         claim: Claim::Conformance,
         outcome: ClaimOutcome::Canonical(()),
