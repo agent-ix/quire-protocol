@@ -1161,7 +1161,7 @@ impl<'a> Engine<'a> {
         validate_input_claims(&self.requested, &inputs)?;
         validate_dispatch_rows(&self.requested, dispatch, &inputs)?;
         let mut rows = Vec::with_capacity(inputs.len());
-        for (selected, disposition) in inputs.into_iter().zip(&dispatch.dispositions) {
+        for (selected, disposition) in inputs.into_iter().zip(dispatch.dispositions()) {
             validate_input_package(
                 self.context.package().digest(),
                 selected.input.checked_predicate.package_digest(),
@@ -1337,7 +1337,7 @@ fn validate_dispatch_rows(
     inputs: &[CanonicalRowInput<'_>],
 ) -> Result<(), BundleRefusal> {
     validate_dispatch_population(requested, dispatch)?;
-    for (disposition, input) in dispatch.dispositions.iter().zip(inputs) {
+    for (disposition, input) in dispatch.dispositions().iter().zip(inputs) {
         if input.claim != disposition.claim || input.input.execution != disposition.execution {
             return Err(BundleRefusal::DispatchReportMismatch);
         }
@@ -1349,10 +1349,10 @@ fn validate_dispatch_population(
     requested: &[Claim],
     dispatch: &DispatchReport,
 ) -> Result<(), BundleRefusal> {
-    if dispatch.dispositions.len() != requested.len() {
+    if dispatch.dispositions().len() != requested.len() {
         return Err(BundleRefusal::DispatchReportMismatch);
     }
-    for (requested, disposition) in requested.iter().zip(&dispatch.dispositions) {
+    for (requested, disposition) in requested.iter().zip(dispatch.dispositions()) {
         if disposition.claim != *requested {
             return Err(BundleRefusal::DispatchReportMismatch);
         }
@@ -1464,9 +1464,7 @@ mod tests {
         claim_from_result_kind, outcome_refusal, validate_dispatch_population,
         validate_input_package, validate_requested, validate_rows, BundleRefusal, ClaimRow,
     };
-    use crate::claims::{
-        dispatch::Report as DispatchReport, dispatch::Usage as DispatchUsage, Claim,
-    };
+    use crate::claims::{dispatch::Report as DispatchReport, Claim};
     use crate::outcome::ClaimOutcome;
     use crate::refusal::{PartialOutput, ProtocolStage, RefusalDomain};
     use crate::result::ClaimKind;
@@ -1662,14 +1660,19 @@ mod tests {
 
     #[test]
     fn dispatch_report_cannot_omit_or_reorder_the_engines_claim_population() {
-        let missing = DispatchReport {
-            dispositions: Vec::new(),
-            usage: DispatchUsage::default(),
-        };
+        let missing = DispatchReport::empty_for_population_test();
         assert_eq!(
             validate_dispatch_population(&[Claim::Conformance], &missing),
             Err(BundleRefusal::DispatchReportMismatch)
         );
+    }
+
+    #[test]
+    #[trace("TC-006", "FR-006-AC-1", "FR-006-AC-9", "Task-006")]
+    fn dispatch_report_substitution_is_a_compile_time_error() {
+        let source = include_str!("claims/dispatch.rs");
+        assert!(source.contains("```compile_fail,E0451"));
+        assert!(source.contains("let _ = Report { dispositions:"));
     }
 }
 

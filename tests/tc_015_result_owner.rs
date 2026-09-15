@@ -1026,20 +1026,20 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
             DispatchLimits::default(),
         )
         .expect("engine dispatches only its exact claim population");
-    assert_eq!(dispatch.dispositions[0].claim, DispatchClaim::Conformance);
+    assert_eq!(dispatch.dispositions()[0].claim, DispatchClaim::Conformance);
     assert_eq!(
-        dispatch.dispositions[0].execution,
+        dispatch.dispositions()[0].execution,
         AssessmentExecution::Completed
     );
     assert_eq!(
-        dispatch.dispositions[1].claim,
+        dispatch.dispositions()[1].claim,
         DispatchClaim::Monitorability
     );
     assert_eq!(
-        dispatch.dispositions[1].execution,
+        dispatch.dispositions()[1].execution,
         AssessmentExecution::Refused
     );
-    assert!(dispatch.dispositions[1].failure.is_some());
+    assert!(dispatch.dispositions()[1].failure.is_some());
     let outcome = engine.construct_canonical_outcome(
         &dispatch,
         vec![

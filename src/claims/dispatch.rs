@@ -281,12 +281,43 @@ pub struct Disposition {
 }
 
 /// Complete ordered dispatch output.
+///
+/// Its fields are sealed so an external result consumer cannot construct a
+/// caller-authored substitute for the report returned by
+/// [`crate::assessment::Engine::dispatch_activated`].
+///
+/// ```compile_fail,E0451
+/// use quire_protocol::claims::dispatch::{Report, Usage};
+/// let _ = Report { dispositions: Vec::new(), usage: Usage::default() };
+/// ```
 #[derive(Clone, Debug)]
 pub struct Report {
     /// Exactly one disposition per requested claim, in request order.
-    pub dispositions: Vec<Disposition>,
+    pub(super) dispositions: Vec<Disposition>,
     /// Bounded work actually observed.
-    pub usage: Usage,
+    pub(super) usage: Usage,
+}
+
+impl Report {
+    /// Exactly one disposition per requested claim, in request order.
+    #[must_use]
+    pub fn dispositions(&self) -> &[Disposition] {
+        &self.dispositions
+    }
+
+    /// Bounded work actually observed by the closed dispatcher.
+    #[must_use]
+    pub const fn usage(&self) -> Usage {
+        self.usage
+    }
+
+    #[cfg(test)]
+    pub(crate) fn empty_for_population_test() -> Self {
+        Self {
+            dispositions: Vec::new(),
+            usage: Usage::default(),
+        }
+    }
 }
 
 /// Fatal whole-request error. No partial report accompanies it.

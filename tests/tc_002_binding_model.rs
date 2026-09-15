@@ -1574,9 +1574,9 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
             DispatchLimits::default(),
         )
         .expect("dispatch consumes only the engine's activation-derived report");
-    assert_eq!(dispatched.dispositions.len(), 1);
+    assert_eq!(dispatched.dispositions().len(), 1);
     assert_eq!(
-        dispatched.dispositions[0].decision,
+        dispatched.dispositions()[0].decision,
         Some(Decision::Established),
         "the claim result comes from the actual activation-derived conformance report"
     );
