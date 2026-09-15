@@ -248,17 +248,54 @@ pub enum LimitDimension {
 }
 
 impl LimitDimension {
-    fn order_key(self) -> (u8, u8) {
+    const fn order_key(self) -> (u8, u8) {
         match self {
-            Self::Protocol(value) => (0, value as u8),
-            Self::CompiledProtocol(value) => (
-                1,
-                CompiledDimension::ALL
-                    .iter()
-                    .position(|candidate| *candidate == value)
-                    .expect("closed compiled dimension") as u8,
-            ),
+            Self::Protocol(value) => (0, protocol_dimension_order(value)),
+            Self::CompiledProtocol(value) => (1, compiled_dimension_order(value)),
         }
+    }
+}
+
+const fn protocol_dimension_order(value: BudgetDimension) -> u8 {
+    match value {
+        BudgetDimension::InputByte => 0,
+        BudgetDimension::Definition => 1,
+        BudgetDimension::Node => 2,
+        BudgetDimension::Edge => 3,
+        BudgetDimension::Role => 4,
+        BudgetDimension::Message => 5,
+        BudgetDimension::Branch => 6,
+        BudgetDimension::Iteration => 7,
+        BudgetDimension::ActiveInstance => 8,
+        BudgetDimension::Observation => 9,
+        BudgetDimension::Lineage => 10,
+        BudgetDimension::ResultItem => 11,
+        BudgetDimension::DerivedArtifact => 12,
+        BudgetDimension::OutputByte => 13,
+        BudgetDimension::Operation => 14,
+        BudgetDimension::AccountedAllocation => 15,
+        BudgetDimension::ElapsedTime => 16,
+        BudgetDimension::ResolutionEntryCount => 17,
+        BudgetDimension::ResolutionBytesDigested => 18,
+        BudgetDimension::ResolutionDeadline => 19,
+    }
+}
+
+const fn compiled_dimension_order(value: CompiledDimension) -> u8 {
+    match value {
+        CompiledDimension::PayloadBytes => 0,
+        CompiledDimension::OutputBytes => 1,
+        CompiledDimension::SourceBytes => 2,
+        CompiledDimension::ContentBytes => 3,
+        CompiledDimension::Sources => 4,
+        CompiledDimension::Dependencies => 5,
+        CompiledDimension::Definitions => 6,
+        CompiledDimension::Models => 7,
+        CompiledDimension::Declarations => 8,
+        CompiledDimension::Entries => 9,
+        CompiledDimension::References => 10,
+        CompiledDimension::ByteWork => 11,
+        CompiledDimension::Depth => 12,
     }
 }
 
@@ -475,50 +512,59 @@ impl DeliveryIndex {
     ///
     /// No filesystem, transport, manifest, resolver, or version-lock value is
     /// accepted here. Consequently this conversion cannot affect resolution.
-    pub fn observed(key: DeliveryIndexKey, read: IndexRead) -> Result<Self, DeliveryIndexError> {
-        validate_key(&key)?;
+    pub fn observed(
+        key: DeliveryIndexKey,
+        read: IndexRead,
+        resources: &mut ResourceAccountant<'_>,
+    ) -> OperationOutcome<Self, DeliveryIndexError> {
+        if let Err(error) = validate_key(&key) {
+            return OperationOutcome::DomainError(error);
+        }
         match read {
-            IndexRead::MissingRoot => {
-                Err(DeliveryIndexError::MissingRoot(key.delivery_root().clone()))
+            IndexRead::MissingRoot => OperationOutcome::DomainError(
+                DeliveryIndexError::MissingRoot(key.delivery_root().clone()),
+            ),
+            IndexRead::MissingIndex => OperationOutcome::DomainError(
+                DeliveryIndexError::MissingIndex(key.delivery_root().clone()),
+            ),
+            IndexRead::Unreadable(reason) => {
+                OperationOutcome::DomainError(DeliveryIndexError::UnreadableIndex {
+                    root: key.delivery_root().clone(),
+                    reason,
+                })
             }
-            IndexRead::MissingIndex => Err(DeliveryIndexError::MissingIndex(
-                key.delivery_root().clone(),
-            )),
-            IndexRead::Unreadable(reason) => Err(DeliveryIndexError::UnreadableIndex {
-                root: key.delivery_root().clone(),
-                reason,
-            }),
-            IndexRead::Present(contents) => Self::new(key, contents),
+            IndexRead::Present(contents) => Self::new_bounded(key, contents, resources),
         }
     }
 
     /// Validate and retain one index under a caller-owned resource accountant.
     ///
-    /// The exact byte count is charged before the index takes ownership of the
-    /// delivered members; allocation is likewise charged before validation can
-    /// retain the completed consumer record. The unbounded [`Self::new`] stays
-    /// available for pure adapters that have not yet begun a request.
+    /// Domain validation happens without mutating accounting. The exact byte
+    /// count and final index allocation are then charged as one transaction
+    /// before the completed consumer record is returned. There is no public
+    /// unbounded final constructor.
     pub fn new_bounded(
         key: DeliveryIndexKey,
         contents: DeliveryIndexContents,
         resources: &mut ResourceAccountant<'_>,
     ) -> OperationOutcome<Self, DeliveryIndexError> {
-        let bytes = retained_bytes(&key, &contents);
-        let bytes = match bytes {
+        let candidate = match Self::validated(key, contents) {
             Ok(value) => value,
             Err(error) => return OperationOutcome::DomainError(error),
         };
-        if let Err(error) = resources.charge(INPUT_SOURCE.id(), bytes) {
+        let bytes = match retained_bytes(&candidate.key, &candidate.contents) {
+            Ok(value) => value,
+            Err(error) => return OperationOutcome::DomainError(error),
+        };
+        if let Err(error) =
+            resources.charge_all(&[(INPUT_SOURCE.id(), bytes), (ALLOCATION_SOURCE.id(), 1)])
+        {
             return OperationOutcome::from_charge(error);
         }
-        if let Err(error) = resources.charge(ALLOCATION_SOURCE.id(), 1) {
-            return OperationOutcome::from_charge(error);
-        }
-        OperationOutcome::from_domain(Self::new(key, contents))
+        OperationOutcome::Completed(candidate)
     }
 
-    /// Validate and retain one complete delivery index.
-    pub fn new(
+    fn validated(
         key: DeliveryIndexKey,
         contents: DeliveryIndexContents,
     ) -> Result<Self, DeliveryIndexError> {
@@ -620,7 +666,12 @@ impl DeliveryIndex {
             .iter()
             .map(TemporalBindingRecord::declaration)
             .collect();
-        let expected: BTreeSet<_> = selected.iter().copied().collect();
+        let mut expected = BTreeSet::new();
+        for declaration in selected {
+            if !expected.insert(*declaration) {
+                return Err(DeliveryIndexError::RepeatedDeclaration(*declaration));
+            }
+        }
         if let Some(declaration) = expected.difference(&actual).next() {
             return Err(DeliveryIndexError::MissingDeclaration(*declaration));
         }

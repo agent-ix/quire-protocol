@@ -229,7 +229,7 @@ track names are subsystems and are not agent assignments; Agent B remains on TL.
 | Task-016 | Architecture Gate | AD-001, FR-001..FR-009 | TC-002..TC-013 | done; SR-089..SR-100 pass under #61 |
 | Task-017 | Cross-cutting Foundation | FR-008, FR-014, FR-016 | TC-011 | done; 30 focused tests and SR-101/SR-102 pass under #62 |
 | Task-018 | Qualification | FR-017, NFR-005 | TC-016 | planned |
-| Task-019 | Producer Integration | FR-018, NFR-006 | TC-017 | done; exact bounded consumer index cannot affect version-lock resolution |
+| Task-019 | Producer Integration | FR-018, NFR-006 | TC-017 | done; exact transactional bounded consumer index cannot affect version-lock resolution; SR-108/SR-109 pass |
 
 ## Coordination Rules
 

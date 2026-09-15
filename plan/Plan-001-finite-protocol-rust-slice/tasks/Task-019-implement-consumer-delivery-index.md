@@ -41,6 +41,16 @@ architecture; it does not add or redesign architecture.
 - [x] Add the final delivery-index source-inventory and resource sites before
   Task-008 performs the global reconciliation.
 
+## Promotion evidence
+
+The implementation first reached `main` inside PR #68 while issue #66 remained
+open and unchecked. The ticket-specific promotion review therefore treats that
+code as a baseline, not as prior closure. SR-108 fixes the unbounded public
+construction path, non-transactional and pre-validation charging, duplicate
+selected declarations, and representation-dependent limit ordering. SR-109
+confirms all Task-019 obligations and TC-017 bindings against the corrected
+candidate. The issue-specific PR closes #66 without reverting any PR #68 work.
+
 ## Deliverables
 
 - Protocol-owned `DeliveryIndex` values, validation/outcome types and TC-017.
