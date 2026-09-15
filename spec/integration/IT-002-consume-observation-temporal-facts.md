@@ -32,7 +32,7 @@ QObs publishes the accepted typed Rust runtime facts and topology at revision
 `93bc565`. Protocol's current direct pin is older and must be repinned before
 these scenarios execute. QSL publishes the native-temporal request/result and
 checked activation-guard selection at Protocol's current exact revision
-`f1700a9264d6d3bcdd07e0f77b70f3dae9ed4c07`. QSL `e5eb9fd` publishes the
+`f1700a9264d6d3bcdd07e0f77b70f3dae9ed4c07`. QSL `4842e64` publishes the
 native-temporal v2 opaque-trigger and activation-fact interface Protocol uses
 to validate FR-300 bindings. Protocol invokes no temporal
 evaluator and does not consume a QCI join result; QCI consumes Protocol's result
@@ -172,7 +172,7 @@ producer revision, and a scenario whose evidence is incomplete claims nothing.
 ## Dependencies
 
 QSL compiled-protocol `/2` and native-temporal request/result at `f1700a9`, plus
-the QSL FR-053 opaque-trigger v2 interface with activation facts at `e5eb9fd`, plus
+the QSL FR-053 opaque-trigger v2 interface with activation facts at `4842e64`, plus
 QObs runtime facts/topology at `93bc565`. Protocol owns global closure and result
 assembly. QCI issue 71 is a downstream consumer and is not a prerequisite.
 
