@@ -987,7 +987,11 @@ impl<'a> Engine<'a> {
     }
 
     /// Retain one independent outcome for every selected claim.
-    pub fn assemble<Row>(
+    ///
+    /// Generic assembly is internal support for the typed result stage. Public
+    /// callers must use [`Self::assemble_canonical`], whose rows can only carry
+    /// strict-reader-admitted result-owner values.
+    pub(crate) fn assemble<Row>(
         self,
         rows: Vec<ClaimRow<Row>>,
     ) -> Result<AssessmentBundle<'a, Row>, BundleRefusal> {
@@ -1006,27 +1010,12 @@ impl<'a> Engine<'a> {
         })
     }
 
-    /// Assemble generic rows through the shared public operation outcome algebra.
-    pub fn assemble_outcome<Row>(
-        self,
-        rows: Vec<ClaimRow<Row>>,
-    ) -> crate::outcome::OperationOutcome<AssessmentBundle<'a, Row>> {
-        match self.assemble(rows) {
-            Ok(bundle) => crate::outcome::OperationOutcome::Completed(bundle),
-            Err(error) => crate::outcome::OperationOutcome::Refused(outcome_refusal(error)),
-        }
-    }
-
     /// Assemble result-owner rows while verifying their retained FR-290 claim.
     ///
     /// A canonical row may not be moved to another claim merely because both
     /// rows share an assessment context. Claim-local refusals have no result
     /// row and therefore remain valid independent outcomes.
-    #[expect(
-        dead_code,
-        reason = "Task-006 retains the private result composition candidate until typed stage outputs are wired into Engine"
-    )]
-    pub(crate) fn assemble_canonical(
+    pub fn assemble_canonical(
         self,
         rows: Vec<ClaimRow<result::ValidatedResult>>,
     ) -> Result<AssessmentBundle<'a, result::ValidatedResult>, BundleRefusal> {
@@ -1041,11 +1030,7 @@ impl<'a> Engine<'a> {
     }
 
     /// Assemble strict-read canonical rows through the shared operation algebra.
-    #[expect(
-        dead_code,
-        reason = "Task-006 retains the private result composition candidate until typed stage outputs are wired into Engine"
-    )]
-    pub(crate) fn assemble_canonical_outcome(
+    pub fn assemble_canonical_outcome(
         self,
         rows: Vec<ClaimRow<result::ValidatedResult>>,
     ) -> crate::outcome::OperationOutcome<AssessmentBundle<'a, result::ValidatedResult>> {
@@ -1057,10 +1042,6 @@ impl<'a> Engine<'a> {
 
     /// Construct and strict-read each canonical result row from typed owner
     /// inputs. A result-owner refusal remains local to its selected claim.
-    #[expect(
-        dead_code,
-        reason = "Task-006 retains the private result composition candidate until typed stage outputs are wired into Engine"
-    )]
     pub(crate) fn construct_canonical(
         self,
         inputs: Vec<CanonicalRowInput<'a>>,
@@ -1208,13 +1189,6 @@ fn validate_input_claims(
     Ok(())
 }
 
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "Task-006 retains the private result composition candidate until typed stage outputs are wired into Engine"
-    )
-)]
 const fn claim_from_result_kind(kind: ClaimKind) -> Claim {
     match kind {
         ClaimKind::GlobalConformance => Claim::Conformance,

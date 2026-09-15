@@ -4,7 +4,7 @@
 use agent_ix_baseline_producer::StaticProducerBundle;
 use ix_trace_rs::trace;
 use quire_observation::{QualifiedSubject, SubjectIdentity, SubjectKind};
-use quire_protocol::assessment::{ClaimRow, Engine};
+use quire_protocol::assessment::Engine;
 use quire_protocol::claims::Claim;
 use quire_protocol::compensation::algebra::{AttemptOutcome, EffectDisposition, OrderingViolation};
 use quire_protocol::compensation::graph::{MissingEvidence, Outcome, Refusal, Transition};
@@ -13,7 +13,6 @@ use quire_protocol::model::v2::{
     SlotCompatibility, SlotHandle, StaticBindingDefinition, StaticSelection, StaticSlot,
     RUNTIME_BINDING_CONTRACT, STATIC_BINDING_CONTRACT,
 };
-use quire_protocol::outcome::ClaimOutcome;
 use quire_protocol::wire::{BindingKind, Body, ControlOperation};
 use quire_spec_language::state::{
     EvaluationOutcome, Limits as StateLimits, StateView, ValueKind as StateValueKind,
@@ -563,17 +562,7 @@ fn tc_003_engine_is_graph_owned_exact_and_transactional() {
             .accounting_version(),
         quire_spec_language::state::ACCOUNTING_VERSION
     );
-    let bundle = engine
-        .assemble(vec![ClaimRow {
-            claim: Claim::Conformance,
-            outcome: ClaimOutcome::Canonical(()),
-        }])
-        .expect("the complete graph state remains in the assessment bundle");
-    assert_eq!(bundle.compensation().registrations().len(), 2);
-    assert_eq!(bundle.compensation_state().attempts().len(), 3);
-    assert_eq!(bundle.compensation_state().effects().len(), 2);
-    assert_eq!(bundle.compensation_state().commits().len(), 1);
-    assert_eq!(bundle.compensation_state().recoveries().len(), 2);
+    assert_eq!(engine.compensation().registrations().len(), 2);
 }
 
 /// Commit ordering consumes only strict QObs observation and position views.
