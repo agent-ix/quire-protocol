@@ -119,8 +119,6 @@ pub enum BundleRefusal {
     DuplicateClaimRow,
     /// A selected claim has neither a canonical row nor a claim-local refusal.
     MissingClaimRow,
-    /// Closed claim dispatch refused before returning the requested population.
-    DispatchRefusal,
     /// The admitted linked context cannot derive its static definition identity.
     InvalidDefinitionIdentity,
     /// The exact linked context cannot produce its static QSL graph.
@@ -159,10 +157,6 @@ bundle_code!(
 bundle_code!(BUNDLE_DUPLICATE_ROW, "assessment.bundle-duplicate-row");
 bundle_code!(BUNDLE_MISSING_ROW, "assessment.bundle-missing-row");
 bundle_code!(
-    BUNDLE_DISPATCH_REFUSAL,
-    "assessment.bundle-dispatch-refusal"
-);
-bundle_code!(
     BUNDLE_INVALID_IDENTITY,
     "assessment.bundle-invalid-identity"
 );
@@ -195,7 +189,6 @@ pub const CODES: CodeModule = CodeModule {
         BUNDLE_UNEXPECTED_CLAIM,
         BUNDLE_DUPLICATE_ROW,
         BUNDLE_MISSING_ROW,
-        BUNDLE_DISPATCH_REFUSAL,
         BUNDLE_INVALID_IDENTITY,
         BUNDLE_INVALID_LINKED_PROTOCOL,
         BUNDLE_INVALID_CONFORMANCE_KERNEL,
@@ -212,7 +205,6 @@ fn outcome_refusal(error: BundleRefusal) -> ProtocolRefusal {
         BundleRefusal::UnexpectedClaim => &BUNDLE_UNEXPECTED_CLAIM,
         BundleRefusal::DuplicateClaimRow => &BUNDLE_DUPLICATE_ROW,
         BundleRefusal::MissingClaimRow => &BUNDLE_MISSING_ROW,
-        BundleRefusal::DispatchRefusal => &BUNDLE_DISPATCH_REFUSAL,
         BundleRefusal::InvalidDefinitionIdentity => &BUNDLE_INVALID_IDENTITY,
         BundleRefusal::InvalidLinkedProtocol => &BUNDLE_INVALID_LINKED_PROTOCOL,
         BundleRefusal::InvalidConformanceKernel => &BUNDLE_INVALID_CONFORMANCE_KERNEL,
@@ -231,6 +223,42 @@ fn outcome_refusal(error: BundleRefusal) -> ProtocolRefusal {
     .unavailable_location(Unavailability::NotApplicableToStage)
     .emitting_nothing()
 }
+
+/// One refusal from the Engine's closed-dispatch boundary.
+///
+/// This wrapper deliberately preserves the inner refusal envelope.  A
+/// whole-request dispatch limit is owned by dispatch, while an attempt to
+/// retarget the Engine's fixed claim population is owned by the bundle; neither
+/// is collapsed into a synthetic generic error.
+#[derive(Clone, Debug)]
+pub enum DispatchRefusal {
+    /// The request does not name the Engine's exact selected claim population.
+    Bundle(BundleRefusal),
+    /// The closed dispatch owner refused with its original typed envelope.
+    Dispatch(dispatch::Refusal),
+}
+
+impl DispatchRefusal {
+    /// The complete source-bound envelope for this refusal.
+    #[must_use]
+    pub fn envelope(&self) -> ProtocolRefusal {
+        match self {
+            Self::Bundle(error) => outcome_refusal(*error),
+            Self::Dispatch(error) => error.envelope().clone(),
+        }
+    }
+}
+
+impl core::fmt::Display for DispatchRefusal {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Bundle(error) => write!(formatter, "assessment dispatch rejected: {error:?}"),
+            Self::Dispatch(error) => error.fmt(formatter),
+        }
+    }
+}
+
+impl std::error::Error for DispatchRefusal {}
 
 /// One non-retargetable assessment request.
 ///
@@ -380,7 +408,7 @@ impl<'a> Engine<'a> {
         requests: &[ClaimRequest<'_>],
         report: &crate::conformance::Report,
         limits: DispatchLimits,
-    ) -> Result<DispatchReport, BundleRefusal> {
+    ) -> Result<DispatchReport, DispatchRefusal> {
         if requests.len() != self.requested.len()
             || requests
                 .iter()
@@ -393,10 +421,10 @@ impl<'a> Engine<'a> {
                     != 1
             })
         {
-            return Err(BundleRefusal::UnexpectedClaim);
+            return Err(DispatchRefusal::Bundle(BundleRefusal::UnexpectedClaim));
         }
         dispatch::dispatch_from_conformance(requests, report, limits)
-            .map_err(|_| BundleRefusal::DispatchRefusal)
+            .map_err(DispatchRefusal::Dispatch)
     }
 
     /// Retain one independent outcome for every selected claim.
