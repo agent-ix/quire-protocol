@@ -6,6 +6,8 @@
 //! the QObs facts or the declared global-closure premise set.
 
 use quire_observation::authority::{closure as observation_closure, progress};
+use quire_observation::QualifiedSubject;
+use quire_spec_language::protocol_artifact::native_temporal::v2 as temporal_v2;
 
 use crate::claims::Claim;
 use crate::closure::GlobalConformanceClosure;
@@ -36,6 +38,60 @@ pub struct ClaimRow<Row> {
     pub outcome: ClaimOutcome<Row>,
 }
 
+/// The exact QObs event and QSL v2 request selected for one activation site.
+///
+/// The request is already constructor-private and strict-read by QSL. This
+/// boundary only binds its opaque trigger bytes to the QObs-authoritative
+/// subject and proves that the temporal declaration belongs to this immutable
+/// protocol definition; it does not interpret either owner value.
+#[derive(Clone, Copy)]
+pub struct ActivationBinding<'a> {
+    subject: &'a QualifiedSubject,
+    request: &'a temporal_v2::ValidatedRequest,
+}
+
+impl core::fmt::Debug for ActivationBinding<'_> {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        formatter
+            .debug_struct("ActivationBinding")
+            .field("subject", self.subject)
+            .field("temporal_declaration", &self.request.declaration())
+            .finish_non_exhaustive()
+    }
+}
+
+impl<'a> ActivationBinding<'a> {
+    /// Bind one strict QSL v2 request to the selected QObs subject and static
+    /// definition identity.
+    pub fn new(
+        identity: &DefinitionIdentity,
+        subject: &'a QualifiedSubject,
+        request: &'a temporal_v2::ValidatedRequest,
+    ) -> Result<Self, BundleRefusal> {
+        if request.semantic_trigger() != subject.identity().as_bytes() {
+            return Err(BundleRefusal::ActivationSubjectMismatch);
+        }
+        if !identity
+            .temporal_bindings()
+            .iter()
+            .any(|binding| binding.declaration == request.declaration())
+        {
+            return Err(BundleRefusal::ActivationDeclarationMismatch);
+        }
+        Ok(Self { subject, request })
+    }
+
+    #[must_use]
+    pub const fn subject(&self) -> &'a QualifiedSubject {
+        self.subject
+    }
+
+    #[must_use]
+    pub const fn request(&self) -> &'a temporal_v2::ValidatedRequest {
+        self.request
+    }
+}
+
 /// Why an exact linked assessment cannot become one complete claim bundle.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum BundleRefusal {
@@ -57,6 +113,10 @@ pub enum BundleRefusal {
     InvalidConformanceKernel,
     /// A canonical result row was offered under a different requested claim.
     CanonicalClaimMismatch,
+    /// QSL v2 opaque trigger bytes differ from the selected QObs subject.
+    ActivationSubjectMismatch,
+    /// The QSL v2 temporal declaration is not selected by this protocol definition.
+    ActivationDeclarationMismatch,
 }
 
 macro_rules! bundle_code {
@@ -95,6 +155,14 @@ bundle_code!(
     "assessment.bundle-invalid-conformance-kernel"
 );
 bundle_code!(BUNDLE_CLAIM_MISMATCH, "assessment.bundle-claim-mismatch");
+bundle_code!(
+    BUNDLE_ACTIVATION_SUBJECT,
+    "assessment.activation-subject-mismatch"
+);
+bundle_code!(
+    BUNDLE_ACTIVATION_DECLARATION,
+    "assessment.activation-declaration-mismatch"
+);
 
 /// Refusal codes minted by the assessment-bundle orchestration boundary.
 pub const CODES: CodeModule = CodeModule {
@@ -111,6 +179,8 @@ pub const CODES: CodeModule = CodeModule {
         BUNDLE_INVALID_LINKED_PROTOCOL,
         BUNDLE_INVALID_CONFORMANCE_KERNEL,
         BUNDLE_CLAIM_MISMATCH,
+        BUNDLE_ACTIVATION_SUBJECT,
+        BUNDLE_ACTIVATION_DECLARATION,
     ],
 };
 
@@ -125,6 +195,8 @@ fn outcome_refusal(error: BundleRefusal) -> ProtocolRefusal {
         BundleRefusal::InvalidLinkedProtocol => &BUNDLE_INVALID_LINKED_PROTOCOL,
         BundleRefusal::InvalidConformanceKernel => &BUNDLE_INVALID_CONFORMANCE_KERNEL,
         BundleRefusal::CanonicalClaimMismatch => &BUNDLE_CLAIM_MISMATCH,
+        BundleRefusal::ActivationSubjectMismatch => &BUNDLE_ACTIVATION_SUBJECT,
+        BundleRefusal::ActivationDeclarationMismatch => &BUNDLE_ACTIVATION_DECLARATION,
     };
     let code = RefusalCode::of(entry);
     ProtocolRefusal::legacy_builder(
@@ -154,6 +226,7 @@ pub struct Engine<'a> {
     conformance: ConformanceKernel,
     compensation_attempts: Vec<CompensationAttemptInput<'a>>,
     compensation_effects: Vec<CompensationEffectInput<'a>>,
+    activation: Option<ActivationBinding<'a>>,
     requested: Vec<Claim>,
 }
 
@@ -172,6 +245,28 @@ impl<'a> Engine<'a> {
     pub fn new(
         context: LinkedAssessment<'a>,
         requested: Vec<Claim>,
+    ) -> Result<Self, BundleRefusal> {
+        Self::new_bound(context, requested, None)
+    }
+
+    /// Start one assessment with an exact QSL-v2/QObs activation binding.
+    pub fn new_activated(
+        context: LinkedAssessment<'a>,
+        requested: Vec<Claim>,
+        subject: &'a QualifiedSubject,
+        request: &'a temporal_v2::ValidatedRequest,
+    ) -> Result<Self, BundleRefusal> {
+        let identity = context
+            .definition_identity()
+            .map_err(|_| BundleRefusal::InvalidDefinitionIdentity)?;
+        let activation = ActivationBinding::new(&identity, subject, request)?;
+        Self::new_bound(context, requested, Some(activation))
+    }
+
+    fn new_bound(
+        context: LinkedAssessment<'a>,
+        requested: Vec<Claim>,
+        activation: Option<ActivationBinding<'a>>,
     ) -> Result<Self, BundleRefusal> {
         validate_requested(&requested)?;
         let identity = context
@@ -200,6 +295,7 @@ impl<'a> Engine<'a> {
             conformance,
             compensation_attempts,
             compensation_effects,
+            activation,
             requested,
         })
     }
@@ -243,6 +339,12 @@ impl<'a> Engine<'a> {
     #[must_use]
     pub fn compensation_effects(&self) -> &[CompensationEffectInput<'a>] {
         &self.compensation_effects
+    }
+
+    /// Returns the immutable activation pair where this assessment is event-triggered.
+    #[must_use]
+    pub const fn activation(&self) -> Option<ActivationBinding<'a>> {
+        self.activation
     }
 
     /// Retain one independent outcome for every selected claim.
