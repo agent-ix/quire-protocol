@@ -11,6 +11,7 @@ use crate::claims::Claim;
 use crate::closure::GlobalConformanceClosure;
 use crate::model::v2::{DefinitionIdentity, LinkedAssessment};
 use crate::outcome::ClaimOutcome;
+use crate::result::{self, ClaimKind};
 
 /// One claim outcome offered to an assessment bundle.
 ///
@@ -40,6 +41,8 @@ pub enum BundleRefusal {
     MissingClaimRow,
     /// The admitted linked context cannot derive its static definition identity.
     InvalidDefinitionIdentity,
+    /// A canonical result row was offered under a different requested claim.
+    CanonicalClaimMismatch,
 }
 
 /// One non-retargetable assessment request.
@@ -83,6 +86,36 @@ impl<'a> Engine<'a> {
             identity: self.identity,
             rows,
         })
+    }
+
+    /// Assemble result-owner rows while verifying their retained FR-290 claim.
+    ///
+    /// A canonical row may not be moved to another claim merely because both
+    /// rows share an assessment context. Claim-local refusals have no result
+    /// row and therefore remain valid independent outcomes.
+    pub fn assemble_canonical(
+        self,
+        rows: Vec<ClaimRow<result::ValidatedResult>>,
+    ) -> Result<AssessmentBundle<'a, result::ValidatedResult>, BundleRefusal> {
+        for row in &rows {
+            if let ClaimOutcome::Canonical(result) = &row.outcome {
+                if claim_from_result_kind(result.claim().kind) != row.claim {
+                    return Err(BundleRefusal::CanonicalClaimMismatch);
+                }
+            }
+        }
+        self.assemble(rows)
+    }
+}
+
+const fn claim_from_result_kind(kind: ClaimKind) -> Claim {
+    match kind {
+        ClaimKind::GlobalConformance => Claim::Conformance,
+        ClaimKind::Monitorability => Claim::Monitorability,
+        ClaimKind::LocalProjection => Claim::Projection,
+        ClaimKind::Realizability => Claim::Realizability,
+        ClaimKind::Refinement => Claim::Refinement,
+        ClaimKind::Composition => Claim::Composition,
     }
 }
 
@@ -144,9 +177,12 @@ impl<Row> AssessmentBundle<'_, Row> {
 
 #[cfg(test)]
 mod tests {
-    use super::{validate_requested, validate_rows, BundleRefusal, ClaimRow};
+    use super::{
+        claim_from_result_kind, validate_requested, validate_rows, BundleRefusal, ClaimRow,
+    };
     use crate::claims::Claim;
     use crate::outcome::ClaimOutcome;
+    use crate::result::ClaimKind;
 
     #[test]
     fn assessment_request_requires_one_claim() {
@@ -205,6 +241,34 @@ mod tests {
                 &[row(Claim::Conformance), row(Claim::Monitorability)]
             ),
             Ok(())
+        );
+    }
+
+    #[test]
+    fn canonical_result_claim_kinds_map_to_their_exact_dispatch_claims() {
+        assert_eq!(
+            claim_from_result_kind(ClaimKind::GlobalConformance),
+            Claim::Conformance
+        );
+        assert_eq!(
+            claim_from_result_kind(ClaimKind::Monitorability),
+            Claim::Monitorability
+        );
+        assert_eq!(
+            claim_from_result_kind(ClaimKind::LocalProjection),
+            Claim::Projection
+        );
+        assert_eq!(
+            claim_from_result_kind(ClaimKind::Realizability),
+            Claim::Realizability
+        );
+        assert_eq!(
+            claim_from_result_kind(ClaimKind::Refinement),
+            Claim::Refinement
+        );
+        assert_eq!(
+            claim_from_result_kind(ClaimKind::Composition),
+            Claim::Composition
         );
     }
 }
