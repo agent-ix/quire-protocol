@@ -53,7 +53,8 @@ because the indirect service it names is still real.
   the bytes consumed from it where the producer supplies bytes, and its
   resolution status.
 - The exact external contracts a scenario consumes: QSL compiled-protocol `/1`
-  and `/2`; QSL native-temporal request/result; QObs runtime facts and topology;
+  and `/2`; QSL native-temporal request/result; QObs runtime facts, partial and
+  activation authority, revisioned authority bundles and bounded lineage;
   Engineering Assurance `producer_execution`; qverify
   `quire-verification/e02-draft-2`; the Quoin Protocol scenario-record intake;
   and any future source-owner diagnostic catalog an adapter explicitly uses.
@@ -196,7 +197,7 @@ revisions are valid pins. Status is per contract, not per repository:
 | QSL `quire.compiled-protocol/1` | `pinned` | Protocol main pins `f1700a9264d6d3bcdd07e0f77b70f3dae9ed4c07`; the typed reader and corpus are present. |
 | QSL `quire.compiled-protocol/2` | `pinned` | The same exact pin exposes the accepted `/2` reader, handoff and activation-guard selection. |
 | QSL native-temporal request/result | `pinned` | The typed owner contract is exposed at the same exact QSL revision; Task-010 records the concrete capability entry. |
-| QObs runtime and authority contracts | `pinned` | Protocol pins the accepted owner revision `93bc565072fb05d1ecf29f15725b75c0a77378fb`; Task-010 consumes its typed authority facts through the strict producer boundary. |
+| QObs runtime and authority contracts | `pinned` | Task-020 advances the accepted owner revision to `581d98f1ac9f1467cc5355785d67b242f8d5d150`, including exact partial, activation, authority-bundle v1/v2 and lineage contract/schema selections. Repair and aggregate-query remain typed unsupported consumer capabilities rather than fabricated contract entries. |
 | Engineering Assurance producer-execution request/result `/v1` | `pinned` as owner contracts | Issue 34 closed through PR 46, merge `d9d30232f9a5314d664d87a86346294325831c62`; Task-011 adds the dependency and scenario entries. |
 | qverify `quire-verification/e02-draft-2` | `pinned` | Issue #44 published exact compatible consumer revision `293e342c6f5e2c69738956ff5165f75761b0364a`, preserving the schema/reader contract accepted at `d2fc0d8` and selecting exact Engineering Assurance revision `9237ce50ce19c6d6c937705bfde4b64adcc9d16b`. |
 | Quoin Protocol scenario-record intake | `unresolved` | Quoin is a Rust workspace with an evidence store, but exposes no operation accepting FR-017's scenario record. `agent-ix/quoin#519` owns the intake; existing experiment/operational records are not substitutes. |

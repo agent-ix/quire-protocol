@@ -159,7 +159,8 @@ B-authored fixture root can carry an unenumerated file.
 
 In progress. The current lock has 195 non-root packages and seven git sources;
 Cargo/rights records cover the current exact pins, including QSL `0c2f13e`,
-qverify `293e342` and its transitive Engineering Assurance `9237ce5`.
+QObs `581d98f`, qverify `293e342` and its transitive Engineering Assurance
+`9237ce5`.
 Task-013 implements TC-013's exact-member controls for AC-6 and AC-7;
 Task-019/#66 owns the missing TC-017 consumer-index control for AC-8. Every
 later pin must update Cargo.lock and DEPENDENCIES.md in the same ticket before

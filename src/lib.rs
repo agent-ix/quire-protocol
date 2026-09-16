@@ -53,6 +53,8 @@ pub mod link;
 pub mod model;
 /// Closed public operation and claim outcome algebras.
 pub mod outcome;
+/// Exact request-bound producer-contract inventory for IT-002.
+pub mod producer_contracts;
 /// Source-bound projection of canonical protocol results to qverify E02.
 pub mod projection;
 /// B-owned typed refusal envelope. Owner chunk: C-01 (submodules: C-02, C-03).

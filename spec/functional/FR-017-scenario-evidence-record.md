@@ -175,7 +175,7 @@ disposition state, and nothing in this repository reads one back.
 
 ## Status
 
-Specified. QSL and Engineering Assurance contracts are pinnable, QObs requires
-the delivered revision repin, and E02/Quoin retain the exact blockers in FR-009.
+Specified. QSL, QObs and Engineering Assurance contracts are pinnable;
+E02/Quoin retain the exact blockers in FR-009.
 Task-018 implements final composition after the shared outcome and resource
 types exist; consuming integration tasks populate their concrete values.

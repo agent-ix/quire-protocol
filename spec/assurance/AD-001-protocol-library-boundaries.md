@@ -136,7 +136,7 @@ The exact presently selected entry vocabulary is:
 | QSL compiled `/1` | `quire.compiled-protocol/1` |
 | QSL compiled `/2` | `quire.compiled-protocol/2` |
 | QSL temporal | `quire.native-temporal-request/v1`, `quire.native-temporal-result/v1` |
-| QObs runtime/authority | `quire.observation.record/v2`, `population/v2`, `explicit-members/v1`, `position-ledger/v1`, `clock-binding/v1`, `capture-environment/v1`, `progress-assertion/v1`, `closure-assertion/v1`, `completeness-assertion/v1`, `result-availability/v1` under the QObs owner namespace |
+| QObs runtime/authority | `quire.observation.record/v2`, `population/v2`, `explicit-members/v1`, `position-ledger/v1`, `clock-binding/v1`, `partial-fact/v1`, `capture-environment/v1`, `progress-assertion/v1`, `activation-scope-authority/v1`, `closure-assertion/v1`, `completeness-assertion/v1`, `result-availability/v1`, `quire.observation-authority/v1`, `quire.observation-authority/v2`, and `quire.observation-authority-lineage/v1` under the QObs owner namespace. Repair and aggregate-query are typed unsupported Protocol capabilities, not manifest keys. |
 | Engineering Assurance | `engineering-assurance.producer-execution-request/v1`, `engineering-assurance.producer-execution-result/v1` |
 | E02 | `quire-verification/e02-draft-2` |
 | Quoin | the not-yet-accepted Protocol scenario-intake contract |
