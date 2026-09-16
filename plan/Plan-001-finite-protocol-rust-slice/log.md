@@ -5,6 +5,19 @@ description: "Chronological log of changes to the Plan-001 bundle."
 ---
 # Plan-001 — Update Log
 
+* **2026-09-15** — Completed Task-010 for `quire-protocol#12`, scoped to
+  IT-002 SC-01..SC-04. Exact QObs `93bc565` authority facts and QSL
+  `0c2f13e` native-temporal v2 request/result facts now execute through the
+  strict FR-300 activation join, batch and settled-incremental conformance,
+  claim dispatch and atomic canonical-result assembly. The paired real Rust
+  tests preserve owner values and refuse subject, result, occurrence, scoped
+  closure, global premise, completeness and execution substitutions without a
+  local producer mirror. The task and Plan-001 row are done; IT-002 itself
+  remains in progress because SC-05..SC-08 are later replay, budget and
+  retained-evidence extensions. `/rust-review` SR-120 and `/gap-analysis`
+  SR-121 pass the scoped allocation; no claim is made for Plan-001, IT-003 or
+  the later IT-002 scenarios.
+
 ## History
 
 * **2026-09-15** — Reopened Task-006 after independent exact-head review. The

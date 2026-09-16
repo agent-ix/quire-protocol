@@ -222,7 +222,7 @@ track names are subsystems and are not agent assignments; Agent B remains on TL.
 | Task-007 | Producer Integration | FR-007 | TC-007 | done; exact accepted qverify/EA graph, total source-bound projection and SR-118/SR-119 pass |
 | Task-008 | Cross-cutting Closure | NFR-001, NFR-002 | TC-008, TC-009 | in_progress; current-site inventory exists |
 | Task-009 | Producer Integration | FR-001, FR-002 | IT-001 | done; default `/1` admission/static link and SC-06a two-revision comparison pass |
-| Task-010 | Producer Integration | FR-003, FR-004, FR-006 | IT-002 | in_progress; QObs delivered, core bridge remains |
+| Task-010 | Producer Integration | FR-003, FR-004, FR-006 | IT-002 | done; pinned QObs/QSL owner facts traverse strict FR-300 binding, conformance, dispatch, and canonical result assembly |
 | Task-011 | Qualification | StR-001, FR-006, FR-007, NFR-003 | IT-003, TC-010 | blocked on Quoin scenario intake and remaining predecessors |
 | Task-012 | Producer Integration | FR-001, FR-002, NFR-002 | IT-001 | done |
 | Task-013 | Core | FR-009, FR-012, FR-016, NFR-006 | TC-013 | done; PR #50, SR-103/SR-104 pass |
