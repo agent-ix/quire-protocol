@@ -279,7 +279,7 @@ of A's mutation manifest. On the revision named below, the base offer is admitte
 and every mutation refuses with the identity A declares for it.
 
 The exact pin is `quire-spec-language`
-`0c2f13e261c0ffeaf89f0638931b573ec038e99b`, a post-`v0.2.0` revision. A
+`2736b62b2f741496590d099d71478b3044d638d6`, a post-`v0.2.0` revision. A
 exports `PUBLISHED_HANDOFF` plus every member-name
 and manifest-format constant. B loads that owner path directly, verifies all
 109 published members, refuses unlisted or corrupt members, admits the base,
@@ -398,7 +398,7 @@ and 1 is unexecutable.
 | --- | --- | --- | --- |
 | IT-001 version 1 | Native compiler `quire.compiled-protocol/1` artifact to protocol library | FR-001, FR-002, FR-009, FR-013, FR-016, FR-017, NFR-002, NFR-005 | ✅ Implemented — SC-01..SC-05 run as 24 default tests from QSL's committed `/1` handoff through explicit admission and local static linking. The positive reader inventory and all numeric/digest/refusal axes pass with no ignores. |
 | IT-001 version 2 | Native compiler version 2 artifact to protocol library | FR-001-AC-5, FR-002-AC-5, FR-009, FR-013-AC-4, FR-017, NFR-002, NFR-005, NFR-007 | ✅ Implemented — SC-06 through SC-09 execute under the default local gate, including paired refusal of all eight inherited selection axes, and SC-06a passes the identical 23-case historical `/1` corpus at Protocol `0e5ec292` and `5ce9070e`. The exact `6c8c401` pin supplies both published handoffs. |
-| IT-002 | Observation and temporal facts to protocol evaluator/result | FR-003, FR-004, FR-006, FR-009, FR-017, NFR-002, NFR-005 | 🚧 In progress — Task-010 executes SC-01 through SC-04 through the real QObs/QSL assessment path. Task-021 executes SC-05a..SC-05d and SC-06 with exact QSL/QObs evidence correlation, replay/permutation agreement and seven active composed-budget dimensions. Done Task-020's SC-08 executes the exact twenty-one-contract inventory (including compiled `/2` and activation mapping `/3`), fifteen QObs schema digests, affected-identity and non-authority mutations, and the request-bound resolver-before-read assessment boundary at accepted QObs merge `9240063`. Ten of twelve scenario units pass; SC-07a/SC-07b remain planned under Task-018, and QCI remains downstream only. |
+| IT-002 | Observation and temporal facts to protocol evaluator/result | FR-003, FR-004, FR-006, FR-009, FR-017, FR-026, FR-041, NFR-002, NFR-005 | 🚧 In progress — Task-010 executes SC-01 through SC-04 through the real QObs/QSL assessment path. Task-021 executes SC-05a..SC-05d and SC-06 with exact QSL/QObs evidence correlation, replay/permutation agreement and seven active composed-budget dimensions. Done Task-020's SC-08 executes the exact twenty-one-contract inventory (including compiled `/2` and activation mapping `/3`), fifteen QObs schema digests, affected-identity and non-authority mutations, and the request-bound resolver-before-read assessment boundary at accepted QObs merge `9240063`. Ten of twelve scenario units pass; SC-07a/SC-07b remain planned under Task-018, and QCI remains downstream only. |
 | IT-003 | Protocol result through Engineering Assurance, E02, and Quoin | FR-006, FR-007, FR-009, FR-014, FR-017, FR-039, FR-040, NFR-002, NFR-003, NFR-005 | ⛔ Unexecutable — Engineering Assurance and the exact qverify E02 consumer graph are delivered, but Quoin has no Protocol scenario-record intake, so all owed scenarios score zero rather than passing. |
 
 Owed integration scenarios: 32 across the three integration tests (IT-001 10,

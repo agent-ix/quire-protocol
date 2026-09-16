@@ -53,8 +53,8 @@ handoff (NFR-005), never where it is kept afterwards or whether it suffices.
 
 Every external contract consumed by this integration resolves through the
 FR-009 version-lock manifest before any request is submitted. QSL `/1` and `/2`
-are both supplied by exact revision
-`0c2f13e261c0ffeaf89f0638931b573ec038e99b`; neither may substitute for the
+are both supplied by current exact revision
+`2736b62b2f741496590d099d71478b3044d638d6`; neither may substitute for the
 other.
 
 Engineering Assurance's typed boundary and qverify's E02 boundary are delivered.

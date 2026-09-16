@@ -9,6 +9,8 @@ relationships:
   - { target: ix://agent-ix/quire-protocol/Task-010, type: depends_on }
   - { target: ix://agent-ix/quire-protocol/Task-020, type: depends_on }
   - { target: ix://agent-ix/quire-protocol/FR-004, type: references }
+  - { target: ix://agent-ix/quire-protocol/FR-026, type: references }
+  - { target: ix://agent-ix/quire-protocol/FR-041, type: references }
   - { target: ix://agent-ix/quire-protocol/NFR-002, type: references }
   - { target: ix://agent-ix/quire-protocol/IT-002, type: verifies }
 ---
@@ -29,19 +31,23 @@ budget and completes before producer values are read.
 - [x] Repin QSL to accepted PR #127 merge `2736b62b2f741496590d099d71478b3044d638d6`
   and reconcile the lockfile, dependency record and producer inventory.
 - [x] Correlate every admitted QSL axis evidence tuple with the exact QObs
-  owner contract, schema, document identity/digest, authority, role and
-  population; refuse cross-wired views with a distinct typed identity.
+  owner contract, schema, document identity/digest, authority, scope and
+  population; refuse each independently cross-wired progress, closure,
+  completeness or execution axis with a distinct typed identity.
 - [x] Prove settled batch/incremental equivalence, early-prefix settlement,
-  both equal-time arrival permutations and an authored-premise mutation.
+  both equal-time arrival permutations and an authored-premise mutation;
+  preserve workflow and repeat ordinals in each derived obligation identity.
 - [x] Exercise every dimension charged by the composed assessment with an
   exact grant, a one-short resource-incomplete outcome and a fresh exact grant.
-- [x] Run the exact locked format, all-target Clippy and full test gates.
+- [x] Run the exact locked format, all-target Clippy and full test gates after
+  final Rust/gap review remediation.
 
 ## Deliverables
 
 - Default-running IT-002 SC-05/SC-06 integration scenarios, QSL/QObs evidence
-  correlation at the composed assessment boundary, distinct cross-wire refusal
-  and exact resource-boundary evidence.
+  correlation at the composed assessment boundary, independent cross-wire
+  refusals, inventoried evidence-hash/model-derivation work and exact
+  resource-boundary evidence.
 
 ## Boundary
 

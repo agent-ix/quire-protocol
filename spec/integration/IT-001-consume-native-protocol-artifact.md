@@ -44,8 +44,8 @@ legacy compatibility exception: it mints no capability, independently selects
 and retains the compiler contract, baseline, producer, native-source,
 model-source and dependency bytes before inspecting the offer, and cannot read
 any full-assessment input. The native compiler publishes both versioned
-compiled-protocol contracts and committed owner-addressed handoffs at
-`0c2f13e261c0ffeaf89f0638931b573ec038e99b`. Version 1 retains its
+compiled-protocol contracts and committed owner-addressed handoffs at current
+exact pin `2736b62b2f741496590d099d71478b3044d638d6`. Version 1 retains its
 `quire.protocol.numeric/1` wire profile.
 
 The version 2 intake is a separate contract with its own published surface:
@@ -257,7 +257,7 @@ are accepted. `quire-spec-language` release `v0.2.0` is at
 `6eccb05adf58cb2ed0c6092f5ef8e23d55030028`. Its post-release interface PR #92
 exports the handoff paths, all member names, and the mutation-manifest format on
 `main`; this repository pins
-`0c2f13e261c0ffeaf89f0638931b573ec038e99b`. The version 2 reader, its typed per-axis refusals, the independent
+`2736b62b2f741496590d099d71478b3044d638d6`. The version 2 reader, its typed per-axis refusals, the independent
 selection records, the original inputs, the 28-case mutation corpus, and the
 published handoff are all present under that dependency source. No environment
 configuration or copied artifact tree is part of the gate.

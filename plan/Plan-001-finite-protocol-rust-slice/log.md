@@ -11,8 +11,10 @@ description: "Chronological log of changes to the Plan-001 bundle."
   extension after QSL PR #127 merged as
   `2736b62b2f741496590d099d71478b3044d638d6`. Protocol now checks the admitted
   QSL decision/surrounding progress and closure, completeness and execution
-  evidence against the exact QObs owner views before composed assessment; a
-  cross-wired owner set returns its own typed refusal. The integration proves
+  evidence against the exact QObs owner views before composed assessment; each
+  independently cross-wired axis returns its own typed refusal. Evidence
+  document hashing and activation-model node, identity, operation and allocation
+  work are inventoried and charged before traversal or allocation. The integration proves
   early settlement, batch/incremental semantic identity, both equal-time
   permutations, matching authored-premise mutation, and exact/one-short/fresh
   behavior for all seven resource dimensions charged by the composed path.
