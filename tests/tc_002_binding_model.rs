@@ -106,6 +106,70 @@ fn admitted_published_v2() -> quire_spec_language::protocol_artifact::v2::Admitt
         .expect("published v2 offer admits")
 }
 
+fn foreign_clock(
+    clock: &artifact_v2::wire::ClockConfiguration,
+) -> artifact_v2::wire::ClockConfiguration {
+    match clock {
+        artifact_v2::wire::ClockConfiguration::EventPosition { sequence_authority } => {
+            artifact_v2::wire::ClockConfiguration::EventPosition {
+                sequence_authority: format!("{sequence_authority}:foreign"),
+            }
+        }
+        artifact_v2::wire::ClockConfiguration::FixedSample {
+            epoch,
+            period,
+            unit,
+        } => artifact_v2::wire::ClockConfiguration::FixedSample {
+            epoch: epoch.clone(),
+            period: period.clone(),
+            unit: format!("{unit}:foreign"),
+        },
+        artifact_v2::wire::ClockConfiguration::TimestampedEvent { timestamp_unit } => {
+            artifact_v2::wire::ClockConfiguration::TimestampedEvent {
+                timestamp_unit: format!("{timestamp_unit}:foreign"),
+            }
+        }
+    }
+}
+
+fn admitted_v2_with_foreign_temporal_table() -> artifact_v2::AdmittedPackage {
+    let package = admitted_published_v2();
+    let mut offer = package.package().clone();
+    let binding = offer
+        .temporal_bindings
+        .first_mut()
+        .expect("published v2 package retains a temporal binding");
+    let changed_clock = foreign_clock(&binding.clock);
+    binding.clock = changed_clock.clone();
+    let candidate = artifact_v2::encode_candidate(
+        &offer,
+        quire_spec_language::protocol_artifact::Limits::default(),
+    )
+    .into_result()
+    .expect("foreign temporal v2 offer encodes");
+    let loaded = handoff::Handoff::load().expect("published v2 handoff");
+    let declarations = loaded.declarations();
+    let inventories = loaded.inventories(&declarations);
+    let mut seal = package
+        .artifact()
+        .expect("strict v2 handoff retained its artifact seal")
+        .clone();
+    seal.digest = candidate.digest();
+    let base = loaded.expected_for(&inventories, &seal);
+    let mut temporal = base.temporal.to_vec();
+    temporal
+        .first_mut()
+        .expect("published expectation retains a temporal selection")
+        .clock = &changed_clock;
+    let expected = artifact_v2::Expected {
+        inherited: base.inherited,
+        temporal: &temporal,
+    };
+    quire_protocol::intake::v2::admit(candidate.bytes(), &expected, loaded.limits())
+        .into_result()
+        .expect("independently selected foreign temporal v2 package admits")
+}
+
 /// Strictly admit the published `/2` graph with one independently authored
 /// `/3` event-to-temporal mapping.  The test owns the offer and independent
 /// expectation separately so the Protocol kernel never needs a local mapping
@@ -203,27 +267,7 @@ fn admitted_v3_with_foreign_temporal_table(
         .temporal_bindings
         .first_mut()
         .expect("published v3 package retains a temporal binding");
-    let changed_clock = match &binding.clock {
-        artifact_v2::wire::ClockConfiguration::EventPosition { sequence_authority } => {
-            artifact_v2::wire::ClockConfiguration::EventPosition {
-                sequence_authority: format!("{sequence_authority}:foreign"),
-            }
-        }
-        artifact_v2::wire::ClockConfiguration::FixedSample {
-            epoch,
-            period,
-            unit,
-        } => artifact_v2::wire::ClockConfiguration::FixedSample {
-            epoch: epoch.clone(),
-            period: period.clone(),
-            unit: format!("{unit}:foreign"),
-        },
-        artifact_v2::wire::ClockConfiguration::TimestampedEvent { timestamp_unit } => {
-            artifact_v2::wire::ClockConfiguration::TimestampedEvent {
-                timestamp_unit: format!("{timestamp_unit}:foreign"),
-            }
-        }
-    };
+    let changed_clock = foreign_clock(&binding.clock);
     binding.clock = changed_clock.clone();
 
     let candidate = v3::encode_candidate(
@@ -480,37 +524,17 @@ fn activated_request_at(
     trigger: &[u8],
     anchor: &str,
 ) -> temporal_v2::ValidatedRequest {
-    let declaration = package
-        .inherited()
-        .declarations
-        .iter()
-        .enumerate()
-        .find_map(|(index, declaration)| {
-            matches!(declaration.body, Body::Temporal { .. })
-                .then(|| u32::try_from(index).expect("fixture temporal declaration fits"))
-        })
-        .expect("published fixture has one temporal declaration");
-    let selection = temporal_subject::DeclarationSelection::new(declaration);
-    let subject = temporal_subject::derive(package, selection, temporal_subject::Limits::default())
-        .into_result()
-        .expect("derive temporal subject");
-    let subject = temporal_subject::read(
-        subject.bytes(),
-        package,
-        selection,
-        temporal_subject::Limits::default(),
-    )
-    .into_result()
-    .expect("strict-read temporal subject");
-    let leaf = package.inherited().declarations[usize::try_from(declaration).unwrap()]
-        .temporal
-        .iter()
-        .enumerate()
-        .find_map(|(index, node)| {
-            matches!(node.operation, qsl_wire::TemporalOperation::Holds { .. })
-                .then(|| u32::try_from(index).expect("fixture temporal node fits"))
-        })
-        .expect("temporal fixture has a holds leaf");
+    let subject = activated_temporal_subject(package);
+    let leaf = package.inherited().declarations
+        [usize::try_from(subject.declaration()).expect("temporal declaration fits")]
+    .temporal
+    .iter()
+    .enumerate()
+    .find_map(|(index, node)| {
+        matches!(node.operation, qsl_wire::TemporalOperation::Holds { .. })
+            .then(|| u32::try_from(index).expect("fixture temporal node fits"))
+    })
+    .expect("temporal fixture has a holds leaf");
     let input = temporal_v2::Input {
         trigger: temporal_v2::SemanticTriggerIdentity::new(trigger.to_vec())
             .expect("QObs subject identity is nonempty"),
@@ -571,6 +595,34 @@ fn activated_request_at(
     )
     .into_result()
     .expect("strict-read opaque temporal request")
+}
+
+fn activated_temporal_subject(
+    package: &quire_spec_language::protocol_artifact::v2::AdmittedPackage,
+) -> quire_spec_language::protocol_artifact::temporal_subject::ValidatedTemporalSubject {
+    let declaration = package
+        .inherited()
+        .declarations
+        .iter()
+        .enumerate()
+        .find_map(|(index, declaration)| {
+            matches!(declaration.body, Body::Temporal { .. })
+                .then(|| u32::try_from(index).expect("fixture temporal declaration fits"))
+        })
+        .expect("published fixture has one temporal declaration");
+    let selection = temporal_subject::DeclarationSelection::new(declaration);
+    let subject = temporal_subject::derive(package, selection, temporal_subject::Limits::default())
+        .into_result()
+        .expect("derive temporal subject");
+    let subject = temporal_subject::read(
+        subject.bytes(),
+        package,
+        selection,
+        temporal_subject::Limits::default(),
+    )
+    .into_result()
+    .expect("strict-read temporal subject");
+    subject
 }
 fn order_shipment(producer: &quire_observation::AdmittedStaticBundle) -> Relationship {
     order_shipment_with_identity(
@@ -1366,6 +1418,7 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
         .definition_identity()
         .expect("the admitted static selection has an FR-288 identity");
 
+    let temporal_subject = activated_temporal_subject(&package);
     let request = activated_request(&package, activation_subject.identity().as_bytes());
     let mappings = admitted_published_v3(&package);
     let result_document = temporal_v2::evaluate(
@@ -1388,6 +1441,7 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
         vec![Claim::Conformance],
         &mappings,
         &activation_subject,
+        &temporal_subject,
         &request,
         &result,
     );
@@ -1416,6 +1470,7 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
                 activated.linked(),
                 &foreign_temporal_mappings,
                 &activation_subject,
+                &temporal_subject,
                 &request,
                 &result,
             )
@@ -1423,6 +1478,52 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
                 "a separately admitted v3 temporal table cannot extend this exact v2 package",
             ),
         quire_protocol::conformance::KernelRefusal::ForeignActivationPackage
+    );
+    let foreign_temporal_package = admitted_v2_with_foreign_temporal_table();
+    let foreign_temporal_subject = activated_temporal_subject(&foreign_temporal_package);
+    let foreign_temporal_request = activated_request(
+        &foreign_temporal_package,
+        activation_subject.identity().as_bytes(),
+    );
+    let foreign_temporal_result_document = temporal_v2::evaluate(
+        &foreign_temporal_request,
+        temporal_v2::Relation::Original,
+        native_temporal::Limits::default(),
+    )
+    .into_result()
+    .expect("foreign strict temporal result evaluates");
+    let foreign_temporal_result = temporal_v2::read_result(
+        foreign_temporal_result_document.bytes(),
+        &foreign_temporal_request,
+        temporal_v2::Relation::Original,
+        native_temporal::Limits::default(),
+    )
+    .into_result()
+    .expect("foreign strict temporal result reads");
+    assert_ne!(foreign_temporal_package.digest(), package.digest());
+    assert_eq!(
+        foreign_temporal_request.declaration(),
+        request.declaration()
+    );
+    assert_eq!(
+        foreign_temporal_request.semantic_trigger(),
+        request.semantic_trigger()
+    );
+    assert_eq!(
+        activated
+            .conformance()
+            .bind_activation(
+                activated.linked(),
+                &mappings,
+                &activation_subject,
+                &foreign_temporal_subject,
+                &foreign_temporal_request,
+                &foreign_temporal_result,
+            )
+            .expect_err(
+                "the linked mappings cannot authorize a request from another strict package",
+            ),
+        quire_protocol::conformance::KernelRefusal::InvalidActivationTemporal
     );
     let mismatched_subject = QualifiedSubject::new(
         &producer,
@@ -1434,6 +1535,7 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
         vec![Claim::Conformance],
         &mappings,
         &mismatched_subject,
+        &temporal_subject,
         &request,
         &result,
     ) else {
@@ -1451,6 +1553,7 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
         engine.linked(),
         &mappings,
         &mismatched_subject,
+        &temporal_subject,
         &request,
         &result,
     ) {
@@ -1466,6 +1569,7 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
             engine.linked(),
             &mappings,
             &activation_subject,
+            &temporal_subject,
             &request,
             &result,
         )
@@ -1489,6 +1593,7 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
             engine.linked(),
             &mappings,
             &activation_subject,
+            &temporal_subject,
             &request,
             &result,
         )
@@ -1499,6 +1604,7 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
             engine.linked(),
             &mappings,
             &activation_subject,
+            &temporal_subject,
             &request,
             &result,
         )
@@ -1524,6 +1630,16 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
     )
     .into_result()
     .expect("changed strict temporal result reads");
+    assert!(
+        temporal_v2::evaluate(
+            &request,
+            temporal_v2::Relation::Superseding(&result),
+            native_temporal::Limits::default(),
+        )
+        .into_result()
+        .is_err(),
+        "QSL refuses a second relation for the same request identity"
+    );
     let correction_document = temporal_v2::evaluate(
         &conflicting_request,
         temporal_v2::Relation::Superseding(&result),
@@ -1546,6 +1662,7 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
                 engine.linked(),
                 &mappings,
                 &activation_subject,
+                &temporal_subject,
                 &request,
                 &conflicting_result,
             )
@@ -1559,6 +1676,7 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
                 engine.linked(),
                 &mappings,
                 &activation_subject,
+                &temporal_subject,
                 &conflicting_request,
                 &conflicting_result,
             )
@@ -1608,6 +1726,7 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
             engine.linked(),
             &mappings,
             &activation_subject,
+            &temporal_subject,
             &conflicting_request,
             &correction_result,
         )

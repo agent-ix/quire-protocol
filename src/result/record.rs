@@ -843,17 +843,29 @@ struct Prepared {
     semantic_usage: Usage,
 }
 
+struct PreparedWithoutIdentity {
+    snapshot: Snapshot,
+    value: Value,
+    semantic_usage: Usage,
+}
+
+// Adding `resultId` to the nonempty root object contributes one comma, the
+// canonical `"resultId":` key, and one quoted 75-byte sha256-jcs identity.
+const RESULT_ID_MEMBER_BYTES: usize = 89;
+
 /// Produce one canonical FR-286 result or one typed refusal with no partial output.
 pub(crate) fn produce(input: Input<'_>, limits: Limits) -> Result<Document> {
     let effective = limits.effective();
-    finish(prepare(input, effective)?, effective)
+    let prepared = prepare_without_identity(input, effective)?;
+    finish(seal_identity(prepared)?, effective)
 }
 
 /// Produce one canonical result under the shared QProtocol caller budget.
 ///
-/// Exact string, depth, field and canonical-byte requirements are computed
-/// without retaining the output, then charged against both owner and caller
-/// ceilings before the governed snapshot and canonical bytes are allocated.
+/// Exact string, depth and field requirements are charged before the governed
+/// snapshot/value allocation. The exact final canonical-byte requirement is
+/// then computed without allocating canonical text and charged before either
+/// identity-preimage or final-output canonical bytes are allocated.
 pub(crate) fn produce_bounded(
     input: Input<'_>,
     limits: Limits,
@@ -872,11 +884,6 @@ fn produce_bounded_unit(
 ) -> OperationOutcome<Document, Refusal> {
     let effective = limits.effective();
     let semantic = semantic_usage(&input);
-    let structural = output_structural_usage(&input).unwrap_or(StructuralUsage {
-        fields: usize::MAX,
-        depth: usize::MAX,
-        string_bytes: usize::MAX,
-    });
     let charges = [
         (ALLOCATION_SOURCE.id(), 1, None),
         (
@@ -908,6 +915,14 @@ fn produce_bounded_unit(
     if let Err(error) = resources.charge_all_mixed(&charges) {
         return OperationOutcome::from_charge(error);
     }
+    // Collection counts are charged before this exact read-only preflight, so
+    // an oversized untrusted collection is never scanned. The preflight itself
+    // retains no caller data and allocates no canonical/snapshot output.
+    let structural = output_structural_usage(&input).unwrap_or(StructuralUsage {
+        fields: usize::MAX,
+        depth: usize::MAX,
+        string_bytes: usize::MAX,
+    });
     for (site, requested, limit) in [
         (
             STRING_SOURCE.id(),
@@ -925,18 +940,18 @@ fn produce_bounded_unit(
             return OperationOutcome::from_charge(error);
         }
     }
-    let prepared = match prepare(input, effective) {
+    let prepared = match prepare_without_identity(input, effective) {
         Ok(prepared) => prepared,
         Err(error) => return OperationOutcome::DomainError(error),
     };
-    let required = match canonical_len(&prepared.value) {
+    let required = match canonical_output_len(&prepared.value) {
         Ok(required) => required,
         Err(_) => {
             return OperationOutcome::DomainError(refusal(
                 ErrorCode::InvalidSelection,
                 "result cannot determine its canonical output length",
                 Usage::default(),
-                Some(&prepared.result_id),
+                None,
             ));
         }
     };
@@ -945,15 +960,41 @@ fn produce_bounded_unit(
     {
         return OperationOutcome::from_charge(error);
     }
+    let prepared = match seal_identity(prepared) {
+        Ok(prepared) => prepared,
+        Err(error) => return OperationOutcome::DomainError(error),
+    };
     OperationOutcome::from_domain(finish(prepared, effective))
 }
 
-fn prepare(input: Input<'_>, effective: Limits) -> Result<Prepared> {
+fn prepare_without_identity(
+    input: Input<'_>,
+    effective: Limits,
+) -> Result<PreparedWithoutIdentity> {
     validate_input(&input, effective)?;
     let semantic_usage = semantic_usage(&input);
     let snapshot = snapshot(&input);
-    let mut value = result_value(&input, &snapshot, None)?;
-    let preimage = json!({"identityVersion": IDENTITY_VERSION, "result": value});
+    let value = result_value(&input, &snapshot, None)?;
+    Ok(PreparedWithoutIdentity {
+        snapshot,
+        value,
+        semantic_usage,
+    })
+}
+
+fn canonical_output_len(
+    value_without_identity: &Value,
+) -> std::result::Result<usize, crate::digest::jcs::JcsError> {
+    canonical_len(value_without_identity)?
+        .checked_add(RESULT_ID_MEMBER_BYTES)
+        .ok_or(crate::digest::jcs::JcsError::LengthOverflow)
+}
+
+fn seal_identity(mut prepared: PreparedWithoutIdentity) -> Result<Prepared> {
+    let preimage = json!({
+        "identityVersion": IDENTITY_VERSION,
+        "result": &prepared.value,
+    });
     let result_id = ResultDigest::of_result(&preimage)
         .map_err(|_| {
             refusal(
@@ -964,12 +1005,20 @@ fn prepare(input: Input<'_>, effective: Limits) -> Result<Prepared> {
             )
         })?
         .text();
-    value = result_value(&input, &snapshot, Some(&result_id))?;
+    let Some(value) = prepared.value.as_object_mut() else {
+        return Err(refusal(
+            ErrorCode::InvalidSelection,
+            "typed result record is not a JSON object",
+            Usage::default(),
+            Some(&result_id),
+        ));
+    };
+    value.insert("resultId".to_owned(), Value::String(result_id.clone()));
     Ok(Prepared {
-        snapshot,
-        value,
+        snapshot: prepared.snapshot,
+        value: prepared.value,
         result_id,
-        semantic_usage,
+        semantic_usage: prepared.semantic_usage,
     })
 }
 

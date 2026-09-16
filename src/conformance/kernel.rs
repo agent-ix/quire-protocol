@@ -20,6 +20,7 @@ use quire_observation::{
 };
 use quire_spec_language::protocol_artifact::{
     native_temporal::{request::CaptureView, result::ActivationState, v2 as temporal_v2},
+    temporal_subject::ValidatedTemporalSubject,
     v3,
     wire::{Body, ControlOperation, EdgeKind, Handle},
     OccurrenceKey,
@@ -71,6 +72,7 @@ pub struct ActivationBinding<'a> {
     definition: DefinitionIdentity,
     control: Handle,
     subject: QualifiedSubject,
+    temporal_subject: &'a ValidatedTemporalSubject,
     request: &'a temporal_v2::ValidatedRequest,
     result: &'a temporal_v2::ValidatedResult,
 }
@@ -155,7 +157,10 @@ impl ActivationBinding<'_> {
     }
 
     fn same_checked_content(&self, other: &Self) -> bool {
-        self.request.document().identity() == other.request.document().identity()
+        self.temporal_subject.package_digest() == other.temporal_subject.package_digest()
+            && self.temporal_subject.document().identity()
+                == other.temporal_subject.document().identity()
+            && self.request.document().identity() == other.request.document().identity()
             && self.evaluation_anchor() == other.evaluation_anchor()
             && self.captures().eq(other.captures())
             && self.result.document().identity() == other.result.document().identity()
@@ -339,10 +344,12 @@ impl<'a> ActivationRegistry<'a> {
         linked: &LinkedProtocol<'_>,
         mappings: &v3::AdmittedPackage,
         subject: &QualifiedSubject,
+        temporal_subject: &'a ValidatedTemporalSubject,
         request: &'a temporal_v2::ValidatedRequest,
         result: &'a temporal_v2::ValidatedResult,
     ) -> Result<&ActivationBinding<'a>, Refusal> {
-        let candidate = kernel.bind_activation(linked, mappings, subject, request, result)?;
+        let candidate =
+            kernel.bind_activation(linked, mappings, subject, temporal_subject, request, result)?;
         if let Some(index) = self
             .bindings
             .iter()
@@ -609,6 +616,7 @@ impl Kernel {
         linked: &LinkedProtocol<'_>,
         mappings: &v3::AdmittedPackage,
         subject: &QualifiedSubject,
+        temporal_subject: &'a ValidatedTemporalSubject,
         request: &'a temporal_v2::ValidatedRequest,
         result: &'a temporal_v2::ValidatedResult,
     ) -> Result<ActivationBinding<'a>, Refusal> {
@@ -619,6 +627,12 @@ impl Kernel {
         }
         if request.semantic_trigger() != subject.identity().as_bytes() {
             return Err(Refusal::ActivationSubjectMismatch);
+        }
+        if temporal_subject.package_digest() != linked.context().package().digest()
+            || temporal_subject.declaration() != request.declaration()
+            || temporal_subject.document().identity() != request.subject_identity()
+        {
+            return Err(Refusal::InvalidActivationTemporal);
         }
         if result.semantic_trigger() != request.semantic_trigger()
             || result.request_identity() != request.document().identity()
@@ -655,6 +669,7 @@ impl Kernel {
             definition: self.definition.clone(),
             control: mapping.control.clone(),
             subject: subject.clone(),
+            temporal_subject,
             request,
             result,
         })

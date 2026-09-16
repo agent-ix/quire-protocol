@@ -978,6 +978,7 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
         requested.to_vec(),
         &mapping,
         &subject,
+        &fixture.temporal,
         &temporal_request,
         &temporal_result,
     ) else {
@@ -1027,6 +1028,7 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
             engine.linked(),
             &mapping,
             &subject,
+            &fixture.temporal,
             &temporal_request,
             &temporal_result,
         )
@@ -1154,6 +1156,7 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
             engine.linked(),
             &mapping,
             &foreign_subject,
+            &fixture.temporal,
             &foreign_request,
             &foreign_result,
         )

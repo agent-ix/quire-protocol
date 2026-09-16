@@ -110,8 +110,9 @@ shared result-domain values. Each has one Protocol owner and no adapter-local co
   permutations, progress/closure and contradiction states.
 - [x] **TC-005**: conformance-derived ordered claim dispositions, exact retained
   premises and no callback fallback.
-- [x] **TC-006**: subsystem-derived canonical rows, strict reads, exact settlement,
-  support topology and immutable corrections.
+- [ ] **TC-006**: subsystem-derived canonical rows and strict reads execute;
+  authenticated settlement/support topology and applicable immutable correction
+  scenarios remain blocked on the pinned owner capabilities.
 - [ ] **TC-007**: total FR-062 E02 mapping, exact derived identity, strict target
   reading, finding preservation and no sufficiency promotion.
 - [ ] **TC-008**: whole-path byte/semantic reproduction and one-axis mutation discrimination.

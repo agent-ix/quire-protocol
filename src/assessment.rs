@@ -889,10 +889,19 @@ impl<'a> Engine<'a> {
         requested: Vec<Claim>,
         mappings: &v3::AdmittedPackage,
         subject: &'a QualifiedSubject,
+        temporal_subject: &'a ValidatedTemporalSubject,
         request: &'a temporal_v2::ValidatedRequest,
         result: &'a temporal_v2::ValidatedResult,
     ) -> crate::outcome::OperationOutcome<Self> {
-        match Self::new_activated(context, requested, mappings, subject, request, result) {
+        match Self::new_activated(
+            context,
+            requested,
+            mappings,
+            subject,
+            temporal_subject,
+            request,
+            result,
+        ) {
             Ok(engine) => crate::outcome::OperationOutcome::Completed(engine),
             Err(StartupRefusal::Bundle(error)) => {
                 crate::outcome::OperationOutcome::Refused(outcome_refusal(error))
@@ -950,6 +959,7 @@ impl<'a> Engine<'a> {
         requested: Vec<Claim>,
         mappings: &v3::AdmittedPackage,
         subject: &'a QualifiedSubject,
+        temporal_subject: &'a ValidatedTemporalSubject,
         request: &'a temporal_v2::ValidatedRequest,
         result: &'a temporal_v2::ValidatedResult,
     ) -> Result<Self, StartupRefusal> {
@@ -965,6 +975,7 @@ impl<'a> Engine<'a> {
             &engine.linked,
             mappings,
             subject,
+            temporal_subject,
             request,
             result,
         )?;
@@ -983,8 +994,15 @@ impl<'a> Engine<'a> {
         checked_predicate: &'a ValidatedCheckedPredicate,
         temporal_subject: &'a ValidatedTemporalSubject,
     ) -> Result<Self, StartupRefusal> {
-        let mut engine =
-            Self::new_activated(context, requested, mappings, subject, request, result)?;
+        let mut engine = Self::new_activated(
+            context,
+            requested,
+            mappings,
+            subject,
+            temporal_subject,
+            request,
+            result,
+        )?;
         validate_result_selection(
             engine.context.package().digest(),
             &engine.identity,
