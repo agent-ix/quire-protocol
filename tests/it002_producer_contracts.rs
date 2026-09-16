@@ -207,22 +207,22 @@ fn it_002_sc_08_resolves_only_the_exact_scenario_contract_inventory() {
         (
             "agent-ix/quire-spec-language",
             "quire.native-temporal-request/v2",
-            "0c2f13e261c0ffeaf89f0638931b573ec038e99b",
+            "2736b62b2f741496590d099d71478b3044d638d6",
         ),
         (
             "agent-ix/quire-spec-language",
             "quire.native-temporal-result/v2",
-            "0c2f13e261c0ffeaf89f0638931b573ec038e99b",
+            "2736b62b2f741496590d099d71478b3044d638d6",
         ),
         (
             "agent-ix/quire-spec-language",
             "quire.compiled-protocol/2",
-            "0c2f13e261c0ffeaf89f0638931b573ec038e99b",
+            "2736b62b2f741496590d099d71478b3044d638d6",
         ),
         (
             "agent-ix/quire-spec-language",
             "quire.compiled-protocol/3",
-            "0c2f13e261c0ffeaf89f0638931b573ec038e99b",
+            "2736b62b2f741496590d099d71478b3044d638d6",
         ),
     ];
     assert_eq!(ProducerContract::ALL.len(), EXPECTED.len());

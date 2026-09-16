@@ -573,14 +573,18 @@ fn evidence(scope: &str, identity: &str) -> native_temporal::EvidenceRef {
 fn activated_request(
     package: &quire_spec_language::protocol_artifact::v2::AdmittedPackage,
     trigger: &[u8],
+    decision: &observation_owner::ScopeViews,
+    surrounding: &observation_owner::ScopeViews,
 ) -> temporal_v2::ValidatedRequest {
-    activated_request_at(package, trigger, "origin")
+    activated_request_at(package, trigger, "origin", decision, surrounding)
 }
 
 fn activated_request_at(
     package: &quire_spec_language::protocol_artifact::v2::AdmittedPackage,
     trigger: &[u8],
     anchor: &str,
+    decision: &observation_owner::ScopeViews,
+    surrounding: &observation_owner::ScopeViews,
 ) -> temporal_v2::ValidatedRequest {
     let subject = activated_temporal_subject(package);
     let leaf = package.inherited().declarations
@@ -598,7 +602,10 @@ fn activated_request_at(
             .expect("QObs subject identity is nonempty"),
         correspondence: evidence("correspondence", "correspondence:engine"),
         positions: vec![request::ObservedPosition {
-            observation: evidence("observation", "observation:0"),
+            observation: observation_owner::observation_evidence(
+                &decision.observation,
+                "observation",
+            ),
             position: temporal::Position {
                 coordinate: 0,
                 order: Some(temporal::OrderKey {
@@ -619,24 +626,36 @@ fn activated_request_at(
         trigger_evidence: temporal::Evidence::Admitted,
         trigger_scope: temporal::Closure::Closed,
         decision_progress: request::ProgressInput {
-            reference: evidence("decision-progress", "decision-progress:1"),
-            watermark: 0,
+            reference: observation_owner::progress_evidence(
+                &decision.progress_closed,
+                "decision-progress",
+            ),
+            watermark: observation_owner::progress_watermark(&decision.progress_closed),
         },
         decision_closure: request::ClosureInput {
-            reference: evidence("decision-closure", "decision-closure:1"),
+            reference: observation_owner::closure_evidence(
+                &decision.closure_closed,
+                "decision-closure",
+            ),
             state: temporal::Closure::Closed,
         },
         surrounding_progress: request::ProgressInput {
-            reference: evidence("surrounding-progress", "surrounding-progress:1"),
-            watermark: 0,
+            reference: observation_owner::progress_evidence(
+                &surrounding.progress_closed,
+                "surrounding-progress",
+            ),
+            watermark: observation_owner::progress_watermark(&surrounding.progress_closed),
         },
         surrounding_closure: request::ClosureInput {
-            reference: evidence("surrounding-closure", "surrounding-closure:1"),
-            state: temporal::Closure::Open,
+            reference: observation_owner::closure_evidence(
+                &surrounding.closure_closed,
+                "surrounding-closure",
+            ),
+            state: temporal::Closure::Closed,
         },
         execution: temporal::Execution::Completed,
         completeness: request::CompletenessInput {
-            reference: evidence("completeness", "completeness:1"),
+            reference: observation_owner::completeness_evidence(&decision.completeness_complete),
             state: temporal::Completeness::Complete,
             facts: vec![evidence("completeness-fact", "fact:observation:0")],
         },
@@ -1491,7 +1510,14 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
         .expect("the admitted static selection has an FR-288 identity");
 
     let temporal_subject = activated_temporal_subject(&package);
-    let request = activated_request(&package, activation_subject.identity().as_bytes());
+    let decision = observation_owner::scope_views("42");
+    let surrounding = observation_owner::scope_views("activation-derived-surrounding");
+    let request = activated_request(
+        &package,
+        activation_subject.identity().as_bytes(),
+        &decision,
+        &surrounding,
+    );
     let mappings = admitted_published_v3(&package);
     let result_document = temporal_v2::evaluate(
         &request,
@@ -2065,6 +2091,8 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
             let foreign_temporal_request = activated_request(
                 &foreign_temporal_package,
                 activation_subject.identity().as_bytes(),
+                &decision,
+                &surrounding,
             );
             let foreign_temporal_result_document = temporal_v2::evaluate(
                 &foreign_temporal_request,
@@ -2233,6 +2261,8 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
                 &package,
                 activation_subject.identity().as_bytes(),
                 "other-origin",
+                &decision,
+                &surrounding,
             );
             let conflicting_result_document = temporal_v2::evaluate(
                 &conflicting_request,
@@ -2340,8 +2370,6 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
                 .conformance()
                 .activate_occurrence(&activation, occurrence.clone())
                 .expect("a mapped activation and QSL occurrence form one derived obligation");
-            let decision = observation_owner::scope_views("42");
-            let surrounding = observation_owner::scope_views("activation-derived-surrounding");
             let global = closed_global_conformance();
             let fact = engine
                 .conformance()

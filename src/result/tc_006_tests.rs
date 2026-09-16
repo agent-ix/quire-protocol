@@ -774,6 +774,8 @@ fn activated_request(
     package: &v2::AdmittedPackage,
     subject: &temporal_subject::ValidatedTemporalSubject,
     trigger: &[u8],
+    decision: &observation_owner::ScopeViews,
+    surrounding: &observation_owner::ScopeViews,
 ) -> temporal_v2::ValidatedRequest {
     let declaration = subject.declaration();
     let leaf = package.inherited().declarations[usize::try_from(declaration).unwrap()]
@@ -790,7 +792,10 @@ fn activated_request(
             .expect("QObs subject identity is nonempty"),
         correspondence: temporal_evidence("correspondence", "correspondence:canonical-engine"),
         positions: vec![temporal_request::ObservedPosition {
-            observation: temporal_evidence("observation", "observation:canonical-engine"),
+            observation: observation_owner::observation_evidence(
+                &decision.observation,
+                "observation",
+            ),
             position: quire_spec_language::temporal::Position {
                 coordinate: 0,
                 order: Some(quire_spec_language::temporal::OrderKey {
@@ -811,30 +816,36 @@ fn activated_request(
         trigger_evidence: quire_spec_language::temporal::Evidence::Admitted,
         trigger_scope: quire_spec_language::temporal::Closure::Closed,
         decision_progress: temporal_request::ProgressInput {
-            reference: temporal_evidence("decision-progress", "decision-progress:canonical-engine"),
-            watermark: 0,
+            reference: observation_owner::progress_evidence(
+                &decision.progress_closed,
+                "decision-progress",
+            ),
+            watermark: observation_owner::progress_watermark(&decision.progress_closed),
         },
         decision_closure: temporal_request::ClosureInput {
-            reference: temporal_evidence("decision-closure", "decision-closure:canonical-engine"),
+            reference: observation_owner::closure_evidence(
+                &decision.closure_closed,
+                "decision-closure",
+            ),
             state: quire_spec_language::temporal::Closure::Closed,
         },
         surrounding_progress: temporal_request::ProgressInput {
-            reference: temporal_evidence(
+            reference: observation_owner::progress_evidence(
+                &surrounding.progress_closed,
                 "surrounding-progress",
-                "surrounding-progress:canonical-engine",
             ),
-            watermark: 0,
+            watermark: observation_owner::progress_watermark(&surrounding.progress_closed),
         },
         surrounding_closure: temporal_request::ClosureInput {
-            reference: temporal_evidence(
+            reference: observation_owner::closure_evidence(
+                &surrounding.closure_closed,
                 "surrounding-closure",
-                "surrounding-closure:canonical-engine",
             ),
-            state: quire_spec_language::temporal::Closure::Open,
+            state: quire_spec_language::temporal::Closure::Closed,
         },
         execution: quire_spec_language::temporal::Execution::Completed,
         completeness: temporal_request::CompletenessInput {
-            reference: temporal_evidence("completeness", "completeness:canonical-engine"),
+            reference: observation_owner::completeness_evidence(&decision.completeness_complete),
             state: quire_spec_language::temporal::Completeness::Complete,
             facts: vec![temporal_evidence(
                 "completeness-fact",
@@ -1128,8 +1139,15 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
     assert_eq!(input.temporal_subject.package_digest(), package.digest());
     let requested = [DispatchClaim::Conformance, DispatchClaim::Monitorability];
     let mapping = admitted_activation_map(&package);
-    let temporal_request =
-        activated_request(&package, &fixture.temporal, subject.identity().as_bytes());
+    let decision = observation_owner::scope_views("canonical-engine");
+    let surrounding = observation_owner::scope_views("canonical-engine-surrounding");
+    let temporal_request = activated_request(
+        &package,
+        &fixture.temporal,
+        subject.identity().as_bytes(),
+        &decision,
+        &surrounding,
+    );
     let temporal_result = activated_result(&temporal_request);
     let completed = with_activated(
         context,
@@ -1269,8 +1287,6 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
                 .conformance()
                 .activate_occurrence(&activation, occurrence)
                 .expect("mapped activation produces an obligation occurrence");
-            let decision = observation_owner::scope_views("canonical-engine");
-            let surrounding = observation_owner::scope_views("canonical-engine-surrounding");
             let support_observation = decision
                 .completeness_complete
                 .payload()
@@ -1359,6 +1375,8 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
                 &package,
                 &fixture.temporal,
                 foreign_subject.identity().as_bytes(),
+                &decision,
+                &surrounding,
             );
             let foreign_result = activated_result(&foreign_request);
             let foreign_activation = engine

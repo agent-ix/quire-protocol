@@ -12,6 +12,7 @@ relationships:
   - { target: ix://agent-ix/quire-protocol/Task-008, type: depends_on }
   - { target: ix://agent-ix/quire-protocol/Task-009, type: depends_on }
   - { target: ix://agent-ix/quire-protocol/Task-010, type: depends_on }
+  - { target: ix://agent-ix/quire-protocol/Task-021, type: depends_on }
   - { target: ix://agent-ix/quire-protocol/Task-018, type: depends_on }
   - { target: ix://agent-ix/quire-protocol/StR-001, type: references }
   - { target: ix://agent-ix/quire-protocol/FR-006, type: references }

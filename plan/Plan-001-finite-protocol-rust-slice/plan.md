@@ -82,13 +82,16 @@ relationships:
 - `Task-010 -> Task-020`
   Reason: the completed observation/native-temporal assessment precedes its
   exact C00 contract/schema compatibility successor.
+- `Task-010 + Task-020 -> Task-021`
+  Reason: replay equivalence and composed resource boundaries require both the
+  assessment path and its final accepted producer inventory.
 - `Task-007 + Task-009 + Task-010 + Task-013 + Task-019 -> Task-008`
   Reason: the final resource/reproduction sweep can close only after every public
   path and external-contract site exists.
 - `Task-006 + Task-008 + Task-013 -> Task-018`
   Reason: scenario evidence is composed only from the final resolution,
   operation/claim outcome and resource types, never from an early duplicate.
-- `Task-007 + Task-008 + Task-009 + Task-014 + Task-018 + Task-020 -> Task-011`
+- `Task-007 + Task-008 + Task-009 + Task-014 + Task-018 + Task-020 + Task-021 -> Task-011`
   Reason: unchanged-head qualification executes all local and external paths with
   resolved contracts and complete scenario evidence.
 - `Task-015 -> QCI FR-025` is delivered; QCI #71 / PR #78 (`69ec82b`) is also
@@ -143,7 +146,8 @@ shared result-domain values. Each has one Protocol owner and no adapter-local co
 - [ ] **IT-002**: Task-010's SC-01 through SC-04 traverse exact QObs/QSL owner
   values through activation, conformance, dispatch and canonical results.
   Task-020 executes SC-08's exact C00 contract/schema inventory and negative
-  resolution controls. SC-05 through SC-07 remain planned.
+  resolution controls. Task-021 executes SC-05 and SC-06; SC-07 remains planned
+  under Task-018 / issue #63.
 - [ ] **IT-003**: validated Protocol results project to E02, execute through the
   Engineering Assurance boundary and hand a complete FR-017 value to Quoin.
 
@@ -210,7 +214,7 @@ Task-016 -> Task-017 -> Task-013 -> Task-002 -> Task-003 -> Task-004 -> Task-005
                             |       |                          |          |
                             |       `-> Task-009               |          +-> Task-007
                             `-> Task-019                       `-> Task-010
-Task-010 -> Task-020 -> Task-011
+Task-010 -> Task-020 -> Task-021 -> Task-011
 Task-007 + Task-009 + Task-010 + Task-013 + Task-019 -> Task-008 -> Task-018 -> Task-011
 Task-015 (done) -> QCI FR-025; QCI #71/PR #78 done (external)
 ```
@@ -243,6 +247,7 @@ track names are subsystems and are not agent assignments; Agent B remains on TL.
 | Task-018 | Qualification | FR-017, NFR-005 | TC-016 | planned |
 | Task-019 | Producer Integration | FR-018, NFR-006 | TC-017 | done; exact transactional bounded consumer index cannot affect version-lock resolution; SR-108/SR-109 pass |
 | Task-020 | Producer Integration | FR-009, NFR-006 | IT-002 | done; SC-08's independent 21-entry inventory and the request-bound pre-loader resolver with accounted loaded-selection verification pass at exact accepted QObs merge `9240063`; SR-127/SR-128 pass |
+| Task-021 | Producer Integration | FR-004, NFR-002 | IT-002 | done; SC-05/SC-06 exact QSL/QObs evidence correlation, replay/permutation agreement and seven active composed-budget dimensions pass |
 
 ## Coordination Rules
 
