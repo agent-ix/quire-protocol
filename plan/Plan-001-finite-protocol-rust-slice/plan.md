@@ -217,7 +217,7 @@ track names are subsystems and are not agent assignments; Agent B remains on TL.
 | Task-003 | Core | FR-003 | TC-003 | done; graph-owned Engine bridge and exact QSL/QObs evidence |
 | Task-004 | Core | FR-004 | TC-004 | done; strict FR-300 activation-derived frontends share the graph/compensation kernel |
 | Task-005 | Core | FR-005 | TC-005 | done; activation-derived Engine dispatch and closed local conformance backend |
-| Task-006 | Core | FR-006, FR-008 | TC-006, TC-011 | done; atomic Engine orchestration, private result assembly, shared accounting and SR-116/SR-117 pass |
+| Task-006 | Core | FR-006, FR-008 | TC-006, TC-011 | in progress; atomic Engine orchestration, private result assembly and shared accounting execute, but authenticated oracle/dependence support and correction owner views are unavailable; SR-116/SR-117 blocked |
 | Task-007 | Producer Integration | FR-007 | TC-007 | done; exact accepted qverify/EA graph, total source-bound projection and SR-118/SR-119 pass |
 | Task-008 | Cross-cutting Closure | NFR-001, NFR-002 | TC-008, TC-009 | in_progress; current-site inventory exists |
 | Task-009 | Producer Integration | FR-001, FR-002 | IT-001 | done; default `/1` admission/static link and SC-06a two-revision comparison pass |

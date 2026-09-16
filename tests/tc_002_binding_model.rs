@@ -1284,59 +1284,6 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
         .expect("the admitted static selection has an FR-288 identity");
 
     let request = activated_request(&package, activation_subject.identity().as_bytes());
-    let activated = Engine::start_activated(
-        context,
-        vec![Claim::Conformance],
-        &activation_subject,
-        &request,
-    );
-    let OperationOutcome::Completed(activated) = activated else {
-        panic!("strict QSL request and QObs subject must activate this linked engine")
-    };
-    assert_eq!(
-        activated
-            .activation()
-            .expect("event-triggered engine retains its activation binding")
-            .subject(),
-        &activation_subject
-    );
-    assert_eq!(
-        activated
-            .activation()
-            .expect("event-triggered engine retains its activation binding")
-            .request()
-            .semantic_trigger(),
-        activation_subject.identity().as_bytes()
-    );
-    let mismatched_subject = QualifiedSubject::new(
-        &producer,
-        SubjectKind::new(ORDER_KIND.to_vec()).expect("non-empty kind"),
-        SubjectIdentity::new(b"order:43".to_vec()).expect("non-empty identity"),
-    );
-    let OperationOutcome::Refused(refusal) = Engine::start_activated(
-        context,
-        vec![Claim::Conformance],
-        &mismatched_subject,
-        &request,
-    ) else {
-        panic!("different QObs subject cannot reuse a strict temporal request")
-    };
-    assert_eq!(
-        refusal.code().as_str(),
-        "assessment-activation.subject-mismatch"
-    );
-
-    let engine = match Engine::start(context, vec![Claim::Conformance]) {
-        OperationOutcome::Completed(engine) => engine,
-        OperationOutcome::Refused(refusal) => {
-            panic!("linked context must start an engine: {refusal}")
-        }
-        OperationOutcome::ResourceIncomplete(incomplete) => {
-            panic!("engine startup has no resource work: {incomplete:?}")
-        }
-    };
-    assert_eq!(engine.linked().identity(), &identity);
-    assert_eq!(engine.conformance().definition(), &identity);
     let mappings = admitted_published_v3(&package);
     let result_document = temporal_v2::evaluate(
         &request,
@@ -1353,6 +1300,54 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
     )
     .into_result()
     .expect("strict temporal result reads");
+    let activated = Engine::start_activated(
+        context,
+        vec![Claim::Conformance],
+        &mappings,
+        &activation_subject,
+        &request,
+        &result,
+    );
+    let OperationOutcome::Completed(activated) = activated else {
+        panic!("strict QSL request and QObs subject must activate this linked engine")
+    };
+    assert_eq!(
+        activated
+            .activation()
+            .expect("event-triggered engine retains its activation binding")
+            .subject(),
+        &activation_subject
+    );
+    assert_eq!(
+        activated
+            .activation()
+            .expect("event-triggered engine retains its activation binding")
+            .semantic_trigger(),
+        activation_subject.identity().as_bytes()
+    );
+    let mismatched_subject = QualifiedSubject::new(
+        &producer,
+        SubjectKind::new(ORDER_KIND.to_vec()).expect("non-empty kind"),
+        SubjectIdentity::new(b"order:43".to_vec()).expect("non-empty identity"),
+    );
+    let OperationOutcome::Refused(refusal) = Engine::start_activated(
+        context,
+        vec![Claim::Conformance],
+        &mappings,
+        &mismatched_subject,
+        &request,
+        &result,
+    ) else {
+        panic!("different QObs subject cannot reuse a strict temporal request")
+    };
+    assert_eq!(
+        refusal.code().as_str(),
+        "assessment-activation.runtime-binding-mismatch"
+    );
+
+    let engine = activated;
+    assert_eq!(engine.linked().identity(), &identity);
+    assert_eq!(engine.conformance().definition(), &identity);
     match engine.conformance().bind_activation(
         engine.linked(),
         &mappings,
@@ -1430,6 +1425,21 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
     )
     .into_result()
     .expect("changed strict temporal result reads");
+    let correction_document = temporal_v2::evaluate(
+        &conflicting_request,
+        temporal_v2::Relation::Superseding(&result),
+        native_temporal::Limits::default(),
+    )
+    .into_result()
+    .expect("same-trigger changed request admits a superseding result");
+    let correction_result = temporal_v2::read_result(
+        correction_document.bytes(),
+        &conflicting_request,
+        temporal_v2::Relation::Superseding(&result),
+        native_temporal::Limits::default(),
+    )
+    .into_result()
+    .expect("strict superseding result reads against its changed request");
     assert_eq!(
         engine
             .conformance()
@@ -1493,6 +1503,32 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
     let fact = engine
         .conformance()
         .activation_fact(derived_occurrence.clone(), Some(&decision.observation));
+    let corrected_activation = engine
+        .conformance()
+        .bind_activation(
+            engine.linked(),
+            &mappings,
+            &activation_subject,
+            &conflicting_request,
+            &correction_result,
+        )
+        .expect("the owner admits a same-trigger superseding activation");
+    let corrected_occurrence = occurrence_schema
+        .bind(
+            WorkflowInstanceIdentity::new("workflow:corrected")
+                .expect("nonempty corrected workflow identity"),
+            corrected_activation.control(),
+            node.role().clone(),
+            &[],
+        )
+        .expect("the corrected activation occurrence admits");
+    let corrected_occurrence = engine
+        .conformance()
+        .activate_occurrence(&corrected_activation, corrected_occurrence)
+        .expect("the corrected activation produces an occurrence");
+    let corrected_fact = engine
+        .conformance()
+        .activation_fact(corrected_occurrence, Some(&decision.observation));
     let batch = engine
         .conformance()
         .assess_activated(
@@ -1584,6 +1620,21 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
         Some(Decision::Established),
         "the claim result comes from the actual activation-derived conformance report"
     );
+    assert!(matches!(
+        engine.dispatch_activated(
+            std::slice::from_ref(&dispatch_request),
+            std::slice::from_ref(&corrected_fact),
+            closed_axes(&decision, &surrounding),
+            &decision.completeness_complete,
+            &global,
+            AssessmentExecution::Completed,
+            ConformanceLimits::default(),
+            DispatchLimits::default(),
+            Budget::nothing_granted(),
+        ),
+        OperationOutcome::Refused(refusal)
+            if refusal.code().as_str() == "assessment-activation.fact-mismatch"
+    ));
     let unexpected_fact = engine
         .conformance()
         .activation_fact(derived_occurrence.clone(), Some(&surrounding.observation));

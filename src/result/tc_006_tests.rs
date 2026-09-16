@@ -603,7 +603,7 @@ fn base_input<'a>(fixture: &'a Fixture) -> Input<'a> {
     }
 }
 
-fn canonical_row_controls<'a>(input: Input<'a>, limits: Limits) -> CanonicalRowControls<'a> {
+fn canonical_row_controls(input: Input<'_>, limits: Limits) -> CanonicalRowControls {
     CanonicalRowControls::new(input.provenance.reproduction, limits)
 }
 
@@ -969,12 +969,20 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
     assert_eq!(input.checked_predicate.package_digest(), package.digest());
     assert_eq!(input.temporal_subject.package_digest(), package.digest());
     let requested = [DispatchClaim::Conformance, DispatchClaim::Monitorability];
-    let engine =
-        Engine::new(context, requested.to_vec()).expect("linked assessment starts one engine");
     let mapping = admitted_activation_map(&package);
     let temporal_request =
         activated_request(&package, &fixture.temporal, subject.identity().as_bytes());
     let temporal_result = activated_result(&temporal_request);
+    let quire_protocol::outcome::OperationOutcome::Completed(engine) = Engine::start_activated(
+        context,
+        requested.to_vec(),
+        &mapping,
+        &subject,
+        &temporal_request,
+        &temporal_result,
+    ) else {
+        panic!("linked assessment starts one activation-bound engine")
+    };
     let (foreign_declaration, foreign_root) = first_checked_leaf(&package);
     assert!(!fixture
         .temporal
@@ -1002,13 +1010,16 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
         Engine::start_result_assessment(
             context,
             requested.to_vec(),
+            &mapping,
             &subject,
             &temporal_request,
+            &temporal_result,
             &foreign_predicate,
             &fixture.temporal,
         ),
         quire_protocol::outcome::OperationOutcome::Refused(refusal)
-            if refusal.code().as_str() == "assessment-result.owner-selection-mismatch"
+            if refusal.code().as_str()
+                == "assessment-result.checked-predicate-declaration-mismatch"
     ));
     let activation = engine
         .conformance()
@@ -1110,6 +1121,26 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
         quire_protocol::outcome::OperationOutcome::Refused(_)
     ));
     let dispatch_requests = dispatch_inputs_with_claim_refusal();
+    let quire_protocol::outcome::OperationOutcome::Completed(unselected_engine) =
+        Engine::start(context, requested.to_vec())
+    else {
+        panic!("linked assessment starts an engine without an activation selection")
+    };
+    assert!(matches!(
+        unselected_engine.dispatch_activated(
+            &dispatch_requests,
+            std::slice::from_ref(&fact),
+            axes,
+            &decision.completeness_complete,
+            &global,
+            AssessmentExecution::Completed,
+            ConformanceLimits::default(),
+            DispatchLimits::default(),
+            Budget::nothing_granted(),
+        ),
+        quire_protocol::outcome::OperationOutcome::Refused(refusal)
+            if refusal.code().as_str() == "assessment-activation.missing-selection"
+    ));
     let foreign_subject = runtime_subject(&producer, "canonical-engine-foreign");
     let foreign_request = activated_request(
         &package,
@@ -1147,8 +1178,10 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
         Engine::start_result_assessment(
             context,
             requested.to_vec(),
+            &mapping,
             &subject,
             &temporal_request,
+            &temporal_result,
             &fixture.predicate,
             &fixture.temporal,
         )
@@ -1222,8 +1255,10 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
     let short_result_engine = match Engine::start_result_assessment(
         context,
         requested.to_vec(),
+        &mapping,
         &subject,
         &temporal_request,
+        &temporal_result,
         &fixture.predicate,
         &fixture.temporal,
     ) {
@@ -1265,8 +1300,10 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
         Engine::start_result_assessment(
             context,
             requested.to_vec(),
+            &mapping,
             &subject,
             &temporal_request,
+            &temporal_result,
             &fixture.predicate,
             &fixture.temporal,
         )
@@ -1301,8 +1338,10 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
         Engine::start_result_assessment(
             context,
             requested.to_vec(),
+            &mapping,
             &subject,
             &temporal_request,
+            &temporal_result,
             &fixture.predicate,
             &fixture.temporal,
         )
@@ -1332,8 +1371,10 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
         Engine::start_result_assessment(
             context,
             requested.to_vec(),
+            &mapping,
             &subject,
             &temporal_request,
+            &temporal_result,
             &fixture.predicate,
             &fixture.temporal,
         )

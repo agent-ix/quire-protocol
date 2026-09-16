@@ -11,6 +11,7 @@ use quire_observation::authority::{
 };
 use quire_observation::QualifiedSubject;
 use quire_spec_language::protocol_artifact::native_temporal::v2 as temporal_v2;
+use quire_spec_language::protocol_artifact::v3;
 use quire_spec_language::protocol_artifact::wire::{BindingKind, ControlOperation};
 use quire_spec_language::protocol_artifact::ProtocolNumber;
 use quire_spec_language::protocol_artifact::{
@@ -41,8 +42,9 @@ use crate::compensation::{
     registration::Registration as CompensationRegistration,
 };
 use crate::conformance::{
-    ActivatedAssessmentError, ActivationFact, Kernel as ConformanceKernel,
-    KernelRefusal as ConformanceKernelRefusal, Limits as ConformanceLimits,
+    ActivatedAssessmentError, ActivationBinding as ConformanceActivationBinding, ActivationFact,
+    Kernel as ConformanceKernel, KernelRefusal as ConformanceKernelRefusal,
+    Limits as ConformanceLimits,
 };
 use crate::model::v2::{
     link as link_v2, CompensationRegistrationInput, DefinitionIdentity, DefinitionRegistry,
@@ -84,20 +86,18 @@ pub struct ClaimRow<Row> {
 /// use quire_protocol::assessment::CanonicalRowFacts;
 /// ```
 #[derive(Clone, Debug)]
-pub struct CanonicalRowControls<'a> {
+pub struct CanonicalRowControls {
     reproduction: ReproductionRecord,
     limits: result::Limits,
-    _owner: core::marker::PhantomData<&'a ()>,
 }
 
-impl<'a> CanonicalRowControls<'a> {
+impl CanonicalRowControls {
     /// Select deterministic local-run provenance and result-owner ceilings.
     #[must_use]
     pub const fn new(reproduction: ReproductionRecord, limits: result::Limits) -> Self {
         Self {
             reproduction,
             limits,
-            _owner: core::marker::PhantomData,
         }
     }
 }
@@ -127,57 +127,27 @@ struct ResultSelection<'a> {
     temporal_subject: &'a ValidatedTemporalSubject,
 }
 
-/// The exact QObs event and QSL v2 request selected for one activation site.
-///
-/// The request is already constructor-private and strict-read by QSL. This
-/// boundary only binds its opaque trigger bytes to the QObs-authoritative
-/// subject and proves that the temporal declaration belongs to this immutable
-/// protocol definition; it does not interpret either owner value.
-#[derive(Clone, Copy)]
-pub struct ActivationBinding<'a> {
+#[derive(Clone, Debug)]
+struct SelectedActivation<'a> {
+    owner: ConformanceActivationBinding<'a>,
     subject: &'a QualifiedSubject,
-    request: &'a temporal_v2::ValidatedRequest,
 }
 
-impl core::fmt::Debug for ActivationBinding<'_> {
-    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        formatter
-            .debug_struct("ActivationBinding")
-            .field("subject", self.subject)
-            .field("temporal_declaration", &self.request.declaration())
-            .finish_non_exhaustive()
+#[derive(Clone, Copy, Debug)]
+enum StartupRefusal {
+    Bundle(BundleRefusal),
+    Kernel(ConformanceKernelRefusal),
+}
+
+impl From<BundleRefusal> for StartupRefusal {
+    fn from(value: BundleRefusal) -> Self {
+        Self::Bundle(value)
     }
 }
 
-impl<'a> ActivationBinding<'a> {
-    /// Bind one strict QSL v2 request to the selected QObs subject and static
-    /// definition identity.
-    pub(crate) fn new(
-        identity: &DefinitionIdentity,
-        subject: &'a QualifiedSubject,
-        request: &'a temporal_v2::ValidatedRequest,
-    ) -> Result<Self, BundleRefusal> {
-        if request.semantic_trigger() != subject.identity().as_bytes() {
-            return Err(BundleRefusal::ActivationSubjectMismatch);
-        }
-        if !identity
-            .temporal_bindings()
-            .iter()
-            .any(|binding| binding.declaration == request.declaration())
-        {
-            return Err(BundleRefusal::ActivationDeclarationMismatch);
-        }
-        Ok(Self { subject, request })
-    }
-
-    #[must_use]
-    pub const fn subject(&self) -> &'a QualifiedSubject {
-        self.subject
-    }
-
-    #[must_use]
-    pub const fn request(&self) -> &'a temporal_v2::ValidatedRequest {
-        self.request
+impl From<ConformanceKernelRefusal> for StartupRefusal {
+    fn from(value: ConformanceKernelRefusal) -> Self {
+        Self::Kernel(value)
     }
 }
 
@@ -206,14 +176,26 @@ pub(crate) enum BundleRefusal {
     DispatchReportMismatch,
     /// Canonical production was requested without authenticated result-owner views.
     MissingResultSelection,
-    /// Strict QSL result-owner views do not match the activated request.
-    ResultSelectionMismatch,
+    /// The checked predicate belongs to another admitted package.
+    CheckedPredicatePackageMismatch,
+    /// The temporal subject belongs to another admitted package.
+    TemporalSubjectPackageMismatch,
+    /// The checked predicate names another temporal declaration.
+    CheckedPredicateDeclarationMismatch,
+    /// The strict temporal request names another declaration.
+    ResultRequestDeclarationMismatch,
+    /// The strict temporal request names another temporal-subject document.
+    ResultRequestSubjectMismatch,
+    /// The linked definition does not select the request's temporal declaration.
+    ResultTemporalBindingMissing,
+    /// The checked predicate is not reachable from the selected temporal subject.
+    ResultPredicateUnreachable,
     /// The static closure does not select exactly one result model artifact.
     AmbiguousResultModel,
-    /// QSL v2 opaque trigger bytes differ from the selected QObs subject.
-    ActivationSubjectMismatch,
-    /// The QSL v2 temporal declaration is not selected by this protocol definition.
-    ActivationDeclarationMismatch,
+    /// Activated dispatch was attempted without one Engine-selected activation.
+    MissingActivationSelection,
+    /// The activation subject is not one of the linked runtime bindings.
+    ActivationRuntimeBindingMismatch,
     /// An activation fact belongs to another Engine-selected activation.
     ActivationFactMismatch,
 }
@@ -306,8 +288,38 @@ bundle_code!(
     RefusalDomain::Result
 );
 bundle_code!(
-    BUNDLE_RESULT_SELECTION_MISMATCH,
-    "assessment-result.owner-selection-mismatch",
+    BUNDLE_CHECKED_PREDICATE_PACKAGE_MISMATCH,
+    "assessment-result.checked-predicate-package-mismatch",
+    RefusalDomain::Result
+);
+bundle_code!(
+    BUNDLE_TEMPORAL_SUBJECT_PACKAGE_MISMATCH,
+    "assessment-result.temporal-subject-package-mismatch",
+    RefusalDomain::Result
+);
+bundle_code!(
+    BUNDLE_CHECKED_PREDICATE_DECLARATION_MISMATCH,
+    "assessment-result.checked-predicate-declaration-mismatch",
+    RefusalDomain::Result
+);
+bundle_code!(
+    BUNDLE_RESULT_REQUEST_DECLARATION_MISMATCH,
+    "assessment-result.request-declaration-mismatch",
+    RefusalDomain::Result
+);
+bundle_code!(
+    BUNDLE_RESULT_REQUEST_SUBJECT_MISMATCH,
+    "assessment-result.request-subject-mismatch",
+    RefusalDomain::Result
+);
+bundle_code!(
+    BUNDLE_RESULT_TEMPORAL_BINDING_MISSING,
+    "assessment-result.temporal-binding-missing",
+    RefusalDomain::Result
+);
+bundle_code!(
+    BUNDLE_RESULT_PREDICATE_UNREACHABLE,
+    "assessment-result.predicate-unreachable",
     RefusalDomain::Result
 );
 bundle_code!(
@@ -368,13 +380,13 @@ const RESULT_ACCOUNTING_FAULT: CodeEntry = CodeEntry {
     summary: "the Protocol resource accountant could not represent result work",
 };
 bundle_code!(
-    BUNDLE_ACTIVATION_SUBJECT,
-    "assessment-activation.subject-mismatch",
+    BUNDLE_MISSING_ACTIVATION_SELECTION,
+    "assessment-activation.missing-selection",
     RefusalDomain::Assessment
 );
 bundle_code!(
-    BUNDLE_ACTIVATION_DECLARATION,
-    "assessment-activation.declaration-mismatch",
+    BUNDLE_ACTIVATION_RUNTIME_BINDING,
+    "assessment-activation.runtime-binding-mismatch",
     RefusalDomain::Assessment
 );
 bundle_code!(
@@ -429,7 +441,13 @@ pub const RESULT_CODES: CodeModule = CodeModule {
         BUNDLE_CLAIM_MISMATCH,
         BUNDLE_DISPATCH_MISMATCH,
         BUNDLE_MISSING_RESULT_SELECTION,
-        BUNDLE_RESULT_SELECTION_MISMATCH,
+        BUNDLE_CHECKED_PREDICATE_PACKAGE_MISMATCH,
+        BUNDLE_TEMPORAL_SUBJECT_PACKAGE_MISMATCH,
+        BUNDLE_CHECKED_PREDICATE_DECLARATION_MISMATCH,
+        BUNDLE_RESULT_REQUEST_DECLARATION_MISMATCH,
+        BUNDLE_RESULT_REQUEST_SUBJECT_MISMATCH,
+        BUNDLE_RESULT_TEMPORAL_BINDING_MISSING,
+        BUNDLE_RESULT_PREDICATE_UNREACHABLE,
         BUNDLE_AMBIGUOUS_RESULT_MODEL,
         ROW_UNKNOWN_CLAIM_STRENGTH,
         ROW_MISSING_ASSUMPTION_STATE,
@@ -450,8 +468,8 @@ pub const ACTIVATION_CODES: CodeModule = CodeModule {
     owner: "Task-006",
     module_path: "quire_protocol::assessment",
     entries: &[
-        BUNDLE_ACTIVATION_SUBJECT,
-        BUNDLE_ACTIVATION_DECLARATION,
+        BUNDLE_MISSING_ACTIVATION_SELECTION,
+        BUNDLE_ACTIVATION_RUNTIME_BINDING,
         BUNDLE_ACTIVATION_FACT,
     ],
 };
@@ -486,20 +504,46 @@ fn outcome_refusal(error: BundleRefusal) -> ProtocolRefusal {
             &BUNDLE_MISSING_RESULT_SELECTION,
             ProtocolStage::ResultAssembly,
         ),
-        BundleRefusal::ResultSelectionMismatch => (
-            &BUNDLE_RESULT_SELECTION_MISMATCH,
+        BundleRefusal::CheckedPredicatePackageMismatch => (
+            &BUNDLE_CHECKED_PREDICATE_PACKAGE_MISMATCH,
+            ProtocolStage::ResultAssembly,
+        ),
+        BundleRefusal::TemporalSubjectPackageMismatch => (
+            &BUNDLE_TEMPORAL_SUBJECT_PACKAGE_MISMATCH,
+            ProtocolStage::ResultAssembly,
+        ),
+        BundleRefusal::CheckedPredicateDeclarationMismatch => (
+            &BUNDLE_CHECKED_PREDICATE_DECLARATION_MISMATCH,
+            ProtocolStage::ResultAssembly,
+        ),
+        BundleRefusal::ResultRequestDeclarationMismatch => (
+            &BUNDLE_RESULT_REQUEST_DECLARATION_MISMATCH,
+            ProtocolStage::ResultAssembly,
+        ),
+        BundleRefusal::ResultRequestSubjectMismatch => (
+            &BUNDLE_RESULT_REQUEST_SUBJECT_MISMATCH,
+            ProtocolStage::ResultAssembly,
+        ),
+        BundleRefusal::ResultTemporalBindingMissing => (
+            &BUNDLE_RESULT_TEMPORAL_BINDING_MISSING,
+            ProtocolStage::ResultAssembly,
+        ),
+        BundleRefusal::ResultPredicateUnreachable => (
+            &BUNDLE_RESULT_PREDICATE_UNREACHABLE,
             ProtocolStage::ResultAssembly,
         ),
         BundleRefusal::AmbiguousResultModel => (
             &BUNDLE_AMBIGUOUS_RESULT_MODEL,
             ProtocolStage::ResultAssembly,
         ),
-        BundleRefusal::ActivationSubjectMismatch => {
-            (&BUNDLE_ACTIVATION_SUBJECT, ProtocolStage::Conformance)
-        }
-        BundleRefusal::ActivationDeclarationMismatch => {
-            (&BUNDLE_ACTIVATION_DECLARATION, ProtocolStage::Conformance)
-        }
+        BundleRefusal::MissingActivationSelection => (
+            &BUNDLE_MISSING_ACTIVATION_SELECTION,
+            ProtocolStage::Conformance,
+        ),
+        BundleRefusal::ActivationRuntimeBindingMismatch => (
+            &BUNDLE_ACTIVATION_RUNTIME_BINDING,
+            ProtocolStage::Conformance,
+        ),
         BundleRefusal::ActivationFactMismatch => {
             (&BUNDLE_ACTIVATION_FACT, ProtocolStage::Conformance)
         }
@@ -653,10 +697,16 @@ fn bundle_cause(error: BundleRefusal, code: RefusalCode) -> crate::refusal::Refu
         | BundleRefusal::CanonicalClaimMismatch
         | BundleRefusal::DispatchReportMismatch
         | BundleRefusal::MissingResultSelection
-        | BundleRefusal::ResultSelectionMismatch
+        | BundleRefusal::CheckedPredicatePackageMismatch
+        | BundleRefusal::TemporalSubjectPackageMismatch
+        | BundleRefusal::CheckedPredicateDeclarationMismatch
+        | BundleRefusal::ResultRequestDeclarationMismatch
+        | BundleRefusal::ResultRequestSubjectMismatch
+        | BundleRefusal::ResultTemporalBindingMissing
+        | BundleRefusal::ResultPredicateUnreachable
         | BundleRefusal::AmbiguousResultModel
-        | BundleRefusal::ActivationSubjectMismatch
-        | BundleRefusal::ActivationDeclarationMismatch
+        | BundleRefusal::MissingActivationSelection
+        | BundleRefusal::ActivationRuntimeBindingMismatch
         | BundleRefusal::ActivationFactMismatch => ProtocolCause::IdentityMismatch {
             expected: RetainedBytes::new(b"engine-bound-assessment-value"),
             observed: code,
@@ -815,7 +865,7 @@ pub struct Engine<'a> {
     compensation: CompensationSnapshot,
     compensation_state: CompensationState,
     conformance: ConformanceKernel,
-    activation: Option<ActivationBinding<'a>>,
+    activation: Option<SelectedActivation<'a>>,
     result_selection: Option<ResultSelection<'a>>,
     requested: Vec<Claim>,
 }
@@ -837,12 +887,19 @@ impl<'a> Engine<'a> {
     pub fn start_activated(
         context: LinkedAssessment<'a>,
         requested: Vec<Claim>,
+        mappings: &v3::AdmittedPackage,
         subject: &'a QualifiedSubject,
         request: &'a temporal_v2::ValidatedRequest,
+        result: &'a temporal_v2::ValidatedResult,
     ) -> crate::outcome::OperationOutcome<Self> {
-        match Self::new_activated(context, requested, subject, request) {
+        match Self::new_activated(context, requested, mappings, subject, request, result) {
             Ok(engine) => crate::outcome::OperationOutcome::Completed(engine),
-            Err(error) => crate::outcome::OperationOutcome::Refused(outcome_refusal(error)),
+            Err(StartupRefusal::Bundle(error)) => {
+                crate::outcome::OperationOutcome::Refused(outcome_refusal(error))
+            }
+            Err(StartupRefusal::Kernel(error)) => {
+                crate::outcome::OperationOutcome::Refused(kernel_refusal(error))
+            }
         }
     }
 
@@ -852,21 +909,30 @@ impl<'a> Engine<'a> {
     pub fn start_result_assessment(
         context: LinkedAssessment<'a>,
         requested: Vec<Claim>,
+        mappings: &v3::AdmittedPackage,
         subject: &'a QualifiedSubject,
         request: &'a temporal_v2::ValidatedRequest,
+        result: &'a temporal_v2::ValidatedResult,
         checked_predicate: &'a ValidatedCheckedPredicate,
         temporal_subject: &'a ValidatedTemporalSubject,
     ) -> crate::outcome::OperationOutcome<Self> {
         match Self::new_result_assessment(
             context,
             requested,
+            mappings,
             subject,
             request,
+            result,
             checked_predicate,
             temporal_subject,
         ) {
             Ok(engine) => crate::outcome::OperationOutcome::Completed(engine),
-            Err(error) => crate::outcome::OperationOutcome::Refused(outcome_refusal(error)),
+            Err(StartupRefusal::Bundle(error)) => {
+                crate::outcome::OperationOutcome::Refused(outcome_refusal(error))
+            }
+            Err(StartupRefusal::Kernel(error)) => {
+                crate::outcome::OperationOutcome::Refused(kernel_refusal(error))
+            }
         }
     }
 
@@ -875,65 +941,67 @@ impl<'a> Engine<'a> {
         context: LinkedAssessment<'a>,
         requested: Vec<Claim>,
     ) -> Result<Self, BundleRefusal> {
-        Self::new_bound(context, requested, None, None)
+        Self::new_bound(context, requested, None)
     }
 
     /// Start one assessment with an exact QSL-v2/QObs activation binding.
-    pub(crate) fn new_activated(
+    fn new_activated(
         context: LinkedAssessment<'a>,
         requested: Vec<Claim>,
+        mappings: &v3::AdmittedPackage,
         subject: &'a QualifiedSubject,
         request: &'a temporal_v2::ValidatedRequest,
-    ) -> Result<Self, BundleRefusal> {
-        let identity = context
-            .definition_identity()
-            .map_err(|_| BundleRefusal::InvalidDefinitionIdentity)?;
-        let activation = ActivationBinding::new(&identity, subject, request)?;
-        Self::new_bound(context, requested, Some(activation), None)
+        result: &'a temporal_v2::ValidatedResult,
+    ) -> Result<Self, StartupRefusal> {
+        let mut engine = Self::new_bound(context, requested, None)?;
+        if !engine.context.runtime().bindings().iter().any(|binding| {
+            binding
+                .subject_value()
+                .is_some_and(|runtime_subject| runtime_subject == subject)
+        }) {
+            return Err(BundleRefusal::ActivationRuntimeBindingMismatch.into());
+        }
+        let owner = engine.conformance.bind_activation(
+            &engine.linked,
+            mappings,
+            subject,
+            request,
+            result,
+        )?;
+        engine.activation = Some(SelectedActivation { owner, subject });
+        Ok(engine)
     }
 
     #[allow(clippy::too_many_arguments)]
     fn new_result_assessment(
         context: LinkedAssessment<'a>,
         requested: Vec<Claim>,
+        mappings: &v3::AdmittedPackage,
         subject: &'a QualifiedSubject,
         request: &'a temporal_v2::ValidatedRequest,
+        result: &'a temporal_v2::ValidatedResult,
         checked_predicate: &'a ValidatedCheckedPredicate,
         temporal_subject: &'a ValidatedTemporalSubject,
-    ) -> Result<Self, BundleRefusal> {
-        let identity = context
-            .definition_identity()
-            .map_err(|_| BundleRefusal::InvalidDefinitionIdentity)?;
-        let activation = ActivationBinding::new(&identity, subject, request)?;
-        if !context.runtime().bindings().iter().any(|binding| {
-            binding
-                .subject_value()
-                .is_some_and(|runtime_subject| runtime_subject == subject)
-        }) {
-            return Err(BundleRefusal::ResultSelectionMismatch);
-        }
+    ) -> Result<Self, StartupRefusal> {
+        let mut engine =
+            Self::new_activated(context, requested, mappings, subject, request, result)?;
         validate_result_selection(
-            context.package().digest(),
-            &identity,
+            engine.context.package().digest(),
+            &engine.identity,
             request,
             checked_predicate,
             temporal_subject,
         )?;
-        Self::new_bound(
-            context,
-            requested,
-            Some(activation),
-            Some(ResultSelection {
-                checked_predicate,
-                temporal_subject,
-            }),
-        )
+        engine.result_selection = Some(ResultSelection {
+            checked_predicate,
+            temporal_subject,
+        });
+        Ok(engine)
     }
 
     fn new_bound(
         context: LinkedAssessment<'a>,
         requested: Vec<Claim>,
-        activation: Option<ActivationBinding<'a>>,
         result_selection: Option<ResultSelection<'a>>,
     ) -> Result<Self, BundleRefusal> {
         validate_requested(&requested)?;
@@ -958,7 +1026,7 @@ impl<'a> Engine<'a> {
             compensation,
             compensation_state: CompensationState::default(),
             conformance,
-            activation,
+            activation: None,
             result_selection,
             requested,
         })
@@ -1000,8 +1068,8 @@ impl<'a> Engine<'a> {
 
     /// Returns the immutable activation pair where this assessment is event-triggered.
     #[must_use]
-    pub const fn activation(&self) -> Option<ActivationBinding<'a>> {
-        self.activation
+    pub fn activation(&self) -> Option<&ConformanceActivationBinding<'a>> {
+        self.activation.as_ref().map(|selected| &selected.owner)
     }
 
     /// Dispatch this Engine's exact requested claims from an admitted
@@ -1117,15 +1185,12 @@ impl<'a> Engine<'a> {
     }
 
     fn validate_activation_facts(&self, facts: &[ActivationFact<'_>]) -> Result<(), BundleRefusal> {
-        let Some(selected) = self.activation else {
-            return Ok(());
+        let Some(selected) = &self.activation else {
+            return Err(BundleRefusal::MissingActivationSelection);
         };
         for fact in facts {
             let offered = fact.occurrence().activation();
-            if offered.definition() != &self.identity
-                || offered.subject() != selected.subject()
-                || offered.request().document().bytes() != selected.request().document().bytes()
-            {
+            if !selected.owner.same_binding(offered) {
                 return Err(BundleRefusal::ActivationFactMismatch);
             }
         }
@@ -1702,7 +1767,7 @@ impl<'a> Engine<'a> {
         completeness: &'a completeness::View,
         global_conformance: &GlobalConformanceInput,
         facts: &[ActivationFact<'a>],
-        controls: Vec<Option<CanonicalRowControls<'a>>>,
+        controls: Vec<Option<CanonicalRowControls>>,
         resources: &mut ResourceAccountant<'_>,
     ) -> crate::outcome::OperationOutcome<AssessmentBundle<'a, result::ValidatedResult>> {
         if let Err(error) = validate_dispatch_rows(&self.requested, dispatch, &controls) {
@@ -1719,12 +1784,12 @@ impl<'a> Engine<'a> {
                 return crate::outcome::OperationOutcome::Refused(outcome_refusal(error));
             }
         };
-        let Some(activation) = self.activation else {
+        let Some(activation) = &self.activation else {
             return crate::outcome::OperationOutcome::Refused(outcome_refusal(
                 BundleRefusal::MissingResultSelection,
             ));
         };
-        let runtime_input = activation.subject();
+        let runtime_input = activation.subject;
         let mut rows = Vec::with_capacity(controls.len());
         for (control, disposition) in controls.into_iter().zip(dispatch.dispositions()) {
             let outcome = if let Some(failure) = &disposition.failure {
@@ -1866,7 +1931,7 @@ impl<'a> Engine<'a> {
         execution: crate::closure::AssessmentExecution,
         conformance_limits: ConformanceLimits,
         dispatch_limits: DispatchLimits,
-        controls: Vec<Option<CanonicalRowControls<'a>>>,
+        controls: Vec<Option<CanonicalRowControls>>,
         budget: Budget,
     ) -> crate::outcome::OperationOutcome<AssessmentBundle<'a, result::ValidatedResult>> {
         let inventory = production_inventory()
@@ -2121,7 +2186,7 @@ fn derive_canonical_row_facts<'a>(
     context: &LinkedAssessment<'_>,
     model_artifact: &'a quire_spec_language::protocol_artifact::wire::ArtifactRef,
     runtime_input: &'a QualifiedSubject,
-    controls: CanonicalRowControls<'a>,
+    controls: CanonicalRowControls,
 ) -> result::Result<CanonicalRowFacts<'a>> {
     let mut truth = truth_from_dispatch(disposition, conformance);
     let mut decision_support = decision_support_from_report(truth, conformance);
@@ -2539,27 +2604,37 @@ fn validate_result_selection(
     checked_predicate: &ValidatedCheckedPredicate,
     temporal_subject: &ValidatedTemporalSubject,
 ) -> Result<(), BundleRefusal> {
-    let predicate_is_subject_leaf = predicate_selection_matches(
+    if checked_predicate.package_digest() != package {
+        return Err(BundleRefusal::CheckedPredicatePackageMismatch);
+    }
+    if temporal_subject.package_digest() != package {
+        return Err(BundleRefusal::TemporalSubjectPackageMismatch);
+    }
+    if checked_predicate.declaration() != temporal_subject.declaration() {
+        return Err(BundleRefusal::CheckedPredicateDeclarationMismatch);
+    }
+    if temporal_subject.declaration() != request.declaration() {
+        return Err(BundleRefusal::ResultRequestDeclarationMismatch);
+    }
+    if request.subject_identity() != temporal_subject.document().identity() {
+        return Err(BundleRefusal::ResultRequestSubjectMismatch);
+    }
+    if !definition
+        .temporal_bindings()
+        .iter()
+        .any(|binding| binding.declaration == temporal_subject.declaration())
+    {
+        return Err(BundleRefusal::ResultTemporalBindingMissing);
+    }
+    if !predicate_selection_matches(
         checked_predicate.declaration(),
         checked_predicate.leaf(),
         temporal_subject.declaration(),
         temporal_subject.predicate_leaves(),
-    );
-    if checked_predicate.package_digest() == package
-        && temporal_subject.package_digest() == package
-        && checked_predicate.declaration() == temporal_subject.declaration()
-        && temporal_subject.declaration() == request.declaration()
-        && request.subject_identity() == temporal_subject.document().identity()
-        && definition
-            .temporal_bindings()
-            .iter()
-            .any(|binding| binding.declaration == temporal_subject.declaration())
-        && predicate_is_subject_leaf
-    {
-        Ok(())
-    } else {
-        Err(BundleRefusal::ResultSelectionMismatch)
+    ) {
+        return Err(BundleRefusal::ResultPredicateUnreachable);
     }
+    Ok(())
 }
 
 fn predicate_selection_matches(
@@ -2577,7 +2652,7 @@ fn predicate_selection_matches(
 fn validate_dispatch_rows(
     requested: &[Claim],
     dispatch: &DispatchReport,
-    inputs: &[Option<CanonicalRowControls<'_>>],
+    inputs: &[Option<CanonicalRowControls>],
 ) -> Result<(), BundleRefusal> {
     validate_dispatch_population(requested, dispatch)?;
     if inputs.len() != requested.len() {
@@ -2907,7 +2982,37 @@ mod tests {
                 ProtocolStage::ResultAssembly,
             ),
             (
-                BundleRefusal::ResultSelectionMismatch,
+                BundleRefusal::CheckedPredicatePackageMismatch,
+                RefusalDomain::Result,
+                ProtocolStage::ResultAssembly,
+            ),
+            (
+                BundleRefusal::TemporalSubjectPackageMismatch,
+                RefusalDomain::Result,
+                ProtocolStage::ResultAssembly,
+            ),
+            (
+                BundleRefusal::CheckedPredicateDeclarationMismatch,
+                RefusalDomain::Result,
+                ProtocolStage::ResultAssembly,
+            ),
+            (
+                BundleRefusal::ResultRequestDeclarationMismatch,
+                RefusalDomain::Result,
+                ProtocolStage::ResultAssembly,
+            ),
+            (
+                BundleRefusal::ResultRequestSubjectMismatch,
+                RefusalDomain::Result,
+                ProtocolStage::ResultAssembly,
+            ),
+            (
+                BundleRefusal::ResultTemporalBindingMissing,
+                RefusalDomain::Result,
+                ProtocolStage::ResultAssembly,
+            ),
+            (
+                BundleRefusal::ResultPredicateUnreachable,
                 RefusalDomain::Result,
                 ProtocolStage::ResultAssembly,
             ),
@@ -2917,12 +3022,12 @@ mod tests {
                 ProtocolStage::ResultAssembly,
             ),
             (
-                BundleRefusal::ActivationSubjectMismatch,
+                BundleRefusal::MissingActivationSelection,
                 RefusalDomain::Assessment,
                 ProtocolStage::Conformance,
             ),
             (
-                BundleRefusal::ActivationDeclarationMismatch,
+                BundleRefusal::ActivationRuntimeBindingMismatch,
                 RefusalDomain::Assessment,
                 ProtocolStage::Conformance,
             ),

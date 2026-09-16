@@ -106,16 +106,6 @@ impl ActivationBinding<'_> {
         &self.subject
     }
 
-    /// Returns the exact strict QSL request retained by this binding.
-    ///
-    /// This remains crate-private because Protocol consumers compare it only
-    /// at constructor-owned orchestration boundaries; it is not a second
-    /// public route for interpreting QSL request semantics.
-    #[must_use]
-    pub(crate) const fn request(&self) -> &temporal_v2::ValidatedRequest {
-        self.request
-    }
-
     /// Returns QSL's opaque semantic-trigger component without reinterpretation.
     #[must_use]
     pub fn semantic_trigger(&self) -> &[u8] {
@@ -170,6 +160,12 @@ impl ActivationBinding<'_> {
             && self.captures().eq(other.captures())
             && self.result.document().identity() == other.result.document().identity()
             && self.activation() == other.activation()
+    }
+
+    /// Whether another binding carries the same complete FR-300 key and the
+    /// same strict QSL request/result content.
+    pub(crate) fn same_binding(&self, other: &Self) -> bool {
+        self.same_key(other) && self.same_checked_content(other)
     }
 }
 

@@ -7,6 +7,17 @@ description: "Chronological log of changes to the Plan-001 bundle."
 
 ## History
 
+* **2026-09-15** — Reopened Task-006 after independent exact-head review. The
+  Engine now retains the complete owner activation binding, rejects unselected
+  dispatch and same-trigger superseding-result substitution, and reports each
+  result-selection axis separately. Producer structural work is preflighted and
+  charged before allocation. The pinned QSL v2 result surface still does not
+  expose settlement/support/predecessor owner views, and pinned QObs exposes no
+  authenticated oracle/dependence or correction producer. Protocol therefore
+  remains fail-closed with unavailable truth and absent correction; those are
+  safe interim outcomes, not completion evidence for FR-032/FR-033. Task-006 and
+  SR-116/SR-117 are in progress/blocked pending the owner capabilities.
+
 * **2026-09-15** — Completed the Task-006 / issue #8 candidate as one atomic
   activation-to-result Engine operation. Exact conformance axes, completeness
   and global closure now flow through sealed dispatch into private canonical

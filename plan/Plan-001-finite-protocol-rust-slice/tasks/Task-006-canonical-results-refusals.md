@@ -2,7 +2,7 @@
 id: Task-006
 title: "Produce canonical results and typed refusals"
 type: Task
-status: done
+status: in-progress
 track: Core
 priority: P0
 relationships:
@@ -33,13 +33,17 @@ outputs; and complete the refusal envelope shared by every refusing operation.
   per-admitted-claim `ClaimOutcome`, then implement `AssessmentBundle`; keep FR-241 semantic
   dispositions, claim-local construction refusals and pre-row resource
   incompleteness non-interchangeable.
-- [x] Represent truth, adequacy, decision-scope progress/closure,
+- [ ] Represent truth, adequacy, decision-scope progress/closure,
   surrounding-execution progress/closure, complete-global-conformance closure,
   settlement, support, claim dispositions, limitations, and provenance as
-  orthogonal typed fields.
-- [x] Validate predecessor existence, acyclicity, no self-reference, immutable
+  orthogonal typed fields. The result shape and fail-closed path exist, but the
+  pinned QSL/QObs revisions expose no authenticated oracle/dependence support
+  view from which Protocol can establish settled truth.
+- [ ] Validate predecessor existence, acyclicity, no self-reference, immutable
   supersession, exact dependency/source identities, and refusal of every
-  progress/closure scope collapse or cross-wire.
+  progress/closure scope collapse or cross-wire. Result-owner lineage validates,
+  but applicable correction remains blocked on an owner-authenticated
+  contradiction/correction capability.
 - [x] Independently omit, duplicate, cross-wire, scope-mutate, and
   identity-mutate every required execution, branch, and workflow global-closure
   premise while holding an independently settled per-obligation truth fixed.
@@ -59,7 +63,8 @@ outputs; and complete the refusal envelope shared by every refusing operation.
 
 ## Notes
 
-- Unblocks Tasks 007 and 010.
+- Tasks 007 and 010 remain blocked until the owner capability gaps above are
+  delivered and consumed through the public Engine path.
 - Source catalogs remain owner-controlled. Protocol can complete its envelope
   without inventing a catalog by retaining a known source cause exactly and
   returning `unsupported-source-contract` for an unknown catalog/version.
