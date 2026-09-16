@@ -1588,26 +1588,10 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
     ));
     let mut activations = quire_protocol::conformance::ActivationRegistry::default();
     activations
-        .admit(
-            engine.conformance(),
-            engine.linked(),
-            &mappings,
-            &activation_subject,
-            &temporal_subject,
-            &request,
-            &result,
-        )
+        .admit(activation.clone())
         .expect("first strict activation retains");
     activations
-        .admit(
-            engine.conformance(),
-            engine.linked(),
-            &mappings,
-            &activation_subject,
-            &temporal_subject,
-            &request,
-            &result,
-        )
+        .admit(activation.clone())
         .expect("an exact strict activation replay is idempotent");
     assert_eq!(activations.bindings().len(), 1);
     let conflicting_request = activated_request_at(
@@ -1672,13 +1656,17 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
     assert_eq!(
         activations
             .admit(
-                engine.conformance(),
-                engine.linked(),
-                &mappings,
-                &activation_subject,
-                &temporal_subject,
-                &conflicting_request,
-                &conflicting_result,
+                engine
+                    .conformance()
+                    .bind_activation(
+                        engine.linked(),
+                        &mappings,
+                        &activation_subject,
+                        &temporal_subject,
+                        &conflicting_request,
+                        &conflicting_result,
+                    )
+                    .expect("changed checked anchor still forms an owner-valid binding"),
             )
             .expect_err("a changed checked anchor cannot overwrite the same FR-300 key"),
         quire_protocol::conformance::KernelRefusal::ConflictingActivation

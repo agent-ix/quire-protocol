@@ -337,19 +337,11 @@ impl<'a> ActivatedIncremental<'a> {
 }
 
 impl<'a> ActivationRegistry<'a> {
-    /// Validates and retains one exact activation, idempotently on replay.
+    /// Retains one kernel-validated activation, idempotently on replay.
     pub fn admit(
         &mut self,
-        kernel: &Kernel,
-        linked: &LinkedProtocol<'_>,
-        mappings: &v3::AdmittedPackage,
-        subject: &QualifiedSubject,
-        temporal_subject: &'a ValidatedTemporalSubject,
-        request: &'a temporal_v2::ValidatedRequest,
-        result: &'a temporal_v2::ValidatedResult,
+        candidate: ActivationBinding<'a>,
     ) -> Result<&ActivationBinding<'a>, Refusal> {
-        let candidate =
-            kernel.bind_activation(linked, mappings, subject, temporal_subject, request, result)?;
         if let Some(index) = self
             .bindings
             .iter()
