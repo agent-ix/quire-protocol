@@ -46,6 +46,18 @@ pub(crate) const OUTPUT_SOURCE: SourceSite = SourceSite::new(
     BudgetDimension::OutputByte,
     SiteKind::Allocation,
 );
+pub(crate) const STRING_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("result/output/string/retain"),
+    "result::record::produce",
+    BudgetDimension::OutputByte,
+    SiteKind::Retention,
+);
+pub(crate) const STRUCTURE_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("result/output/structure/visit"),
+    "result::record::produce",
+    BudgetDimension::Operation,
+    SiteKind::Traversal,
+);
 pub(crate) const ALLOCATION_SOURCE: SourceSite = SourceSite::new(
     SiteId::new("result/document/allocate"),
     "result::record::produce",

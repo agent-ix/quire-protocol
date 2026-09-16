@@ -17,9 +17,7 @@ use quire_protocol::model::v2::{
 };
 use quire_protocol::wire::{BindingKind, Body, CausalEdge, ControlOperation, EdgeKind, Port};
 use quire_protocol::{
-    assessment::{
-        AxisInputs, BundleRefusal, Engine, GlobalConformanceInput, GlobalPremise, PremiseKind,
-    },
+    assessment::{AxisInputs, Engine, GlobalConformanceInput, GlobalPremise, PremiseKind},
     claims::{
         dispatch::{ClaimRequest, Decision, Limits as DispatchLimits},
         premises::{Assumption, AssumptionState, BackendSelection, Component, PremiseSet},
@@ -1286,13 +1284,15 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
         .expect("the admitted static selection has an FR-288 identity");
 
     let request = activated_request(&package, activation_subject.identity().as_bytes());
-    let activated = Engine::new_activated(
+    let activated = Engine::start_activated(
         context,
         vec![Claim::Conformance],
         &activation_subject,
         &request,
-    )
-    .expect("strict QSL request and QObs subject activate this linked engine");
+    );
+    let OperationOutcome::Completed(activated) = activated else {
+        panic!("strict QSL request and QObs subject must activate this linked engine")
+    };
     assert_eq!(
         activated
             .activation()
@@ -1313,15 +1313,17 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
         SubjectKind::new(ORDER_KIND.to_vec()).expect("non-empty kind"),
         SubjectIdentity::new(b"order:43".to_vec()).expect("non-empty identity"),
     );
+    let OperationOutcome::Refused(refusal) = Engine::start_activated(
+        context,
+        vec![Claim::Conformance],
+        &mismatched_subject,
+        &request,
+    ) else {
+        panic!("different QObs subject cannot reuse a strict temporal request")
+    };
     assert_eq!(
-        Engine::new_activated(
-            context,
-            vec![Claim::Conformance],
-            &mismatched_subject,
-            &request,
-        )
-        .expect_err("different QObs subject cannot reuse a strict temporal request"),
-        BundleRefusal::ActivationSubjectMismatch
+        refusal.code().as_str(),
+        "assessment-activation.subject-mismatch"
     );
 
     let engine = match Engine::start(context, vec![Claim::Conformance]) {
@@ -2105,8 +2107,10 @@ fn tc_002_effect_projection_requires_an_owner_effect_slot() {
     assert_eq!(context.compensation_attempt_inputs().len(), 1);
     assert_eq!(context.compensation_effect_inputs().len(), 1);
 
-    let engine = Engine::new(context, vec![Claim::Conformance])
-        .expect("the linked effect context starts a non-retargetable assessment");
+    let OperationOutcome::Completed(engine) = Engine::start(context, vec![Claim::Conformance])
+    else {
+        panic!("the linked effect context must start a non-retargetable assessment")
+    };
     let Body::Protocol { controls, .. } = &engine.linked().declaration().body else {
         panic!("the linked assessment retains the selected protocol declaration")
     };

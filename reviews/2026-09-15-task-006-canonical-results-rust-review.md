@@ -19,7 +19,8 @@ relationships:
 Reviewed the Task-006 Engine boundary, canonical result producer/reader,
 provenance and truth derivation, shared accounting, typed refusal routing,
 runtime-reference carrier and migrated semantic corpus. All findings identified
-in this scoped review were fixed in the candidate.
+in this scoped review and the independent PR-head re-review were fixed in the
+candidate.
 
 ## Verdict
 
@@ -41,6 +42,11 @@ close Task-007, Task-008, Task-010, Plan-001 or epic #14.
 | FND-006 | medium | Resolved: provenance accepted caller-selected model/input identities and did not use the implemented runtime-reference carrier. The Engine validates both identities against its immutable selection and binding sets, then emits the reversible `quire.protocol.runtime-reference/1` value. | FR-031; TC-006 | correct-requirement-no-evidence |
 | FND-007 | low | Resolved: hostile runtime-reference JSON reached guarded `expect` calls after a shape predicate. Those conversions now return `Error::Shape`; no input-controlled panic remains. | FR-031; TC-006 | implementation-bug-despite-evidence |
 | FND-008 | low | Resolved during the full gate: one static API test self-matched its forbidden literal and the intake inventory used ambiguous `v2::read(` text that matched a temporal helper after the corpus moved in-crate. The first oracle now composes independent fragments; the second inspects the fully qualified owner reader call. | TC-006; IT-001 | implementation-bug-despite-evidence |
+| FND-009 | high | Resolved by independent PR-head review: public `CanonicalRowFacts` still let callers fabricate settlement, participation, both adequacy domains, support, limitations and same-package owner selections. The public type is replaced by field-private `CanonicalRowControls`; the complete facts value is private and derived inside the Engine from authenticated QSL/QObs, conformance and dispatch outputs. | FR-006; FR-031; FR-032; TC-006 | implementation-bug-despite-evidence |
+| FND-010 | high | Resolved by independent PR-head review: package equality alone admitted an unrelated checked predicate, and an arbitrary runtime binding could be selected as provenance. Result startup now requires the exact temporal declaration/request identity, its unique checked leaf, the activated subject's membership in the runtime binding set and that exact activated subject as the retained input. A valid same-package foreign predicate refuses. | FR-006-AC-1/4; FR-031-AC-5; TC-006 | implementation-bug-despite-evidence |
+| FND-011 | high | Resolved by independent PR-head review: result-owner ceiling exhaustion returned a claim-local semantic refusal. Every result-owner `ResourceIncomplete` now maps to the shared pre-row resource outcome with its exact registered dimension and site; the bundle is not committed. | FR-006-AC-9; NFR-002; TC-006 | implementation-bug-despite-evidence |
+| FND-012 | medium | Resolved by independent PR-head review: public constructors exposed raw `BundleRefusal`, bypassing the shared operation envelope, and dispatch accepted a permutation of the Engine's requested claims. Raw constructors/refusal are crate-private, public startup returns `OperationOutcome`, and request order must equal the Engine order exactly. | FR-006-AC-9; FR-008; TC-006/TC-011 | implementation-bug-despite-evidence |
+| FND-013 | low | Resolved during remediation: the retargeting compile-fail example also contained an undefined variable, so it could pass without proving the intended API absence. The example is now otherwise well-formed and fails on the removed construction method. | FR-006-AC-1/9; TC-006 | implementation-bug-despite-evidence |
 
 ## Review Checks
 
@@ -49,9 +55,9 @@ close Task-007, Task-008, Task-010, Plan-001 or epic #14.
 | Ownership | `Engine::assess_activated` owns public orchestration; raw dispatch evaluation and canonical production remain crate-private semantic boundaries. |
 | Stage identity | Exact conformance axes/completeness/global closure and sealed dispatch premises flow into result construction without caller restatement. Truth and provenance are derived from those values. |
 | Accounting | One accountant spans every atomic stage. Resource incompleteness remains structurally separate; accounting faults retain all seven interiors and the actual one of four routed stages. |
-| Identity and provenance | Selected model and runtime input are membership-checked. Runtime subject bytes round-trip through the strict canonical carrier; foreign substitutions refuse claim-locally. |
+| Identity and provenance | The static closure must select one model; the exact activated runtime subject must belong to the runtime binding set. The temporal request/view must select one unique checked leaf. Runtime subject bytes round-trip through the strict canonical carrier. |
 | Panic, unsafe and concurrency | No changed production `unsafe`, callback, thread, lock or blocking bridge. Hostile runtime carrier input returns a typed error; remaining `expect` sites describe compile-time registries/static non-empty values. |
-| Test quality | TC-006/TC-011 cover atomic composition, foreign report/model/runtime substitutions, private producer surface, strict readback, cumulative accounting, every accounting-fault variant/stage, carrier round-trip and the FR-008 child topology. |
+| Test quality | TC-006/TC-011 cover atomic composition, same-package foreign owner selection, private constructors/producer surface, exact request order, strict readback, owner and cumulative accounting, every accounting-fault variant/stage, carrier round-trip and the FR-008 child topology. |
 
 ## Verification
 

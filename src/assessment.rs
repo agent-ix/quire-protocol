@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Shared, producer-owned facts consumed by assessment and result construction.
+//! Assessment orchestration over shared, producer-owned facts.
 //!
-//! This module is deliberately neutral: conformance assesses these inputs and
-//! the result owner serializes them, but neither subsystem owns or re-derives
-//! the QObs facts or the declared global-closure premise set.
+//! Conformance assesses authenticated QSL/QObs inputs and the Engine carries
+//! those stage outputs into private result construction. It does not parse or
+//! repair owner bytes, and callers cannot restate the semantic result facts.
 
 use quire_observation::authority::{
     closure as observation_closure, completeness, observation as observation_record, position,
@@ -13,6 +13,9 @@ use quire_observation::QualifiedSubject;
 use quire_spec_language::protocol_artifact::native_temporal::v2 as temporal_v2;
 use quire_spec_language::protocol_artifact::wire::{BindingKind, ControlOperation};
 use quire_spec_language::protocol_artifact::ProtocolNumber;
+use quire_spec_language::protocol_artifact::{
+    checked_predicate::ValidatedCheckedPredicate, temporal_subject::ValidatedTemporalSubject,
+};
 use quire_spec_language::state::{
     self as state_evaluation, EvaluationOutcome, EvaluationReport, StateView,
     ValueKind as StateValueKind,
@@ -69,53 +72,66 @@ pub struct ClaimRow<Row> {
     pub outcome: ClaimOutcome<Row>,
 }
 
-/// Independently owned facts needed to construct one canonical claim row.
+/// Caller-owned controls for one canonical claim row.
 ///
-/// This deliberately omits execution, truth, claim identity/strength/backend,
-/// assumptions, progress/closure axes, completeness, and global conformance.
-/// The Engine derives or reuses those fields from the exact conformance and
-/// dispatch stages executed inside the same atomic assessment operation, so a
-/// production caller cannot restate a complete result-owner [`result::Input`]
-/// and substitute values for the preceding stages.
+/// Every semantic result value is derived from the Engine's authenticated QSL,
+/// QObs, conformance, and dispatch outputs. This type deliberately exposes only
+/// the local reproduction selection, an optional already-validated predecessor,
+/// and caller-lowered result-owner limits.
 ///
 /// ```compile_fail,E0603
-/// // The complete row input is an Engine-private transition value.
-/// use quire_protocol::assessment::CanonicalRowInput;
+/// use quire_protocol::assessment::CanonicalRowFacts;
 /// ```
 #[derive(Clone, Debug)]
-pub struct CanonicalRowFacts<'a> {
-    /// Strict QSL checked-predicate owner view selected for this assessment.
-    pub checked_predicate:
-        &'a quire_spec_language::protocol_artifact::checked_predicate::ValidatedCheckedPredicate,
-    /// Strict QSL temporal-subject owner view selected for this assessment.
-    pub temporal_subject:
-        &'a quire_spec_language::protocol_artifact::temporal_subject::ValidatedTemporalSubject,
-    /// Typed settlement and exact supporting identities.
-    pub settlement: result::Settlement,
-    /// Typed activation state.
-    pub activation: result::Activation,
-    /// Typed role participation state.
-    pub participation: result::Participation,
-    /// Typed observation-adequacy state.
-    pub observation_adequacy: result::Adequacy,
-    /// Typed protocol-adequacy state.
-    pub protocol_adequacy: result::ProtocolAdequacy,
-    /// Complete decision-support population.
-    pub decision_support: Vec<result::DecisionSupport>,
-    /// Exact limitations retained for this claim.
-    pub limitations: Vec<result::Limitation>,
-    /// Exact selected model artifact; the Engine verifies it belongs to its
-    /// immutable semantic selection closure before retaining its identity.
-    pub model_artifact: &'a quire_spec_language::protocol_artifact::wire::ArtifactRef,
-    /// Exact QObs runtime input; the Engine verifies it is one of its admitted
-    /// runtime bindings and derives the reversible result-field carrier.
-    pub runtime_input: &'a QualifiedSubject,
-    /// Caller-selected deterministic inputs needed to reproduce this run.
-    pub reproduction: ReproductionRecord,
-    /// Optional validated direct correction edge.
-    pub correction: Option<result::CorrectionInput<'a>>,
-    /// Result-owner limits, which may lower but never raise owner maxima.
-    pub limits: result::Limits,
+pub struct CanonicalRowControls<'a> {
+    reproduction: ReproductionRecord,
+    correction: Option<result::CorrectionInput<'a>>,
+    limits: result::Limits,
+}
+
+impl<'a> CanonicalRowControls<'a> {
+    /// Select deterministic local-run provenance and result-owner ceilings.
+    #[must_use]
+    pub const fn new(reproduction: ReproductionRecord, limits: result::Limits) -> Self {
+        Self {
+            reproduction,
+            correction: None,
+            limits,
+        }
+    }
+
+    /// Select one validated direct predecessor relation.
+    #[must_use]
+    pub const fn with_correction(mut self, correction: result::CorrectionInput<'a>) -> Self {
+        self.correction = Some(correction);
+        self
+    }
+}
+
+/// Engine-derived transition value consumed only by canonical result assembly.
+#[derive(Clone, Debug)]
+struct CanonicalRowFacts<'a> {
+    checked_predicate: &'a ValidatedCheckedPredicate,
+    temporal_subject: &'a ValidatedTemporalSubject,
+    truth: result::Truth,
+    settlement: result::Settlement,
+    activation: result::Activation,
+    participation: result::Participation,
+    observation_adequacy: result::Adequacy,
+    protocol_adequacy: result::ProtocolAdequacy,
+    decision_support: Vec<result::DecisionSupport>,
+    limitations: Vec<result::Limitation>,
+    model_artifact: &'a quire_spec_language::protocol_artifact::wire::ArtifactRef,
+    runtime_input: &'a QualifiedSubject,
+    reproduction: ReproductionRecord,
+    correction: Option<result::CorrectionInput<'a>>,
+    limits: result::Limits,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct ResultSelection<'a> {
+    checked_predicate: &'a ValidatedCheckedPredicate,
+    temporal_subject: &'a ValidatedTemporalSubject,
 }
 
 /// The exact QObs event and QSL v2 request selected for one activation site.
@@ -143,7 +159,7 @@ impl core::fmt::Debug for ActivationBinding<'_> {
 impl<'a> ActivationBinding<'a> {
     /// Bind one strict QSL v2 request to the selected QObs subject and static
     /// definition identity.
-    pub fn new(
+    pub(crate) fn new(
         identity: &DefinitionIdentity,
         subject: &'a QualifiedSubject,
         request: &'a temporal_v2::ValidatedRequest,
@@ -174,7 +190,7 @@ impl<'a> ActivationBinding<'a> {
 
 /// Why an exact linked assessment cannot become one complete claim bundle.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum BundleRefusal {
+pub(crate) enum BundleRefusal {
     /// No claim was selected for this assessment request.
     EmptyRequest,
     /// The caller selected one claim more than once.
@@ -193,10 +209,14 @@ pub enum BundleRefusal {
     InvalidConformanceKernel,
     /// A canonical result row was offered under a different requested claim.
     CanonicalClaimMismatch,
-    /// A canonical input borrows a QSL view from another admitted package.
-    CanonicalPackageMismatch,
     /// The ordered claim-dispatch report differs from this Engine request or its rows.
     DispatchReportMismatch,
+    /// Canonical production was requested without authenticated result-owner views.
+    MissingResultSelection,
+    /// Strict QSL result-owner views do not match the activated request.
+    ResultSelectionMismatch,
+    /// The static closure does not select exactly one result model artifact.
+    AmbiguousResultModel,
     /// QSL v2 opaque trigger bytes differ from the selected QObs subject.
     ActivationSubjectMismatch,
     /// The QSL v2 temporal declaration is not selected by this protocol definition.
@@ -268,13 +288,23 @@ bundle_code!(
     RefusalDomain::Result
 );
 bundle_code!(
-    BUNDLE_PACKAGE_MISMATCH,
-    "assessment-result.bundle-package-mismatch",
+    BUNDLE_DISPATCH_MISMATCH,
+    "assessment-result.bundle-dispatch-mismatch",
     RefusalDomain::Result
 );
 bundle_code!(
-    BUNDLE_DISPATCH_MISMATCH,
-    "assessment-result.bundle-dispatch-mismatch",
+    BUNDLE_MISSING_RESULT_SELECTION,
+    "assessment-result.missing-owner-selection",
+    RefusalDomain::Result
+);
+bundle_code!(
+    BUNDLE_RESULT_SELECTION_MISMATCH,
+    "assessment-result.owner-selection-mismatch",
+    RefusalDomain::Result
+);
+bundle_code!(
+    BUNDLE_AMBIGUOUS_RESULT_MODEL,
+    "assessment-result.ambiguous-model-selection",
     RefusalDomain::Result
 );
 const RESULT_ACCOUNTING_FAULT: CodeEntry = CodeEntry {
@@ -339,8 +369,10 @@ pub const RESULT_CODES: CodeModule = CodeModule {
     module_path: "quire_protocol::assessment",
     entries: &[
         BUNDLE_CLAIM_MISMATCH,
-        BUNDLE_PACKAGE_MISMATCH,
         BUNDLE_DISPATCH_MISMATCH,
+        BUNDLE_MISSING_RESULT_SELECTION,
+        BUNDLE_RESULT_SELECTION_MISMATCH,
+        BUNDLE_AMBIGUOUS_RESULT_MODEL,
         RESULT_ACCOUNTING_FAULT,
     ],
 };
@@ -376,12 +408,21 @@ fn outcome_refusal(error: BundleRefusal) -> ProtocolRefusal {
         BundleRefusal::CanonicalClaimMismatch => {
             (&BUNDLE_CLAIM_MISMATCH, ProtocolStage::ResultAssembly)
         }
-        BundleRefusal::CanonicalPackageMismatch => {
-            (&BUNDLE_PACKAGE_MISMATCH, ProtocolStage::ResultAssembly)
-        }
         BundleRefusal::DispatchReportMismatch => {
             (&BUNDLE_DISPATCH_MISMATCH, ProtocolStage::ResultAssembly)
         }
+        BundleRefusal::MissingResultSelection => (
+            &BUNDLE_MISSING_RESULT_SELECTION,
+            ProtocolStage::ResultAssembly,
+        ),
+        BundleRefusal::ResultSelectionMismatch => (
+            &BUNDLE_RESULT_SELECTION_MISMATCH,
+            ProtocolStage::ResultAssembly,
+        ),
+        BundleRefusal::AmbiguousResultModel => (
+            &BUNDLE_AMBIGUOUS_RESULT_MODEL,
+            ProtocolStage::ResultAssembly,
+        ),
         BundleRefusal::ActivationSubjectMismatch => {
             (&BUNDLE_ACTIVATION_SUBJECT, ProtocolStage::Conformance)
         }
@@ -449,8 +490,10 @@ fn bundle_cause(error: BundleRefusal, code: RefusalCode) -> crate::refusal::Refu
         }
         BundleRefusal::UnexpectedClaim
         | BundleRefusal::CanonicalClaimMismatch
-        | BundleRefusal::CanonicalPackageMismatch
         | BundleRefusal::DispatchReportMismatch
+        | BundleRefusal::MissingResultSelection
+        | BundleRefusal::ResultSelectionMismatch
+        | BundleRefusal::AmbiguousResultModel
         | BundleRefusal::ActivationSubjectMismatch
         | BundleRefusal::ActivationDeclarationMismatch => ProtocolCause::IdentityMismatch {
             expected: RetainedBytes::new(b"engine-bound-assessment-value"),
@@ -611,6 +654,7 @@ pub struct Engine<'a> {
     compensation_state: CompensationState,
     conformance: ConformanceKernel,
     activation: Option<ActivationBinding<'a>>,
+    result_selection: Option<ResultSelection<'a>>,
     requested: Vec<Claim>,
 }
 
@@ -625,16 +669,55 @@ impl<'a> Engine<'a> {
             Err(error) => crate::outcome::OperationOutcome::Refused(outcome_refusal(error)),
         }
     }
+
+    /// Start one activated assessment through the shared public operation
+    /// outcome algebra.
+    pub fn start_activated(
+        context: LinkedAssessment<'a>,
+        requested: Vec<Claim>,
+        subject: &'a QualifiedSubject,
+        request: &'a temporal_v2::ValidatedRequest,
+    ) -> crate::outcome::OperationOutcome<Self> {
+        match Self::new_activated(context, requested, subject, request) {
+            Ok(engine) => crate::outcome::OperationOutcome::Completed(engine),
+            Err(error) => crate::outcome::OperationOutcome::Refused(outcome_refusal(error)),
+        }
+    }
+
+    /// Start canonical result orchestration bound to exact strict QSL owner
+    /// views for this activated request.
+    #[allow(clippy::too_many_arguments)]
+    pub fn start_result_assessment(
+        context: LinkedAssessment<'a>,
+        requested: Vec<Claim>,
+        subject: &'a QualifiedSubject,
+        request: &'a temporal_v2::ValidatedRequest,
+        checked_predicate: &'a ValidatedCheckedPredicate,
+        temporal_subject: &'a ValidatedTemporalSubject,
+    ) -> crate::outcome::OperationOutcome<Self> {
+        match Self::new_result_assessment(
+            context,
+            requested,
+            subject,
+            request,
+            checked_predicate,
+            temporal_subject,
+        ) {
+            Ok(engine) => crate::outcome::OperationOutcome::Completed(engine),
+            Err(error) => crate::outcome::OperationOutcome::Refused(outcome_refusal(error)),
+        }
+    }
+
     /// Start one assessment over an exact linked context and claim population.
-    pub fn new(
+    pub(crate) fn new(
         context: LinkedAssessment<'a>,
         requested: Vec<Claim>,
     ) -> Result<Self, BundleRefusal> {
-        Self::new_bound(context, requested, None)
+        Self::new_bound(context, requested, None, None)
     }
 
     /// Start one assessment with an exact QSL-v2/QObs activation binding.
-    pub fn new_activated(
+    pub(crate) fn new_activated(
         context: LinkedAssessment<'a>,
         requested: Vec<Claim>,
         subject: &'a QualifiedSubject,
@@ -644,13 +727,52 @@ impl<'a> Engine<'a> {
             .definition_identity()
             .map_err(|_| BundleRefusal::InvalidDefinitionIdentity)?;
         let activation = ActivationBinding::new(&identity, subject, request)?;
-        Self::new_bound(context, requested, Some(activation))
+        Self::new_bound(context, requested, Some(activation), None)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn new_result_assessment(
+        context: LinkedAssessment<'a>,
+        requested: Vec<Claim>,
+        subject: &'a QualifiedSubject,
+        request: &'a temporal_v2::ValidatedRequest,
+        checked_predicate: &'a ValidatedCheckedPredicate,
+        temporal_subject: &'a ValidatedTemporalSubject,
+    ) -> Result<Self, BundleRefusal> {
+        let identity = context
+            .definition_identity()
+            .map_err(|_| BundleRefusal::InvalidDefinitionIdentity)?;
+        let activation = ActivationBinding::new(&identity, subject, request)?;
+        if !context.runtime().bindings().iter().any(|binding| {
+            binding
+                .subject_value()
+                .is_some_and(|runtime_subject| runtime_subject == subject)
+        }) {
+            return Err(BundleRefusal::ResultSelectionMismatch);
+        }
+        validate_result_selection(
+            context.package().digest(),
+            &identity,
+            request,
+            checked_predicate,
+            temporal_subject,
+        )?;
+        Self::new_bound(
+            context,
+            requested,
+            Some(activation),
+            Some(ResultSelection {
+                checked_predicate,
+                temporal_subject,
+            }),
+        )
     }
 
     fn new_bound(
         context: LinkedAssessment<'a>,
         requested: Vec<Claim>,
         activation: Option<ActivationBinding<'a>>,
+        result_selection: Option<ResultSelection<'a>>,
     ) -> Result<Self, BundleRefusal> {
         validate_requested(&requested)?;
         let identity = context
@@ -675,6 +797,7 @@ impl<'a> Engine<'a> {
             compensation_state: CompensationState::default(),
             conformance,
             activation,
+            result_selection,
             requested,
         })
     }
@@ -733,7 +856,7 @@ impl<'a> Engine<'a> {
     pub fn dispatch_activated(
         &self,
         requests: &[ClaimRequest<'_>],
-        facts: &[ActivationFact<'_>],
+        facts: &[ActivationFact<'a>],
         axes: AxisInputs<'_>,
         completeness: &completeness::View,
         global_conformance: &GlobalConformanceInput,
@@ -1397,32 +1520,53 @@ impl<'a> Engine<'a> {
         axes: AxisInputs<'a>,
         completeness: &'a completeness::View,
         global_conformance: &GlobalConformanceInput,
-        inputs: Vec<Option<CanonicalRowFacts<'a>>>,
+        facts: &[ActivationFact<'a>],
+        controls: Vec<Option<CanonicalRowControls<'a>>>,
         resources: &mut ResourceAccountant<'_>,
     ) -> crate::outcome::OperationOutcome<AssessmentBundle<'a, result::ValidatedResult>> {
-        if let Err(error) = validate_dispatch_rows(&self.requested, dispatch, &inputs) {
+        if let Err(error) = validate_dispatch_rows(&self.requested, dispatch, &controls) {
             return crate::outcome::OperationOutcome::Refused(outcome_refusal(error));
         }
-        let mut rows = Vec::with_capacity(inputs.len());
-        for (selected, disposition) in inputs.into_iter().zip(dispatch.dispositions()) {
+        let Some(selection) = self.result_selection else {
+            return crate::outcome::OperationOutcome::Refused(outcome_refusal(
+                BundleRefusal::MissingResultSelection,
+            ));
+        };
+        let model_artifact = match selected_model_artifact(&self.context, &self.identity) {
+            Ok(model) => model,
+            Err(error) => {
+                return crate::outcome::OperationOutcome::Refused(outcome_refusal(error));
+            }
+        };
+        let Some(activation) = self.activation else {
+            return crate::outcome::OperationOutcome::Refused(outcome_refusal(
+                BundleRefusal::MissingResultSelection,
+            ));
+        };
+        let runtime_input = activation.subject();
+        let mut rows = Vec::with_capacity(controls.len());
+        for (control, disposition) in controls.into_iter().zip(dispatch.dispositions()) {
             let outcome = if let Some(failure) = &disposition.failure {
                 ClaimOutcome::Refused(failure.envelope().clone())
             } else {
-                let Some(selected) = selected else {
+                let Some(control) = control else {
                     return crate::outcome::OperationOutcome::Refused(outcome_refusal(
                         BundleRefusal::MissingClaimRow,
                     ));
                 };
-                if let Err(error) = validate_input_package(
-                    self.context.package().digest(),
-                    selected.checked_predicate.package_digest(),
-                    selected.temporal_subject.package_digest(),
-                ) {
-                    return crate::outcome::OperationOutcome::Refused(outcome_refusal(error));
-                }
-                match result_input_from_dispatch(
+                let selected = derive_canonical_row_facts(
+                    selection,
                     disposition,
                     conformance,
+                    facts,
+                    axes,
+                    completeness,
+                    model_artifact,
+                    runtime_input,
+                    control,
+                );
+                match result_input_from_dispatch(
+                    disposition,
                     &self.identity,
                     &self.context,
                     axes,
@@ -1446,6 +1590,11 @@ impl<'a> Engine<'a> {
                                     ClaimOutcome::Canonical(validated)
                                 }
                                 BoundedOutcome::DomainError(refusal) => {
+                                    if let Some(incomplete) = refusal.resource_incomplete(limits) {
+                                        return crate::outcome::OperationOutcome::ResourceIncomplete(
+                                            incomplete,
+                                        );
+                                    }
                                     ClaimOutcome::Refused(refusal.envelope().clone())
                                 }
                                 BoundedOutcome::ResourceIncomplete(incomplete) => {
@@ -1464,6 +1613,11 @@ impl<'a> Engine<'a> {
                                 }
                             },
                             BoundedOutcome::DomainError(refusal) => {
+                                if let Some(incomplete) = refusal.resource_incomplete(limits) {
+                                    return crate::outcome::OperationOutcome::ResourceIncomplete(
+                                        incomplete,
+                                    );
+                                }
                                 ClaimOutcome::Refused(refusal.envelope().clone())
                             }
                             BoundedOutcome::ResourceIncomplete(incomplete) => {
@@ -1508,42 +1662,36 @@ impl<'a> Engine<'a> {
     /// Run conformance, claim dispatch, canonical result production, and strict
     /// reading as one non-retargetable assessment operation.
     ///
-    /// Callers provide `Some` result-owner facts only for dispositions that can
+    /// Callers provide `Some` local controls only for dispositions that can
     /// reach row construction and `None` for claim-local dispatch refusals. The
-    /// Engine derives truth, execution, claim selection, and assumptions and
-    /// reuses the exact progress, closure, completeness, and global-conformance
-    /// values it assessed. One resource accountant spans every stage.
+    /// Engine derives every semantic result value and provenance selection from
+    /// exact authenticated stage outputs. One resource accountant spans every
+    /// stage.
     ///
     /// ```compile_fail,E0599
-    /// use quire_protocol::assessment::{CanonicalRowFacts, Engine};
-    /// use quire_protocol::bounds::inventory::Budget;
+    /// use quire_protocol::assessment::Engine;
     /// use quire_protocol::claims::dispatch::Report;
     ///
     /// fn retarget<'a>(
     ///     engine: Engine<'a>,
     ///     foreign_report: &Report,
-    ///     facts: Vec<Option<CanonicalRowFacts<'a>>>,
     /// ) {
     ///     // Result construction accepts no report produced by another Engine.
-    ///     let _ = engine.construct_canonical_outcome(
-    ///         foreign_report,
-    ///         facts,
-    ///         Budget::nothing_granted(),
-    ///     );
+    ///     let _ = engine.construct_canonical_outcome(foreign_report);
     /// }
     /// ```
     #[allow(clippy::too_many_arguments)]
     pub fn assess_activated(
         self,
         requests: &[ClaimRequest<'_>],
-        facts: &[ActivationFact<'_>],
+        facts: &[ActivationFact<'a>],
         axes: AxisInputs<'a>,
         completeness: &'a completeness::View,
         global_conformance: &GlobalConformanceInput,
         execution: crate::closure::AssessmentExecution,
         conformance_limits: ConformanceLimits,
         dispatch_limits: DispatchLimits,
-        inputs: Vec<Option<CanonicalRowFacts<'a>>>,
+        controls: Vec<Option<CanonicalRowControls<'a>>>,
         budget: Budget,
     ) -> crate::outcome::OperationOutcome<AssessmentBundle<'a, result::ValidatedResult>> {
         let inventory = production_inventory()
@@ -1581,7 +1729,8 @@ impl<'a> Engine<'a> {
             axes,
             completeness,
             global_conformance,
-            inputs,
+            facts,
+            controls,
             &mut resources,
         )
     }
@@ -1594,14 +1743,8 @@ fn validate_dispatch_request(
     if requests.len() != requested.len()
         || requests
             .iter()
-            .any(|request| !requested.contains(&request.claim))
-        || requested.iter().any(|claim| {
-            requests
-                .iter()
-                .filter(|request| request.claim == *claim)
-                .count()
-                != 1
-        })
+            .map(|request| request.claim)
+            .ne(requested.iter().copied())
     {
         Err(BundleRefusal::UnexpectedClaim)
     } else {
@@ -1776,13 +1919,277 @@ fn observation_position(
         .position(|(_, identity)| identity == observation.payload().observation_identity())
 }
 
+fn selected_model_artifact<'a>(
+    context: &LinkedAssessment<'a>,
+    definition: &DefinitionIdentity,
+) -> Result<&'a quire_spec_language::protocol_artifact::wire::ArtifactRef, BundleRefusal> {
+    let [model] = definition.closure().models() else {
+        return Err(BundleRefusal::AmbiguousResultModel);
+    };
+    context
+        .package()
+        .inherited()
+        .dependencies
+        .get(usize::try_from(model.value().artifact).unwrap_or(usize::MAX))
+        .map(|dependency| &dependency.artifact)
+        .ok_or(BundleRefusal::AmbiguousResultModel)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn derive_canonical_row_facts<'a>(
+    selection: ResultSelection<'a>,
+    disposition: &dispatch::Disposition,
+    conformance: &crate::conformance::Report,
+    facts: &[ActivationFact<'a>],
+    axes: AxisInputs<'a>,
+    completeness: &completeness::View,
+    model_artifact: &'a quire_spec_language::protocol_artifact::wire::ArtifactRef,
+    runtime_input: &'a QualifiedSubject,
+    controls: CanonicalRowControls<'a>,
+) -> CanonicalRowFacts<'a> {
+    let mut truth = truth_from_dispatch(disposition, conformance);
+    let mut decision_support = decision_support_from_report(truth, conformance);
+    if matches!(truth, result::Truth::Satisfied | result::Truth::Violated)
+        && decision_support.is_empty()
+    {
+        truth = result::Truth::Unavailable;
+    }
+    if matches!(truth, result::Truth::Pending | result::Truth::Unavailable) {
+        decision_support.clear();
+    }
+    let settlement = settlement_from_report(truth, axes, &decision_support);
+    CanonicalRowFacts {
+        checked_predicate: selection.checked_predicate,
+        temporal_subject: selection.temporal_subject,
+        truth,
+        settlement,
+        activation: activation_from_facts(facts),
+        participation: participation_from_facts(facts, conformance),
+        observation_adequacy: observation_adequacy_from_report(conformance, completeness),
+        protocol_adequacy: protocol_adequacy_from_report(disposition, conformance, completeness),
+        decision_support,
+        limitations: limitations_from_report(conformance),
+        model_artifact,
+        runtime_input,
+        reproduction: controls.reproduction,
+        correction: controls.correction,
+        limits: controls.limits,
+    }
+}
+
+fn decision_support_from_report(
+    truth: result::Truth,
+    conformance: &crate::conformance::Report,
+) -> Vec<result::DecisionSupport> {
+    let violated = if truth == result::Truth::Violated {
+        Some(
+            conformance
+                .adverse
+                .iter()
+                .filter_map(|adverse| adverse.observation_identity.as_deref())
+                .collect::<std::collections::BTreeSet<_>>(),
+        )
+    } else {
+        None
+    };
+    let mut seen = std::collections::BTreeSet::new();
+    conformance
+        .observations
+        .iter()
+        .filter(|observation| {
+            violated.as_ref().is_none_or(|identities| {
+                identities.contains(observation.observation_identity.as_ref())
+            })
+        })
+        .filter(|observation| seen.insert(observation.observation_identity.clone()))
+        .map(|observation| result::DecisionSupport {
+            oracle_identity: observation.obligation.as_str().to_owned(),
+            observation_identity: observation.observation_identity.to_string(),
+            relation: result::DependenceRelation::Unknown,
+            predecessor: None,
+            dependence_group: None,
+        })
+        .collect()
+}
+
+fn settlement_from_report(
+    truth: result::Truth,
+    axes: AxisInputs<'_>,
+    support: &[result::DecisionSupport],
+) -> result::Settlement {
+    use quire_observation::authority::OpenClosed;
+    let closed = axes.decision_scope_progress.payload().state() == OpenClosed::Closed
+        && axes.decision_scope_closure.payload().state() == OpenClosed::Closed;
+    let basis = match truth {
+        result::Truth::Satisfied if closed => result::SettlementBasis::ClosedScope,
+        result::Truth::Satisfied => result::SettlementBasis::DecisiveWitness,
+        result::Truth::Violated if closed => result::SettlementBasis::ClosedScope,
+        result::Truth::Violated => result::SettlementBasis::DecisiveCounterexample,
+        result::Truth::Pending => result::SettlementBasis::Unsettled,
+        result::Truth::Unavailable => result::SettlementBasis::Unavailable,
+    };
+    result::Settlement {
+        basis,
+        supporting_fact_identities: support
+            .iter()
+            .map(|record| record.observation_identity.clone())
+            .collect(),
+        supporting_progress_identities: vec![axes
+            .decision_scope_progress
+            .identity()
+            .as_str()
+            .to_owned()],
+    }
+}
+
+fn activation_from_facts(facts: &[ActivationFact<'_>]) -> result::Activation {
+    use quire_spec_language::protocol_artifact::native_temporal::result::ActivationState;
+    let mut states = facts
+        .iter()
+        .map(|fact| fact.occurrence().activation().activation());
+    let Some(first) = states.next() else {
+        return result::Activation::ActivationUnknown;
+    };
+    if states.any(|state| state != first) {
+        return result::Activation::ActivationUnknown;
+    }
+    match first {
+        ActivationState::Active => result::Activation::Triggered,
+        ActivationState::Inactive => result::Activation::Inactive,
+        ActivationState::Unknown | ActivationState::Unavailable => {
+            result::Activation::ActivationUnknown
+        }
+    }
+}
+
+fn participation_from_facts(
+    facts: &[ActivationFact<'_>],
+    conformance: &crate::conformance::Report,
+) -> result::Participation {
+    use quire_spec_language::protocol_artifact::NodeRole;
+    let mut required = Vec::new();
+    let mut participating = Vec::new();
+    for fact in facts {
+        let occurrence = fact.occurrence().occurrence();
+        let NodeRole::Role(role) = occurrence.role() else {
+            continue;
+        };
+        let workflow = occurrence.workflow();
+        let ordinals = occurrence
+            .repeat_ordinals()
+            .iter()
+            .map(|ordinal| ordinal.value().to_string())
+            .collect::<Vec<_>>()
+            .join(",");
+        let identity = format!(
+            "qsl-role-instance:{}:{}:{}:{}:{}",
+            role.declaration,
+            role.index,
+            workflow.as_str().len(),
+            workflow.as_str(),
+            ordinals
+        );
+        required.push(identity.clone());
+        if fact.observation().is_some() {
+            participating.push(identity);
+        }
+    }
+    required.sort();
+    required.dedup();
+    participating.sort();
+    participating.dedup();
+    let participating_set = participating
+        .iter()
+        .collect::<std::collections::BTreeSet<_>>();
+    let mut missing_dependency_refs = required
+        .iter()
+        .filter(|identity| !participating_set.contains(identity))
+        .cloned()
+        .collect::<Vec<_>>();
+    missing_dependency_refs.extend(conformance.incomplete.iter().map(|cause| match cause {
+        crate::conformance::IncompleteCause::MissingValuation { obligation, .. } => {
+            obligation.as_str().to_owned()
+        }
+    }));
+    missing_dependency_refs.sort();
+    missing_dependency_refs.dedup();
+    if missing_dependency_refs.is_empty() {
+        result::Participation::Known {
+            required_role_instance_refs: required,
+            participating_role_instance_refs: participating,
+        }
+    } else {
+        result::Participation::Unknown {
+            participating_role_instance_refs: participating,
+            missing_dependency_refs,
+            reasons: vec!["required-observation-missing".to_owned()],
+        }
+    }
+}
+
+fn observation_adequacy_from_report(
+    conformance: &crate::conformance::Report,
+    completeness: &completeness::View,
+) -> result::Adequacy {
+    use quire_observation::authority::completeness::State;
+    match completeness.payload().state() {
+        State::Complete if conformance.incomplete.is_empty() => result::Adequacy::Adequate,
+        State::Incomplete => result::Adequacy::Inadequate,
+        State::Contradicted => result::Adequacy::Unknown,
+        State::Complete => result::Adequacy::Inadequate,
+    }
+}
+
+fn protocol_adequacy_from_report(
+    disposition: &dispatch::Disposition,
+    conformance: &crate::conformance::Report,
+    completeness: &completeness::View,
+) -> result::ProtocolAdequacy {
+    use crate::conformance::GlobalDisposition;
+    use quire_observation::authority::completeness::State;
+    if disposition.claim != Claim::Conformance {
+        return result::ProtocolAdequacy::Inapplicable;
+    }
+    match (conformance.global, completeness.payload().state()) {
+        (GlobalDisposition::Conforms, State::Complete) => result::ProtocolAdequacy::Demonstrated,
+        (GlobalDisposition::Violates, _) => result::ProtocolAdequacy::NotDemonstrated,
+        _ => result::ProtocolAdequacy::Unknown,
+    }
+}
+
+fn limitations_from_report(conformance: &crate::conformance::Report) -> Vec<result::Limitation> {
+    let incomplete = conformance
+        .incomplete
+        .iter()
+        .enumerate()
+        .map(|(index, cause)| {
+            let affected_identity = match cause {
+                crate::conformance::IncompleteCause::MissingValuation { obligation, .. } => {
+                    obligation.as_str().to_owned()
+                }
+            };
+            result::Limitation {
+                code: format!("conformance-incomplete:{index}"),
+                affected_identity,
+            }
+        });
+    let premises = conformance
+        .global_premise_defects
+        .iter()
+        .enumerate()
+        .map(|(index, defect)| result::Limitation {
+            code: format!("global-premise-defect:{index}"),
+            affected_identity: defect.premise_identity.to_string(),
+        });
+    incomplete.chain(premises).collect()
+}
+
 #[allow(
     clippy::too_many_arguments,
     reason = "the private transition receives exact owner outputs separately so no caller-built result aggregate can substitute for them"
 )]
 fn result_input_from_dispatch<'a>(
     disposition: &dispatch::Disposition,
-    conformance: &crate::conformance::Report,
     definition: &DefinitionIdentity,
     context: &LinkedAssessment<'_>,
     axes: AxisInputs<'a>,
@@ -1838,7 +2245,7 @@ fn result_input_from_dispatch<'a>(
             axes,
             completeness,
             execution: disposition.execution,
-            truth: truth_from_dispatch(disposition, conformance),
+            truth: selected.truth,
             settlement: selected.settlement,
             activation: selected.activation,
             participation: selected.participation,
@@ -1963,18 +2370,30 @@ const fn result_claim_kind(claim: Claim) -> ClaimKind {
     }
 }
 
-/// Require both strict QSL source views used by a result owner to answer this
-/// Engine's one admitted package. A result reader may validate each view on its
-/// own, but only this boundary can prevent cross-assessment retargeting.
-fn validate_input_package(
-    expected: crate::ByteDigest,
-    predicate: crate::ByteDigest,
-    temporal: crate::ByteDigest,
+fn validate_result_selection(
+    package: crate::ByteDigest,
+    definition: &DefinitionIdentity,
+    request: &temporal_v2::ValidatedRequest,
+    checked_predicate: &ValidatedCheckedPredicate,
+    temporal_subject: &ValidatedTemporalSubject,
 ) -> Result<(), BundleRefusal> {
-    if expected == predicate && expected == temporal {
+    let predicate_is_unique_subject_leaf =
+        temporal_subject.predicate_leaves().is_some_and(|leaves| {
+            leaves.len() == 1 && leaves.first() == Some(checked_predicate.leaf())
+        });
+    if checked_predicate.package_digest() == package
+        && temporal_subject.package_digest() == package
+        && temporal_subject.declaration() == request.declaration()
+        && request.subject_identity() == temporal_subject.document().identity()
+        && definition
+            .temporal_bindings()
+            .iter()
+            .any(|binding| binding.declaration == temporal_subject.declaration())
+        && predicate_is_unique_subject_leaf
+    {
         Ok(())
     } else {
-        Err(BundleRefusal::CanonicalPackageMismatch)
+        Err(BundleRefusal::ResultSelectionMismatch)
     }
 }
 
@@ -1983,7 +2402,7 @@ fn validate_input_package(
 fn validate_dispatch_rows(
     requested: &[Claim],
     dispatch: &DispatchReport,
-    inputs: &[Option<CanonicalRowFacts<'_>>],
+    inputs: &[Option<CanonicalRowControls<'_>>],
 ) -> Result<(), BundleRefusal> {
     validate_dispatch_population(requested, dispatch)?;
     if inputs.len() != requested.len() {
@@ -2114,19 +2533,22 @@ impl<Row> AssessmentBundle<'_, Row> {
 mod tests {
     use super::{
         accounting_refusal, claim_from_result_kind, encode_accounting_fault, kernel_refusal,
-        outcome_refusal, validate_dispatch_population, validate_input_package, validate_requested,
-        validate_rows, AccountingStage, BundleRefusal, ClaimRow,
+        outcome_refusal, validate_dispatch_population, validate_dispatch_request,
+        validate_requested, validate_rows, AccountingStage, BundleRefusal, ClaimRow,
     };
     use crate::bounds::inventory::{
         production_inventory, AccountingFault, Budget, BudgetDimension, ResourceAccountant,
     };
     use crate::bounds::{Phase, SiteId, UnitLabel};
-    use crate::claims::{dispatch::Report as DispatchReport, Claim};
+    use crate::claims::{
+        dispatch::{ClaimRequest, Report as DispatchReport},
+        premises::{BackendSelection, Component, PremiseSet},
+        Claim,
+    };
     use crate::conformance::KernelRefusal;
     use crate::outcome::ClaimOutcome;
     use crate::refusal::{AffectedIdentity, PartialOutput, ProtocolStage, RefusalDomain};
     use crate::result::ClaimKind;
-    use crate::ByteDigest;
     use ix_trace_rs::trace;
     use std::collections::BTreeSet;
     use std::time::Duration;
@@ -2149,6 +2571,54 @@ mod tests {
         assert_eq!(
             validate_requested(&[Claim::Conformance, Claim::Monitorability]),
             Ok(())
+        );
+    }
+
+    fn dispatch_request(claim: Claim) -> ClaimRequest<'static> {
+        let component = |identity: &[u8]| {
+            Component::retained(
+                identity.to_vec().into_boxed_slice(),
+                identity.to_vec().into_boxed_slice(),
+            )
+        };
+        ClaimRequest {
+            identity: b"request".to_vec().into_boxed_slice(),
+            claim,
+            strength: b"tested".to_vec().into_boxed_slice(),
+            premises: PremiseSet {
+                admitted_fragment: component(b"fragment"),
+                backend: BackendSelection::retained(
+                    b"backend".to_vec().into_boxed_slice(),
+                    b"1".to_vec().into_boxed_slice(),
+                ),
+                assumptions: Vec::new(),
+                communication: Vec::new(),
+                visibility: Vec::new(),
+                environment: Vec::new(),
+                sources: Vec::new(),
+                derived_artifact: None,
+            },
+            correspondence: None,
+        }
+    }
+
+    #[test]
+    #[trace("TC-006", "FR-006-AC-1", "FR-006-AC-9")]
+    fn dispatch_request_order_must_equal_the_engines_order() {
+        let requested = [Claim::Conformance, Claim::Monitorability];
+        let authored = [
+            dispatch_request(Claim::Conformance),
+            dispatch_request(Claim::Monitorability),
+        ];
+        assert_eq!(validate_dispatch_request(&requested, &authored), Ok(()));
+
+        let reversed = [
+            dispatch_request(Claim::Monitorability),
+            dispatch_request(Claim::Conformance),
+        ];
+        assert_eq!(
+            validate_dispatch_request(&requested, &reversed),
+            Err(BundleRefusal::UnexpectedClaim)
         );
     }
 
@@ -2251,12 +2721,22 @@ mod tests {
                 ProtocolStage::ResultAssembly,
             ),
             (
-                BundleRefusal::CanonicalPackageMismatch,
+                BundleRefusal::DispatchReportMismatch,
                 RefusalDomain::Result,
                 ProtocolStage::ResultAssembly,
             ),
             (
-                BundleRefusal::DispatchReportMismatch,
+                BundleRefusal::MissingResultSelection,
+                RefusalDomain::Result,
+                ProtocolStage::ResultAssembly,
+            ),
+            (
+                BundleRefusal::ResultSelectionMismatch,
+                RefusalDomain::Result,
+                ProtocolStage::ResultAssembly,
+            ),
+            (
+                BundleRefusal::AmbiguousResultModel,
                 RefusalDomain::Result,
                 ProtocolStage::ResultAssembly,
             ),
@@ -2437,20 +2917,6 @@ mod tests {
         assert_eq!(
             claim_from_result_kind(ClaimKind::Composition),
             Claim::Composition
-        );
-    }
-
-    #[test]
-    fn canonical_input_views_must_borrow_the_engines_admitted_package() {
-        let selected = ByteDigest::of(b"selected-package");
-        assert_eq!(validate_input_package(selected, selected, selected), Ok(()));
-        assert_eq!(
-            validate_input_package(selected, ByteDigest::of(b"foreign"), selected),
-            Err(BundleRefusal::CanonicalPackageMismatch)
-        );
-        assert_eq!(
-            validate_input_package(selected, selected, ByteDigest::of(b"foreign")),
-            Err(BundleRefusal::CanonicalPackageMismatch)
         );
     }
 

@@ -13,6 +13,7 @@ use quire_protocol::model::v2::{
     SlotCompatibility, SlotHandle, StaticBindingDefinition, StaticSelection, StaticSlot,
     RUNTIME_BINDING_CONTRACT, STATIC_BINDING_CONTRACT,
 };
+use quire_protocol::outcome::OperationOutcome;
 use quire_protocol::wire::{BindingKind, Body, ControlOperation};
 use quire_spec_language::state::{
     EvaluationOutcome, Limits as StateLimits, StateView, ValueKind as StateValueKind,
@@ -219,7 +220,11 @@ fn fixture_with_options(
 fn engine(fixture: &Fixture) -> Engine<'_> {
     let context = LinkedAssessment::new(&fixture.package, &fixture.definition, &fixture.runtime)
         .expect("linked assessment");
-    Engine::new(context, vec![Claim::Conformance]).expect("request-scoped engine")
+    let OperationOutcome::Completed(engine) = Engine::start(context, vec![Claim::Conformance])
+    else {
+        panic!("request-scoped engine must start")
+    };
+    engine
 }
 
 fn no_expression_work() -> StateLimits {

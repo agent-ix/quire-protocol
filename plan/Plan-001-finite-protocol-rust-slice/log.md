@@ -19,10 +19,16 @@ description: "Chronological log of changes to the Plan-001 bundle."
   compile-fail inaccessible. TC-006/TC-011 include atomic, strict-reader,
   provenance, cumulative-accounting, accounting-fault and FR-008 decomposition
   controls. SR-116/SR-117 pass; `quire coverage` reports 154/342 repository rows
-  backed and 270/278 evidence symbols tagged, with no unbacked/status-lie/
+  backed, 271/278 Rust candidates bound and all 278 tagged, with no unbacked/status-lie/
   untracked-Task-006 record. The exact unchanged-worktree NFR-004 gate passes
   after repairing the two static-test oracle defects it exposed. Downstream
   Tasks 007, 008 and 010 and the wider Plan-001/epic remain open.
+  Independent PR-head review then found and fixed four residual boundary gaps:
+  raw public constructors, caller-supplied semantic result facts, order-insensitive
+  requests and owner-limit exhaustion reported as a semantic refusal. Result
+  startup also now rejects a valid same-package predicate unless it is the
+  selected temporal subject's unique checked leaf and retains the exact activated
+  runtime subject rather than a caller-selected binding.
 
 * **2026-09-15** — Completed Task-005 / issue #7 as the activation-derived
   independent-claim bridge. The public Engine now assesses strict FR-300 facts

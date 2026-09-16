@@ -482,6 +482,8 @@ pub struct RetainedDocument {
 pub struct RetainedObservation {
     /// Exact correlation target.
     pub obligation: ObligationId,
+    /// Exact QObs evidence identity carried by the admitted record.
+    pub observation_identity: Box<str>,
     /// Exact workflow correlation.
     pub workflow_identity: Box<str>,
     /// Exact effect claim.
@@ -1079,6 +1081,7 @@ fn retain_observations(observations: &[BoundObservation<'_>]) -> Vec<RetainedObs
         .iter()
         .map(|binding| RetainedObservation {
             obligation: binding.obligation.clone(),
+            observation_identity: binding.observation.payload().observation_identity().into(),
             workflow_identity: binding.workflow_identity.clone(),
             effect_identity: binding.effect_identity.clone(),
             document: retained_parts(

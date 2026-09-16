@@ -961,6 +961,20 @@ impl DeadlineObservation {
 }
 
 impl ResourceIncomplete {
+    /// Build an owner-ceiling outcome for work detected by a typed owner
+    /// validator before a result row can be committed.
+    pub(crate) const fn owner_limit(source: SourceSite, granted: usize, requested: usize) -> Self {
+        Self {
+            code: IncompleteCode::BudgetExceeded,
+            dimension: source.dimension,
+            site: source.id,
+            granted,
+            consumed: 0,
+            requested,
+            deadline: None,
+        }
+    }
+
     /// Stable typed identity, distinct from every input-refusal identity.
     #[must_use]
     pub const fn identity(self) -> ResourceIncompleteIdentity {
@@ -1732,6 +1746,18 @@ const RESULT_OUTPUT: SourceSite = SourceSite::new(
     BudgetDimension::OutputByte,
     SiteKind::Allocation,
 );
+const RESULT_OUTPUT_STRING: SourceSite = SourceSite::new(
+    SiteId::new("result/output/string/retain"),
+    "result::record::produce",
+    BudgetDimension::OutputByte,
+    SiteKind::Retention,
+);
+const RESULT_OUTPUT_STRUCTURE: SourceSite = SourceSite::new(
+    SiteId::new("result/output/structure/visit"),
+    "result::record::produce",
+    BudgetDimension::Operation,
+    SiteKind::Traversal,
+);
 const RESULT_ALLOCATION: SourceSite = SourceSite::new(
     SiteId::new("result/document/allocate"),
     "result::record::produce",
@@ -1970,6 +1996,8 @@ pub const PRODUCTION_SOURCES: &[SourceSite] = &[
     crate::result::contract_ir::ALLOCATION_SOURCE,
     crate::result::contract_ir::READ_ALLOCATION_SOURCE,
     crate::result::record::OUTPUT_SOURCE,
+    crate::result::record::STRING_SOURCE,
+    crate::result::record::STRUCTURE_SOURCE,
     crate::result::record::ALLOCATION_SOURCE,
     crate::conformance::batch::OPERATION_SOURCE,
     crate::ids::ALLOCATION_SOURCE,
@@ -2250,6 +2278,18 @@ pub const PRODUCTION_ENTRIES: &[InventoryEntry] = &[
         LimitAuthority::ConsumerOwner,
         ChargePoint::BeforeAllocate,
         Termination::InputLength,
+    ),
+    entry(
+        RESULT_OUTPUT_STRING,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeRetain,
+        Termination::InputLength,
+    ),
+    entry(
+        RESULT_OUTPUT_STRUCTURE,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeTraverse,
+        Termination::FiniteGraph,
     ),
     entry(
         RESULT_ALLOCATION,
