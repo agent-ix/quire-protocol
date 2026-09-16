@@ -47,8 +47,10 @@ before it derives any event-triggered FR-300 obligation binding.
 
 ## Notes
 
-- QObs FR-287/FR-262 and authority facts are delivered; the current Protocol pin
-  is merely stale. QSL supplies the native-temporal request/result owner types.
+- QObs FR-287/FR-262 and authority facts were delivered for this task. Its
+  original `93bc565` pin was later superseded by Task-020; current Protocol pins
+  accepted QObs merge `9240063`. QSL supplies the native-temporal request/result
+  owner types.
 - QCI's accepted FR-025 bridge consumes Protocol leaf-result views downstream
   to construct valuations; QCI #71 then joins QSL-native and TL formula-wide
   owner results. Neither QCI output is a Protocol production dependency.
