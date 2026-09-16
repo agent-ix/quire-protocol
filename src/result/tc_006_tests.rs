@@ -2285,25 +2285,6 @@ fn tc_009_result_output_budget_precedes_canonical_allocation() {
     let input = base_input(&fixture);
     let control = result::produce(input.clone(), Limits::owner_max()).expect("control result");
     let required = control.bytes().len();
-    let initial_string = input
-        .provenance
-        .reproduction
-        .toolchain()
-        .bytes()
-        .len()
-        .checked_mul(2)
-        .expect("bounded toolchain carrier")
-        .max(
-            input
-                .provenance
-                .reproduction
-                .corpus()
-                .bytes()
-                .len()
-                .checked_mul(2)
-                .expect("bounded corpus carrier"),
-        )
-        .max(input.provenance.reproduction.seed().to_string().len());
     let retained_string = control.usage().string_bytes;
     let total_output = required
         .checked_add(retained_string)
@@ -2312,7 +2293,7 @@ fn tc_009_result_output_budget_precedes_canonical_allocation() {
     let inventory = production_inventory().expect("production inventory");
 
     let short = Budget::nothing_granted()
-        .grant(BudgetDimension::OutputByte, initial_string + required - 1)
+        .grant(BudgetDimension::OutputByte, retained_string + required - 1)
         .expect("positive one-short grant");
     let mut short_resources = ResourceAccountant::new(short, &inventory);
     assert!(matches!(
@@ -2324,14 +2305,14 @@ fn tc_009_result_output_budget_precedes_canonical_allocation() {
         OperationOutcome::ResourceIncomplete(value)
             if value.dimension() == BudgetDimension::OutputByte
                 && value.site().as_str() == "result/output/allocate"
-                && value.consumed() == initial_string
+                && value.consumed() == retained_string
                 && value.requested() == required
     ));
     assert_eq!(
         short_resources
             .usage()
             .consumed(BudgetDimension::OutputByte),
-        initial_string
+        retained_string
     );
 
     let exact = Budget::nothing_granted()
@@ -2370,6 +2351,86 @@ fn tc_009_result_output_budget_precedes_canonical_allocation() {
                 && value.granted() == Limits::owner_max().max_string_bytes
                 && value.consumed().saturating_add(value.requested()) > value.granted()
     ));
+    assert_eq!(
+        owner_clamped_resources
+            .usage()
+            .consumed(BudgetDimension::OutputByte),
+        0,
+        "oversized non-reproduction text must refuse before any output byte is retained"
+    );
+
+    let structural = control.usage();
+    let operation_total = structural
+        .depth
+        .checked_add(structural.visited_fields)
+        .expect("bounded structural work");
+    let depth_short = Budget::nothing_granted()
+        .grant(BudgetDimension::Operation, structural.depth - 1)
+        .expect("positive one-short depth grant");
+    let mut depth_short_resources = ResourceAccountant::new(depth_short, &inventory);
+    let depth_outcome = result::produce_bounded(
+        input.clone(),
+        Limits::owner_max(),
+        &mut depth_short_resources,
+    );
+    assert!(
+        matches!(
+            depth_outcome,
+            OperationOutcome::ResourceIncomplete(value)
+                if value.site().as_str() == "result/output/container/depth"
+                    && value.consumed() == 0
+                    && value.requested() == structural.depth
+        ),
+        "unexpected depth outcome: {depth_outcome:?}"
+    );
+    assert_eq!(
+        depth_short_resources
+            .usage()
+            .consumed(BudgetDimension::Operation),
+        0
+    );
+
+    let field_short = Budget::nothing_granted()
+        .grant(BudgetDimension::Operation, operation_total - 1)
+        .expect("positive one-short structural grant");
+    let mut field_short_resources = ResourceAccountant::new(field_short, &inventory);
+    assert!(matches!(
+        result::produce_bounded(
+            input.clone(),
+            Limits::owner_max(),
+            &mut field_short_resources,
+        ),
+        OperationOutcome::ResourceIncomplete(value)
+            if value.site().as_str() == "result/output/field/visit"
+                && value.consumed() == structural.depth
+                && value.requested() == structural.visited_fields
+    ));
+    assert_eq!(
+        field_short_resources
+            .usage()
+            .consumed(BudgetDimension::Operation),
+        structural.depth,
+        "returned consumed evidence must equal the accountant state retained after refusal"
+    );
+
+    let operation_exact = Budget::nothing_granted()
+        .grant(BudgetDimension::Operation, operation_total)
+        .expect("positive exact structural grant");
+    let mut operation_exact_resources = ResourceAccountant::new(operation_exact, &inventory);
+    assert!(matches!(
+        result::produce_bounded(
+            input.clone(),
+            Limits::owner_max(),
+            &mut operation_exact_resources,
+        ),
+        OperationOutcome::Completed(_)
+    ));
+    assert_eq!(
+        operation_exact_resources
+            .usage()
+            .consumed(BudgetDimension::Operation),
+        operation_total
+    );
 
     let one_allocation = Budget::nothing_granted()
         .grant(BudgetDimension::AccountedAllocation, 1)

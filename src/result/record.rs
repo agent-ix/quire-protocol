@@ -10,11 +10,11 @@ use crate::assessment::{AxisInputs, GlobalConformanceInput, GlobalPremise};
 use crate::bounds::inventory::{BudgetDimension, OperationOutcome, ResourceAccountant, SourceSite};
 use crate::bounds::{SiteId, SiteKind, UnitLabel};
 use crate::closure::{AssessmentExecution, GlobalConformanceClosure, ScopeState};
-use crate::digest::jcs::{canonicalize, ResultDigest};
+use crate::digest::jcs::{canonical_len, canonicalize, encoded_string_content_len, ResultDigest};
 use crate::repro::ReproductionRecord;
 use crate::ByteDigest;
 
-use super::{global, lineage, ErrorCode, Refusal, Result};
+use super::{global, lineage, reader::StructuralUsage, ErrorCode, Refusal, Result};
 
 pub(crate) const ITEM_SOURCE: SourceSite = SourceSite::new(
     SiteId::new("result/item/retain"),
@@ -851,9 +851,9 @@ pub(crate) fn produce(input: Input<'_>, limits: Limits) -> Result<Document> {
 
 /// Produce one canonical result under the shared QProtocol caller budget.
 ///
-/// Canonical bytes are produced once, then their exact structural usage is
-/// charged against both owner and caller ceilings before the document is
-/// retained.
+/// Exact string, depth, field and canonical-byte requirements are computed
+/// without retaining the output, then charged against both owner and caller
+/// ceilings before the governed snapshot and canonical bytes are allocated.
 pub(crate) fn produce_bounded(
     input: Input<'_>,
     limits: Limits,
@@ -872,7 +872,11 @@ fn produce_bounded_unit(
 ) -> OperationOutcome<Document, Refusal> {
     let effective = limits.effective();
     let semantic = semantic_usage(&input);
-    let reproduction_string = largest_reproduction_string(&input).unwrap_or(usize::MAX);
+    let structural = output_structural_usage(&input).unwrap_or(StructuralUsage {
+        fields: usize::MAX,
+        depth: usize::MAX,
+        string_bytes: usize::MAX,
+    });
     let charges = [
         (ALLOCATION_SOURCE.id(), 1, None),
         (
@@ -900,60 +904,48 @@ fn produce_bounded_unit(
             semantic.lineage_nodes,
             Some(effective.max_lineage_nodes),
         ),
-        (
-            STRING_SOURCE.id(),
-            reproduction_string,
-            Some(effective.max_string_bytes),
-        ),
     ];
     if let Err(error) = resources.charge_all_mixed(&charges) {
         return OperationOutcome::from_charge(error);
+    }
+    for (site, requested, limit) in [
+        (
+            STRING_SOURCE.id(),
+            structural.string_bytes,
+            effective.max_string_bytes,
+        ),
+        (DEPTH_SOURCE.id(), structural.depth, effective.max_depth),
+        (
+            OPERATION_SOURCE.id(),
+            structural.fields,
+            effective.max_visited_fields,
+        ),
+    ] {
+        if let Err(error) = resources.charge_with_limit(site, requested, limit) {
+            return OperationOutcome::from_charge(error);
+        }
     }
     let prepared = match prepare(input, effective) {
         Ok(prepared) => prepared,
         Err(error) => return OperationOutcome::DomainError(error),
     };
-    let canonical = match canonicalize(&prepared.value) {
-        Ok(canonical) => canonical,
+    let required = match canonical_len(&prepared.value) {
+        Ok(required) => required,
         Err(_) => {
             return OperationOutcome::DomainError(refusal(
                 ErrorCode::InvalidSelection,
-                "result cannot produce its canonical output",
+                "result cannot determine its canonical output length",
                 Usage::default(),
                 Some(&prepared.result_id),
             ));
         }
     };
-    if let Err(error) = resources.charge_with_limit(
-        OUTPUT_SOURCE.id(),
-        canonical.len(),
-        effective.max_output_bytes,
-    ) {
+    if let Err(error) =
+        resources.charge_with_limit(OUTPUT_SOURCE.id(), required, effective.max_output_bytes)
+    {
         return OperationOutcome::from_charge(error);
     }
-    let structural = super::reader::structural_usage(canonical.as_bytes());
-    let additional_string = structural.string_bytes.saturating_sub(reproduction_string);
-    let structural_charges = [
-        (
-            STRING_SOURCE.id(),
-            additional_string,
-            Some(effective.max_string_bytes),
-        ),
-        (
-            DEPTH_SOURCE.id(),
-            structural.depth,
-            Some(effective.max_depth),
-        ),
-        (
-            OPERATION_SOURCE.id(),
-            structural.fields,
-            Some(effective.max_visited_fields),
-        ),
-    ];
-    if let Err(error) = resources.charge_all_mixed(&structural_charges) {
-        return OperationOutcome::from_charge(error);
-    }
-    OperationOutcome::from_domain(finish_canonical(prepared, canonical, effective))
+    OperationOutcome::from_domain(finish(prepared, effective))
 }
 
 fn prepare(input: Input<'_>, effective: Limits) -> Result<Prepared> {
@@ -1038,8 +1030,222 @@ fn largest_reproduction_string(input: &Input<'_>) -> Option<usize> {
                     .len()
                     .checked_mul(2)?,
             )
-            .max(provenance.reproduction.seed().to_string().len()),
+            .max(decimal_len(provenance.reproduction.seed().value())),
     )
+}
+
+fn decimal_len(mut value: u64) -> usize {
+    let mut digits = 1;
+    while value >= 10 {
+        value /= 10;
+        digits += 1;
+    }
+    digits
+}
+
+fn output_structural_usage(input: &Input<'_>) -> Option<StructuralUsage> {
+    fn add(total: &mut usize, value: usize) -> Option<()> {
+        *total = total.checked_add(value)?;
+        Some(())
+    }
+
+    fn add_records(total: &mut usize, count: usize, width: usize) -> Option<()> {
+        add(total, count.checked_mul(width)?)
+    }
+
+    // The final result always contains 24 root members, four ten-member axis
+    // records, the four-member claim, the eight-member completeness record,
+    // the two-member global record, the thirteen provenance/reproduction
+    // members and the three-member settlement record.
+    let mut fields = 24usize;
+    add_records(&mut fields, input.assumptions.len(), 3)?;
+    add(&mut fields, 4 + 8)?;
+    add(&mut fields, input.completeness.payload().facts().count())?;
+    if input.correction.is_some() {
+        add(&mut fields, 5)?;
+    }
+    add(&mut fields, 40)?;
+    for support in &input.decision_support {
+        add(
+            &mut fields,
+            if support.predecessor.is_some() { 8 } else { 6 },
+        )?;
+    }
+    add(&mut fields, 2)?;
+    add_records(&mut fields, input.global_conformance.premises.len(), 5)?;
+    add_records(&mut fields, input.limitations.len(), 3)?;
+    match &input.participation {
+        Participation::Known {
+            required_role_instance_refs,
+            participating_role_instance_refs,
+        } => {
+            add(
+                &mut fields,
+                3usize
+                    .checked_add(required_role_instance_refs.len())?
+                    .checked_add(participating_role_instance_refs.len())?,
+            )?;
+        }
+        Participation::Unknown {
+            participating_role_instance_refs,
+            missing_dependency_refs,
+            reasons,
+        } => {
+            add(
+                &mut fields,
+                4usize
+                    .checked_add(participating_role_instance_refs.len())?
+                    .checked_add(missing_dependency_refs.len())?
+                    .checked_add(reasons.len())?,
+            )?;
+        }
+    }
+    add(&mut fields, 13 + 3)?;
+    add(
+        &mut fields,
+        input
+            .settlement
+            .supporting_fact_identities
+            .len()
+            .checked_add(input.settlement.supporting_progress_identities.len())?,
+    )?;
+
+    let depth = if !input.global_conformance.premises.is_empty()
+        || input
+            .decision_support
+            .iter()
+            .any(|support| support.predecessor.is_some())
+    {
+        4
+    } else {
+        3
+    };
+
+    // The derived result identity (`sha256-jcs:` plus 64 hex digits) is the
+    // largest fixed string. Every variable string is measured using the same
+    // escaping rules as canonical JCS before any of it is cloned into the
+    // retained snapshot.
+    let mut string_bytes = 75usize.max(largest_reproduction_string(input)?);
+    let mut observe = |value: &str| -> Option<()> {
+        string_bytes = string_bytes.max(encoded_string_content_len(value).ok()?);
+        Some(())
+    };
+    observe(input.checked_predicate.document().identity())?;
+    observe(input.temporal_subject.document().identity())?;
+    for assumption in &input.assumptions {
+        observe(&assumption.identity)?;
+    }
+    if let Some(identity) = input.claim.admitted_fragment_identity.as_deref() {
+        observe(identity)?;
+    }
+    if let Some(identity) = input.claim.backend_identity.as_deref() {
+        observe(identity)?;
+    }
+    for view in [
+        input.axes.decision_scope_progress,
+        input.axes.surrounding_execution_progress,
+    ] {
+        observe(view.identity().as_str())?;
+        observe(view.authority().definition_identity.as_str())?;
+        observe(view.authority().definition_revision.as_str())?;
+        observe(view.subject().scope_identity.as_str())?;
+        observe(view.subject().population_identity.as_str())?;
+    }
+    for view in [
+        input.axes.decision_scope_closure,
+        input.axes.surrounding_execution_closure,
+    ] {
+        observe(view.identity().as_str())?;
+        observe(view.authority().definition_identity.as_str())?;
+        observe(view.authority().definition_revision.as_str())?;
+        observe(view.subject().scope_identity.as_str())?;
+        observe(view.subject().population_identity.as_str())?;
+    }
+    observe(input.completeness.identity().as_str())?;
+    observe(input.completeness.payload().population_identity())?;
+    observe(input.completeness.payload().boundary_identity())?;
+    for fact in input.completeness.payload().facts() {
+        observe(fact.observation_identity.unwrap_or(fact.member_identity))?;
+    }
+    for support in &input.decision_support {
+        observe(&support.oracle_identity)?;
+        observe(&support.observation_identity)?;
+        if let Some(predecessor) = &support.predecessor {
+            observe(&predecessor.oracle_identity)?;
+            observe(&predecessor.observation_identity)?;
+        }
+        if let Some(group) = support.dependence_group.as_deref() {
+            observe(group)?;
+        }
+    }
+    for premise in &input.global_conformance.premises {
+        observe(&premise.identity)?;
+        observe(&premise.scope_identity)?;
+        observe(&premise.authority_identity)?;
+    }
+    for limitation in &input.limitations {
+        observe(&limitation.code)?;
+        observe(&limitation.affected_identity)?;
+    }
+    match &input.participation {
+        Participation::Known {
+            required_role_instance_refs,
+            participating_role_instance_refs,
+        } => {
+            for value in required_role_instance_refs
+                .iter()
+                .chain(participating_role_instance_refs)
+            {
+                observe(value)?;
+            }
+        }
+        Participation::Unknown {
+            participating_role_instance_refs,
+            missing_dependency_refs,
+            reasons,
+        } => {
+            for value in participating_role_instance_refs
+                .iter()
+                .chain(missing_dependency_refs)
+                .chain(reasons)
+            {
+                observe(value)?;
+            }
+        }
+    }
+    for value in [
+        input.provenance.source_identity.as_str(),
+        input.provenance.profile_identity.as_str(),
+        input.provenance.model_identity.as_str(),
+        input.provenance.protocol_identity.as_str(),
+        input.provenance.request_identity.as_str(),
+        input.provenance.binding_identity.as_str(),
+        input.provenance.input_identity.as_str(),
+        input.provenance.backend_identity.as_str(),
+        input.provenance.producer_identity.as_str(),
+    ] {
+        observe(value)?;
+    }
+    for value in input
+        .settlement
+        .supporting_fact_identities
+        .iter()
+        .chain(&input.settlement.supporting_progress_identities)
+    {
+        observe(value)?;
+    }
+    if let Some(correction) = input.correction {
+        observe(correction.predecessor.result_id())?;
+        observe(correction.predecessor.digest())?;
+        observe(correction.contradicted_premise_identity)?;
+        observe(correction.corrected_input_identity)?;
+    }
+
+    Some(StructuralUsage {
+        fields,
+        depth,
+        string_bytes,
+    })
 }
 
 fn validate_input(input: &Input<'_>, limits: Limits) -> Result<()> {
