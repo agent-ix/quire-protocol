@@ -41,7 +41,11 @@ uses to validate FR-300 bindings. Protocol invokes no temporal
 evaluator and does not consume a QCI join result; QCI consumes Protocol's result
 map downstream.
 
-The consumer is the protocol evaluator and canonical result producer.
+The consumer is the protocol evaluator and canonical result producer. Its
+closed interface inventory contains the fifteen QObs entries below, four QSL
+native-temporal request/result entries, the consumed compiled-protocol `/2`
+interface, and the strict activation-mapping `/3` interface: twenty-one entries
+selected independently by the integration test.
 
 ### Owner boundaries
 

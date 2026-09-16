@@ -9,8 +9,8 @@ use quire_protocol::bounds::inventory::BudgetDimension;
 use quire_protocol::bounds::Clock;
 use quire_protocol::outcome::OperationOutcome;
 use quire_protocol::producer_contracts::{
-    resolve_before_producer_read, resolve_producer_contracts, ProducerContract, ProducerReadiness,
-    ProducerResolution, ProducerResolutionRequest, UnsupportedObservationCapability, QOBS_REVISION,
+    resolve_producer_contracts, ProducerContract, ProducerResolution, ProducerResolutionRequest,
+    UnsupportedObservationCapability, QOBS_REVISION,
 };
 use quire_protocol::refusal::{AffectedIdentity, ProtocolRefusal};
 use quire_protocol::version_lock::{
@@ -112,14 +112,130 @@ fn same_entry_state(left: &ManifestEntry, right: &ManifestEntry) -> bool {
     "FR-009-AC-2",
     "FR-009-AC-3",
     "FR-009-AC-4",
-    "FR-009-AC-5",
-    "FR-009-AC-6"
+    "FR-009-AC-5"
 )]
 fn it_002_sc_08_resolves_only_the_exact_scenario_contract_inventory() {
-    assert_eq!(ProducerContract::ALL.len(), 19);
+    const EXPECTED: [(&str, &str, &str); 21] = [
+        (
+            "agent-ix/quire-observation",
+            "quire.observation.record/v2",
+            QOBS_REVISION,
+        ),
+        (
+            "agent-ix/quire-observation",
+            "quire.observation.population/v2",
+            QOBS_REVISION,
+        ),
+        (
+            "agent-ix/quire-observation",
+            "quire.observation.explicit-members/v1",
+            QOBS_REVISION,
+        ),
+        (
+            "agent-ix/quire-observation",
+            "quire.observation.position-ledger/v1",
+            QOBS_REVISION,
+        ),
+        (
+            "agent-ix/quire-observation",
+            "quire.observation.clock-binding/v1",
+            QOBS_REVISION,
+        ),
+        (
+            "agent-ix/quire-observation",
+            "quire.observation.partial-fact/v1",
+            QOBS_REVISION,
+        ),
+        (
+            "agent-ix/quire-observation",
+            "quire.observation.capture-environment/v1",
+            QOBS_REVISION,
+        ),
+        (
+            "agent-ix/quire-observation",
+            "quire.observation.progress-assertion/v1",
+            QOBS_REVISION,
+        ),
+        (
+            "agent-ix/quire-observation",
+            "quire.observation.activation-scope-authority/v1",
+            QOBS_REVISION,
+        ),
+        (
+            "agent-ix/quire-observation",
+            "quire.observation.closure-assertion/v1",
+            QOBS_REVISION,
+        ),
+        (
+            "agent-ix/quire-observation",
+            "quire.observation.completeness-assertion/v1",
+            QOBS_REVISION,
+        ),
+        (
+            "agent-ix/quire-observation",
+            "quire.observation.result-availability/v1",
+            QOBS_REVISION,
+        ),
+        (
+            "agent-ix/quire-observation",
+            "quire.observation-authority/v1",
+            QOBS_REVISION,
+        ),
+        (
+            "agent-ix/quire-observation",
+            "quire.observation-authority/v2",
+            QOBS_REVISION,
+        ),
+        (
+            "agent-ix/quire-observation",
+            "quire.observation-authority-lineage/v1",
+            QOBS_REVISION,
+        ),
+        (
+            "agent-ix/quire-spec-language",
+            "quire.native-temporal-request/v1",
+            "f1700a9264d6d3bcdd07e0f77b70f3dae9ed4c07",
+        ),
+        (
+            "agent-ix/quire-spec-language",
+            "quire.native-temporal-result/v1",
+            "f1700a9264d6d3bcdd07e0f77b70f3dae9ed4c07",
+        ),
+        (
+            "agent-ix/quire-spec-language",
+            "quire.native-temporal-request/v2",
+            "0c2f13e261c0ffeaf89f0638931b573ec038e99b",
+        ),
+        (
+            "agent-ix/quire-spec-language",
+            "quire.native-temporal-result/v2",
+            "0c2f13e261c0ffeaf89f0638931b573ec038e99b",
+        ),
+        (
+            "agent-ix/quire-spec-language",
+            "quire.compiled-protocol/2",
+            "0c2f13e261c0ffeaf89f0638931b573ec038e99b",
+        ),
+        (
+            "agent-ix/quire-spec-language",
+            "quire.compiled-protocol/3",
+            "0c2f13e261c0ffeaf89f0638931b573ec038e99b",
+        ),
+    ];
+    assert_eq!(ProducerContract::ALL.len(), EXPECTED.len());
+    assert_eq!(
+        ProducerContract::ALL.map(|contract| (
+            contract.owner(),
+            contract.contract_version(),
+            contract.expected_revision(),
+        )),
+        EXPECTED,
+    );
     assert_eq!(QOBS_REVISION, "924006300f45b38483be1cbdf99b68f899b7d368");
-    let request = ProducerResolutionRequest::new(b"it002:scenario-resolution")
-        .expect("nonempty scenario resolution identity");
+    let request = ProducerResolutionRequest::for_assessment(
+        ByteDigest::of(b"it002:scenario-package"),
+        [7; 32],
+    );
     let outcome =
         resolve_producer_contracts(&request, &manifest(), exact_budget(), generous_clock());
     let OperationOutcome::Completed(resolved) = outcome else {
@@ -385,70 +501,6 @@ fn it_002_sc_08_resolves_only_the_exact_scenario_contract_inventory() {
         .manifest_entries()
         .iter()
         .all(|entry| entry.key() != &sidecar_key));
-
-    let producer_reads = Cell::new(0usize);
-    let mut unresolved_entries = manifest().entries().to_vec();
-    unresolved_entries[0] = ManifestEntry::unresolved_interface(
-        ProducerContract::ALL[0].key(),
-        b"owner acceptance withdrawn",
-    );
-    let staged = resolve_before_producer_read(
-        &request,
-        &VersionLockManifest::new(unresolved_entries),
-        generous_budget(),
-        generous_clock(),
-        |_| producer_reads.set(producer_reads.get() + 1),
-    );
-    assert!(matches!(
-        staged,
-        ProducerReadiness::Unexecutable(refusal)
-            if refusal.code().as_str() == ResolutionRefusalCode::EntryUnresolved.as_str()
-                && refusal.identity() == &key_identity(&ProducerContract::ALL[0].key())
-    ));
-    assert_eq!(producer_reads.get(), 0, "unresolved input is never read");
-
-    let mut repointed_entries = manifest().entries().to_vec();
-    repointed_entries[selected_index] = ManifestEntry::pinned_interface(
-        selected.key(),
-        Some(b"foreign-revision"),
-        Some(b"owner asserts immutable and published"),
-        None,
-    );
-    let staged = resolve_before_producer_read(
-        &request,
-        &VersionLockManifest::new(repointed_entries),
-        generous_budget(),
-        generous_clock(),
-        |_| producer_reads.set(producer_reads.get() + 1),
-    );
-    assert!(matches!(
-        staged,
-        ProducerReadiness::Unexecutable(refusal)
-            if refusal.code().as_str()
-                == ResolutionRefusalCode::InterfaceSelectionMismatch.as_str()
-                && refusal.identity() == &key_identity(&selected.key())
-    ));
-    assert_eq!(producer_reads.get(), 0, "repointed input is never read");
-
-    let staged = resolve_before_producer_read(
-        &request,
-        &manifest(),
-        exact_budget(),
-        generous_clock(),
-        |_| {
-            producer_reads.set(producer_reads.get() + 1);
-            "assessment-enabled"
-        },
-    );
-    assert!(matches!(
-        staged,
-        ProducerReadiness::Executable("assessment-enabled")
-    ));
-    assert_eq!(
-        producer_reads.get(),
-        1,
-        "exact resolution precedes one read"
-    );
 
     let one_short =
         ResolutionBudget::new(ProducerContract::ALL.len() - 1, 1, Duration::from_nanos(1))

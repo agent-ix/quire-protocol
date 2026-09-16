@@ -4,7 +4,10 @@
 use agent_ix_baseline_producer::StaticProducerBundle;
 use ix_trace_rs::trace;
 use quire_observation::{QualifiedSubject, SubjectIdentity, SubjectKind};
-use quire_protocol::assessment::Engine;
+use quire_protocol::assessment::{
+    start_assessment_after_resolving, AssessmentInputs, ResolvedAssessmentEngine,
+};
+use quire_protocol::bounds::SystemMonotonicClock;
 use quire_protocol::claims::Claim;
 use quire_protocol::compensation::algebra::{AttemptOutcome, EffectDisposition, OrderingViolation};
 use quire_protocol::compensation::graph::{MissingEvidence, Outcome, Refusal, Transition};
@@ -14,10 +17,15 @@ use quire_protocol::model::v2::{
     RUNTIME_BINDING_CONTRACT, STATIC_BINDING_CONTRACT,
 };
 use quire_protocol::outcome::OperationOutcome;
+use quire_protocol::producer_contracts::{
+    ProducerContract, ProducerReadiness, ProducerResolutionRequest,
+};
+use quire_protocol::version_lock::{ResolutionBudget, VersionLockManifest};
 use quire_protocol::wire::{BindingKind, Body, ControlOperation};
 use quire_spec_language::state::{
     EvaluationOutcome, Limits as StateLimits, StateView, ValueKind as StateValueKind,
 };
+use std::time::Duration;
 
 // The complete owner handoff fixture is intentionally broader than this
 // scenario-specific target; the harness retains its internal fixture helpers.
@@ -217,10 +225,32 @@ fn fixture_with_options(
     }
 }
 
-fn engine(fixture: &Fixture) -> Engine<'_> {
-    let context = LinkedAssessment::new(&fixture.package, &fixture.definition, &fixture.runtime)
-        .expect("linked assessment");
-    let OperationOutcome::Completed(engine) = Engine::start(context, vec![Claim::Conformance])
+fn engine(fixture: &Fixture) -> ResolvedAssessmentEngine<'_> {
+    let request = ProducerResolutionRequest::for_assessment(
+        fixture.package.digest(),
+        fixture.definition.selection().digest,
+    );
+    let manifest = VersionLockManifest::new(
+        ProducerContract::ALL
+            .iter()
+            .copied()
+            .map(ProducerContract::manifest_entry)
+            .collect(),
+    );
+    let budget = ResolutionBudget::new(ProducerContract::ALL.len(), 1, Duration::from_secs(1))
+        .expect("exact producer budget");
+    let ProducerReadiness::Executable(OperationOutcome::Completed(engine)) =
+        start_assessment_after_resolving(&request, &manifest, budget, SystemMonotonicClock, || {
+            AssessmentInputs {
+                context: LinkedAssessment::new(
+                    &fixture.package,
+                    &fixture.definition,
+                    &fixture.runtime,
+                )
+                .expect("linked assessment"),
+                requested: vec![Claim::Conformance],
+            }
+        })
     else {
         panic!("request-scoped engine must start")
     };

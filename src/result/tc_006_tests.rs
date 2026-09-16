@@ -13,7 +13,11 @@ use quire_observation::{
     ResourceLimits, ScopeKind, ScopeSelection, SubjectIdentity, SubjectKind, ValueState,
     Visibility, NATIVE_LINKED_PACKAGE_FORMAT,
 };
-use quire_protocol::assessment::{CanonicalRowControls, Engine};
+use quire_protocol::assessment::{
+    start_activated_after_resolving, start_result_assessment_after_resolving,
+    ActivatedAssessmentInputs, CanonicalRowControls, Engine, ResolvedAssessmentEngine,
+    ResultAssessmentInputs,
+};
 use quire_protocol::bounds::inventory::{
     production_inventory, Budget, BudgetDimension, OperationOutcome, ResourceAccountant,
 };
@@ -29,7 +33,7 @@ use quire_protocol::model::v2::{
     RUNTIME_BINDING_CONTRACT, STATIC_BINDING_CONTRACT,
 };
 use quire_protocol::producer_contracts::{
-    resolve_producer_contracts, ProducerContract, ProducerResolution, ProducerResolutionRequest,
+    ProducerContract, ProducerReadiness, ProducerResolutionRequest,
 };
 use quire_protocol::projection::{
     resolve_e02_contract, DecisionSupportBinding, E02Contract, E02Resolution,
@@ -72,25 +76,105 @@ mod observation_owner;
 
 const ORDER_KIND: &str = "ix://agent-ix/commerce/type/Order";
 
-fn producer_resolution(identity: &[u8]) -> ProducerResolution {
-    let request = ProducerResolutionRequest::new(identity)
-        .expect("the test assessment resolution identity is nonempty");
-    let manifest = VersionLockManifest::new(
+fn producer_manifest() -> VersionLockManifest {
+    VersionLockManifest::new(
         ProducerContract::ALL
             .iter()
             .copied()
             .map(ProducerContract::manifest_entry)
             .collect(),
+    )
+}
+
+fn producer_budget() -> ResolutionBudget {
+    ResolutionBudget::new(ProducerContract::ALL.len(), 1, Duration::from_secs(1))
+        .expect("the exact producer-resolution budget is valid")
+}
+
+#[allow(
+    clippy::too_many_arguments,
+    reason = "test helper mirrors the owner seams"
+)]
+fn start_activated<'a>(
+    context: LinkedAssessment<'a>,
+    requested: Vec<DispatchClaim>,
+    mappings: &'a v3::AdmittedPackage,
+    subject: &'a QualifiedSubject,
+    temporal_subject: &'a temporal_subject::ValidatedTemporalSubject,
+    request: &'a temporal_v2::ValidatedRequest,
+    result: &'a temporal_v2::ValidatedResult,
+) -> quire_protocol::outcome::OperationOutcome<ResolvedAssessmentEngine<'a>> {
+    let resolution_request = ProducerResolutionRequest::for_temporal_assessment(
+        context.package().digest(),
+        context.definition().selection().digest,
+        request.document().digest(),
     );
-    let budget = ResolutionBudget::new(ProducerContract::ALL.len(), 1, Duration::from_secs(1))
-        .expect("the exact producer-resolution budget is valid");
-    match resolve_producer_contracts(&request, &manifest, budget, SystemMonotonicClock) {
-        quire_protocol::outcome::OperationOutcome::Completed(resolution) => resolution,
-        quire_protocol::outcome::OperationOutcome::Refused(refusal) => {
-            panic!("exact producer manifest must resolve: {}", refusal.code())
+    match start_activated_after_resolving(
+        &resolution_request,
+        &producer_manifest(),
+        producer_budget(),
+        SystemMonotonicClock,
+        || ActivatedAssessmentInputs {
+            context,
+            requested,
+            mappings,
+            subject,
+            temporal_subject,
+            request,
+            result,
+        },
+    ) {
+        ProducerReadiness::Executable(outcome) => outcome,
+        ProducerReadiness::Unexecutable(refusal) => {
+            quire_protocol::outcome::OperationOutcome::Refused(refusal)
         }
-        quire_protocol::outcome::OperationOutcome::ResourceIncomplete(incomplete) => {
-            panic!("exact producer manifest must fit: {incomplete:?}")
+        ProducerReadiness::ResourceIncomplete(incomplete) => {
+            quire_protocol::outcome::OperationOutcome::ResourceIncomplete(incomplete)
+        }
+    }
+}
+
+#[allow(
+    clippy::too_many_arguments,
+    reason = "test helper mirrors the owner seams"
+)]
+fn start_result_assessment<'a>(
+    context: LinkedAssessment<'a>,
+    requested: Vec<DispatchClaim>,
+    mappings: &'a v3::AdmittedPackage,
+    subject: &'a QualifiedSubject,
+    request: &'a temporal_v2::ValidatedRequest,
+    result: &'a temporal_v2::ValidatedResult,
+    checked_predicate: &'a checked_predicate::ValidatedCheckedPredicate,
+    temporal_subject: &'a temporal_subject::ValidatedTemporalSubject,
+) -> quire_protocol::outcome::OperationOutcome<ResolvedAssessmentEngine<'a>> {
+    let resolution_request = ProducerResolutionRequest::for_temporal_assessment(
+        context.package().digest(),
+        context.definition().selection().digest,
+        request.document().digest(),
+    );
+    match start_result_assessment_after_resolving(
+        &resolution_request,
+        &producer_manifest(),
+        producer_budget(),
+        SystemMonotonicClock,
+        || ResultAssessmentInputs {
+            context,
+            requested,
+            mappings,
+            subject,
+            request,
+            result,
+            checked_predicate,
+            temporal_subject,
+        },
+    ) {
+        ProducerReadiness::Executable(outcome) => outcome,
+        ProducerReadiness::Unexecutable(refusal) => {
+            quire_protocol::outcome::OperationOutcome::Refused(refusal)
+        }
+        ProducerReadiness::ResourceIncomplete(incomplete) => {
+            quire_protocol::outcome::OperationOutcome::ResourceIncomplete(incomplete)
         }
     }
 }
@@ -1015,22 +1099,24 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
     let temporal_request =
         activated_request(&package, &fixture.temporal, subject.identity().as_bytes());
     let temporal_result = activated_result(&temporal_request);
-    let quire_protocol::outcome::OperationOutcome::Completed(engine) =
-        producer_resolution(b"tc006:activated-engine").start_activated(
-            context,
-            requested.to_vec(),
-            &mapping,
-            &subject,
-            &fixture.temporal,
-            &temporal_request,
-            &temporal_result,
-        )
-    else {
+    let quire_protocol::outcome::OperationOutcome::Completed(engine) = start_activated(
+        context,
+        requested.to_vec(),
+        &mapping,
+        &subject,
+        &fixture.temporal,
+        &temporal_request,
+        &temporal_result,
+    ) else {
         panic!("linked assessment starts one activation-bound engine")
     };
     assert_eq!(
-        engine.producer_resolution().request().as_bytes(),
-        b"tc006:activated-engine",
+        engine.producer_resolution().request(),
+        &ProducerResolutionRequest::for_temporal_assessment(
+            package.digest(),
+            definition.selection().digest,
+            temporal_request.document().digest(),
+        ),
     );
     let (foreign_declaration, foreign_root) = first_checked_leaf(&package);
     assert!(!fixture
@@ -1056,7 +1142,7 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
     .into_result()
     .expect("same-package foreign checked predicate strict-reads");
     assert!(matches!(
-        producer_resolution(b"tc006:foreign-result-engine").start_result_assessment(
+        start_result_assessment(
             context,
             requested.to_vec(),
             &mapping,
@@ -1226,7 +1312,7 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
         .conformance()
         .activation_fact(foreign_activated, None);
     let quire_protocol::outcome::OperationOutcome::Completed(fact_bound_engine) =
-        producer_resolution(b"tc006:result-engine").start_result_assessment(
+        start_result_assessment(
             context,
             requested.to_vec(),
             &mapping,
@@ -1303,17 +1389,16 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
         quire_protocol::outcome::OperationOutcome::ResourceIncomplete(incomplete)
             if incomplete.dimension() == BudgetDimension::InputByte
     ));
-    let short_result_engine = match producer_resolution(b"tc006:short-output-assessment")
-        .start_result_assessment(
-            context,
-            requested.to_vec(),
-            &mapping,
-            &subject,
-            &temporal_request,
-            &temporal_result,
-            &fixture.predicate,
-            &fixture.temporal,
-        ) {
+    let short_result_engine = match start_result_assessment(
+        context,
+        requested.to_vec(),
+        &mapping,
+        &subject,
+        &temporal_request,
+        &temporal_result,
+        &fixture.predicate,
+        &fixture.temporal,
+    ) {
         quire_protocol::outcome::OperationOutcome::Completed(engine) => engine,
         quire_protocol::outcome::OperationOutcome::Refused(refusal) => {
             panic!("strict owner views refused: {}", refusal.code().as_str())
@@ -1349,7 +1434,7 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
         "expected output exhaustion"
     );
     let quire_protocol::outcome::OperationOutcome::Completed(cumulative_engine) =
-        producer_resolution(b"tc006:cumulative-assessment").start_result_assessment(
+        start_result_assessment(
             context,
             requested.to_vec(),
             &mapping,
@@ -1387,7 +1472,7 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
                 && incomplete.requested() == 1
     ));
     let quire_protocol::outcome::OperationOutcome::Completed(owner_limited_engine) =
-        producer_resolution(b"tc006:owner-limited-assessment").start_result_assessment(
+        start_result_assessment(
             context,
             requested.to_vec(),
             &mapping,
@@ -1420,7 +1505,7 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
                 && incomplete.site().as_str() == "result/output/string/retain"
     ));
     let quire_protocol::outcome::OperationOutcome::Completed(result_engine) =
-        producer_resolution(b"tc006:completed-assessment").start_result_assessment(
+        start_result_assessment(
             context,
             requested.to_vec(),
             &mapping,

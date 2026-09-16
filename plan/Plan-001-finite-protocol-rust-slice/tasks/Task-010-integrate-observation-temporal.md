@@ -52,8 +52,9 @@ before it derives any event-triggered FR-300 obligation binding.
 - QCI's accepted FR-025 bridge consumes Protocol leaf-result views downstream
   to construct valuations; QCI #71 then joins QSL-native and TL formula-wide
   owner results. Neither QCI output is a Protocol production dependency.
-- The remaining production prerequisite is Task-006, not an F-owned result mapper
-  or PT02 producer.
+- Task-006's still-open authenticated support and correction capabilities are
+  wider plan work. They do not invalidate this task's delivered SC-01 through
+  SC-04 paths and are not silently credited here.
 - `tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context` and
   `tc_006_engine_constructs_and_strict_reads_canonical_rows` are the paired
   Rust IT-002 harness. They retain QObs/QSL owner values through FR-300,

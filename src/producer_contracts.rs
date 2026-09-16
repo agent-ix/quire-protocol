@@ -13,7 +13,11 @@ use quire_observation::authority::{
     activation, availability, bundle, capture, clock, closure, completeness, observation, partial,
     population, position, progress,
 };
-use quire_spec_language::protocol_artifact::native_temporal::{request, result, v2};
+use quire_spec_language::protocol_artifact::{
+    native_temporal::{request, result, v2 as temporal_v2},
+    v2 as artifact_v2, v3 as artifact_v3,
+};
+use quire_spec_language::ByteDigest;
 
 use crate::bounds::inventory::ResourceIncomplete;
 use crate::bounds::inventory::Usage;
@@ -21,8 +25,8 @@ use crate::bounds::Clock;
 use crate::outcome::OperationOutcome;
 use crate::refusal::ProtocolRefusal;
 use crate::version_lock::{
-    self, EntryKey, InterfaceSelection, ManifestEntry, ResolutionBudget, ResolutionRequestIdentity,
-    VersionLockManifest,
+    self, EntryKey, InterfaceRequirement, ManifestEntry, ResolutionBudget,
+    ResolutionRequestIdentity, VersionLockManifest,
 };
 
 /// Accepted QObs revision that supplies every observation contract below.
@@ -246,14 +250,28 @@ define_producer_contracts! {
     /// Opaque-trigger native-temporal request consumed by Protocol.
     NativeTemporalRequestV2 {
         owner: QSL_OWNER,
-        contract: v2::REQUEST_CONTRACT,
+        contract: temporal_v2::REQUEST_CONTRACT,
         revision: QSL_OPAQUE_TRIGGER_REVISION,
         schema: None,
     },
     /// Opaque-trigger native-temporal result consumed by Protocol.
     NativeTemporalResultV2 {
         owner: QSL_OWNER,
-        contract: v2::RESULT_CONTRACT,
+        contract: temporal_v2::RESULT_CONTRACT,
+        revision: QSL_OPAQUE_TRIGGER_REVISION,
+        schema: None,
+    },
+    /// Strict compiled-protocol v2 package consumed by the linked assessment.
+    CompiledProtocolV2 {
+        owner: QSL_OWNER,
+        contract: artifact_v2::WIRE,
+        revision: QSL_OPAQUE_TRIGGER_REVISION,
+        schema: None,
+    },
+    /// Strict compiled-protocol v3 activation mapping consumed by FR-300.
+    ActivationMappingV3 {
+        owner: QSL_OWNER,
+        contract: artifact_v3::WIRE,
         revision: QSL_OPAQUE_TRIGGER_REVISION,
         schema: None,
     },
@@ -295,22 +313,48 @@ impl UnsupportedObservationCapability {
     pub const ALL: [Self; 2] = [Self::Repair, Self::AggregateQuery];
 }
 
-/// A nonempty assessment-resolution identity.
+/// A fixed-size, independently selected assessment-resolution identity.
+///
+/// The identity binds a resolution to the selected compiled package and static
+/// binding artifact and, for temporal assessments, to one exact QSL request
+/// document. Callers cannot supply arbitrary or unbounded identity bytes.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct ProducerResolutionRequest(Box<[u8]>);
 
 impl ProducerResolutionRequest {
-    /// Retain an exact nonempty componentwise assessment identity.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`EmptyProducerResolutionRequest`] when `identity` is empty.
-    pub fn new(identity: &[u8]) -> Result<Self, EmptyProducerResolutionRequest> {
-        if identity.is_empty() {
-            Err(EmptyProducerResolutionRequest)
-        } else {
-            Ok(Self(identity.into()))
+    /// Select one non-temporal assessment request from fixed-size owner
+    /// digests known before producer values are loaded.
+    #[must_use]
+    pub fn for_assessment(package: ByteDigest, static_binding: [u8; 32]) -> Self {
+        Self::encode(package, static_binding, None)
+    }
+
+    /// Select one temporal assessment request from fixed-size owner digests
+    /// known before producer values are loaded.
+    #[must_use]
+    pub fn for_temporal_assessment(
+        package: ByteDigest,
+        static_binding: [u8; 32],
+        temporal_request: ByteDigest,
+    ) -> Self {
+        Self::encode(package, static_binding, Some(temporal_request))
+    }
+
+    fn encode(
+        package: ByteDigest,
+        static_binding: [u8; 32],
+        temporal_request: Option<ByteDigest>,
+    ) -> Self {
+        let package = format!("{package:x}");
+        let temporal = temporal_request.map(|digest| format!("{digest:x}"));
+        let mut identity = Vec::with_capacity(1 + 64 + 32 + 64);
+        identity.push(u8::from(temporal.is_some()));
+        identity.extend_from_slice(package.as_bytes());
+        identity.extend_from_slice(&static_binding);
+        if let Some(temporal) = temporal {
+            identity.extend_from_slice(temporal.as_bytes());
         }
+        Self(identity.into())
     }
 
     /// Exact retained identity bytes.
@@ -320,23 +364,11 @@ impl ProducerResolutionRequest {
     }
 }
 
-/// An assessment-resolution identity was empty.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct EmptyProducerResolutionRequest;
-
-impl fmt::Display for EmptyProducerResolutionRequest {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str("producer resolution request identity must not be empty")
-    }
-}
-
-impl std::error::Error for EmptyProducerResolutionRequest {}
-
 /// One exact contract retained by a completed producer resolution.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ResolvedProducerContract {
     contract: ProducerContract,
-    revision: Box<[u8]>,
+    revision: &'static [u8],
 }
 
 impl ResolvedProducerContract {
@@ -349,16 +381,15 @@ impl ResolvedProducerContract {
     /// Exact accepted revision bytes.
     #[must_use]
     pub fn revision(&self) -> &[u8] {
-        &self.revision
+        self.revision
     }
 }
 
 /// Immutable request-bound resolution evidence for the complete IT-002 producer set.
 pub struct ProducerResolution {
     request: ProducerResolutionRequest,
-    manifest: Vec<ManifestEntry>,
-    contracts: Vec<ResolvedProducerContract>,
-    usage: Usage,
+    contracts: [ResolvedProducerContract; ProducerContract::ALL.len()],
+    resolved: version_lock::ResolvedRequest,
 }
 
 /// Whether a producer-dependent operation may execute.
@@ -381,9 +412,9 @@ impl fmt::Debug for ProducerResolution {
         formatter
             .debug_struct("ProducerResolution")
             .field("request", &self.request)
-            .field("manifest", &self.manifest)
+            .field("manifest", &self.resolved.entries())
             .field("contracts", &self.contracts)
-            .field("usage", &self.usage)
+            .field("usage", &self.resolved.usage())
             .finish_non_exhaustive()
     }
 }
@@ -398,7 +429,7 @@ impl ProducerResolution {
     /// Complete resolved manifest state in deterministic key order.
     #[must_use]
     pub fn manifest_entries(&self) -> &[ManifestEntry] {
-        &self.manifest
+        self.resolved.entries()
     }
 
     /// Complete resolved producer-contract population in declaration order.
@@ -409,8 +440,14 @@ impl ProducerResolution {
 
     /// Exact Protocol resolution resource usage.
     #[must_use]
-    pub const fn usage(&self) -> Usage {
-        self.usage
+    pub fn usage(&self) -> Usage {
+        self.resolved.usage()
+    }
+
+    pub(crate) fn authorize(&self, actual: &ProducerResolutionRequest) -> OperationOutcome<()> {
+        let actual = ResolutionRequestIdentity::new(actual.as_bytes())
+            .expect("fixed producer request identities are nonempty");
+        self.resolved.authorize_request(&actual)
     }
 }
 
@@ -427,10 +464,13 @@ pub fn resolve_producer_contracts<C: Clock + 'static>(
     let required = ProducerContract::ALL
         .iter()
         .copied()
-        .map(ProducerContract::key)
+        .map(|contract| {
+            InterfaceRequirement::new(contract.key(), contract.expected_revision().as_bytes())
+        })
         .collect::<Vec<_>>();
     let resolved =
-        match version_lock::resolve(private_request, manifest, &required, &[], budget, clock) {
+        match version_lock::resolve_interfaces(private_request, manifest, &required, budget, clock)
+        {
             OperationOutcome::Completed(resolved) => resolved,
             OperationOutcome::Refused(refusal) => return OperationOutcome::Refused(refusal),
             OperationOutcome::ResourceIncomplete(incomplete) => {
@@ -438,42 +478,14 @@ pub fn resolve_producer_contracts<C: Clock + 'static>(
             }
         };
 
-    for contract in ProducerContract::ALL {
-        let selected = InterfaceSelection::<ProducerContract>::new(
-            contract.key(),
-            contract.expected_revision().as_bytes(),
-        );
-        match resolved.interface(&selected) {
-            OperationOutcome::Completed(_) => {}
-            OperationOutcome::Refused(refusal) => return OperationOutcome::Refused(refusal),
-            OperationOutcome::ResourceIncomplete(incomplete) => {
-                return OperationOutcome::ResourceIncomplete(incomplete)
-            }
-        }
-    }
-
-    let manifest_entries = resolved.entries().to_vec();
-    let contracts = ProducerContract::ALL
-        .iter()
-        .copied()
-        .map(|contract| {
-            let revision = manifest_entries
-                .iter()
-                .find(|entry| entry.key() == &contract.key())
-                .and_then(ManifestEntry::revision)
-                .expect("completed resolution retained every pinned required revision");
-            ResolvedProducerContract {
-                contract,
-                revision: revision.as_bytes().into(),
-            }
-        })
-        .collect();
-    let usage = resolved.usage();
+    let contracts = ProducerContract::ALL.map(|contract| ResolvedProducerContract {
+        contract,
+        revision: contract.expected_revision().as_bytes(),
+    });
     OperationOutcome::Completed(ProducerResolution {
         request: request.clone(),
-        manifest: manifest_entries,
         contracts,
-        usage,
+        resolved,
     })
 }
 
@@ -484,7 +496,7 @@ pub fn resolve_producer_contracts<C: Clock + 'static>(
 /// assessment boundary, so assessment cannot reinterpret prerequisite failure
 /// as a claim result.
 #[must_use]
-pub fn resolve_before_producer_read<C, T>(
+pub(crate) fn resolve_before_producer_read<C, T>(
     request: &ProducerResolutionRequest,
     manifest: &VersionLockManifest,
     budget: ResolutionBudget,

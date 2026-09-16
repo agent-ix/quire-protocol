@@ -26,6 +26,7 @@ use crate::bounds::inventory::{
     production_inventory, AccountingFault, Budget, BudgetDimension,
     OperationOutcome as BoundedOutcome, ResourceAccountant, Usage as ResourceAccountantUsage,
 };
+use crate::bounds::Clock;
 use crate::claims::dispatch::{
     self, ClaimRequest, Limits as DispatchLimits, Report as DispatchReport,
 };
@@ -51,7 +52,9 @@ use crate::model::v2::{
     LinkedAssessment, LinkedProtocol, RuntimeBinding, SlotCompatibility, SlotHandle,
 };
 use crate::outcome::ClaimOutcome;
-use crate::producer_contracts::ProducerResolution;
+use crate::producer_contracts::{
+    resolve_before_producer_read, ProducerReadiness, ProducerResolution, ProducerResolutionRequest,
+};
 use crate::refusal::catalog::{
     CatalogSelection, CodeEntry, CodeModule, Provenance, RefusalCode, RetainedBytes,
 };
@@ -61,6 +64,7 @@ use crate::refusal::{
 };
 use crate::repro::ReproductionRecord;
 use crate::result::{self, ClaimKind};
+use crate::version_lock::{ResolutionBudget, VersionLockManifest};
 
 /// One claim outcome offered to an assessment bundle.
 ///
@@ -873,10 +877,10 @@ pub struct Engine<'a> {
 
 /// An assessment engine whose complete producer inventory resolved first.
 ///
-/// Construction is private to [`ProducerResolution::start_activated`] and
-/// [`ProducerResolution::start_result_assessment`]. Consequently the public
-/// producer-dependent assessment path cannot consume QObs/QSL values with an
-/// absent, unresolved, unpinned, or repointed manifest.
+/// Construction is private to the atomic `start_*_after_resolving` boundaries.
+/// Consequently the public producer-dependent assessment path cannot consume
+/// QObs/QSL values with an absent, unresolved, unpinned, repointed, or
+/// differently request-bound manifest.
 #[derive(Debug)]
 pub struct ResolvedAssessmentEngine<'a> {
     engine: Engine<'a>,
@@ -891,17 +895,9 @@ impl ResolvedAssessmentEngine<'_> {
     }
 }
 
-impl<'a> core::ops::Deref for ResolvedAssessmentEngine<'a> {
-    type Target = Engine<'a>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.engine
-    }
-}
-
 impl<'a> Engine<'a> {
     /// Start one assessment using the shared public operation outcome algebra.
-    pub fn start(
+    pub(crate) fn start(
         context: LinkedAssessment<'a>,
         requested: Vec<Claim>,
     ) -> crate::outcome::OperationOutcome<Self> {
@@ -1082,40 +1078,40 @@ impl<'a> Engine<'a> {
     /// Returns every exact QSL-compensation/QObs-effect registration input
     /// captured when this non-retargetable request was created.
     #[must_use]
-    pub fn compensation_inputs(&self) -> &[CompensationRegistrationInput<'a>] {
+    pub(crate) fn compensation_inputs(&self) -> &[CompensationRegistrationInput<'a>] {
         &self.compensation_inputs
     }
 
     /// Returns the exact QSL graph and static compensation definitions linked
     /// from this request's immutable context.
     #[must_use]
-    pub const fn linked(&self) -> &LinkedProtocol<'a> {
+    pub(crate) const fn linked(&self) -> &LinkedProtocol<'a> {
         &self.linked
     }
 
     /// Returns the one linked-graph/compensation kernel for both conformance
     /// frontends of this assessment.
     #[must_use]
-    pub const fn conformance(&self) -> &ConformanceKernel {
+    pub(crate) const fn conformance(&self) -> &ConformanceKernel {
         &self.conformance
     }
 
     /// Returns the replay-idempotent registrations derived for this request.
     #[must_use]
-    pub const fn compensation(&self) -> &CompensationSnapshot {
+    pub(crate) const fn compensation(&self) -> &CompensationSnapshot {
         &self.compensation
     }
 
     /// Returns the owned graph-derived activation, attempt, effect, commit,
     /// ordering and recovery state committed by this non-retargetable request.
     #[must_use]
-    pub const fn compensation_state(&self) -> &CompensationState {
+    pub(crate) const fn compensation_state(&self) -> &CompensationState {
         &self.compensation_state
     }
 
     /// Returns the immutable activation pair where this assessment is event-triggered.
     #[must_use]
-    pub fn activation(&self) -> Option<&ConformanceActivationBinding<'a>> {
+    pub(crate) fn activation(&self) -> Option<&ConformanceActivationBinding<'a>> {
         self.activation.as_ref().map(|selected| &selected.owner)
     }
 
@@ -1130,7 +1126,7 @@ impl<'a> Engine<'a> {
         clippy::too_many_arguments,
         reason = "the private transition receives each independently owned conformance and dispatch input without a shadow aggregate"
     )]
-    pub fn dispatch_activated(
+    pub(crate) fn dispatch_activated(
         &self,
         requests: &[ClaimRequest<'_>],
         facts: &[ActivationFact<'a>],
@@ -1249,7 +1245,7 @@ impl<'a> Engine<'a> {
     ///
     /// False, incomplete, refusing, exhausted, and non-Boolean evaluations
     /// add no registration. The complete QSL report is returned unchanged.
-    pub fn activate_compensation(
+    pub(crate) fn activate_compensation(
         &mut self,
         compensation_handle: u32,
         view: &StateView,
@@ -1327,7 +1323,7 @@ impl<'a> Engine<'a> {
     /// independently established compensation effect for this registration.
     /// Exact replay is a no-op; changed replay and one-over-bound candidates
     /// leave the prior snapshot unchanged.
-    pub fn admit_compensation_attempt(
+    pub(crate) fn admit_compensation_attempt(
         &mut self,
         compensation_handle: u32,
         binding: &RuntimeBinding,
@@ -1470,7 +1466,7 @@ impl<'a> Engine<'a> {
     /// Successful sends, deliveries, attempts, and operation invocations cannot
     /// enter this method because the linked slot must be exactly QSL's
     /// `compensation_effect` requirement.
-    pub fn record_compensation_effect(
+    pub(crate) fn record_compensation_effect(
         &mut self,
         compensation_handle: u32,
         binding: &RuntimeBinding,
@@ -1505,7 +1501,7 @@ impl<'a> Engine<'a> {
     }
 
     /// Retain only the exact commit node selected by this compensation.
-    pub fn record_compensation_commit(
+    pub(crate) fn record_compensation_commit(
         &mut self,
         compensation_handle: u32,
         binding: &RuntimeBinding,
@@ -1554,7 +1550,7 @@ impl<'a> Engine<'a> {
     /// There is deliberately no callback parameter. QSL's complete report,
     /// including its limits, usage, owner accounting version, and terminal
     /// outcome, is preserved without conversion.
-    pub fn evaluate_compensation_recovery(
+    pub(crate) fn evaluate_compensation_recovery(
         &mut self,
         compensation_handle: u32,
         view: &StateView,
@@ -1606,7 +1602,7 @@ impl<'a> Engine<'a> {
 
     /// Assess the three commit-ordering laws only from QSL's selected nodes and
     /// QObs's strict observation/position authority.
-    pub fn assess_compensation_ordering(
+    pub(crate) fn assess_compensation_ordering(
         &mut self,
         compensation_handle: u32,
         forward: &observation_record::View,
@@ -2024,28 +2020,149 @@ impl<'a> Engine<'a> {
     }
 }
 
+/// Producer-backed inputs loaded only after the complete manifest resolves.
+pub struct AssessmentInputs<'a> {
+    /// Exact linked package, static definition and runtime bindings.
+    pub context: LinkedAssessment<'a>,
+    /// Closed claim population selected for this assessment.
+    pub requested: Vec<Claim>,
+}
+
+/// Event-activated inputs loaded only after the complete manifest resolves.
+pub struct ActivatedAssessmentInputs<'a> {
+    /// Exact linked package, static definition and runtime bindings.
+    pub context: LinkedAssessment<'a>,
+    /// Closed claim population selected for this assessment.
+    pub requested: Vec<Claim>,
+    /// Strict QSL v3 activation mapping package.
+    pub mappings: &'a v3::AdmittedPackage,
+    /// QObs authority-qualified activation subject.
+    pub subject: &'a QualifiedSubject,
+    /// Strict QSL temporal subject.
+    pub temporal_subject: &'a ValidatedTemporalSubject,
+    /// Strict QSL native-temporal request.
+    pub request: &'a temporal_v2::ValidatedRequest,
+    /// Strict QSL native-temporal result bound to `request`.
+    pub result: &'a temporal_v2::ValidatedResult,
+}
+
+/// Canonical-result inputs loaded only after the complete manifest resolves.
+pub struct ResultAssessmentInputs<'a> {
+    /// Exact linked package, static definition and runtime bindings.
+    pub context: LinkedAssessment<'a>,
+    /// Closed claim population selected for this assessment.
+    pub requested: Vec<Claim>,
+    /// Strict QSL v3 activation mapping package.
+    pub mappings: &'a v3::AdmittedPackage,
+    /// QObs authority-qualified activation subject.
+    pub subject: &'a QualifiedSubject,
+    /// Strict QSL native-temporal request.
+    pub request: &'a temporal_v2::ValidatedRequest,
+    /// Strict QSL native-temporal result bound to `request`.
+    pub result: &'a temporal_v2::ValidatedResult,
+    /// Strict QSL checked predicate selected for result construction.
+    pub checked_predicate: &'a ValidatedCheckedPredicate,
+    /// Strict QSL temporal subject selected for result construction.
+    pub temporal_subject: &'a ValidatedTemporalSubject,
+}
+
+/// Resolve every producer before invoking the loader for a non-temporal
+/// assessment. The loader is not called on refusal or resource exhaustion.
+#[must_use]
+pub fn start_assessment_after_resolving<'a, C: Clock + 'static>(
+    request: &ProducerResolutionRequest,
+    manifest: &VersionLockManifest,
+    budget: ResolutionBudget,
+    clock: C,
+    load: impl FnOnce() -> AssessmentInputs<'a>,
+) -> ProducerReadiness<crate::outcome::OperationOutcome<ResolvedAssessmentEngine<'a>>> {
+    resolve_before_producer_read(request, manifest, budget, clock, |resolution| {
+        resolution.start(load())
+    })
+}
+
+/// Resolve every producer before invoking the loader for an event-activated
+/// assessment. The loader is not called on refusal or resource exhaustion.
+#[must_use]
+pub fn start_activated_after_resolving<'a, C: Clock + 'static>(
+    request: &ProducerResolutionRequest,
+    manifest: &VersionLockManifest,
+    budget: ResolutionBudget,
+    clock: C,
+    load: impl FnOnce() -> ActivatedAssessmentInputs<'a>,
+) -> ProducerReadiness<crate::outcome::OperationOutcome<ResolvedAssessmentEngine<'a>>> {
+    resolve_before_producer_read(request, manifest, budget, clock, |resolution| {
+        resolution.start_activated(load())
+    })
+}
+
+/// Resolve every producer before invoking the loader for canonical result
+/// assessment. The loader is not called on refusal or resource exhaustion.
+#[must_use]
+pub fn start_result_assessment_after_resolving<'a, C: Clock + 'static>(
+    request: &ProducerResolutionRequest,
+    manifest: &VersionLockManifest,
+    budget: ResolutionBudget,
+    clock: C,
+    load: impl FnOnce() -> ResultAssessmentInputs<'a>,
+) -> ProducerReadiness<crate::outcome::OperationOutcome<ResolvedAssessmentEngine<'a>>> {
+    resolve_before_producer_read(request, manifest, budget, clock, |resolution| {
+        resolution.start_result_assessment(load())
+    })
+}
+
 impl ProducerResolution {
+    fn start<'a>(
+        self,
+        inputs: AssessmentInputs<'a>,
+    ) -> crate::outcome::OperationOutcome<ResolvedAssessmentEngine<'a>> {
+        let actual = ProducerResolutionRequest::for_assessment(
+            inputs.context.package().digest(),
+            inputs.context.definition().selection().digest,
+        );
+        match self.authorize(&actual) {
+            crate::outcome::OperationOutcome::Completed(()) => {}
+            crate::outcome::OperationOutcome::Refused(refusal) => {
+                return crate::outcome::OperationOutcome::Refused(refusal)
+            }
+            crate::outcome::OperationOutcome::ResourceIncomplete(incomplete) => {
+                return crate::outcome::OperationOutcome::ResourceIncomplete(incomplete)
+            }
+        }
+        Engine::start(inputs.context, inputs.requested).map(|engine| ResolvedAssessmentEngine {
+            engine,
+            resolution: self,
+        })
+    }
+
     /// Start one activated assessment only after this complete producer
     /// resolution exists.
-    #[allow(clippy::too_many_arguments)]
-    pub fn start_activated<'a>(
+    fn start_activated<'a>(
         self,
-        context: LinkedAssessment<'a>,
-        requested: Vec<Claim>,
-        mappings: &v3::AdmittedPackage,
-        subject: &'a QualifiedSubject,
-        temporal_subject: &'a ValidatedTemporalSubject,
-        request: &'a temporal_v2::ValidatedRequest,
-        result: &'a temporal_v2::ValidatedResult,
+        inputs: ActivatedAssessmentInputs<'a>,
     ) -> crate::outcome::OperationOutcome<ResolvedAssessmentEngine<'a>> {
+        let actual = ProducerResolutionRequest::for_temporal_assessment(
+            inputs.context.package().digest(),
+            inputs.context.definition().selection().digest,
+            inputs.request.document().digest(),
+        );
+        match self.authorize(&actual) {
+            crate::outcome::OperationOutcome::Completed(()) => {}
+            crate::outcome::OperationOutcome::Refused(refusal) => {
+                return crate::outcome::OperationOutcome::Refused(refusal)
+            }
+            crate::outcome::OperationOutcome::ResourceIncomplete(incomplete) => {
+                return crate::outcome::OperationOutcome::ResourceIncomplete(incomplete)
+            }
+        }
         Engine::start_activated(
-            context,
-            requested,
-            mappings,
-            subject,
-            temporal_subject,
-            request,
-            result,
+            inputs.context,
+            inputs.requested,
+            inputs.mappings,
+            inputs.subject,
+            inputs.temporal_subject,
+            inputs.request,
+            inputs.result,
         )
         .map(|engine| ResolvedAssessmentEngine {
             engine,
@@ -2055,27 +2172,33 @@ impl ProducerResolution {
 
     /// Start canonical result orchestration only after this complete producer
     /// resolution exists.
-    #[allow(clippy::too_many_arguments)]
-    pub fn start_result_assessment<'a>(
+    fn start_result_assessment<'a>(
         self,
-        context: LinkedAssessment<'a>,
-        requested: Vec<Claim>,
-        mappings: &v3::AdmittedPackage,
-        subject: &'a QualifiedSubject,
-        request: &'a temporal_v2::ValidatedRequest,
-        result: &'a temporal_v2::ValidatedResult,
-        checked_predicate: &'a ValidatedCheckedPredicate,
-        temporal_subject: &'a ValidatedTemporalSubject,
+        inputs: ResultAssessmentInputs<'a>,
     ) -> crate::outcome::OperationOutcome<ResolvedAssessmentEngine<'a>> {
+        let actual = ProducerResolutionRequest::for_temporal_assessment(
+            inputs.context.package().digest(),
+            inputs.context.definition().selection().digest,
+            inputs.request.document().digest(),
+        );
+        match self.authorize(&actual) {
+            crate::outcome::OperationOutcome::Completed(()) => {}
+            crate::outcome::OperationOutcome::Refused(refusal) => {
+                return crate::outcome::OperationOutcome::Refused(refusal)
+            }
+            crate::outcome::OperationOutcome::ResourceIncomplete(incomplete) => {
+                return crate::outcome::OperationOutcome::ResourceIncomplete(incomplete)
+            }
+        }
         Engine::start_result_assessment(
-            context,
-            requested,
-            mappings,
-            subject,
-            request,
-            result,
-            checked_predicate,
-            temporal_subject,
+            inputs.context,
+            inputs.requested,
+            inputs.mappings,
+            inputs.subject,
+            inputs.request,
+            inputs.result,
+            inputs.checked_predicate,
+            inputs.temporal_subject,
         )
         .map(|engine| ResolvedAssessmentEngine {
             engine,
@@ -2085,6 +2208,157 @@ impl ProducerResolution {
 }
 
 impl<'a> ResolvedAssessmentEngine<'a> {
+    /// Producer-backed compensation registrations retained by this request.
+    #[must_use]
+    pub fn compensation_inputs(&self) -> &[CompensationRegistrationInput<'a>] {
+        self.engine.compensation_inputs()
+    }
+
+    /// Exact linked QSL graph selected for this request.
+    #[must_use]
+    pub const fn linked(&self) -> &LinkedProtocol<'a> {
+        self.engine.linked()
+    }
+
+    /// Conformance kernel bound to this exact linked request.
+    #[must_use]
+    pub const fn conformance(&self) -> &ConformanceKernel {
+        self.engine.conformance()
+    }
+
+    /// Replay-idempotent compensation registrations.
+    #[must_use]
+    pub const fn compensation(&self) -> &CompensationSnapshot {
+        self.engine.compensation()
+    }
+
+    /// Owned compensation transition state.
+    #[must_use]
+    pub const fn compensation_state(&self) -> &CompensationState {
+        self.engine.compensation_state()
+    }
+
+    /// Immutable event activation retained by an activated assessment.
+    #[must_use]
+    pub fn activation(&self) -> Option<&ConformanceActivationBinding<'a>> {
+        self.engine.activation()
+    }
+
+    /// Dispatch claims only through this resolved assessment request.
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "the wrapper preserves the engine's independently owned conformance and dispatch inputs"
+    )]
+    pub fn dispatch_activated(
+        &self,
+        requests: &[ClaimRequest<'_>],
+        facts: &[ActivationFact<'a>],
+        axes: AxisInputs<'_>,
+        completeness: &completeness::View,
+        global_conformance: &GlobalConformanceInput,
+        execution: crate::closure::AssessmentExecution,
+        conformance_limits: ConformanceLimits,
+        dispatch_limits: DispatchLimits,
+        budget: Budget,
+    ) -> crate::outcome::OperationOutcome<DispatchReport> {
+        self.engine.dispatch_activated(
+            requests,
+            facts,
+            axes,
+            completeness,
+            global_conformance,
+            execution,
+            conformance_limits,
+            dispatch_limits,
+            budget,
+        )
+    }
+
+    /// Activate one graph-selected compensation under resolved producers.
+    pub fn activate_compensation(
+        &mut self,
+        compensation_handle: u32,
+        view: &StateView,
+        limits: state_evaluation::Limits,
+    ) -> CompensationOutcome {
+        self.engine
+            .activate_compensation(compensation_handle, view, limits)
+    }
+
+    /// Admit one compensation attempt under resolved producers.
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "the wrapper preserves the engine's independently owned compensation inputs"
+    )]
+    pub fn admit_compensation_attempt(
+        &mut self,
+        compensation_handle: u32,
+        binding: &RuntimeBinding,
+        established_effect: Option<&RuntimeBinding>,
+        outcome: Option<AttemptOutcome>,
+        retry_view: Option<&StateView>,
+        limits: state_evaluation::Limits,
+    ) -> CompensationOutcome {
+        self.engine.admit_compensation_attempt(
+            compensation_handle,
+            binding,
+            established_effect,
+            outcome,
+            retry_view,
+            limits,
+        )
+    }
+
+    /// Record one exact compensation effect under resolved producers.
+    pub fn record_compensation_effect(
+        &mut self,
+        compensation_handle: u32,
+        binding: &RuntimeBinding,
+        disposition: Option<EffectDisposition>,
+    ) -> CompensationOutcome {
+        self.engine
+            .record_compensation_effect(compensation_handle, binding, disposition)
+    }
+
+    /// Record one exact compensation commit under resolved producers.
+    pub fn record_compensation_commit(
+        &mut self,
+        compensation_handle: u32,
+        binding: &RuntimeBinding,
+    ) -> CompensationOutcome {
+        self.engine
+            .record_compensation_commit(compensation_handle, binding)
+    }
+
+    /// Evaluate compensation recovery under resolved producers.
+    pub fn evaluate_compensation_recovery(
+        &mut self,
+        compensation_handle: u32,
+        view: &StateView,
+        limits: state_evaluation::Limits,
+    ) -> CompensationOutcome {
+        self.engine
+            .evaluate_compensation_recovery(compensation_handle, view, limits)
+    }
+
+    /// Assess compensation ordering through QObs views under resolved producers.
+    pub fn assess_compensation_ordering(
+        &mut self,
+        compensation_handle: u32,
+        forward: &observation_record::View,
+        effect: &observation_record::View,
+        commit: Option<&observation_record::View>,
+        positions: &position::View,
+    ) -> CompensationOutcome {
+        self.engine.assess_compensation_ordering(
+            compensation_handle,
+            forward,
+            effect,
+            commit,
+            positions,
+        )
+    }
+
     /// Run conformance, claim dispatch, canonical result production, and
     /// strict reading after exact producer resolution.
     #[allow(clippy::too_many_arguments)]

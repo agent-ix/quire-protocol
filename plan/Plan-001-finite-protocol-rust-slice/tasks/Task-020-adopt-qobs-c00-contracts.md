@@ -33,7 +33,7 @@ consumer capabilities because no adapters exist.
 - [x] Expose a closed Protocol-owned capability/status type in which QObs repair
   and aggregate-query are separate `unsupported` values and mint no manifest
   entries or request capabilities.
-- [x] Update IT-002 SC-08 assertions for the nineteen total QObs/QSL contracts,
+- [x] Update IT-002 SC-08 assertions for the twenty-one total QObs/QSL contracts,
   exact QObs revision, five new schema digests, and the two unsupported
   consumer capabilities.
 - [x] Run the scoped Rust review, scoped gap analysis, exact local gate and

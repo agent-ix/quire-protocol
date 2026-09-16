@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! TC-002: versioned static/runtime binding capability admission.
 
+use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::time::Duration;
 
@@ -19,7 +20,11 @@ use quire_protocol::model::v2::{
 };
 use quire_protocol::wire::{BindingKind, Body, CausalEdge, ControlOperation, EdgeKind, Port};
 use quire_protocol::{
-    assessment::{AxisInputs, Engine, GlobalConformanceInput, GlobalPremise, PremiseKind},
+    assessment::{
+        start_activated_after_resolving, start_assessment_after_resolving,
+        ActivatedAssessmentInputs, AssessmentInputs, AxisInputs, GlobalConformanceInput,
+        GlobalPremise, PremiseKind,
+    },
     claims::{
         dispatch::{ClaimRequest, Decision, Limits as DispatchLimits},
         premises::{Assumption, AssumptionState, BackendSelection, Component, PremiseSet},
@@ -31,10 +36,8 @@ use quire_protocol::{
         Limits as ConformanceLimits, ObligationDisposition,
     },
     outcome::OperationOutcome,
-    producer_contracts::{
-        resolve_producer_contracts, ProducerContract, ProducerResolution, ProducerResolutionRequest,
-    },
-    version_lock::{ResolutionBudget, VersionLockManifest},
+    producer_contracts::{ProducerContract, ProducerReadiness, ProducerResolutionRequest},
+    version_lock::{ManifestEntry, ResolutionBudget, VersionLockManifest},
 };
 use quire_spec_language::protocol_artifact::{
     native_temporal::{self, request, v2 as temporal_v2},
@@ -58,27 +61,19 @@ const ORDER_KIND: &[u8] = b"ix://agent-ix/commerce/type/Order";
 const SHIPMENT_KIND: &[u8] = b"ix://agent-ix/commerce/type/Shipment";
 const ORDER_SHIPMENT: &str = "ix://agent-ix/commerce/relationship/Order-shipment";
 
-fn producer_resolution(identity: &[u8]) -> ProducerResolution {
-    let request = ProducerResolutionRequest::new(identity)
-        .expect("the test assessment resolution identity is nonempty");
-    let manifest = VersionLockManifest::new(
+fn producer_manifest() -> VersionLockManifest {
+    VersionLockManifest::new(
         ProducerContract::ALL
             .iter()
             .copied()
             .map(ProducerContract::manifest_entry)
             .collect(),
-    );
-    let budget = ResolutionBudget::new(ProducerContract::ALL.len(), 1, Duration::from_secs(1))
-        .expect("the exact producer-resolution budget is valid");
-    match resolve_producer_contracts(&request, &manifest, budget, SystemMonotonicClock) {
-        OperationOutcome::Completed(resolution) => resolution,
-        OperationOutcome::Refused(refusal) => {
-            panic!("exact producer manifest must resolve: {}", refusal.code())
-        }
-        OperationOutcome::ResourceIncomplete(incomplete) => {
-            panic!("exact producer manifest must fit: {incomplete:?}")
-        }
-    }
+    )
+}
+
+fn producer_budget() -> ResolutionBudget {
+    ResolutionBudget::new(ProducerContract::ALL.len(), 1, Duration::from_secs(1))
+        .expect("the exact producer-resolution budget is valid")
 }
 
 fn global_conformance(state: GlobalConformanceClosure) -> GlobalConformanceInput {
@@ -1403,7 +1398,9 @@ fn tc_002_linked_assessment_refuses_every_context_coordinate_mutation() {
     "FR-002-AC-3",
     "FR-004-AC-1",
     "FR-005-AC-1",
-    "FR-029-AC-1"
+    "FR-029-AC-1",
+    "FR-009-AC-2",
+    "FR-009-AC-8"
 )]
 fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
     let package = admitted_published_v2();
@@ -1475,21 +1472,99 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
     )
     .into_result()
     .expect("strict temporal result reads");
-    let activated = producer_resolution(b"tc002:activated-engine").start_activated(
-        context,
-        vec![Claim::Conformance],
-        &mappings,
-        &activation_subject,
-        &temporal_subject,
-        &request,
-        &result,
+    let producer_request = ProducerResolutionRequest::for_temporal_assessment(
+        package.digest(),
+        definition.selection().digest,
+        request.document().digest(),
     );
-    let OperationOutcome::Completed(activated) = activated else {
+    let producer_reads = Cell::new(0usize);
+    let mut unresolved_entries = producer_manifest().entries().to_vec();
+    unresolved_entries[0] = ManifestEntry::unresolved_interface(
+        ProducerContract::ALL[0].key(),
+        b"owner acceptance withdrawn",
+    );
+    let unresolved = start_activated_after_resolving(
+        &producer_request,
+        &VersionLockManifest::new(unresolved_entries),
+        producer_budget(),
+        SystemMonotonicClock,
+        || {
+            producer_reads.set(producer_reads.get() + 1);
+            let _ = request.document().bytes();
+            ActivatedAssessmentInputs {
+                context,
+                requested: vec![Claim::Conformance],
+                mappings: &mappings,
+                subject: &activation_subject,
+                temporal_subject: &temporal_subject,
+                request: &request,
+                result: &result,
+            }
+        },
+    );
+    assert!(matches!(unresolved, ProducerReadiness::Unexecutable(_)));
+    assert_eq!(producer_reads.get(), 0, "owner inputs are not read");
+
+    let mismatched_request = ProducerResolutionRequest::for_temporal_assessment(
+        package.digest(),
+        definition.selection().digest,
+        ByteDigest::of(b"another temporal request"),
+    );
+    let mismatched_resolution = start_activated_after_resolving(
+        &mismatched_request,
+        &producer_manifest(),
+        producer_budget(),
+        SystemMonotonicClock,
+        || {
+            producer_reads.set(producer_reads.get() + 1);
+            ActivatedAssessmentInputs {
+                context,
+                requested: vec![Claim::Conformance],
+                mappings: &mappings,
+                subject: &activation_subject,
+                temporal_subject: &temporal_subject,
+                request: &request,
+                result: &result,
+            }
+        },
+    );
+    assert!(matches!(
+        mismatched_resolution,
+        ProducerReadiness::Executable(OperationOutcome::Refused(refusal))
+            if refusal.code().as_str() == "version-lock.capability.request-mismatch"
+    ));
+    assert_eq!(
+        producer_reads.get(),
+        1,
+        "one resolved owner load was attempted"
+    );
+
+    let ProducerReadiness::Executable(OperationOutcome::Completed(activated)) =
+        start_activated_after_resolving(
+            &producer_request,
+            &producer_manifest(),
+            producer_budget(),
+            SystemMonotonicClock,
+            || {
+                producer_reads.set(producer_reads.get() + 1);
+                ActivatedAssessmentInputs {
+                    context,
+                    requested: vec![Claim::Conformance],
+                    mappings: &mappings,
+                    subject: &activation_subject,
+                    temporal_subject: &temporal_subject,
+                    request: &request,
+                    result: &result,
+                }
+            },
+        )
+    else {
         panic!("strict QSL request and QObs subject must activate this linked engine")
     };
+    assert_eq!(producer_reads.get(), 2, "resolved inputs load exactly once");
     assert_eq!(
         activated.producer_resolution().request().as_bytes(),
-        b"tc002:activated-engine",
+        producer_request.as_bytes(),
     );
     assert_eq!(
         activated
@@ -1573,15 +1648,21 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
         SubjectKind::new(ORDER_KIND.to_vec()).expect("non-empty kind"),
         SubjectIdentity::new(b"order:43".to_vec()).expect("non-empty identity"),
     );
-    let OperationOutcome::Refused(refusal) = producer_resolution(b"tc002:mismatched-engine")
-        .start_activated(
-            context,
-            vec![Claim::Conformance],
-            &mappings,
-            &mismatched_subject,
-            &temporal_subject,
-            &request,
-            &result,
+    let ProducerReadiness::Executable(OperationOutcome::Refused(refusal)) =
+        start_activated_after_resolving(
+            &producer_request,
+            &producer_manifest(),
+            producer_budget(),
+            SystemMonotonicClock,
+            || ActivatedAssessmentInputs {
+                context,
+                requested: vec![Claim::Conformance],
+                mappings: &mappings,
+                subject: &mismatched_subject,
+                temporal_subject: &temporal_subject,
+                request: &request,
+                result: &result,
+            },
         )
     else {
         panic!("different QObs subject cannot reuse a strict temporal request")
@@ -2409,7 +2490,19 @@ fn tc_002_effect_projection_requires_an_owner_effect_slot() {
     assert_eq!(context.compensation_attempt_inputs().len(), 1);
     assert_eq!(context.compensation_effect_inputs().len(), 1);
 
-    let OperationOutcome::Completed(engine) = Engine::start(context, vec![Claim::Conformance])
+    let producer_request =
+        ProducerResolutionRequest::for_assessment(package.digest(), definition.selection().digest);
+    let ProducerReadiness::Executable(OperationOutcome::Completed(engine)) =
+        start_assessment_after_resolving(
+            &producer_request,
+            &producer_manifest(),
+            producer_budget(),
+            SystemMonotonicClock,
+            || AssessmentInputs {
+                context,
+                requested: vec![Claim::Conformance],
+            },
+        )
     else {
         panic!("the linked effect context must start a non-retargetable assessment")
     };

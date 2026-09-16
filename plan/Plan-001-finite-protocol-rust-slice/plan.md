@@ -228,7 +228,7 @@ track names are subsystems and are not agent assignments; Agent B remains on TL.
 | Task-003 | Core | FR-003 | TC-003 | done; graph-owned Engine bridge and exact QSL/QObs evidence |
 | Task-004 | Core | FR-004 | TC-004 | done; strict FR-300 activation-derived frontends share the graph/compensation kernel |
 | Task-005 | Core | FR-005 | TC-005 | done; activation-derived Engine dispatch and closed local conformance backend |
-| Task-006 | Core | FR-006, FR-008 | TC-006, TC-011 | done; atomic Engine orchestration, private result assembly, shared accounting and SR-116/SR-117 pass |
+| Task-006 | Core | FR-006, FR-008 | TC-006, TC-011 | in progress; atomic Engine orchestration and private result assembly execute, but authenticated support/correction owner capabilities remain blocked and SR-116/SR-117 are not pass verdicts |
 | Task-007 | Producer Integration | FR-007 | TC-007 | done; exact accepted qverify/EA graph, total source-bound projection and SR-118/SR-119 pass |
 | Task-008 | Cross-cutting Closure | NFR-001, NFR-002 | TC-008, TC-009 | done; final inventory, one accountant, reproduction matrix and SR-120/SR-121 pass |
 | Task-009 | Producer Integration | FR-001, FR-002 | IT-001 | done; default `/1` admission/static link and SC-06a two-revision comparison pass |
@@ -242,7 +242,7 @@ track names are subsystems and are not agent assignments; Agent B remains on TL.
 | Task-017 | Cross-cutting Foundation | FR-008, FR-014, FR-016 | TC-011 | done; 30 focused tests and SR-101/SR-102 pass under #62 |
 | Task-018 | Qualification | FR-017, NFR-005 | TC-016 | planned |
 | Task-019 | Producer Integration | FR-018, NFR-006 | TC-017 | done; exact transactional bounded consumer index cannot affect version-lock resolution; SR-108/SR-109 pass |
-| Task-020 | Producer Integration | FR-009, NFR-006 | IT-002 | done; SC-08 and the enforced pre-assessment resolver pass at exact accepted QObs merge `9240063`; SR-127/SR-128 pass |
+| Task-020 | Producer Integration | FR-009, NFR-006 | IT-002 | done; SC-08's independent 21-entry inventory and the request-bound pre-read assessment resolver pass at exact accepted QObs merge `9240063`; SR-127/SR-128 pass |
 
 ## Coordination Rules
 

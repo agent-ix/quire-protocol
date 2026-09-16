@@ -13,13 +13,13 @@ description: "Chronological log of changes to the Plan-001 bundle."
   plan to that accepted revision. The accepted owner changed the activation
   authority and authority-bundle-v1 schemas; SC-08 failed on the old hashes,
   then passed after production metadata, the independent literal oracle and
-  IT-002 were reconciled. The nineteen-contract inventory, fifteen owner-schema
+  IT-002 were reconciled. The twenty-one-contract inventory, fifteen owner-schema
   digest controls and two typed unsupported capabilities remain unchanged in
   scope; IT-002 SC-05 through SC-07 and Task-018/#63 remain open.
 
 * **2026-09-15** — Implemented Task-020 after rebasing its QObs C00
   compatibility successor onto the merged Task-010 and Task-008 mainline.
-  Protocol now pins QObs `9240063`, resolves one declarative nineteen-contract
+  Protocol now pins QObs `9240063`, resolves one declarative twenty-one-contract
   QObs/QSL inventory, verifies the owner's fifteen exported QObs schema byte
   arrays against independent digests, and exposes repair and aggregate-query as
   two typed unsupported capabilities that mint no contract entry. IT-002 SC-08
