@@ -23,8 +23,8 @@ literal `target-codex-backends` directory, inspect `Cargo.toml` for a
 `[features]` table and `optional = true` dependencies, and inventory every
 tracked Rust `cfg` attribute and `cfg!` macro. Confirm that
 `--no-default-features`, `--all-features` and the default feature selection
-resolve to the same unit graph from Cargo metadata. Confirm that the six
-ten current `cfg(test)` sites are selected by `clippy --all-targets` and `test`, and
+resolve to the same unit graph from Cargo metadata. Confirm that the eleven
+current `cfg(test)` sites are selected by `clippy --all-targets` and `test`, and
 that the current `cfg(unix)` test is selected on the admitted local Unix target;
 claim no unexecuted target. With `CARGO_BUILD_JOBS=1` under
 `flock /tmp/quire-heavy-check.lock`, run `cargo fmt --all -- --check`,

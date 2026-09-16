@@ -50,7 +50,7 @@ complete local assurance gate on one unchanged head.
 
 ## Notes
 
-- Engineering Assurance #34 is delivered. The remaining external gates are E02
-  owner acceptance reconciliation (`agent-ix/quire-verification#32`) and Quoin's
-  missing Protocol scenario intake (`agent-ix/quoin#519`).
+- Engineering Assurance #34/#102 and qverify E02 issues #32/#44 are delivered.
+  The remaining external gate is Quoin's missing Protocol scenario intake
+  (`agent-ix/quoin#519`).
 - Do not trigger hosted CI; any workflow present must expose only manual dispatch.

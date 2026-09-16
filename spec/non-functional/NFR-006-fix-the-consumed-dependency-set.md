@@ -65,7 +65,7 @@ Does not apply to:
 ## Rationale
 
 FR-009 pins the *external producers* B consumes. Nothing pins B. This
-repository's own build closure is 132 lockfile packages, four of them git
+repository's own build closure is 196 lockfile packages, seven of them git
 sources carrying a revision and no content checksum. The rights record in
 `DEPENDENCIES.md` has drifted from the manifest twice on the same edge: first
 naming `84975dd687d38d9b24eae84b7356e3f24cdc7b42` against a manifest pinning
@@ -97,7 +97,7 @@ it.
 | Metric | Target | Threshold | Method |
 | --- | --- | --- | --- |
 | Declared manifest dependencies pinned to an exact `=` version or an exact 40-hex git `rev` | Every declared dependency | 100%, 0 range, branch, tag or path requirements | Inspection |
-| Lockfile packages carrying either a `checksum` or a 40-hex git `rev` equal to the manifest's | Every package but this crate | 131 of 131 today | Inspection |
+| Lockfile packages carrying either a `checksum` or a 40-hex git `rev` equal to the manifest's | Every package but this crate | 195 of 195 today | Inspection |
 | Closure packages executing code at build time that are absent from the build-execution enumeration, or enumerated but absent from the closure | None | 0 unmatched in either direction | Inspection |
 | Git-sourced dependency revisions where the rights record and the build manifest disagree | None | 0 disagreements today | Inspection |
 | Gate runs whose lockfile differs before and after the run | None | 0 accepted as evidence | Inspection |
@@ -157,10 +157,10 @@ B-authored fixture root can carry an unenumerated file.
 
 ## Status
 
-In progress. The current lock has 132 non-root packages and five git sources;
-Cargo/rights records cover the current exact pins, including QSL `f1700a9`.
+In progress. The current lock has 195 non-root packages and seven git sources;
+Cargo/rights records cover the current exact pins, including QSL `0c2f13e`,
+qverify `293e342` and its transitive Engineering Assurance `9237ce5`.
 Task-013 implements TC-013's exact-member controls for AC-6 and AC-7;
-Task-019/#66 owns the missing TC-017 consumer-index control for AC-8. Task-002 must
-repin QObs from `9ac80e9` to accepted `93bc565`, and every later pin must update
-Cargo.lock and DEPENDENCIES.md in the same ticket before this requirement can
-close.
+Task-019/#66 owns the missing TC-017 consumer-index control for AC-8. Every
+later pin must update Cargo.lock and DEPENDENCIES.md in the same ticket before
+this requirement can close.

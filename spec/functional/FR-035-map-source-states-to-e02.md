@@ -114,10 +114,11 @@ and recomputed source-digest failure to `invalid-source-result`. A valid source
 reaching target-context or derived-identity mismatch yields
 `identity-mismatch`.
 
-qverify implements the `quire-verification/e02-draft-2` strict reader and
-finding vocabulary. Protocol consumes those exact types only after qverify
-reconciles its still-provisional cross-repository interface decision; it does
-not reproduce the finding enum locally while that acceptance gate is open.
+qverify issue #32 accepted the `quire-verification/e02-draft-2` strict reader,
+generated types, finding vocabulary and JCS implementation at revision
+`d2fc0d8`. Issue #44 preserved that contract at exact compatible consumer
+revision `293e342c6f5e2c69738956ff5165f75761b0364a`. Protocol pins and imports that
+interface and does not reproduce its finding enum.
 
 ## Dependencies
 

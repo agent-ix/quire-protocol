@@ -17,6 +17,7 @@ use quire_protocol::assessment::{CanonicalRowFacts, Engine};
 use quire_protocol::bounds::inventory::{
     production_inventory, Budget, BudgetDimension, OperationOutcome, ResourceAccountant,
 };
+use quire_protocol::bounds::SystemMonotonicClock;
 use quire_protocol::claims::dispatch::{ClaimRequest, Limits as DispatchLimits};
 use quire_protocol::claims::premises::{BackendSelection, Component, PremiseSet};
 use quire_protocol::claims::Claim as DispatchClaim;
@@ -27,6 +28,10 @@ use quire_protocol::model::v2::{
     SlotCompatibility, SlotHandle, StaticBindingDefinition, StaticSelection, StaticSlot,
     RUNTIME_BINDING_CONTRACT, STATIC_BINDING_CONTRACT,
 };
+use quire_protocol::projection::{
+    resolve_e02_contract, DecisionSupportBinding, E02Contract, E02Resolution,
+    ProjectedTechniqueResult, ProjectionContext, ProjectionRequestId,
+};
 use quire_protocol::refusal::ProtocolStage;
 use quire_protocol::repro::{CorpusIdentity, ReproductionInputs, Seed, ToolchainIdentity};
 use quire_protocol::result::{
@@ -36,13 +41,19 @@ use quire_protocol::result::{
     Limitation, Limits, Participation, PremiseKind, ProtocolAdequacy, ProvenanceRecord, Settlement,
     SettlementBasis, SupportRef, Truth,
 };
+use quire_protocol::version_lock::{ResolutionBudget, VersionLockManifest};
 use quire_protocol::{v2, wire as w, ByteDigest};
 use quire_spec_language::protocol_artifact::{
     checked_predicate,
     native_temporal::{self, request as temporal_request, v2 as temporal_v2},
     occurrence_key_schema, temporal_subject, v3, WorkflowInstanceIdentity,
 };
-use serde_json::Value;
+use quire_verification::contracts::wire::{
+    ObservationReference, OracleReference, SharedArtifactEnvelope,
+};
+use quire_verification::contracts::{self, jcs_sha256};
+use serde_json::{json, Value};
+use std::time::Duration;
 
 #[path = "../../tests/support/v2_handoff/mod.rs"]
 #[allow(dead_code, unused_imports)]
@@ -2962,4 +2973,679 @@ fn tc_006_runtime_reference_carrier_is_reversible_and_strict() {
         runtime_reference::validate_subject(&encoded, &distinct),
         Err(runtime_reference::Error::Mismatch)
     );
+}
+
+fn e02_artifact(kind: &str, identity: &str) -> SharedArtifactEnvelope {
+    serde_json::from_value(json!({
+        "wireVersion": "ix.shared-reference/2-draft",
+        "kind": "artifact",
+        "value": {
+            "refVersion": "ix.artifact-ref/3-draft",
+            "kind": kind,
+            "authority": "agent-ix/quire-protocol",
+            "identity": identity,
+            "revision": {"namespace": "quire-protocol", "value": "r1"},
+            "digest": format!("sha256:{:064x}", ByteDigest::of(identity.as_bytes())),
+            "wire": {"identity": "quire.protocol/e02-test-reference/1", "version": "1"}
+        }
+    }))
+    .expect("valid qverify shared artifact reference")
+}
+
+fn e02_oracle(identity: &str) -> OracleReference {
+    serde_json::from_value(
+        serde_json::to_value(e02_artifact("oracle", identity)).expect("serialize oracle reference"),
+    )
+    .expect("valid qverify oracle reference")
+}
+
+fn e02_observation(identity: &str) -> ObservationReference {
+    serde_json::from_value(
+        serde_json::to_value(e02_artifact("observation", identity))
+            .expect("serialize observation reference"),
+    )
+    .expect("valid qverify observation reference")
+}
+
+fn e02_resolution(request: &ProjectionRequestId) -> E02Resolution {
+    let manifest = VersionLockManifest::new(vec![E02Contract::Draft2.manifest_entry()]);
+    let budget = ResolutionBudget::new(1, 1, Duration::from_secs(5))
+        .expect("positive exact resolution budget");
+    projection_result(resolve_e02_contract(
+        request,
+        &manifest,
+        budget,
+        SystemMonotonicClock,
+    ))
+    .expect("exact qverify E02 interface resolves")
+}
+
+fn projection_result<T>(
+    outcome: quire_protocol::OperationOutcome<T>,
+) -> Result<T, quire_protocol::refusal::ProtocolRefusal> {
+    match outcome {
+        quire_protocol::OperationOutcome::Completed(value) => Ok(value),
+        quire_protocol::OperationOutcome::Refused(refusal) => Err(refusal),
+        quire_protocol::OperationOutcome::ResourceIncomplete(incomplete) => {
+            panic!("unexpected projection resource stop: {incomplete:?}")
+        }
+    }
+}
+
+fn e02_context(document: &result::Document, input: &Input<'_>) -> ProjectionContext {
+    ProjectionContext {
+        source_contract_version: result::CONTRACT.into(),
+        target_contract_version: contracts::contract_version().into(),
+        required_features: Vec::new(),
+        source_uri: format!(
+            "ix://agent-ix/quire-protocol/result/{}",
+            document.result_id()
+        ),
+        source_digest: document.digest().into(),
+        expected_result_id: None,
+        plan_id: "Plan-001-finite-protocol-rust-slice".into(),
+        task_id: "Task-007-project-e02".into(),
+        technique_id: "finite-protocol-conformance".into(),
+        run_ref: e02_artifact("run-artifact", "run:tc-007"),
+        property_ref: e02_artifact("property", "property:protocol-conformance"),
+        subject_refs: vec![e02_artifact("source", "subject:protocol")],
+        profile: "quire.protocol/e02-projection/1".into(),
+        binding_refs: vec![
+            e02_artifact("binding", "binding:z-semantic-first"),
+            e02_artifact("binding", "binding:a-semantic-second"),
+        ],
+        dependency_closure: "sha256:protocol-dependency-closure-r1".into(),
+        execution_scope: json!({
+            "repository": "agent-ix/quire-protocol",
+            "revision": "tc-007",
+            "paths": ["src/projection.rs"]
+        })
+        .as_object()
+        .expect("execution scope object")
+        .clone(),
+        produced_at: "2026-09-15T12:00:00Z".into(),
+        producer_version: result::CONTRACT.into(),
+        adapter_identity: "agent-ix/quire-protocol/e02-projection".into(),
+        adapter_version: "1-draft.1".into(),
+        decision_support_bindings: input
+            .decision_support
+            .iter()
+            .map(|support| DecisionSupportBinding {
+                source_oracle_identity: support.oracle_identity.clone(),
+                source_observation_identity: support.observation_identity.clone(),
+                oracle_ref: e02_oracle(&support.oracle_identity),
+                observation_ref: e02_observation(&support.observation_identity),
+            })
+            .collect(),
+    }
+}
+
+fn project_input<'a>(
+    input: Input<'a>,
+    request: &ProjectionRequestId,
+    resolution: &E02Resolution,
+    mutate: impl FnOnce(&mut ProjectionContext),
+) -> quire_protocol::OperationOutcome<ProjectedTechniqueResult> {
+    let document = result::produce(input.clone(), Limits::owner_max()).expect("canonical source");
+    let mut context = e02_context(&document, &input);
+    mutate(&mut context);
+    quire_protocol::projection::project_e02(
+        document.bytes(),
+        result::Expected {
+            input,
+            enclosing_digest: document.digest(),
+        },
+        Limits::owner_max(),
+        request,
+        resolution,
+        &context,
+    )
+}
+
+fn projected_value(
+    input: Input<'_>,
+    request: &ProjectionRequestId,
+    resolution: &E02Resolution,
+) -> Value {
+    let projected = projection_result(project_input(input, request, resolution, |_| {}))
+        .expect("source row projects");
+    serde_json::from_slice(projected.bytes()).expect("projected JSON")
+}
+
+fn unavailable_input(fixture: &Fixture, activation: Activation) -> Input<'_> {
+    let mut input = base_input(fixture);
+    input.truth = Truth::Unavailable;
+    input.settlement.basis = SettlementBasis::Unavailable;
+    input.settlement.supporting_fact_identities.clear();
+    input.activation = activation;
+    input.decision_support.clear();
+    input
+}
+
+fn projected_id_after_context_mutation(
+    fixture: &Fixture,
+    request: &ProjectionRequestId,
+    resolution: &E02Resolution,
+    mutate: fn(&mut ProjectionContext),
+) -> String {
+    projection_result(project_input(
+        base_input(fixture),
+        request,
+        resolution,
+        mutate,
+    ))
+    .expect("identity-bearing target mutation projects")
+    .result_id()
+    .to_owned()
+}
+
+#[test]
+#[trace("TC-007", "FR-007-AC-2", "FR-007-AC-5")]
+#[trace("FR-034-AC-2", "FR-034-AC-3", "FR-034-AC-4")]
+#[trace("FR-034-AC-5", "FR-034-AC-6")]
+fn tc_007_projection_has_exact_identity_binding_and_retention() {
+    let owner = fixture();
+    let input = base_input(&owner);
+    let document = result::produce(input.clone(), Limits::owner_max()).expect("canonical source");
+    let context = e02_context(&document, &input);
+    let request = ProjectionRequestId::new(b"tc-007:exact-projection").expect("request id");
+    let resolution = e02_resolution(&request);
+    let projected = projection_result(quire_protocol::projection::project_e02(
+        document.bytes(),
+        result::Expected {
+            input,
+            enclosing_digest: document.digest(),
+        },
+        Limits::owner_max(),
+        &request,
+        &resolution,
+        &context,
+    ))
+    .expect("projection completes");
+
+    assert_eq!(projected.source_bytes(), document.bytes());
+    assert_ne!(projected.result_id(), document.result_id());
+    assert!(projected.result_id().starts_with("sha256-jcs:"));
+    assert!(projected.result_id()["sha256-jcs:".len()..]
+        .bytes()
+        .all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f')));
+    let value: Value = serde_json::from_slice(projected.bytes()).expect("projected JSON");
+    let identity_preimage = json!({
+        "identityVersion": quire_protocol::projection::IDENTITY_VERSION,
+        "sourceResultRef": {
+            "identity": document.result_id(),
+            "digest": document.digest(),
+        },
+        "targetContractVersion": context.target_contract_version,
+        "targetBinding": {
+            "propertyRef": context.property_ref,
+            "planId": context.plan_id,
+            "taskId": context.task_id,
+            "runRef": context.run_ref,
+            "profile": context.profile,
+            "bindingRefs": context.binding_refs,
+            "dependencyClosure": context.dependency_closure,
+            "executionScope": context.execution_scope,
+        },
+        "adapter": {
+            "identity": context.adapter_identity,
+            "version": context.adapter_version,
+        },
+    });
+    assert_eq!(
+        projected.result_id(),
+        jcs_sha256(&identity_preimage).expect("qverify-owned RFC 8785 identity")
+    );
+    assert_eq!(value["contractVersion"], contracts::contract_version());
+    assert_eq!(value["planId"], context.plan_id);
+    assert_eq!(value["taskId"], context.task_id);
+    assert_eq!(
+        value["runRef"],
+        serde_json::to_value(&context.run_ref).unwrap()
+    );
+    assert_eq!(
+        value["propertyRef"],
+        serde_json::to_value(&context.property_ref).unwrap()
+    );
+    assert_eq!(
+        value["subjectRefs"],
+        serde_json::to_value(&context.subject_refs).unwrap()
+    );
+    assert_eq!(
+        value["bindingRefs"],
+        serde_json::to_value(&context.binding_refs).unwrap()
+    );
+    assert_eq!(value["profile"], context.profile);
+    assert_eq!(value["dependencyClosure"], context.dependency_closure);
+    assert_eq!(
+        value["executionScope"],
+        Value::Object(context.execution_scope.clone())
+    );
+    assert_eq!(
+        value["bindingRefs"][0]["value"]["identity"],
+        "binding:z-semantic-first"
+    );
+    assert_eq!(
+        value["bindingRefs"][1]["value"]["identity"],
+        "binding:a-semantic-second"
+    );
+    assert_eq!(value["nativeArtifacts"].as_array().unwrap().len(), 1);
+    assert_eq!(value["nativeArtifacts"][0]["uri"], context.source_uri);
+    assert_eq!(value["nativeArtifacts"][0]["digest"], document.digest());
+    assert_eq!(
+        value["nativeArtifacts"][0]["mediaType"],
+        quire_protocol::projection::SOURCE_MEDIA_TYPE
+    );
+    assert_eq!(value["sourceLimitations"][0]["code"], "bound:finite");
+    assert_eq!(
+        value["provenance"]["producerVersion"],
+        context.producer_version
+    );
+    assert_eq!(value["provenance"]["adapter"], context.adapter_identity);
+    assert_eq!(
+        value["provenance"]["adapterVersion"],
+        context.adapter_version
+    );
+    assert!(value.get("sufficiencyDecision").is_none());
+    assert!(matches!(
+        contracts::validate_contract(value).expect("qverify strict reread"),
+        contracts::PublicContract::TechniqueResult(_)
+    ));
+}
+
+#[test]
+#[trace("TC-007", "FR-007-AC-1", "FR-007-AC-3")]
+#[trace("FR-035-AC-1", "FR-035-AC-2", "FR-035-AC-3")]
+#[trace("FR-035-AC-4")]
+fn tc_007_every_source_state_row_and_simultaneous_finding_maps() {
+    let owner = fixture();
+    let request = ProjectionRequestId::new(b"tc-007:mapping-table").expect("request id");
+    let resolution = e02_resolution(&request);
+    let cases = [
+        (AssessmentExecution::Completed, "completed"),
+        (AssessmentExecution::Refused, "invalid-input"),
+        (AssessmentExecution::Unsupported, "unsupported"),
+        (AssessmentExecution::ResourceIncomplete, "exhausted"),
+        (AssessmentExecution::Failed, "failed"),
+    ];
+    for (execution, expected) in cases {
+        let mut input = base_input(&owner);
+        if execution != AssessmentExecution::Completed {
+            input.execution = execution;
+            input.truth = Truth::Unavailable;
+            input.settlement.basis = SettlementBasis::Unavailable;
+        }
+        let projected = projection_result(project_input(input, &request, &resolution, |_| {}))
+            .expect("execution row maps");
+        let value: Value = serde_json::from_slice(projected.bytes()).expect("projected JSON");
+        assert_eq!(value["execution"]["status"], expected);
+        assert_eq!(
+            value["logical"]["outcome"],
+            if execution == AssessmentExecution::Completed {
+                "satisfied"
+            } else {
+                "not-evaluated"
+            }
+        );
+    }
+
+    let mut input = base_input(&owner);
+    input.truth = Truth::Violated;
+    assert_eq!(
+        projected_value(input, &request, &resolution)["logical"]["outcome"],
+        "violated"
+    );
+
+    for (activation, expected_activation, expected_logical) in [
+        (Activation::Inactive, "not-activated", "not-evaluated"),
+        (Activation::ActivationUnknown, "unknown", "unknown"),
+        (Activation::Triggered, "activated", "unknown"),
+    ] {
+        let value = projected_value(unavailable_input(&owner, activation), &request, &resolution);
+        assert_eq!(value["activation"]["status"], expected_activation);
+        assert_eq!(value["logical"]["outcome"], expected_logical);
+    }
+
+    for (participation, expected) in [
+        (
+            Participation::Known {
+                required_role_instance_refs: vec!["role:a".into()],
+                participating_role_instance_refs: vec!["role:a".into()],
+            },
+            "complete",
+        ),
+        (
+            Participation::Known {
+                required_role_instance_refs: vec!["role:a".into()],
+                participating_role_instance_refs: Vec::new(),
+            },
+            "not-started",
+        ),
+        (
+            Participation::Known {
+                required_role_instance_refs: Vec::new(),
+                participating_role_instance_refs: Vec::new(),
+            },
+            "not-required",
+        ),
+        (
+            Participation::Unknown {
+                participating_role_instance_refs: vec!["role:a".into()],
+                missing_dependency_refs: vec!["dependency:one".into()],
+                reasons: vec!["reason:unavailable".into()],
+            },
+            "unknown",
+        ),
+    ] {
+        let mut input = base_input(&owner);
+        input.participation = participation;
+        assert_eq!(
+            projected_value(input, &request, &resolution)["participation"]["status"],
+            expected
+        );
+    }
+
+    for (adequacy, expected) in [
+        (Adequacy::Adequate, "adequate"),
+        (Adequacy::Inadequate, "inadequate"),
+        (Adequacy::Unknown, "unknown"),
+        (Adequacy::NotAssessed, "not-assessed"),
+    ] {
+        let mut input = base_input(&owner);
+        input.observation_adequacy = adequacy;
+        assert_eq!(
+            projected_value(input, &request, &resolution)["adequacy"]["status"],
+            expected
+        );
+    }
+
+    let mut input = base_input(&owner);
+    input.truth = Truth::Pending;
+    input.settlement.basis = SettlementBasis::Unsettled;
+    input.axes.decision_scope_progress = &owner.decision.progress_open;
+    input.settlement.supporting_progress_identities =
+        vec![owner.decision.progress_open.identity().as_str().to_owned()];
+    input.participation = Participation::Known {
+        required_role_instance_refs: vec!["role:a".into(), "role:b".into()],
+        participating_role_instance_refs: vec!["role:b".into()],
+    };
+    input.assumptions = vec![
+        Assumption {
+            identity: "assumption:met".into(),
+            state: AssumptionState::Met,
+        },
+        Assumption {
+            identity: "assumption:not-met".into(),
+            state: AssumptionState::NotMet,
+        },
+        Assumption {
+            identity: "assumption:unknown".into(),
+            state: AssumptionState::Unknown,
+        },
+        Assumption {
+            identity: "assumption:not-assessed".into(),
+            state: AssumptionState::NotAssessed,
+        },
+    ];
+    input.observation_adequacy = Adequacy::Inadequate;
+    input.protocol_adequacy = ProtocolAdequacy::Demonstrated;
+    let projected = projection_result(project_input(input, &request, &resolution, |_| {}))
+        .expect("simultaneous findings map");
+    let value: Value = serde_json::from_slice(projected.bytes()).expect("projected JSON");
+    assert_eq!(value["logical"]["outcome"], "inconclusive");
+    assert_eq!(value["participation"]["status"], "partial");
+    assert_eq!(value["participation"]["participants"], json!(["role:b"]));
+    assert_eq!(
+        value["participation"]["missingParticipants"],
+        json!(["role:a"])
+    );
+    assert_eq!(value["assumptions"].as_array().unwrap().len(), 4);
+    assert_eq!(value["assumptions"][0]["status"], "met");
+    assert_eq!(value["assumptions"][1]["status"], "not-met");
+    assert_eq!(value["assumptions"][2]["status"], "unknown");
+    assert_eq!(value["assumptions"][3]["status"], "not-assessed");
+    assert_eq!(value["adequacy"]["status"], "inadequate");
+    assert!(value["adequacy"].get("protocolAdequacy").is_none());
+    assert!(value.get("protocolAdequacy").is_none());
+    assert!(value.get("sufficiencyDecision").is_none());
+}
+
+#[test]
+#[trace("TC-007", "FR-007-AC-4", "FR-007-AC-6")]
+#[trace("FR-034-AC-1", "FR-034-AC-7")]
+#[trace("FR-035-AC-5", "FR-035-AC-6", "FR-035-AC-7")]
+fn tc_007_identity_mutations_lineage_and_refusals_are_exact() {
+    let owner = fixture();
+    let request = ProjectionRequestId::new(b"tc-007:refusals").expect("request id");
+    let resolution = e02_resolution(&request);
+    let baseline = projection_result(project_input(
+        base_input(&owner),
+        &request,
+        &resolution,
+        |_| {},
+    ))
+    .expect("baseline projection");
+    let baseline_id = baseline.result_id().to_owned();
+
+    let mut source_mutation = base_input(&owner);
+    source_mutation.provenance.input_identity = "input:mutated".into();
+    let source_changed = projection_result(project_input(
+        source_mutation,
+        &request,
+        &resolution,
+        |_| {},
+    ))
+    .expect("source identity mutation projects");
+    assert_ne!(baseline_id, source_changed.result_id());
+
+    let target_mutations: [fn(&mut ProjectionContext); 10] = [
+        |context| context.property_ref = e02_artifact("property", "property:mutated"),
+        |context| context.plan_id = "plan:mutated".into(),
+        |context| context.task_id = "task:mutated".into(),
+        |context| context.run_ref = e02_artifact("run-artifact", "run:mutated"),
+        |context| context.profile = "profile:mutated".into(),
+        |context| context.binding_refs[0] = e02_artifact("binding", "binding:mutated"),
+        |context| context.dependency_closure = "sha256:mutated-closure".into(),
+        |context| {
+            context
+                .execution_scope
+                .insert("revision".into(), Value::String("mutated".into()));
+        },
+        |context| context.adapter_identity = "adapter:mutated".into(),
+        |context| context.adapter_version = "adapter-version:mutated".into(),
+    ];
+    for mutate in target_mutations {
+        assert_ne!(
+            baseline_id,
+            projected_id_after_context_mutation(&owner, &request, &resolution, mutate)
+        );
+    }
+
+    let changed = projection_result(project_input(
+        base_input(&owner),
+        &request,
+        &resolution,
+        |context| {
+            context.binding_refs.swap(0, 1);
+        },
+    ))
+    .expect("semantic-order mutation remains a valid distinct projection");
+    assert_ne!(baseline.result_id(), changed.result_id());
+
+    let refusal = projection_result(project_input(
+        base_input(&owner),
+        &request,
+        &resolution,
+        |context| {
+            context.source_digest = "sha256-jcs:deadbeef".into();
+        },
+    ))
+    .expect_err("wrong source digest refuses");
+    assert_eq!(refusal.code().as_str(), "invalid-source-result");
+    let refusal = projection_result(project_input(
+        base_input(&owner),
+        &request,
+        &resolution,
+        |context| {
+            context.source_contract_version = "quire.protocol/result/future".into();
+        },
+    ))
+    .expect_err("unknown source version refuses");
+    assert_eq!(refusal.code().as_str(), "unsupported-source-version");
+    let refusal = projection_result(project_input(
+        base_input(&owner),
+        &request,
+        &resolution,
+        |context| {
+            context.target_contract_version = "quire-verification/e02-future".into();
+        },
+    ))
+    .expect_err("unknown target version refuses");
+    assert_eq!(refusal.code().as_str(), "unsupported-target-version");
+    let refusal = projection_result(project_input(
+        base_input(&owner),
+        &request,
+        &resolution,
+        |context| {
+            context.required_features.push("future-finding-axis".into());
+        },
+    ))
+    .expect_err("unknown target feature refuses");
+    assert_eq!(refusal.code().as_str(), "unsupported-target-version");
+    let refusal = projection_result(project_input(
+        base_input(&owner),
+        &request,
+        &resolution,
+        |context| {
+            context.plan_id.clear();
+        },
+    ))
+    .expect_err("missing target context refuses");
+    assert_eq!(refusal.code().as_str(), "missing-context");
+    let refusal = projection_result(project_input(
+        base_input(&owner),
+        &request,
+        &resolution,
+        |context| {
+            context.expected_result_id = Some("sha256-jcs:wrong".into());
+        },
+    ))
+    .expect_err("wrong asserted projection identity refuses");
+    assert_eq!(refusal.code().as_str(), "identity-mismatch");
+
+    let refusal = projection_result(project_input(
+        base_input(&owner),
+        &request,
+        &resolution,
+        |context| {
+            context.decision_support_bindings.clear();
+        },
+    ))
+    .expect_err("missing support binding refuses");
+    assert_eq!(refusal.code().as_str(), "missing-context");
+    let refusal = projection_result(project_input(
+        base_input(&owner),
+        &request,
+        &resolution,
+        |context| {
+            let binding = &mut context.decision_support_bindings[0];
+            binding.source_oracle_identity = "oracle:wrong".into();
+            binding.oracle_ref = e02_oracle("oracle:wrong");
+        },
+    ))
+    .expect_err("foreign source support identity refuses");
+    assert_eq!(refusal.code().as_str(), "identity-mismatch");
+    let refusal = projection_result(project_input(
+        base_input(&owner),
+        &request,
+        &resolution,
+        |context| {
+            context.decision_support_bindings[0].oracle_ref = e02_oracle("oracle:wrong");
+        },
+    ))
+    .expect_err("mismatched target oracle identity refuses");
+    assert_eq!(refusal.code().as_str(), "identity-mismatch");
+    let refusal = projection_result(project_input(
+        base_input(&owner),
+        &request,
+        &resolution,
+        |context| {
+            context.decision_support_bindings[0].observation_ref =
+                e02_observation("observation:wrong");
+        },
+    ))
+    .expect_err("mismatched target observation identity refuses");
+    assert_eq!(refusal.code().as_str(), "identity-mismatch");
+
+    let input = base_input(&owner);
+    let document = result::produce(input.clone(), Limits::owner_max()).expect("canonical source");
+    let context = e02_context(&document, &input);
+    let refusal = projection_result(quire_protocol::projection::project_e02(
+        b"not-json",
+        result::Expected {
+            input,
+            enclosing_digest: document.digest(),
+        },
+        Limits::owner_max(),
+        &request,
+        &resolution,
+        &context,
+    ))
+    .expect_err("malformed source bytes refuse");
+    assert_eq!(refusal.code().as_str(), "invalid-source-result");
+
+    let mut input = base_input(&owner);
+    let observation = input.decision_support[0].observation_identity.clone();
+    input.decision_support = vec![
+        DecisionSupport {
+            oracle_identity: "oracle:root".into(),
+            observation_identity: observation.clone(),
+            relation: DependenceRelation::Independent,
+            predecessor: None,
+            dependence_group: None,
+        },
+        DecisionSupport {
+            oracle_identity: "oracle:shared".into(),
+            observation_identity: observation.clone(),
+            relation: DependenceRelation::Shared,
+            predecessor: None,
+            dependence_group: Some("dependence:one".into()),
+        },
+        DecisionSupport {
+            oracle_identity: "oracle:derived".into(),
+            observation_identity: observation.clone(),
+            relation: DependenceRelation::Derived,
+            predecessor: Some(SupportRef {
+                oracle_identity: "oracle:root".into(),
+                observation_identity: observation.clone(),
+            }),
+            dependence_group: None,
+        },
+        DecisionSupport {
+            oracle_identity: "oracle:unknown".into(),
+            observation_identity: observation,
+            relation: DependenceRelation::Unknown,
+            predecessor: None,
+            dependence_group: None,
+        },
+    ];
+    let projected = projection_result(project_input(input, &request, &resolution, |_| {}))
+        .expect("all dependence relations project");
+    let value: Value = serde_json::from_slice(projected.bytes()).expect("projected JSON");
+    assert_eq!(value["oracleContributions"][0]["relation"], "independent");
+    assert_eq!(value["oracleContributions"][1]["relation"], "shared");
+    assert_eq!(
+        value["oracleContributions"][1]["dependenceGroupId"],
+        "dependence:one"
+    );
+    assert_eq!(value["oracleContributions"][2]["relation"], "derived");
+    assert_eq!(
+        value["oracleContributions"][2]["derivedFrom"]["contributionId"],
+        "protocol-support-0"
+    );
+    assert_eq!(
+        value["oracleContributions"][2]["derivedFrom"]["resultId"],
+        projected.result_id()
+    );
+    assert_eq!(value["oracleContributions"][3]["relation"], "unknown");
 }
