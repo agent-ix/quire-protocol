@@ -2399,8 +2399,8 @@ fn tc_009_result_output_budget_precedes_canonical_allocation() {
         owner_clamped_resources
             .usage()
             .consumed(BudgetDimension::OutputByte),
-        0,
-        "oversized non-reproduction text must refuse before any output byte is retained"
+        control.result_id().len(),
+        "only the fixed result-identity string is admitted before oversized caller text refuses"
     );
 
     let structural = control.usage();
@@ -2474,6 +2474,40 @@ fn tc_009_result_output_budget_precedes_canonical_allocation() {
             .usage()
             .consumed(BudgetDimension::Operation),
         operation_total
+    );
+
+    let mut assumption_input = input.clone();
+    assumption_input.assumptions.push(Assumption {
+        identity: "x".repeat(128 * 1024),
+        state: AssumptionState::Met,
+    });
+    let assumption_control = result::produce(assumption_input.clone(), Limits::owner_max())
+        .expect("large admitted assumption has an exact structural usage");
+    let assumption_operation = assumption_control
+        .usage()
+        .depth
+        .checked_add(assumption_control.usage().visited_fields)
+        .expect("bounded assumption structure");
+    let assumption_short = Budget::nothing_granted()
+        .grant(BudgetDimension::Operation, assumption_operation - 1)
+        .expect("positive one-short assumption traversal grant");
+    let mut assumption_resources = ResourceAccountant::new(assumption_short, &inventory);
+    assert!(matches!(
+        result::produce_bounded(
+            assumption_input,
+            Limits::owner_max(),
+            &mut assumption_resources,
+        ),
+        OperationOutcome::ResourceIncomplete(value)
+            if value.dimension() == BudgetDimension::Operation
+                && value.site().as_str() == "result/output/field/visit"
+    ));
+    assert_eq!(
+        assumption_resources
+            .usage()
+            .consumed(BudgetDimension::OutputByte),
+        0,
+        "an operation refusal precedes traversal of the large assumption string"
     );
 
     let one_allocation = Budget::nothing_granted()

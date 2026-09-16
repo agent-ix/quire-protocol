@@ -7,7 +7,9 @@ use serde::Serialize;
 use serde_json::{json, Value};
 
 use crate::assessment::{AxisInputs, GlobalConformanceInput, GlobalPremise};
-use crate::bounds::inventory::{BudgetDimension, OperationOutcome, ResourceAccountant, SourceSite};
+use crate::bounds::inventory::{
+    BudgetDimension, ChargeError, OperationOutcome, ResourceAccountant, SourceSite,
+};
 use crate::bounds::{SiteId, SiteKind, UnitLabel};
 use crate::closure::{AssessmentExecution, GlobalConformanceClosure, ScopeState};
 use crate::digest::jcs::{canonical_len, canonicalize, encoded_string_content_len, ResultDigest};
@@ -915,30 +917,11 @@ fn produce_bounded_unit(
     if let Err(error) = resources.charge_all_mixed(&charges) {
         return OperationOutcome::from_charge(error);
     }
-    // Collection counts are charged before this exact read-only preflight, so
-    // an oversized untrusted collection is never scanned. The preflight itself
-    // retains no caller data and allocates no canonical/snapshot output.
-    let structural = output_structural_usage(&input).unwrap_or(StructuralUsage {
-        fields: usize::MAX,
-        depth: usize::MAX,
-        string_bytes: usize::MAX,
-    });
-    for (site, requested, limit) in [
-        (
-            STRING_SOURCE.id(),
-            structural.string_bytes,
-            effective.max_string_bytes,
-        ),
-        (DEPTH_SOURCE.id(), structural.depth, effective.max_depth),
-        (
-            OPERATION_SOURCE.id(),
-            structural.fields,
-            effective.max_visited_fields,
-        ),
-    ] {
-        if let Err(error) = resources.charge_with_limit(site, requested, limit) {
-            return OperationOutcome::from_charge(error);
-        }
+    // Preflight charges every structural unit before traversing it. Only after
+    // all caller-controlled shape and text has been admitted may the retained
+    // snapshot and typed JSON value be allocated.
+    if let Err(error) = charge_output_preflight(&input, effective, resources) {
+        return OperationOutcome::from_charge(error);
     }
     let prepared = match prepare_without_identity(input, effective) {
         Ok(prepared) => prepared,
@@ -974,7 +957,7 @@ fn prepare_without_identity(
     validate_input(&input, effective)?;
     let semantic_usage = semantic_usage(&input);
     let snapshot = snapshot(&input);
-    let value = result_value(&input, &snapshot, None)?;
+    let value = result_value(&snapshot, None)?;
     Ok(PreparedWithoutIdentity {
         snapshot,
         value,
@@ -990,7 +973,7 @@ fn canonical_output_len(
         .ok_or(crate::digest::jcs::JcsError::LengthOverflow)
 }
 
-fn seal_identity(mut prepared: PreparedWithoutIdentity) -> Result<Prepared> {
+fn seal_identity(prepared: PreparedWithoutIdentity) -> Result<Prepared> {
     let preimage = json!({
         "identityVersion": IDENTITY_VERSION,
         "result": &prepared.value,
@@ -1005,18 +988,10 @@ fn seal_identity(mut prepared: PreparedWithoutIdentity) -> Result<Prepared> {
             )
         })?
         .text();
-    let Some(value) = prepared.value.as_object_mut() else {
-        return Err(refusal(
-            ErrorCode::InvalidSelection,
-            "typed result record is not a JSON object",
-            Usage::default(),
-            Some(&result_id),
-        ));
-    };
-    value.insert("resultId".to_owned(), Value::String(result_id.clone()));
+    let value = result_value(&prepared.snapshot, Some(&result_id))?;
     Ok(Prepared {
         snapshot: prepared.snapshot,
-        value: prepared.value,
+        value,
         result_id,
         semantic_usage: prepared.semantic_usage,
     })
@@ -1092,7 +1067,7 @@ fn decimal_len(mut value: u64) -> usize {
     digits
 }
 
-fn output_structural_usage(input: &Input<'_>) -> Option<StructuralUsage> {
+fn base_output_fields(input: &Input<'_>) -> Option<usize> {
     fn add(total: &mut usize, value: usize) -> Option<()> {
         *total = total.checked_add(value)?;
         Some(())
@@ -1109,17 +1084,12 @@ fn output_structural_usage(input: &Input<'_>) -> Option<StructuralUsage> {
     let mut fields = 24usize;
     add_records(&mut fields, input.assumptions.len(), 3)?;
     add(&mut fields, 4 + 8)?;
-    add(&mut fields, input.completeness.payload().facts().count())?;
+    add(&mut fields, input.completeness.payload().fact_count())?;
     if input.correction.is_some() {
         add(&mut fields, 5)?;
     }
     add(&mut fields, 40)?;
-    for support in &input.decision_support {
-        add(
-            &mut fields,
-            if support.predecessor.is_some() { 8 } else { 6 },
-        )?;
-    }
+    add_records(&mut fields, input.decision_support.len(), 6)?;
     add(&mut fields, 2)?;
     add_records(&mut fields, input.global_conformance.premises.len(), 5)?;
     add_records(&mut fields, input.limitations.len(), 3)?;
@@ -1159,25 +1129,63 @@ fn output_structural_usage(input: &Input<'_>) -> Option<StructuralUsage> {
             .checked_add(input.settlement.supporting_progress_identities.len())?,
     )?;
 
-    let depth = if !input.global_conformance.premises.is_empty()
-        || input
-            .decision_support
-            .iter()
-            .any(|support| support.predecessor.is_some())
-    {
-        4
-    } else {
-        3
-    };
+    Some(fields)
+}
 
-    // The derived result identity (`sha256-jcs:` plus 64 hex digits) is the
-    // largest fixed string. Every variable string is measured using the same
-    // escaping rules as canonical JCS before any of it is cloned into the
-    // retained snapshot.
-    let mut string_bytes = 75usize.max(largest_reproduction_string(input)?);
-    let mut observe = |value: &str| -> Option<()> {
-        string_bytes = string_bytes.max(encoded_string_content_len(value).ok()?);
-        Some(())
+fn charge_output_preflight(
+    input: &Input<'_>,
+    effective: Limits,
+    resources: &mut ResourceAccountant<'_>,
+) -> core::result::Result<StructuralUsage, ChargeError> {
+    // Three container levels are unconditional. A global premise makes the
+    // fourth level visible without traversal; a nested support predecessor
+    // charges that fourth level immediately before it is entered below.
+    let mut depth = if input.global_conformance.premises.is_empty() {
+        3
+    } else {
+        4
+    };
+    resources.charge_with_limit(DEPTH_SOURCE.id(), depth, effective.max_depth)?;
+
+    // The base field count uses only O(1) collection lengths and variant
+    // discriminants. It deliberately excludes the two predecessor members,
+    // which are charged immediately before each optional nested record.
+    let mut fields =
+        base_output_fields(input).unwrap_or_else(|| effective.max_visited_fields.saturating_add(1));
+    resources.charge_with_limit(OPERATION_SOURCE.id(), fields, effective.max_visited_fields)?;
+    for support in &input.decision_support {
+        if support.predecessor.is_some() {
+            if depth == 3 {
+                resources.charge_with_limit(DEPTH_SOURCE.id(), 1, effective.max_depth)?;
+                depth = 4;
+            }
+            resources.charge_with_limit(OPERATION_SOURCE.id(), 2, effective.max_visited_fields)?;
+            fields = fields.saturating_add(2);
+        }
+    }
+
+    // The fixed result identity is always a 75-byte string. Reserving it first
+    // means an exhausted output budget refuses before any caller string is
+    // traversed. Each variable string then reserves its O(1) raw byte length
+    // before scanning escapes, and reserves any escape expansion before the
+    // retained snapshot is built.
+    let mut string_bytes = 0usize;
+    charge_string_size(resources, effective.max_string_bytes, &mut string_bytes, 75)?;
+    let reproduction_string = largest_reproduction_string(input)
+        .unwrap_or_else(|| effective.max_string_bytes.saturating_add(1));
+    charge_string_size(
+        resources,
+        effective.max_string_bytes,
+        &mut string_bytes,
+        reproduction_string,
+    )?;
+    let mut observe = |value: &str| {
+        charge_encoded_string(
+            resources,
+            effective.max_string_bytes,
+            &mut string_bytes,
+            value,
+        )
     };
     observe(input.checked_predicate.document().identity())?;
     observe(input.temporal_subject.document().identity())?;
@@ -1290,11 +1298,53 @@ fn output_structural_usage(input: &Input<'_>) -> Option<StructuralUsage> {
         observe(correction.corrected_input_identity)?;
     }
 
-    Some(StructuralUsage {
+    Ok(StructuralUsage {
         fields,
         depth,
         string_bytes,
     })
+}
+
+fn charge_string_size(
+    resources: &mut ResourceAccountant<'_>,
+    limit: usize,
+    largest: &mut usize,
+    size: usize,
+) -> core::result::Result<(), ChargeError> {
+    if size > *largest {
+        resources.charge_with_limit(STRING_SOURCE.id(), size - *largest, limit)?;
+        *largest = size;
+    }
+    Ok(())
+}
+
+fn charge_encoded_string(
+    resources: &mut ResourceAccountant<'_>,
+    limit: usize,
+    largest: &mut usize,
+    value: &str,
+) -> core::result::Result<(), ChargeError> {
+    // `str::len` is O(1), so the raw bytes are reserved before the escaping
+    // scan. JCS never shortens a UTF-8 string; only the expansion delta can
+    // remain after this reservation, and it is charged before retention.
+    charge_string_size(resources, limit, largest, value.len())?;
+    let encoded = match encoded_string_content_len(value) {
+        Ok(encoded) => encoded,
+        Err(_) => return force_string_refusal(resources, limit, *largest),
+    };
+    charge_string_size(resources, limit, largest, encoded)
+}
+
+fn force_string_refusal(
+    resources: &mut ResourceAccountant<'_>,
+    limit: usize,
+    consumed: usize,
+) -> core::result::Result<(), ChargeError> {
+    resources.charge_with_limit(
+        STRING_SOURCE.id(),
+        limit.saturating_sub(consumed).saturating_add(1),
+        limit,
+    )
 }
 
 fn validate_input(input: &Input<'_>, limits: Limits) -> Result<()> {
@@ -1875,33 +1925,36 @@ struct SettlementWire<'a> {
     supporting_progress_identities: &'a [String],
 }
 
-fn result_value(input: &Input<'_>, snapshot: &Snapshot, result_id: Option<&str>) -> Result<Value> {
+fn result_value(snapshot: &Snapshot, result_id: Option<&str>) -> Result<Value> {
     let axes = &snapshot.axes;
     let wire = ResultWire {
-        activation: input.activation.label(),
-        assumptions: input.assumptions.iter().map(assumption_wire).collect(),
-        claim: claim_wire(&input.claim),
+        activation: snapshot.activation.label(),
+        assumptions: snapshot.assumptions.iter().map(assumption_wire).collect(),
+        claim: claim_wire(&snapshot.claim),
         completeness: completeness_wire(&snapshot.completeness),
         contract_version: CONTRACT,
         correction: snapshot.correction.as_ref().map(correction_wire),
         decision_scope_closure: axis_wire(&axes[1]),
         decision_scope_progress: axis_wire(&axes[0]),
-        decision_support: input.decision_support.iter().map(support_wire).collect(),
-        execution: input.execution.label(),
-        global_conformance: global_wire(&input.global_conformance),
+        decision_support: snapshot.decision_support.iter().map(support_wire).collect(),
+        execution: snapshot.execution.label(),
+        global_conformance: GlobalWire {
+            premises: snapshot.global_premises.iter().map(premise_wire).collect(),
+            state: snapshot.global_conformance_state.label(),
+        },
         kind: "ProtocolResult",
-        limitations: input.limitations.iter().map(limitation_wire).collect(),
+        limitations: snapshot.limitations.iter().map(limitation_wire).collect(),
         native_correspondence_identity: &snapshot.native_correspondence_identity,
         native_subject_identity: &snapshot.native_subject_identity,
-        observation_adequacy: input.observation_adequacy.label(),
-        participation: participation_wire(&input.participation),
-        protocol_adequacy: input.protocol_adequacy.label(),
-        provenance: provenance_wire(&input.provenance)?,
+        observation_adequacy: snapshot.observation_adequacy.label(),
+        participation: participation_wire(&snapshot.participation),
+        protocol_adequacy: snapshot.protocol_adequacy.label(),
+        provenance: provenance_wire(&snapshot.provenance)?,
         result_id,
-        settlement: settlement_wire(&input.settlement),
+        settlement: settlement_wire(&snapshot.settlement),
         surrounding_execution_closure: axis_wire(&axes[3]),
         surrounding_execution_progress: axis_wire(&axes[2]),
-        truth: input.truth.label(),
+        truth: snapshot.truth.label(),
     };
     serde_json::to_value(wire).map_err(|_| {
         refusal(
@@ -1980,13 +2033,6 @@ fn support_wire(support: &DecisionSupport) -> SupportWire<'_> {
                 oracle_identity: &predecessor.oracle_identity,
             }),
         relation: support.relation.label(),
-    }
-}
-
-fn global_wire(global: &GlobalConformanceInput) -> GlobalWire<'_> {
-    GlobalWire {
-        premises: global.premises.iter().map(premise_wire).collect(),
-        state: global.state.label(),
     }
 }
 
