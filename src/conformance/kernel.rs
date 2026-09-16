@@ -613,10 +613,7 @@ impl Kernel {
         result: &'a temporal_v2::ValidatedResult,
     ) -> Result<ActivationBinding<'a>, Refusal> {
         if self.definition != *linked.identity()
-            || !same_activation_graph(
-                &mappings.package().inherited,
-                linked.context().package().inherited(),
-            )
+            || !same_activation_graph(mappings.package(), linked.context().package().package())
         {
             return Err(Refusal::ForeignActivationPackage);
         }
@@ -906,24 +903,27 @@ fn append_hex(target: &mut String, bytes: &[u8]) {
 /// compared in QSL's typed vocabulary rather than normalizing either package
 /// into a Protocol-owned surrogate.
 fn same_activation_graph(
-    mapped: &quire_spec_language::protocol_artifact::wire::Package,
-    linked: &quire_spec_language::protocol_artifact::wire::Package,
+    mapped: &v3::wire::Package,
+    linked: &quire_spec_language::protocol_artifact::v2::wire::Package,
 ) -> bool {
-    mapped.package_type == linked.package_type
-        && mapped.encoding == linked.encoding
-        && mapped.numeric == linked.numeric
-        && mapped.contract == linked.contract
-        && mapped.producer == linked.producer
-        && mapped.baseline == linked.baseline
-        && mapped.language == linked.language
-        && mapped.package_definition == linked.package_definition
-        && mapped.features == linked.features
-        && mapped.sources == linked.sources
-        && mapped.dependencies == linked.dependencies
-        && mapped.definitions == linked.definitions
-        && mapped.models == linked.models
-        && mapped.types == linked.types
-        && mapped.declarations == linked.declarations
+    let mapped_inherited = &mapped.inherited;
+    let linked_inherited = &linked.inherited;
+    mapped.temporal_bindings == linked.temporal_bindings
+        && mapped_inherited.package_type == linked_inherited.package_type
+        && mapped_inherited.encoding == linked_inherited.encoding
+        && mapped_inherited.numeric == linked_inherited.numeric
+        && mapped_inherited.contract == linked_inherited.contract
+        && mapped_inherited.producer == linked_inherited.producer
+        && mapped_inherited.baseline == linked_inherited.baseline
+        && mapped_inherited.language == linked_inherited.language
+        && mapped_inherited.package_definition == linked_inherited.package_definition
+        && mapped_inherited.features == linked_inherited.features
+        && mapped_inherited.sources == linked_inherited.sources
+        && mapped_inherited.dependencies == linked_inherited.dependencies
+        && mapped_inherited.definitions == linked_inherited.definitions
+        && mapped_inherited.models == linked_inherited.models
+        && mapped_inherited.types == linked_inherited.types
+        && mapped_inherited.declarations == linked_inherited.declarations
 }
 
 fn registration_for(

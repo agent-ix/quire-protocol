@@ -32,7 +32,8 @@ use quire_protocol::{
 };
 use quire_spec_language::protocol_artifact::{
     native_temporal::{self, request, v2 as temporal_v2},
-    occurrence_key_schema, temporal_subject, v3, wire as qsl_wire, WorkflowInstanceIdentity,
+    occurrence_key_schema, temporal_subject, v2 as artifact_v2, v3, wire as qsl_wire,
+    WorkflowInstanceIdentity,
 };
 use quire_spec_language::{temporal, ByteDigest};
 
@@ -187,6 +188,88 @@ fn admitted_published_v3(
     )
     .into_result()
     .expect("strict v3 mapping package admits")
+}
+
+/// Strictly admit another `/3` package whose inherited v1 graph and activation
+/// mapping equal the linked package while its independently selected complete
+/// `/2` temporal table differs. Protocol must not treat this as an extension of
+/// the linked `/2` owner value.
+fn admitted_v3_with_foreign_temporal_table(
+    package: &artifact_v2::AdmittedPackage,
+) -> v3::AdmittedPackage {
+    let canonical = admitted_published_v3(package);
+    let mut offer = canonical.package().clone();
+    let binding = offer
+        .temporal_bindings
+        .first_mut()
+        .expect("published v3 package retains a temporal binding");
+    let changed_clock = match &binding.clock {
+        artifact_v2::wire::ClockConfiguration::EventPosition { sequence_authority } => {
+            artifact_v2::wire::ClockConfiguration::EventPosition {
+                sequence_authority: format!("{sequence_authority}:foreign"),
+            }
+        }
+        artifact_v2::wire::ClockConfiguration::FixedSample {
+            epoch,
+            period,
+            unit,
+        } => artifact_v2::wire::ClockConfiguration::FixedSample {
+            epoch: epoch.clone(),
+            period: period.clone(),
+            unit: format!("{unit}:foreign"),
+        },
+        artifact_v2::wire::ClockConfiguration::TimestampedEvent { timestamp_unit } => {
+            artifact_v2::wire::ClockConfiguration::TimestampedEvent {
+                timestamp_unit: format!("{timestamp_unit}:foreign"),
+            }
+        }
+    };
+    binding.clock = changed_clock.clone();
+
+    let candidate = v3::encode_candidate(
+        &offer,
+        quire_spec_language::protocol_artifact::Limits::default(),
+    )
+    .into_result()
+    .expect("foreign temporal v3 mapping offer encodes");
+    let loaded = handoff::Handoff::load().expect("published v2 handoff");
+    let declarations = loaded.declarations();
+    let inventories = loaded.inventories(&declarations);
+    let mut seal = package
+        .artifact()
+        .expect("strict v2 handoff retained its artifact seal")
+        .clone();
+    seal.wire.version = "3".into();
+    seal.digest = candidate.digest();
+    let base = loaded.expected_for(&inventories, &seal);
+    let mut temporal = base.temporal.to_vec();
+    let first = temporal
+        .first_mut()
+        .expect("published expectation retains a temporal selection");
+    first.clock = &changed_clock;
+    let inherited = artifact_v2::Expected {
+        inherited: base.inherited,
+        temporal: &temporal,
+    };
+    let selected = offer
+        .activation_mappings
+        .first()
+        .expect("published v3 package retains an activation mapping");
+    let activation = v3::ExpectedActivation {
+        control: selected.control.clone(),
+        temporal_declaration: selected.temporal_declaration,
+    };
+    let expected = v3::Expected {
+        inherited,
+        activations: std::slice::from_ref(&activation),
+    };
+    v3::read(
+        candidate.bytes(),
+        &expected,
+        quire_spec_language::protocol_artifact::Limits::default(),
+    )
+    .into_result()
+    .expect("independently selected foreign temporal v3 package admits")
 }
 
 fn protocol_coordinates(
@@ -1324,6 +1407,22 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
             .expect("event-triggered engine retains its activation binding")
             .semantic_trigger(),
         activation_subject.identity().as_bytes()
+    );
+    let foreign_temporal_mappings = admitted_v3_with_foreign_temporal_table(&package);
+    assert_eq!(
+        activated
+            .conformance()
+            .bind_activation(
+                activated.linked(),
+                &foreign_temporal_mappings,
+                &activation_subject,
+                &request,
+                &result,
+            )
+            .expect_err(
+                "a separately admitted v3 temporal table cannot extend this exact v2 package",
+            ),
+        quire_protocol::conformance::KernelRefusal::ForeignActivationPackage
     );
     let mismatched_subject = QualifiedSubject::new(
         &producer,
