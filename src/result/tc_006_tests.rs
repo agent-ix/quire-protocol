@@ -604,11 +604,7 @@ fn base_input<'a>(fixture: &'a Fixture) -> Input<'a> {
 }
 
 fn canonical_row_controls<'a>(input: Input<'a>, limits: Limits) -> CanonicalRowControls<'a> {
-    let controls = CanonicalRowControls::new(input.provenance.reproduction, limits);
-    match input.correction {
-        Some(correction) => controls.with_correction(correction),
-        None => controls,
-    }
+    CanonicalRowControls::new(input.provenance.reproduction, limits)
 }
 
 fn temporal_digest(label: &str) -> String {
@@ -879,10 +875,16 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
             let w::Body::Protocol { roles, .. } = &value.body else {
                 return None;
             };
+            let role_instance_slots = roles.iter().map(|role| role.instance).collect::<Vec<_>>();
             let subject_slot = value
                 .bindings
                 .iter()
-                .position(|binding| binding.kind != w::BindingKind::Relationship)?;
+                .enumerate()
+                .find(|(slot, binding)| {
+                    binding.kind != w::BindingKind::Relationship
+                        && !role_instance_slots.contains(&u32::try_from(*slot).unwrap_or(u32::MAX))
+                })
+                .map(|(slot, _)| slot)?;
             Some((
                 u32::try_from(declaration).ok()?,
                 roles,
@@ -892,6 +894,20 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
         .expect("published handoff has a protocol subject slot");
     let producer = producer();
     let subject = runtime_subject(&producer, "canonical-engine");
+    let role_instance_kind =
+        SubjectKind::new(b"role-instance".to_vec()).expect("non-empty role-instance kind");
+    let mut static_slots = vec![StaticSlot {
+        handle: SlotHandle::new(subject_slot),
+        compatibility: SlotCompatibility::Subject {
+            kind: SubjectKind::new(ORDER_KIND.as_bytes().to_vec()).expect("non-empty kind"),
+        },
+    }];
+    static_slots.extend(roles.iter().map(|role| StaticSlot {
+        handle: SlotHandle::new(role.instance),
+        compatibility: SlotCompatibility::Subject {
+            kind: role_instance_kind.clone(),
+        },
+    }));
     let definition = StaticBindingDefinition::new(
         STATIC_BINDING_CONTRACT,
         StaticSelection {
@@ -909,23 +925,29 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
                 internality: Internality::Internal,
             })
             .collect(),
-        vec![StaticSlot {
-            handle: SlotHandle::new(subject_slot),
-            compatibility: SlotCompatibility::Subject {
-                kind: SubjectKind::new(ORDER_KIND.as_bytes().to_vec()).expect("non-empty kind"),
-            },
-        }],
+        static_slots,
     )
     .expect("selected static binding definition admits");
+    let mut runtime_bindings = vec![RuntimeBinding::subject(
+        SlotHandle::new(subject_slot),
+        subject.clone(),
+    )];
+    runtime_bindings.extend(roles.iter().enumerate().map(|(index, role)| {
+        RuntimeBinding::subject(
+            SlotHandle::new(role.instance),
+            runtime_subject_bytes(
+                &producer,
+                b"role-instance".to_vec(),
+                format!("role-instance:canonical-engine:{index}").into_bytes(),
+            ),
+        )
+    }));
     let runtime = RuntimeBindingSet::new(
         RUNTIME_BINDING_CONTRACT,
         definition.selection(),
         &definition,
         &producer,
-        vec![RuntimeBinding::subject(
-            SlotHandle::new(subject_slot),
-            subject.clone(),
-        )],
+        runtime_bindings,
     )
     .expect("selected runtime binding admits");
     let context = LinkedAssessment::new(&package, &definition, &runtime)
@@ -1088,6 +1110,66 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
         quire_protocol::outcome::OperationOutcome::Refused(_)
     ));
     let dispatch_requests = dispatch_inputs_with_claim_refusal();
+    let foreign_subject = runtime_subject(&producer, "canonical-engine-foreign");
+    let foreign_request = activated_request(
+        &package,
+        &fixture.temporal,
+        foreign_subject.identity().as_bytes(),
+    );
+    let foreign_result = activated_result(&foreign_request);
+    let foreign_activation = engine
+        .conformance()
+        .bind_activation(
+            engine.linked(),
+            &mapping,
+            &foreign_subject,
+            &foreign_request,
+            &foreign_result,
+        )
+        .expect("a distinct subject forms its own valid activation");
+    let foreign_occurrence = occurrence_schema
+        .bind(
+            WorkflowInstanceIdentity::new("workflow:canonical-engine-foreign")
+                .expect("nonempty workflow identity"),
+            foreign_activation.control(),
+            occurrence_node.role().clone(),
+            &[],
+        )
+        .expect("the foreign activation occurrence admits");
+    let foreign_activated = engine
+        .conformance()
+        .activate_occurrence(&foreign_activation, foreign_occurrence)
+        .expect("the distinct activation produces an occurrence");
+    let foreign_fact = engine
+        .conformance()
+        .activation_fact(foreign_activated, None);
+    let quire_protocol::outcome::OperationOutcome::Completed(fact_bound_engine) =
+        Engine::start_result_assessment(
+            context,
+            requested.to_vec(),
+            &subject,
+            &temporal_request,
+            &fixture.predicate,
+            &fixture.temporal,
+        )
+    else {
+        panic!("strict owner views start the activation-fact binding check")
+    };
+    assert!(matches!(
+        fact_bound_engine.dispatch_activated(
+            &dispatch_requests,
+            std::slice::from_ref(&foreign_fact),
+            axes,
+            &decision.completeness_complete,
+            &global,
+            AssessmentExecution::Completed,
+            ConformanceLimits::default(),
+            DispatchLimits::default(),
+            Budget::nothing_granted(),
+        ),
+        quire_protocol::outcome::OperationOutcome::Refused(refusal)
+            if refusal.code().as_str() == "assessment-activation.fact-mismatch"
+    ));
     let quire_protocol::outcome::OperationOutcome::Completed(dispatch) = engine.dispatch_activated(
         &dispatch_requests,
         std::slice::from_ref(&fact),
@@ -1282,7 +1364,24 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
         panic!("the completed conformance disposition must produce its canonical row")
     };
     assert_eq!(canonical.execution(), AssessmentExecution::Completed);
-    assert_eq!(canonical.truth(), Truth::Satisfied);
+    assert_eq!(canonical.truth(), Truth::Unavailable);
+    assert_eq!(canonical.settlement_basis(), SettlementBasis::Unavailable);
+    assert!(canonical.decision_support().is_empty());
+    let Participation::Known {
+        required_role_instance_refs,
+        participating_role_instance_refs,
+    } = canonical.participation()
+    else {
+        panic!("complete activated role bindings produce known participation")
+    };
+    assert_eq!(
+        required_role_instance_refs,
+        participating_role_instance_refs
+    );
+    assert!(!required_role_instance_refs.is_empty());
+    assert!(required_role_instance_refs
+        .iter()
+        .all(|identity| identity.starts_with(runtime_reference::PREFIX)));
     assert_eq!(
         canonical.decision_scope_progress().document_identity(),
         decision.progress_closed.identity().as_str()
@@ -2186,11 +2285,34 @@ fn tc_009_result_output_budget_precedes_canonical_allocation() {
     let input = base_input(&fixture);
     let control = result::produce(input.clone(), Limits::owner_max()).expect("control result");
     let required = control.bytes().len();
+    let initial_string = input
+        .provenance
+        .reproduction
+        .toolchain()
+        .bytes()
+        .len()
+        .checked_mul(2)
+        .expect("bounded toolchain carrier")
+        .max(
+            input
+                .provenance
+                .reproduction
+                .corpus()
+                .bytes()
+                .len()
+                .checked_mul(2)
+                .expect("bounded corpus carrier"),
+        )
+        .max(input.provenance.reproduction.seed().to_string().len());
+    let retained_string = control.usage().string_bytes;
+    let total_output = required
+        .checked_add(retained_string)
+        .expect("bounded output and retained string");
     assert!(required > 1);
     let inventory = production_inventory().expect("production inventory");
 
     let short = Budget::nothing_granted()
-        .grant(BudgetDimension::OutputByte, required - 1)
+        .grant(BudgetDimension::OutputByte, initial_string + required - 1)
         .expect("positive one-short grant");
     let mut short_resources = ResourceAccountant::new(short, &inventory);
     assert!(matches!(
@@ -2201,17 +2323,19 @@ fn tc_009_result_output_budget_precedes_canonical_allocation() {
         ),
         OperationOutcome::ResourceIncomplete(value)
             if value.dimension() == BudgetDimension::OutputByte
+                && value.site().as_str() == "result/output/allocate"
+                && value.consumed() == initial_string
                 && value.requested() == required
     ));
     assert_eq!(
         short_resources
             .usage()
             .consumed(BudgetDimension::OutputByte),
-        0
+        initial_string
     );
 
     let exact = Budget::nothing_granted()
-        .grant(BudgetDimension::OutputByte, required)
+        .grant(BudgetDimension::OutputByte, total_output)
         .expect("positive exact grant");
     let mut exact_resources = ResourceAccountant::new(exact, &inventory);
     let OperationOutcome::Completed(exact_document) =
@@ -2224,8 +2348,28 @@ fn tc_009_result_output_budget_precedes_canonical_allocation() {
         exact_resources
             .usage()
             .consumed(BudgetDimension::OutputByte),
-        required
+        total_output
     );
+
+    let mut owner_clamped_input = input.clone();
+    owner_clamped_input.provenance.source_identity =
+        "x".repeat(Limits::owner_max().max_string_bytes + 1);
+    let mut owner_clamped_resources =
+        ResourceAccountant::new(Budget::nothing_granted(), &inventory);
+    assert!(matches!(
+        result::produce_bounded(
+            owner_clamped_input,
+            Limits {
+                max_string_bytes: usize::MAX,
+                ..Limits::owner_max()
+            },
+            &mut owner_clamped_resources,
+        ),
+        OperationOutcome::ResourceIncomplete(value)
+            if value.site().as_str() == "result/output/string/retain"
+                && value.granted() == Limits::owner_max().max_string_bytes
+                && value.consumed().saturating_add(value.requested()) > value.granted()
+    ));
 
     let one_allocation = Budget::nothing_granted()
         .grant(BudgetDimension::AccountedAllocation, 1)

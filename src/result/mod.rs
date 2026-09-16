@@ -54,6 +54,8 @@ pub use record::{
 pub enum ErrorCode {
     /// A caller selection is absent, malformed, duplicated, or inconsistent.
     InvalidSelection,
+    /// Exact result-owner evidence required for one semantic axis is absent.
+    OwnerEvidenceUnavailable,
     /// A configured owner ceiling was exceeded.
     ResourceIncomplete,
     /// Input is not one complete closed JSON document.
@@ -88,6 +90,7 @@ impl ErrorCode {
     const fn entry(self) -> &'static CodeEntry {
         match self {
             Self::InvalidSelection => &RESULT_INVALID_SELECTION,
+            Self::OwnerEvidenceUnavailable => &RESULT_OWNER_EVIDENCE_UNAVAILABLE,
             Self::ResourceIncomplete => &RESULT_RESOURCE_INCOMPLETE,
             Self::InvalidJson => &RESULT_INVALID_JSON,
             Self::NonCanonical => &RESULT_NONCANONICAL,
@@ -204,68 +207,6 @@ impl Refusal {
     pub fn envelope(&self) -> &ProtocolRefusal {
         &self.envelope
     }
-
-    /// Convert an owner-ceiling refusal into the shared pre-row resource
-    /// outcome. Semantic refusals have no such projection.
-    pub(crate) fn resource_incomplete(
-        &self,
-        limits: Limits,
-    ) -> Option<crate::bounds::inventory::ResourceIncomplete> {
-        if self.code != ErrorCode::ResourceIncomplete {
-            return None;
-        }
-        let usage = self.usage;
-        let (source, granted, requested) = if usage.wire_bytes > limits.max_output_bytes {
-            (
-                record::OUTPUT_SOURCE,
-                limits.max_output_bytes,
-                usage.wire_bytes,
-            )
-        } else if usage.string_bytes > limits.max_string_bytes {
-            (
-                record::STRING_SOURCE,
-                limits.max_string_bytes,
-                usage.string_bytes,
-            )
-        } else if usage.claims > limits.max_claims {
-            (record::ITEM_SOURCE, limits.max_claims, usage.claims)
-        } else if usage.premises > limits.max_premises {
-            (
-                record::PREMISE_ITEM_SOURCE,
-                limits.max_premises,
-                usage.premises,
-            )
-        } else if usage.support_records > limits.max_support_records {
-            (
-                record::SUPPORT_ITEM_SOURCE,
-                limits.max_support_records,
-                usage.support_records,
-            )
-        } else if usage.limitations > limits.max_limitations {
-            (
-                record::LIMITATION_ITEM_SOURCE,
-                limits.max_limitations,
-                usage.limitations,
-            )
-        } else if usage.lineage_nodes > limits.max_lineage_nodes {
-            (
-                lineage::LINEAGE_SOURCE,
-                limits.max_lineage_nodes,
-                usage.lineage_nodes,
-            )
-        } else if usage.depth > limits.max_depth {
-            (record::STRUCTURE_SOURCE, limits.max_depth, usage.depth)
-        } else {
-            (
-                record::STRUCTURE_SOURCE,
-                limits.max_visited_fields,
-                usage.visited_fields,
-            )
-        };
-        Some(crate::bounds::inventory::ResourceIncomplete::owner_limit(
-            source, granted, requested,
-        ))
-    }
 }
 
 fn refusal_usage(usage: Usage) -> ResourceUsage {
@@ -292,6 +233,7 @@ fn result_cause(code: ErrorCode, identity: Option<&str>) -> ProtocolCause {
         .unwrap_or_else(|| RetainedBytes::new(b"result-input"));
     match code {
         ErrorCode::InvalidSelection
+        | ErrorCode::OwnerEvidenceUnavailable
         | ErrorCode::ResourceIncomplete
         | ErrorCode::InvalidJson
         | ErrorCode::NonCanonical
@@ -345,6 +287,13 @@ code_entry!(
     RefusalDomain::Result,
     RetryDecision::AfterSelectionChange,
     "a result input selection is absent, duplicated, or inconsistent"
+);
+code_entry!(
+    RESULT_OWNER_EVIDENCE_UNAVAILABLE,
+    "result.owner-evidence-unavailable",
+    RefusalDomain::Result,
+    RetryDecision::AfterSelectionChange,
+    "an owner-authenticated fact required for one result axis is unavailable"
 );
 code_entry!(
     RESULT_RESOURCE_INCOMPLETE,
@@ -423,6 +372,7 @@ pub const RESULT_CODES: CodeModule = CodeModule {
     module_path: "quire_protocol::result",
     entries: &[
         RESULT_INVALID_SELECTION,
+        RESULT_OWNER_EVIDENCE_UNAVAILABLE,
         RESULT_RESOURCE_INCOMPLETE,
         RESULT_INVALID_JSON,
         RESULT_NONCANONICAL,

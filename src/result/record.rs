@@ -10,7 +10,7 @@ use crate::assessment::{AxisInputs, GlobalConformanceInput, GlobalPremise};
 use crate::bounds::inventory::{BudgetDimension, OperationOutcome, ResourceAccountant, SourceSite};
 use crate::bounds::{SiteId, SiteKind, UnitLabel};
 use crate::closure::{AssessmentExecution, GlobalConformanceClosure, ScopeState};
-use crate::digest::jcs::{canonical_len, canonicalize, ResultDigest};
+use crate::digest::jcs::{canonicalize, ResultDigest};
 use crate::repro::ReproductionRecord;
 use crate::ByteDigest;
 
@@ -52,8 +52,14 @@ pub(crate) const STRING_SOURCE: SourceSite = SourceSite::new(
     BudgetDimension::OutputByte,
     SiteKind::Retention,
 );
-pub(crate) const STRUCTURE_SOURCE: SourceSite = SourceSite::new(
-    SiteId::new("result/output/structure/visit"),
+pub(crate) const DEPTH_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("result/output/container/depth"),
+    "result::record::produce",
+    BudgetDimension::Operation,
+    SiteKind::Traversal,
+);
+pub(crate) const OPERATION_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("result/output/field/visit"),
     "result::record::produce",
     BudgetDimension::Operation,
     SiteKind::Traversal,
@@ -845,8 +851,9 @@ pub(crate) fn produce(input: Input<'_>, limits: Limits) -> Result<Document> {
 
 /// Produce one canonical result under the shared QProtocol caller budget.
 ///
-/// The exact canonical byte length is computed without an output buffer, then
-/// checked against both owner and caller ceilings before canonical allocation.
+/// Canonical bytes are produced once, then their exact structural usage is
+/// charged against both owner and caller ceilings before the document is
+/// retained.
 pub(crate) fn produce_bounded(
     input: Input<'_>,
     limits: Limits,
@@ -865,6 +872,7 @@ fn produce_bounded_unit(
 ) -> OperationOutcome<Document, Refusal> {
     let effective = limits.effective();
     let semantic = semantic_usage(&input);
+    let reproduction_string = largest_reproduction_string(&input).unwrap_or(usize::MAX);
     let charges = [
         (ALLOCATION_SOURCE.id(), 1, None),
         (
@@ -892,6 +900,11 @@ fn produce_bounded_unit(
             semantic.lineage_nodes,
             Some(effective.max_lineage_nodes),
         ),
+        (
+            STRING_SOURCE.id(),
+            reproduction_string,
+            Some(effective.max_string_bytes),
+        ),
     ];
     if let Err(error) = resources.charge_all_mixed(&charges) {
         return OperationOutcome::from_charge(error);
@@ -900,23 +913,47 @@ fn produce_bounded_unit(
         Ok(prepared) => prepared,
         Err(error) => return OperationOutcome::DomainError(error),
     };
-    let required = match canonical_len(&prepared.value) {
-        Ok(required) => required,
+    let canonical = match canonicalize(&prepared.value) {
+        Ok(canonical) => canonical,
         Err(_) => {
             return OperationOutcome::DomainError(refusal(
                 ErrorCode::InvalidSelection,
-                "result cannot determine its canonical output length",
+                "result cannot produce its canonical output",
                 Usage::default(),
                 Some(&prepared.result_id),
             ));
         }
     };
-    if let Err(error) =
-        resources.charge_with_limit(OUTPUT_SOURCE.id(), required, effective.max_output_bytes)
-    {
+    if let Err(error) = resources.charge_with_limit(
+        OUTPUT_SOURCE.id(),
+        canonical.len(),
+        effective.max_output_bytes,
+    ) {
         return OperationOutcome::from_charge(error);
     }
-    OperationOutcome::from_domain(finish(prepared, effective))
+    let structural = super::reader::structural_usage(canonical.as_bytes());
+    let additional_string = structural.string_bytes.saturating_sub(reproduction_string);
+    let structural_charges = [
+        (
+            STRING_SOURCE.id(),
+            additional_string,
+            Some(effective.max_string_bytes),
+        ),
+        (
+            DEPTH_SOURCE.id(),
+            structural.depth,
+            Some(effective.max_depth),
+        ),
+        (
+            OPERATION_SOURCE.id(),
+            structural.fields,
+            Some(effective.max_visited_fields),
+        ),
+    ];
+    if let Err(error) = resources.charge_all_mixed(&structural_charges) {
+        return OperationOutcome::from_charge(error);
+    }
+    OperationOutcome::from_domain(finish_canonical(prepared, canonical, effective))
 }
 
 fn prepare(input: Input<'_>, effective: Limits) -> Result<Prepared> {
@@ -945,20 +982,24 @@ fn prepare(input: Input<'_>, effective: Limits) -> Result<Prepared> {
 }
 
 fn finish(prepared: Prepared, effective: Limits) -> Result<Document> {
+    let canonical = canonicalize(&prepared.value).map_err(|_| {
+        refusal(
+            ErrorCode::InvalidSelection,
+            "result contains an unsupported JCS number",
+            Usage::default(),
+            Some(&prepared.result_id),
+        )
+    })?;
+    finish_canonical(prepared, canonical, effective)
+}
+
+fn finish_canonical(prepared: Prepared, canonical: String, effective: Limits) -> Result<Document> {
     let Prepared {
         snapshot,
         value,
         result_id,
         semantic_usage,
     } = prepared;
-    let canonical = canonicalize(&value).map_err(|_| {
-        refusal(
-            ErrorCode::InvalidSelection,
-            "result contains an unsupported JCS number",
-            Usage::default(),
-            Some(&result_id),
-        )
-    })?;
     let bytes = canonical.into_bytes();
     let usage = super::reader::preflight_output(&bytes, effective, semantic_usage)?;
     let digest = ResultDigest::of_result(&value)
@@ -978,6 +1019,27 @@ fn finish(prepared: Prepared, effective: Limits) -> Result<Document> {
         usage,
         snapshot,
     })
+}
+
+fn largest_reproduction_string(input: &Input<'_>) -> Option<usize> {
+    let provenance = &input.provenance;
+    Some(
+        provenance
+            .reproduction
+            .toolchain()
+            .bytes()
+            .len()
+            .checked_mul(2)?
+            .max(
+                provenance
+                    .reproduction
+                    .corpus()
+                    .bytes()
+                    .len()
+                    .checked_mul(2)?,
+            )
+            .max(provenance.reproduction.seed().to_string().len()),
+    )
 }
 
 fn validate_input(input: &Input<'_>, limits: Limits) -> Result<()> {
@@ -1037,8 +1099,7 @@ fn validate_nonempty(input: &Input<'_>, limits: Limits) -> Result<()> {
             None,
         ));
     }
-    let Some(toolchain_string_bytes) = p.reproduction.toolchain().bytes().len().checked_mul(2)
-    else {
+    let Some(largest_reproduction_string) = largest_reproduction_string(input) else {
         return Err(refusal(
             ErrorCode::ResourceIncomplete,
             "a reproduction identity cannot be represented within the result domain",
@@ -1049,20 +1110,6 @@ fn validate_nonempty(input: &Input<'_>, limits: Limits) -> Result<()> {
             None,
         ));
     };
-    let Some(corpus_string_bytes) = p.reproduction.corpus().bytes().len().checked_mul(2) else {
-        return Err(refusal(
-            ErrorCode::ResourceIncomplete,
-            "a reproduction identity cannot be represented within the result domain",
-            Usage {
-                string_bytes: usize::MAX,
-                ..Usage::default()
-            },
-            None,
-        ));
-    };
-    let largest_reproduction_string = toolchain_string_bytes
-        .max(corpus_string_bytes)
-        .max(p.reproduction.seed().to_string().len());
     if largest_reproduction_string > limits.max_string_bytes {
         return Err(refusal(
             ErrorCode::ResourceIncomplete,

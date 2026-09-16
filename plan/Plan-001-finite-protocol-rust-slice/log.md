@@ -19,16 +19,24 @@ description: "Chronological log of changes to the Plan-001 bundle."
   compile-fail inaccessible. TC-006/TC-011 include atomic, strict-reader,
   provenance, cumulative-accounting, accounting-fault and FR-008 decomposition
   controls. SR-116/SR-117 pass; `quire coverage` reports 154/342 repository rows
-  backed, 271/278 Rust candidates bound and all 278 tagged, with no unbacked/status-lie/
+  backed and 272/279 Rust candidates bound/tagged, with no in-scope
+  unbacked/status-lie/
   untracked-Task-006 record. The exact unchanged-worktree NFR-004 gate passes
   after repairing the two static-test oracle defects it exposed. Downstream
   Tasks 007, 008 and 010 and the wider Plan-001/epic remain open.
-  Independent PR-head review then found and fixed four residual boundary gaps:
+  Independent PR-head reviews then found and fixed the residual boundary gaps:
   raw public constructors, caller-supplied semantic result facts, order-insensitive
-  requests and owner-limit exhaustion reported as a semantic refusal. Result
-  startup also now rejects a valid same-package predicate unless it is the
-  selected temporal subject's unique checked leaf and retains the exact activated
-  runtime subject rather than a caller-selected binding.
+  requests, activation-fact retargeting, invented oracle/support and role-instance
+  identities, caller-authored correction semantics, collapsed row-refusal
+  identities and post-hoc owner-limit routing. Result startup accepts any exact
+  declaration-qualified member of QSL's reachable predicate-leaf set and rejects
+  foreign or unreachable leaves. Exact FR-287 role-instance subjects come only
+  from admitted runtime bindings. Because current conformance output supplies no
+  owner-authenticated oracle/dependence fact, canonical orchestration reports
+  truth and settlement unavailable with empty support rather than inventing a
+  decisive result; correction likewise remains absent pending an authenticated
+  contradiction capability. Producer output bytes, retained strings, depth and
+  field traversal now charge distinct reconciled accountant sites.
 
 * **2026-09-15** — Completed Task-005 / issue #7 as the activation-derived
   independent-claim bridge. The public Engine now assesses strict FR-300 facts

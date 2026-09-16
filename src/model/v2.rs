@@ -698,6 +698,25 @@ impl<'a> LinkedAssessment<'a> {
             .collect()
     }
 
+    /// Returns the exact QObs-authored FR-287 subject bound to one protocol
+    /// role's `role_instance` requirement.
+    ///
+    /// Absence is retained as absence. In particular, neither the static role
+    /// coordinate nor an occurrence/workflow tuple is a substitute for the
+    /// authored runtime subject.
+    pub(crate) fn role_instance_subject(&self, role_handle: u32) -> Option<&'a QualifiedSubject> {
+        let declaration = self
+            .package
+            .inherited()
+            .declarations
+            .get(usize::try_from(self.definition.declaration_handle()).ok()?)?;
+        let Body::Protocol { roles, .. } = &declaration.body else {
+            return None;
+        };
+        let role = roles.get(usize::try_from(role_handle).ok()?)?;
+        self.subject_at_kind(SlotHandle::new(role.instance), BindingKind::RoleInstance)
+    }
+
     fn subject_at_kind(&self, slot: SlotHandle, kind: BindingKind) -> Option<&'a QualifiedSubject> {
         let declaration = self
             .package

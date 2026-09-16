@@ -76,8 +76,9 @@ pub struct ClaimRow<Row> {
 ///
 /// Every semantic result value is derived from the Engine's authenticated QSL,
 /// QObs, conformance, and dispatch outputs. This type deliberately exposes only
-/// the local reproduction selection, an optional already-validated predecessor,
-/// and caller-lowered result-owner limits.
+/// the local reproduction selection and caller-lowered result-owner limits.
+/// Correction semantics remain absent until an owner-authenticated
+/// contradiction capability can supply them; a caller cannot restate one.
 ///
 /// ```compile_fail,E0603
 /// use quire_protocol::assessment::CanonicalRowFacts;
@@ -85,8 +86,8 @@ pub struct ClaimRow<Row> {
 #[derive(Clone, Debug)]
 pub struct CanonicalRowControls<'a> {
     reproduction: ReproductionRecord,
-    correction: Option<result::CorrectionInput<'a>>,
     limits: result::Limits,
+    _owner: core::marker::PhantomData<&'a ()>,
 }
 
 impl<'a> CanonicalRowControls<'a> {
@@ -95,16 +96,9 @@ impl<'a> CanonicalRowControls<'a> {
     pub const fn new(reproduction: ReproductionRecord, limits: result::Limits) -> Self {
         Self {
             reproduction,
-            correction: None,
             limits,
+            _owner: core::marker::PhantomData,
         }
-    }
-
-    /// Select one validated direct predecessor relation.
-    #[must_use]
-    pub const fn with_correction(mut self, correction: result::CorrectionInput<'a>) -> Self {
-        self.correction = Some(correction);
-        self
     }
 }
 
@@ -124,7 +118,6 @@ struct CanonicalRowFacts<'a> {
     model_artifact: &'a quire_spec_language::protocol_artifact::wire::ArtifactRef,
     runtime_input: &'a QualifiedSubject,
     reproduction: ReproductionRecord,
-    correction: Option<result::CorrectionInput<'a>>,
     limits: result::Limits,
 }
 
@@ -221,6 +214,21 @@ pub(crate) enum BundleRefusal {
     ActivationSubjectMismatch,
     /// The QSL v2 temporal declaration is not selected by this protocol definition.
     ActivationDeclarationMismatch,
+    /// An activation fact belongs to another Engine-selected activation.
+    ActivationFactMismatch,
+}
+
+#[derive(Clone, Copy, Debug)]
+enum RowAssemblyRefusal<'a> {
+    UnknownClaimStrength(&'a [u8]),
+    MissingAssumptionState(&'a [u8]),
+    NonTextRequestIdentity(&'a [u8]),
+    NonTextAdmittedFragmentIdentity(&'a [u8]),
+    NonTextBackendIdentity(&'a [u8]),
+    NonTextAssumptionIdentity(&'a [u8]),
+    ForeignModelProvenance,
+    ForeignRuntimeInput,
+    UnrepresentableRuntimeInput,
 }
 
 macro_rules! bundle_code {
@@ -307,6 +315,51 @@ bundle_code!(
     "assessment-result.ambiguous-model-selection",
     RefusalDomain::Result
 );
+bundle_code!(
+    ROW_UNKNOWN_CLAIM_STRENGTH,
+    "assessment-result.unknown-claim-strength",
+    RefusalDomain::Result
+);
+bundle_code!(
+    ROW_MISSING_ASSUMPTION_STATE,
+    "assessment-result.missing-assumption-state",
+    RefusalDomain::Result
+);
+bundle_code!(
+    ROW_NON_TEXT_REQUEST_IDENTITY,
+    "assessment-result.non-text-request-identity",
+    RefusalDomain::Result
+);
+bundle_code!(
+    ROW_NON_TEXT_ADMITTED_FRAGMENT_IDENTITY,
+    "assessment-result.non-text-admitted-fragment-identity",
+    RefusalDomain::Result
+);
+bundle_code!(
+    ROW_NON_TEXT_BACKEND_IDENTITY,
+    "assessment-result.non-text-backend-identity",
+    RefusalDomain::Result
+);
+bundle_code!(
+    ROW_NON_TEXT_ASSUMPTION_IDENTITY,
+    "assessment-result.non-text-assumption-identity",
+    RefusalDomain::Result
+);
+bundle_code!(
+    ROW_FOREIGN_MODEL_PROVENANCE,
+    "assessment-result.foreign-model-provenance",
+    RefusalDomain::Result
+);
+bundle_code!(
+    ROW_FOREIGN_RUNTIME_INPUT,
+    "assessment-result.foreign-runtime-input",
+    RefusalDomain::Result
+);
+bundle_code!(
+    ROW_UNREPRESENTABLE_RUNTIME_INPUT,
+    "assessment-result.unrepresentable-runtime-input",
+    RefusalDomain::Result
+);
 const RESULT_ACCOUNTING_FAULT: CodeEntry = CodeEntry {
     provenance: Provenance::Minted,
     code: "assessment-result.accounting-fault",
@@ -322,6 +375,11 @@ bundle_code!(
 bundle_code!(
     BUNDLE_ACTIVATION_DECLARATION,
     "assessment-activation.declaration-mismatch",
+    RefusalDomain::Assessment
+);
+bundle_code!(
+    BUNDLE_ACTIVATION_FACT,
+    "assessment-activation.fact-mismatch",
     RefusalDomain::Assessment
 );
 /// Refusal codes minted by the assessment-bundle orchestration boundary.
@@ -373,6 +431,15 @@ pub const RESULT_CODES: CodeModule = CodeModule {
         BUNDLE_MISSING_RESULT_SELECTION,
         BUNDLE_RESULT_SELECTION_MISMATCH,
         BUNDLE_AMBIGUOUS_RESULT_MODEL,
+        ROW_UNKNOWN_CLAIM_STRENGTH,
+        ROW_MISSING_ASSUMPTION_STATE,
+        ROW_NON_TEXT_REQUEST_IDENTITY,
+        ROW_NON_TEXT_ADMITTED_FRAGMENT_IDENTITY,
+        ROW_NON_TEXT_BACKEND_IDENTITY,
+        ROW_NON_TEXT_ASSUMPTION_IDENTITY,
+        ROW_FOREIGN_MODEL_PROVENANCE,
+        ROW_FOREIGN_RUNTIME_INPUT,
+        ROW_UNREPRESENTABLE_RUNTIME_INPUT,
         RESULT_ACCOUNTING_FAULT,
     ],
 };
@@ -382,7 +449,11 @@ pub const ACTIVATION_CODES: CodeModule = CodeModule {
     root: "assessment-activation",
     owner: "Task-006",
     module_path: "quire_protocol::assessment",
-    entries: &[BUNDLE_ACTIVATION_SUBJECT, BUNDLE_ACTIVATION_DECLARATION],
+    entries: &[
+        BUNDLE_ACTIVATION_SUBJECT,
+        BUNDLE_ACTIVATION_DECLARATION,
+        BUNDLE_ACTIVATION_FACT,
+    ],
 };
 
 fn outcome_refusal(error: BundleRefusal) -> ProtocolRefusal {
@@ -429,6 +500,9 @@ fn outcome_refusal(error: BundleRefusal) -> ProtocolRefusal {
         BundleRefusal::ActivationDeclarationMismatch => {
             (&BUNDLE_ACTIVATION_DECLARATION, ProtocolStage::Conformance)
         }
+        BundleRefusal::ActivationFactMismatch => {
+            (&BUNDLE_ACTIVATION_FACT, ProtocolStage::Conformance)
+        }
     };
     let code = RefusalCode::of(entry);
     let mut builder = ProtocolRefusal::builder(
@@ -471,6 +545,93 @@ fn outcome_refusal(error: BundleRefusal) -> ProtocolRefusal {
     builder.emitting_nothing()
 }
 
+fn row_assembly_refusal(error: RowAssemblyRefusal<'_>) -> ProtocolRefusal {
+    let (entry, affected, cause) = match error {
+        RowAssemblyRefusal::UnknownClaimStrength(value) => (
+            &ROW_UNKNOWN_CLAIM_STRENGTH,
+            value,
+            ProtocolCause::UnsupportedCapability {
+                capability: RetainedBytes::new(value),
+            },
+        ),
+        RowAssemblyRefusal::MissingAssumptionState(identity) => (
+            &ROW_MISSING_ASSUMPTION_STATE,
+            identity,
+            ProtocolCause::IncompleteEvidence {
+                evidence: RetainedBytes::new(identity),
+            },
+        ),
+        RowAssemblyRefusal::NonTextRequestIdentity(value) => (
+            &ROW_NON_TEXT_REQUEST_IDENTITY,
+            value,
+            ProtocolCause::IncompleteEvidence {
+                evidence: RetainedBytes::new(value),
+            },
+        ),
+        RowAssemblyRefusal::NonTextAdmittedFragmentIdentity(value) => (
+            &ROW_NON_TEXT_ADMITTED_FRAGMENT_IDENTITY,
+            value,
+            ProtocolCause::IncompleteEvidence {
+                evidence: RetainedBytes::new(value),
+            },
+        ),
+        RowAssemblyRefusal::NonTextBackendIdentity(value) => (
+            &ROW_NON_TEXT_BACKEND_IDENTITY,
+            value,
+            ProtocolCause::IncompleteEvidence {
+                evidence: RetainedBytes::new(value),
+            },
+        ),
+        RowAssemblyRefusal::NonTextAssumptionIdentity(value) => (
+            &ROW_NON_TEXT_ASSUMPTION_IDENTITY,
+            value,
+            ProtocolCause::IncompleteEvidence {
+                evidence: RetainedBytes::new(value),
+            },
+        ),
+        RowAssemblyRefusal::ForeignModelProvenance => (
+            &ROW_FOREIGN_MODEL_PROVENANCE,
+            b"model-provenance".as_slice(),
+            ProtocolCause::IdentityMismatch {
+                expected: RetainedBytes::new(b"engine-selected-model"),
+                observed: RetainedBytes::new(b"foreign-model-provenance"),
+            },
+        ),
+        RowAssemblyRefusal::ForeignRuntimeInput => (
+            &ROW_FOREIGN_RUNTIME_INPUT,
+            b"runtime-input-provenance".as_slice(),
+            ProtocolCause::IdentityMismatch {
+                expected: RetainedBytes::new(b"engine-bound-runtime-input"),
+                observed: RetainedBytes::new(b"foreign-runtime-input"),
+            },
+        ),
+        RowAssemblyRefusal::UnrepresentableRuntimeInput => (
+            &ROW_UNREPRESENTABLE_RUNTIME_INPUT,
+            b"runtime-input-identity".as_slice(),
+            ProtocolCause::IncompleteEvidence {
+                evidence: RetainedBytes::new(b"runtime-input-identity"),
+            },
+        ),
+    };
+    let code = RefusalCode::of(entry);
+    ProtocolRefusal::builder(
+        code,
+        CatalogSelection::local(),
+        ProtocolStage::ResultAssembly,
+        RefusalAxis::from_registered_code(code),
+        cause.into(),
+        ResourceUsage::protocol("quire.protocol/assessment-usage/1", &[]),
+    )
+    .expect("row-assembly codes belong to the result stage")
+    .identity(AffectedIdentity::retained(affected))
+    .prerequisite(Prerequisite::new(
+        ProtocolStage::ClaimDispatch,
+        PrerequisiteState::Established,
+    ))
+    .unavailable_location(Unavailability::NotApplicableToStage)
+    .emitting_nothing()
+}
+
 fn bundle_cause(error: BundleRefusal, code: RefusalCode) -> crate::refusal::RefusalCause {
     let code = RetainedBytes::new(code.as_str().as_bytes());
     match error {
@@ -495,7 +656,8 @@ fn bundle_cause(error: BundleRefusal, code: RefusalCode) -> crate::refusal::Refu
         | BundleRefusal::ResultSelectionMismatch
         | BundleRefusal::AmbiguousResultModel
         | BundleRefusal::ActivationSubjectMismatch
-        | BundleRefusal::ActivationDeclarationMismatch => ProtocolCause::IdentityMismatch {
+        | BundleRefusal::ActivationDeclarationMismatch
+        | BundleRefusal::ActivationFactMismatch => ProtocolCause::IdentityMismatch {
             expected: RetainedBytes::new(b"engine-bound-assessment-value"),
             observed: code,
         },
@@ -913,6 +1075,9 @@ impl<'a> Engine<'a> {
         if let Err(error) = validate_dispatch_request(&self.requested, requests) {
             return BoundedOutcome::DomainError(outcome_refusal(error));
         }
+        if let Err(error) = self.validate_activation_facts(facts) {
+            return BoundedOutcome::DomainError(outcome_refusal(error));
+        }
         let report = match self.conformance.assess_activated_bounded(
             facts,
             axes,
@@ -949,6 +1114,22 @@ impl<'a> Engine<'a> {
                 accounting_refusal(fault, AccountingStage::ClaimDispatch, resources.usage()),
             ),
         }
+    }
+
+    fn validate_activation_facts(&self, facts: &[ActivationFact<'_>]) -> Result<(), BundleRefusal> {
+        let Some(selected) = self.activation else {
+            return Ok(());
+        };
+        for fact in facts {
+            let offered = fact.occurrence().activation();
+            if offered.definition() != &self.identity
+                || offered.subject() != selected.subject()
+                || offered.request().document().bytes() != selected.request().document().bytes()
+            {
+                return Err(BundleRefusal::ActivationFactMismatch);
+            }
+        }
+        Ok(())
     }
 
     /// Evaluate the exact admitted guard and transactionally create every
@@ -1561,40 +1742,56 @@ impl<'a> Engine<'a> {
                     facts,
                     axes,
                     completeness,
+                    &self.context,
                     model_artifact,
                     runtime_input,
                     control,
                 );
-                match result_input_from_dispatch(
-                    disposition,
-                    &self.identity,
-                    &self.context,
-                    axes,
-                    completeness,
-                    global_conformance,
-                    selected,
-                ) {
+                match selected {
                     Err(refusal) => ClaimOutcome::Refused(refusal.envelope().clone()),
-                    Ok((input, limits)) => {
-                        match result::produce_bounded(input.clone(), limits, resources) {
-                            BoundedOutcome::Completed(document) => match result::read_bounded(
-                                document.bytes(),
-                                result::Expected {
-                                    input,
-                                    enclosing_digest: document.digest(),
-                                },
-                                limits,
-                                resources,
-                            ) {
-                                BoundedOutcome::Completed(validated) => {
-                                    ClaimOutcome::Canonical(validated)
-                                }
-                                BoundedOutcome::DomainError(refusal) => {
-                                    if let Some(incomplete) = refusal.resource_incomplete(limits) {
+                    Ok(selected) => match result_input_from_dispatch(
+                        disposition,
+                        &self.identity,
+                        &self.context,
+                        axes,
+                        completeness,
+                        global_conformance,
+                        selected,
+                    ) {
+                        Err(refusal) => ClaimOutcome::Refused(row_assembly_refusal(refusal)),
+                        Ok((input, limits)) => {
+                            match result::produce_bounded(input.clone(), limits, resources) {
+                                BoundedOutcome::Completed(document) => match result::read_bounded(
+                                    document.bytes(),
+                                    result::Expected {
+                                        input,
+                                        enclosing_digest: document.digest(),
+                                    },
+                                    limits,
+                                    resources,
+                                ) {
+                                    BoundedOutcome::Completed(validated) => {
+                                        ClaimOutcome::Canonical(validated)
+                                    }
+                                    BoundedOutcome::DomainError(refusal) => {
+                                        ClaimOutcome::Refused(refusal.envelope().clone())
+                                    }
+                                    BoundedOutcome::ResourceIncomplete(incomplete) => {
                                         return crate::outcome::OperationOutcome::ResourceIncomplete(
-                                            incomplete,
+                                        incomplete,
+                                    );
+                                    }
+                                    BoundedOutcome::AccountingFault(fault) => {
+                                        return crate::outcome::OperationOutcome::Refused(
+                                            accounting_refusal(
+                                                fault,
+                                                AccountingStage::ResultRead,
+                                                resources.usage(),
+                                            ),
                                         );
                                     }
+                                },
+                                BoundedOutcome::DomainError(refusal) => {
                                     ClaimOutcome::Refused(refusal.envelope().clone())
                                 }
                                 BoundedOutcome::ResourceIncomplete(incomplete) => {
@@ -1606,36 +1803,14 @@ impl<'a> Engine<'a> {
                                     return crate::outcome::OperationOutcome::Refused(
                                         accounting_refusal(
                                             fault,
-                                            AccountingStage::ResultRead,
+                                            AccountingStage::ResultAssembly,
                                             resources.usage(),
                                         ),
                                     );
                                 }
-                            },
-                            BoundedOutcome::DomainError(refusal) => {
-                                if let Some(incomplete) = refusal.resource_incomplete(limits) {
-                                    return crate::outcome::OperationOutcome::ResourceIncomplete(
-                                        incomplete,
-                                    );
-                                }
-                                ClaimOutcome::Refused(refusal.envelope().clone())
-                            }
-                            BoundedOutcome::ResourceIncomplete(incomplete) => {
-                                return crate::outcome::OperationOutcome::ResourceIncomplete(
-                                    incomplete,
-                                );
-                            }
-                            BoundedOutcome::AccountingFault(fault) => {
-                                return crate::outcome::OperationOutcome::Refused(
-                                    accounting_refusal(
-                                        fault,
-                                        AccountingStage::ResultAssembly,
-                                        resources.usage(),
-                                    ),
-                                );
                             }
                         }
-                    }
+                    },
                 }
             };
             rows.push(ClaimRow {
@@ -1943,10 +2118,11 @@ fn derive_canonical_row_facts<'a>(
     facts: &[ActivationFact<'a>],
     axes: AxisInputs<'a>,
     completeness: &completeness::View,
+    context: &LinkedAssessment<'_>,
     model_artifact: &'a quire_spec_language::protocol_artifact::wire::ArtifactRef,
     runtime_input: &'a QualifiedSubject,
     controls: CanonicalRowControls<'a>,
-) -> CanonicalRowFacts<'a> {
+) -> result::Result<CanonicalRowFacts<'a>> {
     let mut truth = truth_from_dispatch(disposition, conformance);
     let mut decision_support = decision_support_from_report(truth, conformance);
     if matches!(truth, result::Truth::Satisfied | result::Truth::Violated)
@@ -1958,13 +2134,13 @@ fn derive_canonical_row_facts<'a>(
         decision_support.clear();
     }
     let settlement = settlement_from_report(truth, axes, &decision_support);
-    CanonicalRowFacts {
+    Ok(CanonicalRowFacts {
         checked_predicate: selection.checked_predicate,
         temporal_subject: selection.temporal_subject,
         truth,
         settlement,
         activation: activation_from_facts(facts),
-        participation: participation_from_facts(facts, conformance),
+        participation: participation_from_facts(facts, conformance, context)?,
         observation_adequacy: observation_adequacy_from_report(conformance, completeness),
         protocol_adequacy: protocol_adequacy_from_report(disposition, conformance, completeness),
         decision_support,
@@ -1972,44 +2148,20 @@ fn derive_canonical_row_facts<'a>(
         model_artifact,
         runtime_input,
         reproduction: controls.reproduction,
-        correction: controls.correction,
         limits: controls.limits,
-    }
+    })
 }
 
 fn decision_support_from_report(
-    truth: result::Truth,
-    conformance: &crate::conformance::Report,
+    _truth: result::Truth,
+    _conformance: &crate::conformance::Report,
 ) -> Vec<result::DecisionSupport> {
-    let violated = if truth == result::Truth::Violated {
-        Some(
-            conformance
-                .adverse
-                .iter()
-                .filter_map(|adverse| adverse.observation_identity.as_deref())
-                .collect::<std::collections::BTreeSet<_>>(),
-        )
-    } else {
-        None
-    };
-    let mut seen = std::collections::BTreeSet::new();
-    conformance
-        .observations
-        .iter()
-        .filter(|observation| {
-            violated.as_ref().is_none_or(|identities| {
-                identities.contains(observation.observation_identity.as_ref())
-            })
-        })
-        .filter(|observation| seen.insert(observation.observation_identity.clone()))
-        .map(|observation| result::DecisionSupport {
-            oracle_identity: observation.obligation.as_str().to_owned(),
-            observation_identity: observation.observation_identity.to_string(),
-            relation: result::DependenceRelation::Unknown,
-            predecessor: None,
-            dependence_group: None,
-        })
-        .collect()
+    // The conformance report retains exact obligation and observation
+    // identities, but no owner-authenticated oracle identity or dependence
+    // capability. FR-248 forbids substituting the obligation for that oracle.
+    // Keep support absent; the caller below consequently reports truth as
+    // unavailable instead of fabricating a settled row.
+    Vec::new()
 }
 
 fn settlement_from_report(
@@ -2065,47 +2217,47 @@ fn activation_from_facts(facts: &[ActivationFact<'_>]) -> result::Activation {
 fn participation_from_facts(
     facts: &[ActivationFact<'_>],
     conformance: &crate::conformance::Report,
-) -> result::Participation {
+    context: &LinkedAssessment<'_>,
+) -> result::Result<result::Participation> {
     use quire_spec_language::protocol_artifact::NodeRole;
-    let mut required = Vec::new();
-    let mut participating = Vec::new();
+    let mut required = std::collections::BTreeSet::new();
+    let mut participating = std::collections::BTreeSet::new();
     for fact in facts {
         let occurrence = fact.occurrence().occurrence();
         let NodeRole::Role(role) = occurrence.role() else {
             continue;
         };
-        let workflow = occurrence.workflow();
-        let ordinals = occurrence
-            .repeat_ordinals()
-            .iter()
-            .map(|ordinal| ordinal.value().to_string())
-            .collect::<Vec<_>>()
-            .join(",");
-        let identity = format!(
-            "qsl-role-instance:{}:{}:{}:{}:{}",
-            role.declaration,
-            role.index,
-            workflow.as_str().len(),
-            workflow.as_str(),
-            ordinals
-        );
-        required.push(identity.clone());
+        let subject = context.role_instance_subject(role.index).ok_or_else(|| {
+            result_owner_evidence_refusal(
+                "an activated role has no exact FR-287 role-instance binding",
+                "participation-role-instance",
+            )
+        })?;
+        required.insert(subject);
         if fact.observation().is_some() {
-            participating.push(identity);
+            participating.insert(subject);
         }
     }
-    required.sort();
-    required.dedup();
-    participating.sort();
-    participating.dedup();
-    let participating_set = participating
+    let encode = |subject: &&QualifiedSubject| {
+        result::runtime_reference::encode_subject(subject).map_err(|_| {
+            result_owner_evidence_refusal(
+                "an exact role-instance reference cannot be represented",
+                "participation-role-instance",
+            )
+        })
+    };
+    let required_refs = required
         .iter()
-        .collect::<std::collections::BTreeSet<_>>();
+        .map(encode)
+        .collect::<result::Result<Vec<_>>>()?;
+    let participating_refs = participating
+        .iter()
+        .map(encode)
+        .collect::<result::Result<Vec<_>>>()?;
     let mut missing_dependency_refs = required
-        .iter()
-        .filter(|identity| !participating_set.contains(identity))
-        .cloned()
-        .collect::<Vec<_>>();
+        .difference(&participating)
+        .map(encode)
+        .collect::<result::Result<Vec<_>>>()?;
     missing_dependency_refs.extend(conformance.incomplete.iter().map(|cause| match cause {
         crate::conformance::IncompleteCause::MissingValuation { obligation, .. } => {
             obligation.as_str().to_owned()
@@ -2114,16 +2266,16 @@ fn participation_from_facts(
     missing_dependency_refs.sort();
     missing_dependency_refs.dedup();
     if missing_dependency_refs.is_empty() {
-        result::Participation::Known {
-            required_role_instance_refs: required,
-            participating_role_instance_refs: participating,
-        }
+        Ok(result::Participation::Known {
+            required_role_instance_refs: required_refs,
+            participating_role_instance_refs: participating_refs,
+        })
     } else {
-        result::Participation::Unknown {
-            participating_role_instance_refs: participating,
+        Ok(result::Participation::Unknown {
+            participating_role_instance_refs: participating_refs,
             missing_dependency_refs,
             reasons: vec!["required-observation-missing".to_owned()],
-        }
+        })
     }
 }
 
@@ -2188,40 +2340,49 @@ fn limitations_from_report(conformance: &crate::conformance::Report) -> Vec<resu
     clippy::too_many_arguments,
     reason = "the private transition receives exact owner outputs separately so no caller-built result aggregate can substitute for them"
 )]
-fn result_input_from_dispatch<'a>(
-    disposition: &dispatch::Disposition,
+fn result_input_from_dispatch<'a, 'd>(
+    disposition: &'d dispatch::Disposition,
     definition: &DefinitionIdentity,
     context: &LinkedAssessment<'_>,
     axes: AxisInputs<'a>,
     completeness: &'a completeness::View,
     global_conformance: &GlobalConformanceInput,
     selected: CanonicalRowFacts<'a>,
-) -> result::Result<(result::Input<'a>, result::Limits)> {
+) -> Result<(result::Input<'a>, result::Limits), RowAssemblyRefusal<'d>> {
     let strength = match disposition.strength.as_ref() {
         b"proven" => result::ClaimStrength::Proven,
         b"bounded-checked" => result::ClaimStrength::BoundedChecked,
         b"tested" => result::ClaimStrength::Tested,
         b"observed" => result::ClaimStrength::Observed,
         _ => {
-            return Err(dispatch_value_refusal(
-                "dispatch selected an unknown result claim strength",
-            ));
+            return Err(RowAssemblyRefusal::UnknownClaimStrength(
+                &disposition.strength,
+            ))
         }
     };
-    let admitted_fragment_identity =
-        retained_text(disposition.premises.admitted_fragment.identity.as_ref())?;
-    let backend_identity = retained_text(disposition.premises.backend.identity.as_ref())?;
+    let admitted_fragment_identity = retained_text(
+        disposition.premises.admitted_fragment.identity.as_ref(),
+        RowAssemblyRefusal::NonTextAdmittedFragmentIdentity,
+    )?;
+    let backend_identity = retained_text(
+        disposition.premises.backend.identity.as_ref(),
+        RowAssemblyRefusal::NonTextBackendIdentity,
+    )?;
     let assumptions = disposition
         .premises
         .assumptions
         .iter()
         .map(|assumption| {
             Ok(result::Assumption {
-                identity: retained_text(assumption.component.identity.as_ref())?,
+                identity: retained_text(
+                    assumption.component.identity.as_ref(),
+                    RowAssemblyRefusal::NonTextAssumptionIdentity,
+                )?,
                 state: match assumption
                     .state
-                    .ok_or_else(|| dispatch_value_refusal("dispatch omitted an assumption state"))?
-                {
+                    .ok_or(RowAssemblyRefusal::MissingAssumptionState(
+                        &assumption.component.identity,
+                    ))? {
                     crate::claims::premises::AssumptionState::Met => result::AssumptionState::Met,
                     crate::claims::premises::AssumptionState::NotMet => {
                         result::AssumptionState::NotMet
@@ -2235,7 +2396,7 @@ fn result_input_from_dispatch<'a>(
                 },
             })
         })
-        .collect::<result::Result<Vec<_>>>()?;
+        .collect::<Result<Vec<_>, RowAssemblyRefusal<'d>>>()?;
     let provenance = provenance_from_dispatch(disposition, definition, context, &selected)?;
     let limits = selected.limits;
     Ok((
@@ -2262,18 +2423,18 @@ fn result_input_from_dispatch<'a>(
             global_conformance: global_conformance.clone(),
             limitations: selected.limitations,
             provenance,
-            correction: selected.correction,
+            correction: None,
         },
         limits,
     ))
 }
 
-fn provenance_from_dispatch(
-    disposition: &dispatch::Disposition,
+fn provenance_from_dispatch<'d>(
+    disposition: &'d dispatch::Disposition,
     definition: &DefinitionIdentity,
     context: &LinkedAssessment<'_>,
     selected: &CanonicalRowFacts<'_>,
-) -> result::Result<result::ProvenanceRecord> {
+) -> Result<result::ProvenanceRecord, RowAssemblyRefusal<'d>> {
     let model_selected = definition.closure().models().iter().any(|model| {
         context
             .package()
@@ -2283,9 +2444,7 @@ fn provenance_from_dispatch(
             .is_some_and(|dependency| dependency.artifact == *selected.model_artifact)
     });
     if !model_selected {
-        return Err(dispatch_value_refusal(
-            "result model provenance is outside the Engine selection closure",
-        ));
+        return Err(RowAssemblyRefusal::ForeignModelProvenance);
     }
     let runtime_selected = context.runtime().bindings().iter().any(|binding| {
         binding
@@ -2293,12 +2452,10 @@ fn provenance_from_dispatch(
             .is_some_and(|subject| subject == selected.runtime_input)
     });
     if !runtime_selected {
-        return Err(dispatch_value_refusal(
-            "result runtime input is outside the Engine binding set",
-        ));
+        return Err(RowAssemblyRefusal::ForeignRuntimeInput);
     }
     let input_identity = result::runtime_reference::encode_subject(selected.runtime_input)
-        .map_err(|_| dispatch_value_refusal("result runtime input cannot be represented"))?;
+        .map_err(|_| RowAssemblyRefusal::UnrepresentableRuntimeInput)?;
     Ok(result::ProvenanceRecord {
         source_identity: definition.source_document().identity.clone(),
         profile_identity: definition.closure().profile().value().identity.clone(),
@@ -2308,29 +2465,34 @@ fn provenance_from_dispatch(
             definition.source_document().identity,
             definition.declaration_handle()
         ),
-        request_identity: retained_text(disposition.request_identity.as_ref())?,
+        request_identity: retained_text(
+            disposition.request_identity.as_ref(),
+            RowAssemblyRefusal::NonTextRequestIdentity,
+        )?,
         binding_identity: definition.static_binding().identity.to_string(),
         input_identity,
-        backend_identity: retained_text(disposition.premises.backend.identity.as_ref())?,
+        backend_identity: retained_text(
+            disposition.premises.backend.identity.as_ref(),
+            RowAssemblyRefusal::NonTextBackendIdentity,
+        )?,
         producer_identity: context.definition().producer().bundle_identity.clone(),
         reproduction: selected.reproduction.clone(),
     })
 }
 
-fn retained_text(bytes: &[u8]) -> result::Result<String> {
-    String::from_utf8(bytes.to_vec()).map_err(|_| {
-        dispatch_value_refusal(
-            "dispatch identity cannot be represented in the selected result contract",
-        )
-    })
+fn retained_text<'a>(
+    bytes: &'a [u8],
+    refusal: fn(&'a [u8]) -> RowAssemblyRefusal<'a>,
+) -> Result<String, RowAssemblyRefusal<'a>> {
+    String::from_utf8(bytes.to_vec()).map_err(|_| refusal(bytes))
 }
 
-fn dispatch_value_refusal(detail: &'static str) -> result::Refusal {
+fn result_owner_evidence_refusal(detail: &'static str, identity: &'static str) -> result::Refusal {
     result::Refusal::assembly(
-        result::ErrorCode::InvalidSelection,
+        result::ErrorCode::OwnerEvidenceUnavailable,
         detail,
         result::Usage::default(),
-        None,
+        Some(identity),
     )
 }
 
@@ -2377,24 +2539,37 @@ fn validate_result_selection(
     checked_predicate: &ValidatedCheckedPredicate,
     temporal_subject: &ValidatedTemporalSubject,
 ) -> Result<(), BundleRefusal> {
-    let predicate_is_unique_subject_leaf =
-        temporal_subject.predicate_leaves().is_some_and(|leaves| {
-            leaves.len() == 1 && leaves.first() == Some(checked_predicate.leaf())
-        });
+    let predicate_is_subject_leaf = predicate_selection_matches(
+        checked_predicate.declaration(),
+        checked_predicate.leaf(),
+        temporal_subject.declaration(),
+        temporal_subject.predicate_leaves(),
+    );
     if checked_predicate.package_digest() == package
         && temporal_subject.package_digest() == package
+        && checked_predicate.declaration() == temporal_subject.declaration()
         && temporal_subject.declaration() == request.declaration()
         && request.subject_identity() == temporal_subject.document().identity()
         && definition
             .temporal_bindings()
             .iter()
             .any(|binding| binding.declaration == temporal_subject.declaration())
-        && predicate_is_unique_subject_leaf
+        && predicate_is_subject_leaf
     {
         Ok(())
     } else {
         Err(BundleRefusal::ResultSelectionMismatch)
     }
+}
+
+fn predicate_selection_matches(
+    checked_declaration: u32,
+    checked_leaf: &quire_spec_language::protocol_artifact::wire::Handle,
+    temporal_declaration: u32,
+    reachable_leaves: Option<&[quire_spec_language::protocol_artifact::wire::Handle]>,
+) -> bool {
+    checked_declaration == temporal_declaration
+        && reachable_leaves.is_some_and(|leaves| leaves.contains(checked_leaf))
 }
 
 /// Require the preceding closed dispatch stage to answer this Engine's exact
@@ -2533,8 +2708,9 @@ impl<Row> AssessmentBundle<'_, Row> {
 mod tests {
     use super::{
         accounting_refusal, claim_from_result_kind, encode_accounting_fault, kernel_refusal,
-        outcome_refusal, validate_dispatch_population, validate_dispatch_request,
-        validate_requested, validate_rows, AccountingStage, BundleRefusal, ClaimRow,
+        outcome_refusal, predicate_selection_matches, row_assembly_refusal,
+        validate_dispatch_population, validate_dispatch_request, validate_requested, validate_rows,
+        AccountingStage, BundleRefusal, ClaimRow, RowAssemblyRefusal,
     };
     use crate::bounds::inventory::{
         production_inventory, AccountingFault, Budget, BudgetDimension, ResourceAccountant,
@@ -2550,7 +2726,7 @@ mod tests {
     use crate::refusal::{AffectedIdentity, PartialOutput, ProtocolStage, RefusalDomain};
     use crate::result::ClaimKind;
     use ix_trace_rs::trace;
-    use std::collections::BTreeSet;
+    use std::collections::{BTreeSet, HashSet};
     use std::time::Duration;
 
     #[test]
@@ -2750,6 +2926,11 @@ mod tests {
                 RefusalDomain::Assessment,
                 ProtocolStage::Conformance,
             ),
+            (
+                BundleRefusal::ActivationFactMismatch,
+                RefusalDomain::Assessment,
+                ProtocolStage::Conformance,
+            ),
         ];
         let mut codes = BTreeSet::new();
         let mut axes = BTreeSet::new();
@@ -2762,6 +2943,63 @@ mod tests {
             assert!(codes.insert(refusal.code().as_str()));
             assert!(axes.insert(refusal.axis().as_bytes().to_vec()));
         }
+    }
+
+    #[test]
+    #[trace("TC-006", "FR-006-AC-9", "FR-008-AC-1", "FR-014-AC-1")]
+    fn row_assembly_failures_have_injective_typed_identities() {
+        let failures = [
+            RowAssemblyRefusal::UnknownClaimStrength(b"unknown"),
+            RowAssemblyRefusal::MissingAssumptionState(b"assumption"),
+            RowAssemblyRefusal::NonTextRequestIdentity(b"\xffrequest"),
+            RowAssemblyRefusal::NonTextAdmittedFragmentIdentity(b"\xfffragment"),
+            RowAssemblyRefusal::NonTextBackendIdentity(b"\xffbackend"),
+            RowAssemblyRefusal::NonTextAssumptionIdentity(b"\xffassumption"),
+            RowAssemblyRefusal::ForeignModelProvenance,
+            RowAssemblyRefusal::ForeignRuntimeInput,
+            RowAssemblyRefusal::UnrepresentableRuntimeInput,
+        ];
+        let mut codes = BTreeSet::new();
+        let mut interiors = HashSet::new();
+        for failure in failures {
+            let refusal = row_assembly_refusal(failure);
+            assert_eq!(refusal.domain(), RefusalDomain::Result);
+            assert_eq!(refusal.stage(), ProtocolStage::ResultAssembly);
+            assert!(codes.insert(refusal.code().as_str()));
+            assert!(interiors.insert((
+                refusal.axis().as_bytes().to_vec(),
+                refusal.causes().declared_order()[0].clone(),
+            )));
+        }
+    }
+
+    #[test]
+    #[trace("TC-006", "FR-006-AC-1", "FR-006-AC-4", "FR-031-AC-5")]
+    fn result_selection_accepts_each_reachable_leaf_without_requiring_a_singleton() {
+        use quire_spec_language::protocol_artifact::wire::Handle;
+
+        let first = Handle {
+            declaration: 7,
+            index: 2,
+        };
+        let second = Handle {
+            declaration: 7,
+            index: 5,
+        };
+        let unreachable = Handle {
+            declaration: 7,
+            index: 9,
+        };
+        let leaves = [first.clone(), second.clone()];
+        assert!(predicate_selection_matches(7, &first, 7, Some(&leaves)));
+        assert!(predicate_selection_matches(7, &second, 7, Some(&leaves)));
+        assert!(!predicate_selection_matches(8, &second, 7, Some(&leaves)));
+        assert!(!predicate_selection_matches(
+            7,
+            &unreachable,
+            7,
+            Some(&leaves)
+        ));
     }
 
     #[test]
