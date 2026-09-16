@@ -30,6 +30,7 @@ use quire_protocol::model::v2::{
 use quire_protocol::outcome::OperationOutcome;
 use quire_protocol::producer_contracts::{
     resolve_producer_contracts, ProducerContract, ProducerResolutionRequest,
+    UnsupportedObservationCapability, QOBS_REVISION,
 };
 use quire_protocol::repro::{CorpusIdentity, ReproductionInputs, Seed, ToolchainIdentity};
 use quire_protocol::result::{
@@ -39,7 +40,7 @@ use quire_protocol::result::{
 use quire_protocol::version_lock::{
     EntryStatus, ManifestEntry, ResolutionBudget, ResolutionRefusalCode, VersionLockManifest,
 };
-use quire_protocol::{v2, wire as w};
+use quire_protocol::{v2, wire as w, ByteDigest};
 use quire_spec_language::protocol_artifact::{
     checked_predicate,
     native_temporal::{self, request as temporal_request, v2 as temporal_v2},
@@ -122,6 +123,8 @@ fn refusal_code(
     "FR-009-AC-6"
 )]
 fn it_002_sc_08_resolves_only_the_exact_scenario_contract_inventory() {
+    assert_eq!(ProducerContract::ALL.len(), 19);
+    assert_eq!(QOBS_REVISION, "581d98f1ac9f1467cc5355785d67b242f8d5d150");
     let request = ProducerResolutionRequest::new(b"it002:scenario-resolution")
         .expect("nonempty scenario resolution identity");
     let outcome =
@@ -177,6 +180,65 @@ fn it_002_sc_08_resolves_only_the_exact_scenario_contract_inventory() {
             .expect("v2 native-temporal request resolved")
             .revision(),
         b"0c2f13e261c0ffeaf89f0638931b573ec038e99b"
+    );
+
+    let qobs_schemas = ProducerContract::ALL
+        .iter()
+        .copied()
+        .filter_map(|contract| contract.owner_schema().map(|schema| (contract, schema)))
+        .collect::<Vec<_>>();
+    assert_eq!(qobs_schemas.len(), 15);
+    for (contract, schema) in &qobs_schemas {
+        assert_eq!(contract.expected_revision(), QOBS_REVISION);
+        assert_eq!(
+            format!("{:x}", ByteDigest::of(schema.bytes())),
+            schema.sha256()
+        );
+    }
+    assert_eq!(
+        qobs_schemas
+            .iter()
+            .filter(|(contract, _)| {
+                matches!(
+                    contract,
+                    ProducerContract::ObservationPartialFact
+                        | ProducerContract::ObservationActivationAuthority
+                        | ProducerContract::ObservationAuthorityBundleV1
+                        | ProducerContract::ObservationAuthorityBundleV2
+                        | ProducerContract::ObservationAuthorityLineage
+                )
+            })
+            .map(|(contract, schema)| (contract.contract_version(), schema.sha256()))
+            .collect::<Vec<_>>(),
+        vec![
+            (
+                "quire.observation.partial-fact/v1",
+                "9dc068376a7db5a7509810910c36e2efff6b9c3701d83c474701ec572f13f23c",
+            ),
+            (
+                "quire.observation.activation-scope-authority/v1",
+                "6d8b3b41a7fdc9b7d4dba085809b396bc41e41c89f9c512ff1580108d43663e8",
+            ),
+            (
+                "quire.observation-authority/v1",
+                "6b6f4e3b08a4b16476b55ae6cdfdff4440b8c053f056ffd7b9bdcde47e200296",
+            ),
+            (
+                "quire.observation-authority/v2",
+                "f92335c5e5e1e3434f1c2484557ca1f512c22b496eb97319c94fcac3491f116a",
+            ),
+            (
+                "quire.observation-authority-lineage/v1",
+                "d58c70516e53bde40ab2d276df143fffb05740348b98d09a71e89857a82a22ef",
+            ),
+        ]
+    );
+    assert_eq!(
+        UnsupportedObservationCapability::ALL,
+        [
+            UnsupportedObservationCapability::Repair,
+            UnsupportedObservationCapability::AggregateQuery,
+        ]
     );
 
     let absent = VersionLockManifest::new(

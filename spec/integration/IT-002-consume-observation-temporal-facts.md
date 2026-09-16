@@ -28,9 +28,11 @@ semantics.
 
 ## Target Integration
 
-QObs publishes the accepted typed Rust runtime facts and topology at revision
-`93bc565`. Protocol's current direct pin is older and must be repinned before
-these scenarios execute. QSL publishes the native-temporal request/result and
+QObs publishes the accepted typed Rust runtime facts, authority bundles and
+bounded lineage at revision
+`581d98f1ac9f1467cc5355785d67b242f8d5d150`. Protocol consumes the owner crate's
+contract constants and immutable schema bytes directly; it does not restate an
+owner payload shape or validation rule. QSL publishes the native-temporal request/result and
 checked activation-guard selection at Protocol's current exact revision
 `f1700a9264d6d3bcdd07e0f77b70f3dae9ed4c07`. QSL `0c2f13e` publishes the
 native-temporal v2 opaque-trigger and activation-fact interface, plus the
@@ -45,7 +47,7 @@ The consumer is the protocol evaluator and canonical result producer.
 
 | Owner | Supplies | This repository must not |
 | --- | --- | --- |
-| QObs | Observation facts, decision-scope and surrounding-execution progress/closure, settlement basis, decision support, completeness, and accepted runtime topology | Collect, correlate, or re-derive an observation; infer a missing fact |
+| QObs | Observation facts, decision-scope and surrounding-execution progress/closure, settlement basis, decision support, completeness, partial facts, activation authority, revisioned authority bundles and bounded lineage | Collect, correlate, re-derive or repair an observation; infer a missing fact; execute QObs repair or aggregate-query semantics without an accepted Protocol adapter |
 | QSL native temporal | Exact checked native-temporal results, activation-guard selection, opaque trigger, captures and evaluation anchor | Evaluate a temporal formula, select a QObs subject or Protocol control, or author a second profile |
 | QSL compiled protocol | The admitted `/2` definition from which Protocol builds the linked graph | Parse native source or reinterpret an identity |
 | This repository | Compensation state, finite conformance, claim dispatch, canonical result production, typed refusals, version-lock resolution, the complete-global-conformance closure record and its premises, the scenario evidence record up to handoff | — |
@@ -57,6 +59,23 @@ producer or accepts a caller-built equivalent. A value this repository derives
 is never attributed to a producer, and a producer value is never attributed to
 this repository.
 
+Protocol's accepted QObs interface inventory additionally recognizes these
+owner contracts and schema digests at the exact accepted revision:
+
+| Owner contract | Schema SHA-256 |
+| --- | --- |
+| `quire.observation.partial-fact/v1` | `9dc068376a7db5a7509810910c36e2efff6b9c3701d83c474701ec572f13f23c` |
+| `quire.observation.activation-scope-authority/v1` | `6d8b3b41a7fdc9b7d4dba085809b396bc41e41c89f9c512ff1580108d43663e8` |
+| `quire.observation-authority/v1` | `6b6f4e3b08a4b16476b55ae6cdfdff4440b8c053f056ffd7b9bdcde47e200296` |
+| `quire.observation-authority/v2` | `f92335c5e5e1e3434f1c2484557ca1f512c22b496eb97319c94fcac3491f116a` |
+| `quire.observation-authority-lineage/v1` | `d58c70516e53bde40ab2d276df143fffb05740348b98d09a71e89857a82a22ef` |
+
+These entries authorize only the published Rust interfaces. QObs repair and
+aggregate-query are consumer capabilities, not wire contracts. Until Protocol
+implements adapters for them, its closed capability inventory reports each as
+a distinct typed `unsupported` value and creates no invented contract key,
+reader, or semantic substitute.
+
 The complete-global-conformance closure record is Protocol-authored, not an
 external producer's. It therefore takes no version-lock entry. SC-03 and SC-04
 verify that a scoped closure cannot substitute for it, not that it arrived from
@@ -65,10 +84,11 @@ QObs, QSL, QCI or a research artifact.
 ## Preconditions
 
 Every external contract consumed by this integration resolves through FR-009
-before any fact is read. QSL `/2` and native-temporal capabilities are pinned at
-`f1700a9`. The QObs entry remains unresolved in Protocol until its direct
-dependency is repinned from `9ac80e93` to accepted revision `93bc565`; while it
-is unresolved these scenarios report unexecutable, not pass or fail.
+before any fact is read. QSL native-temporal v1 interface entries are pinned at
+`f1700a9`; the compiled `/2` dependency and opaque-trigger v2 entries are pinned
+at `0c2f13e`. QObs runtime and authority interfaces are pinned at
+`581d98f1ac9f1467cc5355785d67b242f8d5d150`. Every scenario resolves the exact
+interface set it consumes before it receives an owner value.
 
 The QObs consumer preserves decision-scope and surrounding-execution
 progress/closure, settlement basis, decision support, completeness, and exact
@@ -153,7 +173,12 @@ mis-correlated observation, duplicate delivery, and late contradiction.
      is reported unexecutable rather than passing or failing; removing a
      producer-emitted sidecar changes no resolution outcome; editing this test's
      required-entry list is the only way to change what a scenario requires; and
-     repinning one entry changes the resolution of no other.
+     repinning one entry changes the resolution of no other. The inventory also
+     binds each QObs contract above to the owner's exported contract constant,
+     exported schema bytes and recorded schema SHA-256. Repair and aggregate
+     query remain two distinct typed unsupported consumer capabilities, create
+     no manifest entries, and cannot be reported as supported merely because
+     the pinned owner crate exports their implementation modules.
 
 ## Expected Results
 
@@ -168,21 +193,22 @@ producer revision, and a scenario whose evidence is incomplete claims nothing.
 
 - Priority: P0
 - Target Integration: observation and temporal producers to protocol evaluator
-- Automation: Automated after the accepted QObs revision is pinned
+- Automation: Automated against the exact accepted QObs revision
 
 ## Dependencies
 
-QSL compiled-protocol `/2` and native-temporal request/result at `f1700a9`, plus
-the QSL FR-053 opaque-trigger v2 interface with activation facts at `4842e64`, plus
-QObs runtime facts/topology at `93bc565`. Protocol owns global closure and result
-assembly. QCI issue 71 is a downstream consumer and is not a prerequisite.
+QSL native-temporal v1 interface entries at `f1700a9`, the compiled-protocol
+`/2` dependency and FR-053 opaque-trigger v2 interface at `0c2f13e`, and QObs
+runtime/authority interfaces at `581d98f`. Protocol owns global closure and
+result assembly. QCI issue 71 is a downstream consumer and is not a prerequisite.
 
 ## Notes
 
-The owner contracts are delivered except QSL FR-053's implementation. The
-remaining enablement is that opaque-trigger v2 interface, the Protocol QObs
-repin and the typed composition path from linked graph through assessment to
-canonical result. This integration remains planned until Task-010 closes.
+Task-010 closed the assessment path against the earlier accepted QObs contract
+set. Task-020 is a compatibility successor: it advances the exact owner pin,
+adds only the newly published partial/activation/bundle/lineage interface
+metadata, and records repair/query as unsupported without claiming either
+adapter exists. Final scenario-record composition remains Task-018-owned.
 
 ## Traceability
 

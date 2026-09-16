@@ -79,7 +79,11 @@ relationships:
 - `Task-006 -> Task-007, Task-010`
   Reason: both E02 projection and observation/native-temporal integration require
   validated canonical result assembly; Task-010 consumes QSL/QObs, not QCI.
-- `Task-007 + Task-009 + Task-010 + Task-013 + Task-019 -> Task-008`
+- `Task-010 -> Task-020 -> Task-008`
+  Reason: the completed observation/native-temporal assessment precedes its
+  exact C00 contract/schema compatibility successor, which must land before the
+  final dependency/resource inventory is frozen.
+- `Task-007 + Task-009 + Task-020 + Task-013 + Task-019 -> Task-008`
   Reason: the final resource/reproduction sweep can close only after every public
   path and external-contract site exists.
 - `Task-006 + Task-008 + Task-013 -> Task-018`
@@ -137,10 +141,12 @@ shared result-domain values. Each has one Protocol owner and no adapter-local co
 - [x] **IT-001 `/1` SC-01..SC-05 and SC-06a**: default-running admission plus
   local-link regression and before/after compatibility comparison. The `/2`
   SC-06..SC-09 handoff is already complete under Task-012.
-- [ ] **IT-002**: Task-010's ten non-record scenarios now traverse exact QObs
+- [ ] **IT-002**: Task-010's ten non-record scenarios traverse exact QObs
   runtime/authority facts and QSL native-temporal results through compensation,
-  conformance and canonical results without QCI upstream. SC-07a/SC-07b final
-  record composition and record-set distinctness remain under Task-018.
+  conformance and canonical results without QCI upstream. Task-020 advances the
+  exact QObs owner-interface inventory and schema pins while keeping repair and
+  aggregate-query typed unsupported. SC-07a/SC-07b final record composition and
+  record-set distinctness remain under Task-018.
 - [ ] **IT-003**: validated Protocol results project to E02, execute through the
   Engineering Assurance boundary and hand a complete FR-017 value to Quoin.
 
@@ -182,6 +188,10 @@ shared result-domain values. Each has one Protocol owner and no adapter-local co
 - **Facts = Task-010 (done)** QObs/QSL native-temporal lane — exact selected
   facts, adverse mutations, incremental/batch paths, bounds and resolution
   controls reach results unchanged; final FR-017 records remain Task-018-owned.
+- **C00 compatibility = Task-020 (done)** QObs accepted-interface successor — exit:
+  partial, activation, authority-bundle v1/v2 and lineage contracts/schema
+  digests resolve at `581d98f`, while repair/query remain distinct typed
+  unsupported Protocol capabilities.
 - **E02 = Task-007** Portable projection — may run after Task-006 and accepted
   qverify promotion; exit: every FR-062 row passes the target strict reader.
 
@@ -202,7 +212,8 @@ Task-016 -> Task-017 -> Task-013 -> Task-002 -> Task-003 -> Task-004 -> Task-005
                             |       |                          |          |
                             |       `-> Task-009               |          +-> Task-007
                             `-> Task-019                       `-> Task-010
-Task-007 + Task-009 + Task-010 + Task-013 + Task-019 -> Task-008 -> Task-018 -> Task-011
+Task-010 -> Task-020
+Task-007 + Task-009 + Task-020 + Task-013 + Task-019 -> Task-008 -> Task-018 -> Task-011
 Task-015 (done) -> QCI FR-025; QCI #71/PR #78 done (external)
 ```
 
@@ -233,6 +244,7 @@ track names are subsystems and are not agent assignments; Agent B remains on TL.
 | Task-017 | Cross-cutting Foundation | FR-008, FR-014, FR-016 | TC-011 | done; 30 focused tests and SR-101/SR-102 pass under #62 |
 | Task-018 | Qualification | FR-017, NFR-005 | TC-016 | planned |
 | Task-019 | Producer Integration | FR-018, NFR-006 | TC-017 | done; exact transactional bounded consumer index cannot affect version-lock resolution; SR-108/SR-109 pass |
+| Task-020 | Producer Integration | FR-009, NFR-006 | IT-002 | done; exact QObs C00 contract/schema successor and typed unsupported repair/query; SR-123/SR-124 pass |
 
 ## Coordination Rules
 

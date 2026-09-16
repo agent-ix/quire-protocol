@@ -7,6 +7,25 @@ description: "Chronological log of changes to the Plan-001 bundle."
 
 ## History
 
+* **2026-09-15** — Completed Task-020. Protocol now pins QObs `581d98f`,
+  resolves a single-source nineteen-contract QObs/QSL inventory, verifies the
+  owner's fifteen exported QObs schema byte arrays against independent digests,
+  and exposes repair and aggregate-query as two typed unsupported capabilities
+  that mint no contract entry. IT-002's focused three-test lane and the exact
+  repository gate pass. Rust review SR-123 and gap analysis SR-124 pass after
+  consolidating all producer-contract metadata into one declarative table.
+
+* **2026-09-15** — Added Task-020 as the compatibility successor to completed
+  Task-010 after QObs published its C00 owner surface at exact revision
+  `581d98f1ac9f1467cc5355785d67b242f8d5d150`. The scoped `/specify` update
+  adds partial, activation, authority-bundle v1/v2 and lineage contract/schema
+  pins to IT-002 SC-08 and keeps repair and aggregate-query as two typed
+  unsupported Protocol capabilities rather than invented contracts or semantic
+  copies. Subset `/spec-review` SR-120 through SR-122 found no remaining base,
+  dependency or scope-boundary gap. Task-008 now depends on this exact-pin
+  successor before its final inventory sweep; Task-018 retains all final
+  scenario-record ownership.
+
 * **2026-09-15** — Completed Task-010's observation/native-temporal integration
   allocation against accepted QObs `93bc565` and QSL native-temporal v1
   `f1700a9` / opaque-trigger v2 `0c2f13e`. A closed 14-contract inventory now

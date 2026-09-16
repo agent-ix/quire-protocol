@@ -157,10 +157,10 @@ B-authored fixture root can carry an unenumerated file.
 
 ## Status
 
-In progress. The current lock has 132 non-root packages and five git sources;
-Cargo/rights records cover the current exact pins, including QSL `f1700a9`.
+In progress. Cargo/rights records cover the current exact pins, including QSL
+`0c2f13e`; Task-020 advances QObs to exact revision `581d98f` and requires the
+manifest, lockfile and rights record to agree before promotion.
 Task-013 implements TC-013's exact-member controls for AC-6 and AC-7;
-Task-019/#66 owns the missing TC-017 consumer-index control for AC-8. Task-002 must
-repin QObs from `9ac80e9` to accepted `93bc565`, and every later pin must update
-Cargo.lock and DEPENDENCIES.md in the same ticket before this requirement can
-close.
+Task-019/#66 implements TC-017's consumer-index control for AC-8. Every later
+pin must update Cargo.lock and DEPENDENCIES.md in the same ticket before this
+requirement can close.

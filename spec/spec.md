@@ -248,8 +248,12 @@ requirement.
 
 The current accepted compiler pin is QSL `0c2f13e`; the compiled-protocol `/1`,
 `/2`, and `/3` handoffs are owner-addressed and the `/1` Service/Provider
-authorities are distinct. The direct QObs pin is the accepted FR-287/FR-262
-revision `93bc565`.
+authorities are distinct. The direct QObs pin is the accepted C00
+runtime/authority revision `581d98f1ac9f1467cc5355785d67b242f8d5d150`.
+Protocol recognizes the owner's partial, activation, authority-bundle v1/v2
+and lineage interfaces without copying their schemas; QObs repair and
+aggregate-query remain explicit typed unsupported consumer capabilities until
+Protocol owns adapters for them.
 E02 has an implemented draft-2 reader whose owner acceptance prose is still
 contradictory, and Quoin has a Rust evidence implementation but no Protocol
 scenario-record intake. These are explicit gates, not permission to substitute
@@ -283,9 +287,10 @@ its entry-status table records why each is currently `unresolved`.
   and 114 owned that delivery and have landed. This is the only native compiler
   reader in the admitted path, and this repository adds no second one.
 - `agent-ix/quire-observation` — the F-owned observation producer interface and
-  authority contracts. Accepted FR-287/FR-262 runtime references and topology
-  are consumed at `93bc565`. Complete-global-conformance closure remains
-  Protocol-owned and is not a QObs artifact.
+  authority contracts. Accepted runtime references, partial/activation facts,
+  revisioned authority bundles and bounded lineage are consumed at `581d98f`.
+  Complete-global-conformance closure remains Protocol-owned and is not a QObs
+  artifact; repair and aggregate-query are not Protocol adapters at this pin.
 - `agent-ix/quire-verification` FR-007 and `quire-verification/e02-draft-2` —
   the implemented E02 strict reader and its finding vocabulary. Its owner must
   reconcile the stale provisional interface decision before cross-repository
