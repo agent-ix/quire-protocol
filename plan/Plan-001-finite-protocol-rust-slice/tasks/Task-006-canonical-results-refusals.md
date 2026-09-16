@@ -63,8 +63,10 @@ outputs; and complete the refusal envelope shared by every refusing operation.
 
 ## Notes
 
-- Tasks 007 and 010 remain blocked until the owner capability gaps above are
-  delivered and consumed through the public Engine path.
+- Task 007 completed its total projection over the validated rows the public
+  Engine can currently produce. Task 010 still owns the remaining
+  observation/temporal integration and cannot credit authenticated support or
+  correction scenarios until the owner capabilities above are delivered.
 - Source catalogs remain owner-controlled. Protocol can complete its envelope
   without inventing a catalog by retaining a known source cause exactly and
   returning `unsupported-source-contract` for an unknown catalog/version.

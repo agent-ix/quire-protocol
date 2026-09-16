@@ -41,7 +41,7 @@ relationships:
 - [ ] **FR-004**: Connect one batch/incremental conformance kernel to graph and compensation outputs.
 - [ ] **FR-005**: Consume conformance through closed independent claim dispatch.
 - [ ] **FR-006**: Assemble the implemented canonical result from typed subsystem outputs.
-- [ ] **FR-007**: Project validated results through accepted E02 draft-2.
+- [x] **FR-007**: Project validated results through accepted E02 draft-2.
 - [ ] **FR-008**: Route every public failure through the shared exact-stage envelope.
 - [ ] **FR-009**: Resolve every consumed external contract before its value is read.
 - [x] **FR-042**: Strict canonical-result reader and complete borrowed Contract-IR map are implemented.
@@ -113,7 +113,7 @@ shared result-domain values. Each has one Protocol owner and no adapter-local co
 - [ ] **TC-006**: subsystem-derived canonical rows and strict reads execute;
   authenticated settlement/support topology and applicable immutable correction
   scenarios remain blocked on the pinned owner capabilities.
-- [ ] **TC-007**: total FR-062 E02 mapping, exact derived identity, strict target
+- [x] **TC-007**: total FR-062 E02 mapping, exact derived identity, strict target
   reading, finding preservation and no sufficiency promotion.
 - [ ] **TC-008**: whole-path byte/semantic reproduction and one-axis mutation discrimination.
 - [ ] **TC-009**: bidirectional final source inventory, below/at/over bounds,
@@ -181,8 +181,8 @@ shared result-domain values. Each has one Protocol owner and no adapter-local co
   both historical revisions around the `/2` addition.
 - **Facts = Task-010** QObs/QSL native-temporal lane — may run after Task-006;
   exit: all selected facts and adverse mutations reach results unchanged.
-- **E02 = Task-007** Portable projection — may run after Task-006 and accepted
-  qverify promotion; exit: every FR-062 row passes the target strict reader.
+- **E02 = Task-007 (done)** Portable projection — every FR-062 row passes the
+  accepted qverify target strict reader with exact source/finding preservation.
 
 ### Qualification and Cross-cutting Closure
 
