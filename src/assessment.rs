@@ -16,7 +16,7 @@ use quire_observation::authority::{
     progress,
 };
 use quire_observation::QualifiedSubject;
-use quire_spec_language::protocol_artifact::native_temporal::{self, v2 as temporal_v2};
+use quire_spec_language::protocol_artifact::native_temporal::v2 as temporal_v2;
 use quire_spec_language::protocol_artifact::v3;
 use quire_spec_language::protocol_artifact::wire::{BindingKind, ControlOperation};
 use quire_spec_language::protocol_artifact::ProtocolNumber;
@@ -1278,8 +1278,17 @@ impl<'a> Engine<'a> {
         if let Err(error) = self.validate_activation_facts(facts) {
             return BoundedOutcome::DomainError(outcome_refusal(error));
         }
-        if let Err(error) = self.validate_temporal_evidence(axes, completeness, execution) {
-            return BoundedOutcome::DomainError(outcome_refusal(error));
+        match self.validate_temporal_evidence_bounded(axes, completeness, execution, resources) {
+            BoundedOutcome::Completed(()) => {}
+            BoundedOutcome::DomainError(error) => {
+                return BoundedOutcome::DomainError(outcome_refusal(error));
+            }
+            BoundedOutcome::ResourceIncomplete(incomplete) => {
+                return BoundedOutcome::ResourceIncomplete(incomplete);
+            }
+            BoundedOutcome::AccountingFault(fault) => {
+                return BoundedOutcome::AccountingFault(fault);
+            }
         }
         let report = match self.conformance.assess_activated_bounded(
             facts,
@@ -1332,19 +1341,34 @@ impl<'a> Engine<'a> {
         Ok(())
     }
 
-    fn validate_temporal_evidence(
+    fn validate_temporal_evidence_bounded(
         &self,
         axes: AxisInputs<'_>,
         completeness: &completeness::View,
         execution: crate::closure::AssessmentExecution,
-    ) -> Result<(), BundleRefusal> {
+        resources: &mut ResourceAccountant<'_>,
+    ) -> BoundedOutcome<(), BundleRefusal> {
         let Some(selected) = &self.activation else {
-            return Err(BundleRefusal::MissingActivationSelection);
+            return BoundedOutcome::DomainError(BundleRefusal::MissingActivationSelection);
         };
-        if temporal_evidence_matches(selected.request, axes, completeness, execution) {
-            Ok(())
-        } else {
-            Err(BundleRefusal::TemporalEvidenceMismatch)
+        match crate::conformance::kernel::validate_temporal_evidence_bounded(
+            selected.request,
+            axes,
+            completeness,
+            execution,
+            resources,
+        ) {
+            BoundedOutcome::Completed(()) => BoundedOutcome::Completed(()),
+            BoundedOutcome::DomainError(ConformanceKernelRefusal::TemporalEvidenceMismatch) => {
+                BoundedOutcome::DomainError(BundleRefusal::TemporalEvidenceMismatch)
+            }
+            BoundedOutcome::DomainError(_) => {
+                BoundedOutcome::DomainError(BundleRefusal::TemporalEvidenceMismatch)
+            }
+            BoundedOutcome::ResourceIncomplete(incomplete) => {
+                BoundedOutcome::ResourceIncomplete(incomplete)
+            }
+            BoundedOutcome::AccountingFault(fault) => BoundedOutcome::AccountingFault(fault),
         }
     }
 
@@ -2686,161 +2710,6 @@ impl<'a> ResolvedAssessmentScope<'_, 'a> {
     }
 }
 
-fn temporal_evidence_matches(
-    request: &temporal_v2::ValidatedRequest,
-    axes: AxisInputs<'_>,
-    completeness: &completeness::View,
-    execution: crate::closure::AssessmentExecution,
-) -> bool {
-    progress_evidence_matches(
-        request.decision_progress(),
-        axes.decision_scope_progress,
-        "decision-progress",
-    ) && closure_evidence_matches(
-        request.decision_closure(),
-        axes.decision_scope_closure,
-        "decision-closure",
-    ) && progress_evidence_matches(
-        request.surrounding_progress(),
-        axes.surrounding_execution_progress,
-        "surrounding-progress",
-    ) && closure_evidence_matches(
-        request.surrounding_closure(),
-        axes.surrounding_execution_closure,
-        "surrounding-closure",
-    ) && completeness_evidence_matches(request.completeness(), completeness)
-        && execution_matches(request.execution(), execution)
-}
-
-fn progress_evidence_matches(
-    admitted: native_temporal::request::ProgressView<'_>,
-    owner: &progress::View,
-    scope: &str,
-) -> bool {
-    evidence_matches(
-        admitted.reference(),
-        progress::CONTRACT,
-        progress::SCHEMA_SHA256,
-        owner.identity().as_str(),
-        owner.bytes(),
-        owner.authority(),
-        scope,
-        owner.payload().required_sources().len(),
-    ) && progress_watermark(owner).is_some_and(|watermark| admitted.watermark() == watermark)
-}
-
-fn closure_evidence_matches(
-    admitted: native_temporal::request::ClosureView<'_>,
-    owner: &observation_closure::View,
-    scope: &str,
-) -> bool {
-    evidence_matches(
-        admitted.reference(),
-        observation_closure::CONTRACT,
-        observation_closure::SCHEMA_SHA256,
-        owner.identity().as_str(),
-        owner.bytes(),
-        owner.authority(),
-        scope,
-        owner.payload().required_sources().len(),
-    ) && match owner.payload().state() {
-        quire_observation::authority::OpenClosed::Open => {
-            admitted.state() == quire_spec_language::temporal::Closure::Open
-        }
-        quire_observation::authority::OpenClosed::Closed => {
-            admitted.state() == quire_spec_language::temporal::Closure::Closed
-        }
-    }
-}
-
-fn completeness_evidence_matches(
-    admitted: native_temporal::request::CompletenessView<'_>,
-    owner: &completeness::View,
-) -> bool {
-    evidence_matches(
-        admitted.reference(),
-        completeness::CONTRACT,
-        completeness::SCHEMA_SHA256,
-        owner.identity().as_str(),
-        owner.bytes(),
-        owner.authority(),
-        "completeness",
-        owner.payload().fact_count(),
-    ) && match owner.payload().state() {
-        completeness::State::Complete => {
-            admitted.state() == quire_spec_language::temporal::Completeness::Complete
-        }
-        completeness::State::Incomplete => {
-            admitted.state() == quire_spec_language::temporal::Completeness::Incomplete
-        }
-        completeness::State::Contradicted => false,
-    }
-}
-
-#[allow(
-    clippy::too_many_arguments,
-    reason = "the comparison preserves every independently owned evidence coordinate"
-)]
-fn evidence_matches(
-    admitted: &native_temporal::EvidenceRef,
-    contract: &str,
-    schema_sha256: &str,
-    identity: &str,
-    bytes: &[u8],
-    authority: &quire_observation::authority::AuthoritySelection,
-    scope: &str,
-    population: usize,
-) -> bool {
-    admitted.contract() == contract
-        && admitted.schema_digest() == schema_sha256
-        && admitted.identity() == identity
-        && admitted.digest() == format!("{:x}", crate::ByteDigest::of(bytes))
-        && admitted.authority_identity() == authority.definition_identity.as_str()
-        && admitted.authority_revision() == authority.definition_revision.as_str()
-        && admitted.authority_digest() == digest_hex(authority.definition_digest.as_bytes())
-        && admitted.scope() == scope
-        && u64::try_from(population).is_ok_and(|population| admitted.population() == population)
-}
-
-fn progress_watermark(view: &progress::View) -> Option<i64> {
-    use quire_observation::authority::BoundaryRef;
-    let watermark = match view.payload().boundary() {
-        BoundaryRef::EventPosition { watermark, .. }
-        | BoundaryRef::FixedSample { watermark, .. } => watermark,
-        BoundaryRef::TimestampedEvent {
-            watermark_nanos, ..
-        } => watermark_nanos,
-    };
-    watermark.parse().ok()
-}
-
-fn execution_matches(
-    admitted: quire_spec_language::temporal::Execution,
-    owner: crate::closure::AssessmentExecution,
-) -> bool {
-    matches!(
-        (admitted, owner),
-        (
-            quire_spec_language::temporal::Execution::Completed,
-            crate::closure::AssessmentExecution::Completed
-        ) | (
-            quire_spec_language::temporal::Execution::Failed,
-            crate::closure::AssessmentExecution::Failed
-        )
-    )
-}
-
-fn digest_hex(bytes: &[u8]) -> String {
-    bytes.iter().fold(
-        String::with_capacity(bytes.len() * 2),
-        |mut encoded, byte| {
-            use core::fmt::Write as _;
-            write!(&mut encoded, "{byte:02x}").expect("writing to String cannot fail");
-            encoded
-        },
-    )
-}
-
 fn validate_dispatch_request(
     requested: &[Claim],
     requests: &[ClaimRequest<'_>],
@@ -2859,6 +2728,9 @@ fn validate_dispatch_request(
 
 fn activated_assessment_refusal(error: ActivatedAssessmentError) -> ProtocolRefusal {
     match error {
+        ActivatedAssessmentError::Kernel(ConformanceKernelRefusal::TemporalEvidenceMismatch) => {
+            outcome_refusal(BundleRefusal::TemporalEvidenceMismatch)
+        }
         ActivatedAssessmentError::Kernel(error) => kernel_refusal(error),
         ActivatedAssessmentError::Conformance(refusal) => refusal.envelope().clone(),
     }
@@ -2902,6 +2774,9 @@ fn kernel_refusal(error: ConformanceKernelRefusal) -> ProtocolRefusal {
         ConformanceKernelRefusal::UnexpectedActivatedOccurrence => {
             b"unexpected-activated-occurrence".as_slice()
         }
+        ConformanceKernelRefusal::TemporalEvidenceMismatch => {
+            b"temporal-evidence-mismatch".as_slice()
+        }
     };
     let code = RefusalCode::of(&BUNDLE_INVALID_CONFORMANCE_KERNEL);
     let cause = match error {
@@ -2923,12 +2798,11 @@ fn kernel_refusal(error: ConformanceKernelRefusal) -> ProtocolRefusal {
         | ConformanceKernelRefusal::ActivationResultMismatch
         | ConformanceKernelRefusal::ActivationOccurrenceMismatch
         | ConformanceKernelRefusal::ForeignActivatedOccurrence
-        | ConformanceKernelRefusal::UnexpectedActivatedOccurrence => {
-            ProtocolCause::IdentityMismatch {
-                expected: RetainedBytes::new(b"engine-bound-activation"),
-                observed: RetainedBytes::new(tag),
-            }
-        }
+        | ConformanceKernelRefusal::UnexpectedActivatedOccurrence
+        | ConformanceKernelRefusal::TemporalEvidenceMismatch => ProtocolCause::IdentityMismatch {
+            expected: RetainedBytes::new(b"engine-bound-activation"),
+            observed: RetainedBytes::new(tag),
+        },
         ConformanceKernelRefusal::UnrepresentableControl
         | ConformanceKernelRefusal::InvalidActivationControl
         | ConformanceKernelRefusal::InvalidActivationTemporal
@@ -4094,6 +3968,7 @@ mod tests {
             KernelRefusal::DuplicateActivatedObligation,
             KernelRefusal::InvalidDerivedModel,
             KernelRefusal::UnexpectedActivatedOccurrence,
+            KernelRefusal::TemporalEvidenceMismatch,
         ];
         let mut axes = BTreeSet::new();
         for failure in failures {

@@ -32,6 +32,12 @@ pub struct OrderingViews {
     pub subject: QualifiedSubject,
     pub observations: Vec<authority::observation::View>,
     pub positions: authority::position::View,
+    pub progress_open: authority::progress::View,
+    pub progress_closed: authority::progress::View,
+    pub closure_open: authority::closure::View,
+    pub closure_closed: authority::closure::View,
+    pub completeness_complete: authority::completeness::View,
+    pub completeness_incomplete: authority::completeness::View,
 }
 
 fn digest_hex(bytes: &[u8]) -> String {
@@ -398,10 +404,103 @@ pub fn ordering_views(tag: &str, variant: &str, order: [usize; 3]) -> OrderingVi
         ObservationLimits::owner_max(),
     )
     .expect("ordering position view");
+    let ordering_cutoff = || {
+        authority::observation::CutoffSelection::new(
+            id(format!("clock:{tag}:ordering")),
+            id("1"),
+            40,
+            authority::observation::CutoffRule::IngestionTimeAtOrBefore,
+            id("1"),
+        )
+    };
+    let ordering_boundary = |state| TemporalBoundary::TimestampedEvent {
+        lower_nanos: 0,
+        upper_inclusive_nanos: 39,
+        carrier_end_exclusive_nanos: 40,
+        watermark_nanos: if state == OpenClosed::Closed { 40 } else { 30 },
+    };
+    let progress = |state| {
+        let selection = authority::progress::Selection::new(
+            authority::clock::Selection::new(id(format!("clock:{tag}:ordering")), id("1")),
+            vec![id(format!("source:{tag}:ordering"))],
+            ordering_boundary(state),
+            state,
+            id("trigger:ordering"),
+            ordering_cutoff(),
+            id(format!("restoration:{tag}:ordering")),
+        );
+        let document =
+            authority::progress::derive(context, &selection, ObservationLimits::owner_max())
+                .expect("ordering progress document");
+        authority::progress::read(
+            document.bytes(),
+            context,
+            &selection,
+            ObservationLimits::owner_max(),
+        )
+        .expect("ordering progress view")
+    };
+    let closure = |state| {
+        let selection = authority::closure::Selection::new(
+            id(format!("clock:{tag}:ordering")),
+            id("1"),
+            vec![id(format!("source:{tag}:ordering"))],
+            ordering_boundary(state),
+            state,
+        );
+        let document =
+            authority::closure::derive(context, &selection, ObservationLimits::owner_max())
+                .expect("ordering closure document");
+        authority::closure::read(
+            document.bytes(),
+            context,
+            &selection,
+            ObservationLimits::owner_max(),
+        )
+        .expect("ordering closure view")
+    };
+    let completeness = |complete| {
+        let selection = authority::completeness::Selection::new(
+            id(format!("boundary:{tag}:ordering")),
+            qualified
+                .records()
+                .iter()
+                .enumerate()
+                .map(|(index, record)| {
+                    let available = complete || index == 0;
+                    authority::completeness::Fact::new(
+                        id(format!("member:{tag}:{variant}:{index}")),
+                        available.then(|| record.identity.clone()),
+                        if available {
+                            authority::completeness::FactStatus::Available
+                        } else {
+                            authority::completeness::FactStatus::Incomplete
+                        },
+                    )
+                })
+                .collect(),
+        );
+        let document =
+            authority::completeness::derive(context, &selection, ObservationLimits::owner_max())
+                .expect("ordering completeness document");
+        authority::completeness::read(
+            document.bytes(),
+            context,
+            &selection,
+            ObservationLimits::owner_max(),
+        )
+        .expect("ordering completeness view")
+    };
     OrderingViews {
         subject,
         observations,
         positions,
+        progress_open: progress(OpenClosed::Open),
+        progress_closed: progress(OpenClosed::Closed),
+        closure_open: closure(OpenClosed::Open),
+        closure_closed: closure(OpenClosed::Closed),
+        completeness_complete: completeness(true),
+        completeness_incomplete: completeness(false),
     }
 }
 

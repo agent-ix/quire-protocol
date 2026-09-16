@@ -26,6 +26,7 @@ pub use batch::{
     GlobalPremiseDefectKind, IncompleteCause, Limits, ObligationDisposition, ObligationId,
     ObligationResult, PremiseSnapshot, Report, RetainedDocument, RetainedObservation, Usage,
 };
+pub use incremental::compare;
 pub use kernel::{
     ActivatedAssessmentError, ActivatedIncremental, ActivatedOccurrence, ActivationBinding,
     ActivationFact, ActivationRegistry, Kernel, LinkedCompensationAttempt,

@@ -1529,8 +1529,8 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
                 quire_protocol::outcome::OperationOutcome::Completed(())
             ));
             let cumulative_limit = Budget::nothing_granted()
-                .grant(BudgetDimension::AccountedAllocation, 3)
-                .expect("three allocations reach into result construction");
+                .grant(BudgetDimension::AccountedAllocation, 13)
+                .expect("activation-model and three later allocations reach result construction");
             assert!(matches!(
                 with_result_assessment(
                     context,
@@ -1542,27 +1542,31 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
                     &fixture.predicate,
                     &fixture.temporal,
                     |cumulative_engine| {
-                        assert!(matches!(
-                            cumulative_engine.assess_activated(
-                                &dispatch_requests,
-                                std::slice::from_ref(&fact),
-                                axes,
-                                &decision.completeness_complete,
-                                &global,
-                                AssessmentExecution::Completed,
-                                ConformanceLimits::default(),
-                                DispatchLimits::default(),
-                                vec![
-                                    Some(canonical_row_controls(input.clone(), Limits::owner_max())),
-                                    None,
-                                ],
-                                cumulative_limit,
+                        let outcome = cumulative_engine.assess_activated(
+                            &dispatch_requests,
+                            std::slice::from_ref(&fact),
+                            axes,
+                            &decision.completeness_complete,
+                            &global,
+                            AssessmentExecution::Completed,
+                            ConformanceLimits::default(),
+                            DispatchLimits::default(),
+                            vec![
+                                Some(canonical_row_controls(input.clone(), Limits::owner_max())),
+                                None,
+                            ],
+                            cumulative_limit,
+                        );
+                        assert!(
+                            matches!(
+                                outcome,
+                                quire_protocol::outcome::OperationOutcome::ResourceIncomplete(incomplete)
+                                    if incomplete.dimension() == BudgetDimension::AccountedAllocation
+                                        && incomplete.consumed() == 13
+                                        && incomplete.requested() == 1
                             ),
-                            quire_protocol::outcome::OperationOutcome::ResourceIncomplete(incomplete)
-                                if incomplete.dimension() == BudgetDimension::AccountedAllocation
-                                    && incomplete.consumed() == 3
-                                    && incomplete.requested() == 1
-                        ));
+                            "unexpected cumulative allocation outcome: {outcome:?}"
+                        );
                     },
                 ),
                 quire_protocol::outcome::OperationOutcome::Completed(())

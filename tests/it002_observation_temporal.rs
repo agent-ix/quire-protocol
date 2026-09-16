@@ -18,8 +18,8 @@ use quire_protocol::claims::premises::{BackendSelection, Component, PremiseSet};
 use quire_protocol::claims::Claim;
 use quire_protocol::closure::{AssessmentExecution, GlobalConformanceClosure};
 use quire_protocol::conformance::{
-    ActivatedIncremental, GlobalDisposition, Limits as ConformanceLimits, ObligationDisposition,
-    Report as ConformanceReport,
+    compare, ActivatedIncremental, ErrorCode as ConformanceErrorCode, GlobalDisposition,
+    Limits as ConformanceLimits, ObligationDisposition,
 };
 use quire_protocol::model::v2::{
     Internality, LinkedAssessment, RoleClassification, RuntimeBinding, RuntimeBindingSet,
@@ -149,12 +149,54 @@ fn assert_owner_evidence(
     assert_eq!(actual.population(), expected.population());
 }
 
+#[derive(Clone, Copy)]
+enum PrefixEvidence {
+    Open,
+    Closed,
+}
+
+#[derive(Clone, Copy)]
+struct DecisionEvidence<'a> {
+    progress_open: &'a quire_observation::authority::progress::View,
+    progress_closed: &'a quire_observation::authority::progress::View,
+    closure_open: &'a quire_observation::authority::closure::View,
+    closure_closed: &'a quire_observation::authority::closure::View,
+    completeness_complete: &'a quire_observation::authority::completeness::View,
+    completeness_incomplete: &'a quire_observation::authority::completeness::View,
+}
+
+impl<'a> DecisionEvidence<'a> {
+    fn scope(views: &'a observation_owner::ScopeViews) -> Self {
+        Self {
+            progress_open: &views.progress_open,
+            progress_closed: &views.progress_closed,
+            closure_open: &views.closure_open,
+            closure_closed: &views.closure_closed,
+            completeness_complete: &views.completeness_complete,
+            completeness_incomplete: &views.completeness_incomplete,
+        }
+    }
+
+    fn ordering(views: &'a observation_owner::OrderingViews) -> Self {
+        Self {
+            progress_open: &views.progress_open,
+            progress_closed: &views.progress_closed,
+            closure_open: &views.closure_open,
+            closure_closed: &views.closure_closed,
+            completeness_complete: &views.completeness_complete,
+            completeness_incomplete: &views.completeness_incomplete,
+        }
+    }
+}
+
 fn activated_request(
     package: &v2::AdmittedPackage,
     subject: &temporal_subject::ValidatedTemporalSubject,
     trigger: &[u8],
-    decision: &observation_owner::ScopeViews,
+    decision: DecisionEvidence<'_>,
     surrounding: &observation_owner::ScopeViews,
+    observations: &[&quire_observation::authority::observation::View],
+    prefix: PrefixEvidence,
 ) -> temporal_v2::ValidatedRequest {
     let declaration = subject.declaration();
     let leaf = package.inherited().declarations[usize::try_from(declaration).expect("index fits")]
@@ -170,20 +212,27 @@ fn activated_request(
         trigger: temporal_v2::SemanticTriggerIdentity::new(trigger.to_vec())
             .expect("QObs subject identity is nonempty"),
         correspondence: temporal_evidence("correspondence", "correspondence:it002"),
-        positions: vec![temporal_request::ObservedPosition {
-            observation: observation_owner::observation_evidence(
-                &decision.observation,
-                "observation",
-            ),
-            position: quire_spec_language::temporal::Position {
-                coordinate: 0,
-                order: Some(quire_spec_language::temporal::OrderKey {
-                    authority: "events".into(),
-                    key: 0,
-                }),
-                valuations: BTreeMap::from([(leaf, true)]),
-            },
-        }],
+        positions: observations
+            .iter()
+            .enumerate()
+            .map(
+                |(coordinate, observation)| temporal_request::ObservedPosition {
+                    observation: observation_owner::observation_evidence(
+                        observation,
+                        "observation",
+                    ),
+                    position: quire_spec_language::temporal::Position {
+                        coordinate: i64::try_from(coordinate).expect("fixture coordinate fits i64"),
+                        order: Some(quire_spec_language::temporal::OrderKey {
+                            authority: "events".into(),
+                            // Every member intentionally has the same accepted time key.
+                            key: 0,
+                        }),
+                        valuations: BTreeMap::from([(leaf, true)]),
+                    },
+                },
+            )
+            .collect(),
         anchor: "origin".into(),
         triggers: vec![temporal_v2::TriggerInput {
             receipt: "receipt:it002".into(),
@@ -196,37 +245,73 @@ fn activated_request(
         trigger_scope: quire_spec_language::temporal::Closure::Closed,
         decision_progress: temporal_request::ProgressInput {
             reference: observation_owner::progress_evidence(
-                &decision.progress_closed,
+                match prefix {
+                    PrefixEvidence::Open => decision.progress_open,
+                    PrefixEvidence::Closed => decision.progress_closed,
+                },
                 "decision-progress",
             ),
-            watermark: observation_owner::progress_watermark(&decision.progress_closed),
+            watermark: observation_owner::progress_watermark(match prefix {
+                PrefixEvidence::Open => decision.progress_open,
+                PrefixEvidence::Closed => decision.progress_closed,
+            }),
         },
         decision_closure: temporal_request::ClosureInput {
             reference: observation_owner::closure_evidence(
-                &decision.closure_closed,
+                match prefix {
+                    PrefixEvidence::Open => decision.closure_open,
+                    PrefixEvidence::Closed => decision.closure_closed,
+                },
                 "decision-closure",
             ),
-            state: quire_spec_language::temporal::Closure::Closed,
+            state: match prefix {
+                PrefixEvidence::Open => quire_spec_language::temporal::Closure::Open,
+                PrefixEvidence::Closed => quire_spec_language::temporal::Closure::Closed,
+            },
         },
         surrounding_progress: temporal_request::ProgressInput {
             reference: observation_owner::progress_evidence(
-                &surrounding.progress_closed,
+                match prefix {
+                    PrefixEvidence::Open => &surrounding.progress_open,
+                    PrefixEvidence::Closed => &surrounding.progress_closed,
+                },
                 "surrounding-progress",
             ),
-            watermark: observation_owner::progress_watermark(&surrounding.progress_closed),
+            watermark: observation_owner::progress_watermark(match prefix {
+                PrefixEvidence::Open => &surrounding.progress_open,
+                PrefixEvidence::Closed => &surrounding.progress_closed,
+            }),
         },
         surrounding_closure: temporal_request::ClosureInput {
             reference: observation_owner::closure_evidence(
-                &surrounding.closure_closed,
+                match prefix {
+                    PrefixEvidence::Open => &surrounding.closure_open,
+                    PrefixEvidence::Closed => &surrounding.closure_closed,
+                },
                 "surrounding-closure",
             ),
-            state: quire_spec_language::temporal::Closure::Closed,
+            state: match prefix {
+                PrefixEvidence::Open => quire_spec_language::temporal::Closure::Open,
+                PrefixEvidence::Closed => quire_spec_language::temporal::Closure::Closed,
+            },
         },
         execution: quire_spec_language::temporal::Execution::Completed,
         completeness: temporal_request::CompletenessInput {
-            reference: observation_owner::completeness_evidence(&decision.completeness_complete),
-            state: quire_spec_language::temporal::Completeness::Complete,
-            facts: vec![temporal_evidence("completeness-fact", "fact:it002")],
+            reference: observation_owner::completeness_evidence(match prefix {
+                PrefixEvidence::Open => decision.completeness_incomplete,
+                PrefixEvidence::Closed => decision.completeness_complete,
+            }),
+            state: match prefix {
+                PrefixEvidence::Open => quire_spec_language::temporal::Completeness::Incomplete,
+                PrefixEvidence::Closed => quire_spec_language::temporal::Completeness::Complete,
+            },
+            facts: observations
+                .iter()
+                .enumerate()
+                .map(|(index, _)| {
+                    temporal_evidence("completeness-fact", &format!("fact:it002:{index}"))
+                })
+                .collect(),
         },
         authoritative_origin: true,
         evicted: Vec::new(),
@@ -243,27 +328,57 @@ fn activated_request(
     .expect("strict-read activation temporal request");
     assert_owner_evidence(
         request.decision_progress().reference(),
-        &observation_owner::progress_evidence(&decision.progress_closed, "decision-progress"),
+        &observation_owner::progress_evidence(
+            match prefix {
+                PrefixEvidence::Open => decision.progress_open,
+                PrefixEvidence::Closed => decision.progress_closed,
+            },
+            "decision-progress",
+        ),
     );
     assert_eq!(
         request.decision_progress().watermark(),
-        observation_owner::progress_watermark(&decision.progress_closed)
+        observation_owner::progress_watermark(match prefix {
+            PrefixEvidence::Open => decision.progress_open,
+            PrefixEvidence::Closed => decision.progress_closed,
+        })
     );
     assert_owner_evidence(
         request.decision_closure().reference(),
-        &observation_owner::closure_evidence(&decision.closure_closed, "decision-closure"),
+        &observation_owner::closure_evidence(
+            match prefix {
+                PrefixEvidence::Open => decision.closure_open,
+                PrefixEvidence::Closed => decision.closure_closed,
+            },
+            "decision-closure",
+        ),
     );
     assert_owner_evidence(
         request.surrounding_progress().reference(),
-        &observation_owner::progress_evidence(&surrounding.progress_closed, "surrounding-progress"),
+        &observation_owner::progress_evidence(
+            match prefix {
+                PrefixEvidence::Open => &surrounding.progress_open,
+                PrefixEvidence::Closed => &surrounding.progress_closed,
+            },
+            "surrounding-progress",
+        ),
     );
     assert_owner_evidence(
         request.surrounding_closure().reference(),
-        &observation_owner::closure_evidence(&surrounding.closure_closed, "surrounding-closure"),
+        &observation_owner::closure_evidence(
+            match prefix {
+                PrefixEvidence::Open => &surrounding.closure_open,
+                PrefixEvidence::Closed => &surrounding.closure_closed,
+            },
+            "surrounding-closure",
+        ),
     );
     assert_owner_evidence(
         request.completeness().reference(),
-        &observation_owner::completeness_evidence(&decision.completeness_complete),
+        &observation_owner::completeness_evidence(match prefix {
+            PrefixEvidence::Open => decision.completeness_incomplete,
+            PrefixEvidence::Closed => decision.completeness_complete,
+        }),
     );
     request
 }
@@ -441,29 +556,16 @@ fn reproduction() -> quire_protocol::repro::ReproductionRecord {
         .expect("complete IT-002 reproduction identity")
 }
 
-fn semantic_dispositions(report: &ConformanceReport) -> BTreeMap<&str, ObligationDisposition> {
-    report
-        .obligations
-        .iter()
-        .map(|result| (result.obligation.as_str(), result.disposition))
-        .collect()
-}
-
-fn assert_semantically_equal(left: &ConformanceReport, right: &ConformanceReport) {
-    assert_eq!(semantic_dispositions(left), semantic_dispositions(right));
-    assert_eq!(left.global, right.global);
-    assert_eq!(left.global_premise_defects, right.global_premise_defects);
-    assert_eq!(left.premises, right.premises);
-}
-
 #[test]
 #[trace(
     "Task-021",
     "IT-002",
     "FR-004-AC-4",
-    "FR-026-AC-1",
-    "FR-026-AC-2",
-    "FR-026-AC-3"
+    "FR-041-AC-1",
+    "FR-041-AC-2",
+    "FR-041-AC-3",
+    "FR-041-AC-4",
+    "FR-026-AC-2"
 )]
 fn it_002_sc_05_batch_and_incremental_agree_with_early_settlement() {
     let package = admitted_package();
@@ -529,14 +631,33 @@ fn it_002_sc_05_batch_and_incremental_agree_with_early_settlement() {
     let context = LinkedAssessment::new(&package, &definition, &runtime)
         .expect("incremental linked assessment admits");
     let mapping = admitted_activation_map(&package);
-    let decision = observation_owner::scope_views("it002-incremental");
     let surrounding = observation_owner::scope_views("it002-incremental-surrounding");
+    let equal_time =
+        observation_owner::ordering_views("it002-incremental", "equal-time", [0, 1, 2]);
+    assert_eq!(equal_time.subject, subject);
+    let observations = [
+        &equal_time.observations[0],
+        &equal_time.observations[1],
+        &equal_time.observations[2],
+    ];
+    let open_temporal_request = activated_request(
+        &package,
+        &temporal,
+        subject.identity().as_bytes(),
+        DecisionEvidence::ordering(&equal_time),
+        &surrounding,
+        &observations,
+        PrefixEvidence::Open,
+    );
+    let open_temporal_result = activated_result(&open_temporal_request);
     let temporal_request = activated_request(
         &package,
         &temporal,
         subject.identity().as_bytes(),
-        &decision,
+        DecisionEvidence::ordering(&equal_time),
         &surrounding,
+        &observations,
+        PrefixEvidence::Closed,
     );
     let temporal_result = activated_result(&temporal_request);
     let runtime_selection = producer_selection::runtime(&runtime, 500_000)
@@ -583,17 +704,21 @@ fn it_002_sc_05_batch_and_incremental_agree_with_early_settlement() {
             )
         },
         |engine| {
-            let activation = engine
+            let open_activation = engine
                 .conformance()
                 .bind_activation(
                     engine.linked(),
                     &mapping,
                     &subject,
                     &temporal,
-                    &temporal_request,
-                    &temporal_result,
+                    &open_temporal_request,
+                    &open_temporal_result,
                 )
-                .expect("incremental activation binds");
+                .expect("open-prefix activation binds");
+            let closed_activation = engine
+                .activation()
+                .expect("resolved assessment retains the closed activation")
+                .clone();
             let occurrence_schema = occurrence_key_schema(
                 &package,
                 declaration_handle,
@@ -603,13 +728,15 @@ fn it_002_sc_05_batch_and_incremental_agree_with_early_settlement() {
             .expect("occurrence schema");
             let occurrence_node = occurrence_schema
                 .nodes()
-                .get(usize::try_from(activation.control().index).expect("control index fits"))
+                .get(
+                    usize::try_from(closed_activation.control().index).expect("control index fits"),
+                )
                 .expect("event occurrence schema");
             let first_occurrence = occurrence_schema
                 .bind(
                     WorkflowInstanceIdentity::new("workflow:it002:first")
                         .expect("workflow identity"),
-                    activation.control(),
+                    closed_activation.control(),
                     occurrence_node.role().clone(),
                     &[],
                 )
@@ -618,51 +745,85 @@ fn it_002_sc_05_batch_and_incremental_agree_with_early_settlement() {
                 .bind(
                     WorkflowInstanceIdentity::new("workflow:it002:second")
                         .expect("workflow identity"),
-                    activation.control(),
+                    closed_activation.control(),
                     occurrence_node.role().clone(),
                     &[],
                 )
                 .expect("second occurrence admits");
-            let first = engine
+            let third_occurrence = occurrence_schema
+                .bind(
+                    WorkflowInstanceIdentity::new("workflow:it002:third")
+                        .expect("workflow identity"),
+                    closed_activation.control(),
+                    occurrence_node.role().clone(),
+                    &[],
+                )
+                .expect("third occurrence admits");
+            let open_first = engine
                 .conformance()
-                .activate_occurrence(&activation, first_occurrence)
-                .expect("first activated occurrence");
-            let second = engine
+                .activate_occurrence(&open_activation, first_occurrence.clone())
+                .expect("open first occurrence activates");
+            let open_second = engine
                 .conformance()
-                .activate_occurrence(&activation, second_occurrence)
-                .expect("second activated occurrence");
-            let first_fact = engine
+                .activate_occurrence(&open_activation, second_occurrence.clone())
+                .expect("open second occurrence activates");
+            let open_third = engine
                 .conformance()
-                .activation_fact(first.clone(), Some(&decision.observation));
-            let second_fact = engine
+                .activate_occurrence(&open_activation, third_occurrence.clone())
+                .expect("open third occurrence activates");
+            let closed_first = engine
                 .conformance()
-                .activation_fact(second.clone(), Some(&decision.observation));
+                .activate_occurrence(&closed_activation, first_occurrence)
+                .expect("closed first occurrence activates");
+            let closed_second = engine
+                .conformance()
+                .activate_occurrence(&closed_activation, second_occurrence)
+                .expect("closed second occurrence activates");
+            let closed_third = engine
+                .conformance()
+                .activate_occurrence(&closed_activation, third_occurrence)
+                .expect("closed third occurrence activates");
+            let open_first_fact = engine
+                .conformance()
+                .activation_fact(open_first.clone(), Some(observations[0]));
+            let open_second_fact = engine
+                .conformance()
+                .activation_fact(open_second.clone(), Some(observations[1]));
+            let closed_first_fact = engine
+                .conformance()
+                .activation_fact(closed_first, Some(observations[0]));
+            let closed_second_fact = engine
+                .conformance()
+                .activation_fact(closed_second, Some(observations[1]));
+            let closed_third_fact = engine
+                .conformance()
+                .activation_fact(closed_third, Some(observations[2]));
             let open_global = GlobalConformanceInput {
                 state: GlobalConformanceClosure::Open,
                 ..global()
             };
             let closed_global = global();
             let open_axes = AxisInputs {
-                decision_scope_progress: &decision.progress_open,
-                decision_scope_closure: &decision.closure_open,
+                decision_scope_progress: &equal_time.progress_open,
+                decision_scope_closure: &equal_time.closure_open,
                 surrounding_execution_progress: &surrounding.progress_open,
                 surrounding_execution_closure: &surrounding.closure_open,
             };
             let closed_axes = AxisInputs {
-                decision_scope_progress: &decision.progress_closed,
-                decision_scope_closure: &decision.closure_closed,
+                decision_scope_progress: &equal_time.progress_closed,
+                decision_scope_closure: &equal_time.closure_closed,
                 surrounding_execution_progress: &surrounding.progress_closed,
                 surrounding_execution_closure: &surrounding.closure_closed,
             };
 
-            let activations = [first, second];
+            let activations = [open_first, open_second, open_third];
             let mut early = ActivatedIncremental::new(engine.conformance(), &activations)
                 .expect("fixed activation population admits");
             let prefix = early
                 .push(
-                    &first_fact,
+                    &open_first_fact,
                     open_axes,
-                    &decision.completeness_incomplete,
+                    &equal_time.completeness_incomplete,
                     &open_global,
                     AssessmentExecution::Completed,
                     ConformanceLimits::default(),
@@ -682,74 +843,102 @@ fn it_002_sc_05_batch_and_incremental_agree_with_early_settlement() {
                     .iter()
                     .filter(|result| result.disposition == ObligationDisposition::Pending)
                     .count(),
-                1
+                2
             );
+            early
+                .push(
+                    &open_second_fact,
+                    open_axes,
+                    &equal_time.completeness_incomplete,
+                    &open_global,
+                    AssessmentExecution::Completed,
+                    ConformanceLimits::default(),
+                )
+                .expect("second open prefix assesses");
             let final_incremental = early
                 .push(
-                    &second_fact,
+                    &closed_third_fact,
                     closed_axes,
-                    &decision.completeness_complete,
+                    &equal_time.completeness_complete,
                     &closed_global,
                     AssessmentExecution::Completed,
                     ConformanceLimits::default(),
                 )
                 .expect("final prefix assesses")
                 .clone();
-            let authored_facts = [first_fact.clone(), second_fact.clone()];
+            let authored_facts = [
+                closed_first_fact.clone(),
+                closed_second_fact.clone(),
+                closed_third_fact.clone(),
+            ];
             let authored_batch = engine
                 .conformance()
                 .assess_activated(
                     &authored_facts,
                     closed_axes,
-                    &decision.completeness_complete,
+                    &equal_time.completeness_complete,
                     &closed_global,
                     AssessmentExecution::Completed,
                     ConformanceLimits::default(),
                 )
                 .expect("batch assessment");
-            assert_semantically_equal(&authored_batch, &final_incremental);
+            compare(&authored_batch, &final_incremental)
+                .expect("production comparator accepts batch/incremental identity");
             assert_eq!(authored_batch.global, GlobalDisposition::Conforms);
 
             let mut permuted = ActivatedIncremental::new(engine.conformance(), &activations)
                 .expect("same fixed activation population admits");
             permuted
                 .push(
-                    &second_fact,
+                    &open_second_fact,
                     open_axes,
-                    &decision.completeness_incomplete,
+                    &equal_time.completeness_incomplete,
                     &open_global,
                     AssessmentExecution::Completed,
                     ConformanceLimits::default(),
                 )
                 .expect("permuted first prefix assesses");
+            permuted
+                .push(
+                    &open_first_fact,
+                    open_axes,
+                    &equal_time.completeness_incomplete,
+                    &open_global,
+                    AssessmentExecution::Completed,
+                    ConformanceLimits::default(),
+                )
+                .expect("permuted second prefix assesses");
             let permuted_final = permuted
                 .push(
-                    &first_fact,
+                    &closed_third_fact,
                     closed_axes,
-                    &decision.completeness_complete,
+                    &equal_time.completeness_complete,
                     &closed_global,
                     AssessmentExecution::Completed,
                     ConformanceLimits::default(),
                 )
                 .expect("permuted final prefix assesses")
                 .clone();
-            let permuted_facts = [second_fact.clone(), first_fact.clone()];
+            let permuted_facts = [
+                closed_second_fact.clone(),
+                closed_first_fact.clone(),
+                closed_third_fact.clone(),
+            ];
             let permuted_batch = engine
                 .conformance()
                 .assess_activated(
                     &permuted_facts,
                     closed_axes,
-                    &decision.completeness_complete,
+                    &equal_time.completeness_complete,
                     &closed_global,
                     AssessmentExecution::Completed,
                     ConformanceLimits::default(),
                 )
                 .expect("permuted batch assessment");
-            assert_semantically_equal(&permuted_batch, &permuted_final);
-            assert_eq!(
-                semantic_dispositions(&authored_batch),
-                semantic_dispositions(&permuted_batch)
-            );
+            compare(&permuted_batch, &permuted_final)
+                .expect("production comparator accepts the permuted incremental path");
+            compare(&authored_batch, &permuted_batch)
+                .expect("equal-time presentation order changes no semantic value");
 
             let mut changed_global = closed_global.clone();
             changed_global
@@ -760,7 +949,7 @@ fn it_002_sc_05_batch_and_incremental_agree_with_early_settlement() {
                 .assess_activated(
                     &authored_facts,
                     closed_axes,
-                    &decision.completeness_complete,
+                    &equal_time.completeness_complete,
                     &changed_global,
                     AssessmentExecution::Completed,
                     ConformanceLimits::default(),
@@ -771,28 +960,45 @@ fn it_002_sc_05_batch_and_incremental_agree_with_early_settlement() {
                     .expect("changed path uses the same activation population");
             changed_incremental
                 .push(
-                    &first_fact,
+                    &open_first_fact,
                     open_axes,
-                    &decision.completeness_incomplete,
+                    &equal_time.completeness_incomplete,
                     &open_global,
                     AssessmentExecution::Completed,
                     ConformanceLimits::default(),
                 )
                 .expect("changed first prefix assesses");
+            changed_incremental
+                .push(
+                    &open_second_fact,
+                    open_axes,
+                    &equal_time.completeness_incomplete,
+                    &open_global,
+                    AssessmentExecution::Completed,
+                    ConformanceLimits::default(),
+                )
+                .expect("changed second prefix assesses");
             let changed_final = changed_incremental
                 .push(
-                    &second_fact,
+                    &closed_third_fact,
                     closed_axes,
-                    &decision.completeness_complete,
+                    &equal_time.completeness_complete,
                     &changed_global,
                     AssessmentExecution::Completed,
                     ConformanceLimits::default(),
                 )
                 .expect("changed final prefix assesses")
                 .clone();
-            assert_semantically_equal(&changed_batch, &changed_final);
+            compare(&changed_batch, &changed_final)
+                .expect("authored-premise mutation agrees through both paths");
             assert_ne!(changed_batch.global, authored_batch.global);
             assert!(!changed_batch.global_premise_defects.is_empty());
+            let divergence = compare(&authored_batch, &changed_final)
+                .expect_err("different authored premises cannot report agreement");
+            assert_eq!(divergence.code(), ConformanceErrorCode::PathDivergence);
+            let reverse = compare(&changed_batch, &final_incremental)
+                .expect_err("the reverse divergence also refuses");
+            assert_ne!(divergence.outcome_identity(), reverse.outcome_identity());
         },
     );
     assert!(matches!(
@@ -898,8 +1104,10 @@ fn it_002_sc_06_each_composed_budget_is_exact_one_short_and_fresh() {
         &package,
         &temporal,
         subject.identity().as_bytes(),
-        &decision,
+        DecisionEvidence::scope(&decision),
         &surrounding,
+        &[&decision.observation],
+        PrefixEvidence::Closed,
     );
     let temporal_result = activated_result(&temporal_request);
     let runtime_selection = producer_selection::runtime(&runtime, 500_000)
@@ -954,141 +1162,200 @@ fn it_002_sc_06_each_composed_budget_is_exact_one_short_and_fresh() {
     };
     let global = global();
 
-    let run =
-        |budget: Budget,
-         selected_axes: AxisInputs<'_>,
-         selected_completeness: &quire_observation::authority::completeness::View| {
-            let readiness = with_result_assessment_after_resolving(
-                &producer_request,
-                &producer_manifest(),
-                producer_budget(),
-                SystemMonotonicClock,
-                |permit| {
-                    ResultAssessmentInputs::new(
-                        permit,
-                        LinkedAssessment::new(&package, &definition, &runtime)
-                            .expect("fresh budget linked assessment admits"),
-                        vec![Claim::Conformance],
+    let run = |budget: Budget,
+               selected_axes: AxisInputs<'_>,
+               selected_completeness: &quire_observation::authority::completeness::View,
+               selected_execution: AssessmentExecution| {
+        let readiness = with_result_assessment_after_resolving(
+            &producer_request,
+            &producer_manifest(),
+            producer_budget(),
+            SystemMonotonicClock,
+            |permit| {
+                ResultAssessmentInputs::new(
+                    permit,
+                    LinkedAssessment::new(&package, &definition, &runtime)
+                        .expect("fresh budget linked assessment admits"),
+                    vec![Claim::Conformance],
+                    &mapping,
+                    &subject,
+                    &temporal_request,
+                    &temporal_result,
+                    &predicate,
+                    &temporal,
+                )
+            },
+            |engine| {
+                let activation = engine
+                    .conformance()
+                    .bind_activation(
+                        engine.linked(),
                         &mapping,
                         &subject,
+                        &temporal,
                         &temporal_request,
                         &temporal_result,
-                        &predicate,
-                        &temporal,
                     )
-                },
-                |engine| {
-                    let activation = engine
+                    .expect("budget activation binds");
+                let occurrence_node = occurrence_schema
+                    .nodes()
+                    .get(usize::try_from(activation.control().index).expect("control index fits"))
+                    .expect("event occurrence schema");
+                let facts = [
+                    "workflow:it002-budget:first",
+                    "workflow:it002-budget:second",
+                ]
+                .map(|workflow| {
+                    let occurrence = occurrence_schema
+                        .bind(
+                            WorkflowInstanceIdentity::new(workflow).expect("workflow identity"),
+                            activation.control(),
+                            occurrence_node.role().clone(),
+                            &[],
+                        )
+                        .expect("budget occurrence admits");
+                    let activated = engine
                         .conformance()
-                        .bind_activation(
-                            engine.linked(),
-                            &mapping,
-                            &subject,
-                            &temporal,
-                            &temporal_request,
-                            &temporal_result,
-                        )
-                        .expect("budget activation binds");
-                    let occurrence_node = occurrence_schema
-                        .nodes()
-                        .get(
-                            usize::try_from(activation.control().index)
-                                .expect("control index fits"),
-                        )
-                        .expect("event occurrence schema");
-                    let facts = [
-                        "workflow:it002-budget:first",
-                        "workflow:it002-budget:second",
-                    ]
-                    .map(|workflow| {
-                        let occurrence = occurrence_schema
-                            .bind(
-                                WorkflowInstanceIdentity::new(workflow).expect("workflow identity"),
-                                activation.control(),
-                                occurrence_node.role().clone(),
-                                &[],
-                            )
-                            .expect("budget occurrence admits");
-                        let activated = engine
-                            .conformance()
-                            .activate_occurrence(&activation, occurrence)
-                            .expect("budget occurrence activates");
-                        engine
-                            .conformance()
-                            .activation_fact(activated, Some(&decision.observation))
-                    });
-                    let request = dispatch_request();
+                        .activate_occurrence(&activation, occurrence)
+                        .expect("budget occurrence activates");
                     engine
-                        .assess_activated(
-                            std::slice::from_ref(&request),
-                            &facts,
-                            selected_axes,
-                            selected_completeness,
-                            &global,
-                            AssessmentExecution::Completed,
-                            ConformanceLimits::default(),
-                            DispatchLimits::default(),
-                            vec![Some(CanonicalRowControls::new(
-                                reproduction(),
-                                ResultLimits::owner_max(),
-                            ))],
-                            budget,
-                        )
-                        .map(|_| ())
-                },
-            );
-            match readiness {
-                ProducerReadiness::Executable(OperationOutcome::Completed(outcome)) => outcome,
-                ProducerReadiness::Executable(OperationOutcome::Refused(refusal))
-                | ProducerReadiness::Unexecutable(refusal) => OperationOutcome::Refused(refusal),
-                ProducerReadiness::Executable(OperationOutcome::ResourceIncomplete(incomplete))
-                | ProducerReadiness::ResourceIncomplete(incomplete) => {
-                    OperationOutcome::ResourceIncomplete(incomplete)
-                }
+                        .conformance()
+                        .activation_fact(activated, Some(&decision.observation))
+                });
+                let request = dispatch_request();
+                engine
+                    .assess_activated(
+                        std::slice::from_ref(&request),
+                        &facts,
+                        selected_axes,
+                        selected_completeness,
+                        &global,
+                        selected_execution,
+                        ConformanceLimits::default(),
+                        DispatchLimits::default(),
+                        vec![Some(CanonicalRowControls::new(
+                            reproduction(),
+                            ResultLimits::owner_max(),
+                        ))],
+                        budget,
+                    )
+                    .map(|_| ())
+            },
+        );
+        match readiness {
+            ProducerReadiness::Executable(OperationOutcome::Completed(outcome)) => outcome,
+            ProducerReadiness::Executable(OperationOutcome::Refused(refusal))
+            | ProducerReadiness::Unexecutable(refusal) => OperationOutcome::Refused(refusal),
+            ProducerReadiness::Executable(OperationOutcome::ResourceIncomplete(incomplete))
+            | ProducerReadiness::ResourceIncomplete(incomplete) => {
+                OperationOutcome::ResourceIncomplete(incomplete)
             }
-        };
+        }
+    };
 
     let exercised = [
-        (BudgetDimension::InputByte, 20_818),
-        (BudgetDimension::Node, 6),
+        (BudgetDimension::InputByte, 28_176),
+        (BudgetDimension::Node, 8),
         (BudgetDimension::Observation, 2),
         (BudgetDimension::ResultItem, 5),
         (BudgetDimension::OutputByte, 9_205),
-        (BudgetDimension::Operation, 243),
-        (BudgetDimension::AccountedAllocation, 4),
+        (BudgetDimension::Operation, 249),
+        (BudgetDimension::AccountedAllocation, 20),
     ];
-    assert!(matches!(
-        run(
-            Budget::nothing_granted(),
-            foreign_axes,
-            &foreign_decision.completeness_complete,
-        ),
-        OperationOutcome::Refused(refusal)
-            if refusal.code().as_str()
-                == "assessment-activation.temporal-evidence-mismatch"
-    ));
+    let assert_temporal_mismatch = |selected_axes, selected_completeness, selected_execution| {
+        assert!(matches!(
+            run(
+                Budget::nothing_granted(),
+                selected_axes,
+                selected_completeness,
+                selected_execution,
+            ),
+            OperationOutcome::Refused(refusal)
+                if refusal.code().as_str()
+                    == "assessment-activation.temporal-evidence-mismatch"
+        ));
+    };
+    assert_temporal_mismatch(
+        AxisInputs {
+            decision_scope_progress: &foreign_decision.progress_closed,
+            ..closed_axes
+        },
+        &decision.completeness_complete,
+        AssessmentExecution::Completed,
+    );
+    assert_temporal_mismatch(
+        AxisInputs {
+            decision_scope_closure: &foreign_decision.closure_closed,
+            ..closed_axes
+        },
+        &decision.completeness_complete,
+        AssessmentExecution::Completed,
+    );
+    assert_temporal_mismatch(
+        AxisInputs {
+            surrounding_execution_progress: &foreign_surrounding.progress_closed,
+            ..closed_axes
+        },
+        &decision.completeness_complete,
+        AssessmentExecution::Completed,
+    );
+    assert_temporal_mismatch(
+        AxisInputs {
+            surrounding_execution_closure: &foreign_surrounding.closure_closed,
+            ..closed_axes
+        },
+        &decision.completeness_complete,
+        AssessmentExecution::Completed,
+    );
+    assert_temporal_mismatch(
+        closed_axes,
+        &foreign_decision.completeness_complete,
+        AssessmentExecution::Completed,
+    );
+    assert_temporal_mismatch(
+        closed_axes,
+        &decision.completeness_complete,
+        AssessmentExecution::Failed,
+    );
+    assert_temporal_mismatch(
+        foreign_axes,
+        &foreign_decision.completeness_complete,
+        AssessmentExecution::Completed,
+    );
     for (dimension, exact) in exercised {
         let grant = |value| {
             Budget::nothing_granted()
                 .grant(dimension, value)
                 .expect("positive scenario grant")
         };
-        assert!(matches!(
-            run(grant(exact), closed_axes, &decision.completeness_complete),
-            OperationOutcome::Completed(())
-        ));
+        let exact_outcome = run(
+            grant(exact),
+            closed_axes,
+            &decision.completeness_complete,
+            AssessmentExecution::Completed,
+        );
+        assert!(
+            matches!(exact_outcome, OperationOutcome::Completed(())),
+            "exact {dimension:?} outcome: {exact_outcome:?}"
+        );
         assert!(matches!(
             run(
                 grant(exact - 1),
                 closed_axes,
                 &decision.completeness_complete,
+                AssessmentExecution::Completed,
             ),
             OperationOutcome::ResourceIncomplete(incomplete)
                 if incomplete.dimension() == dimension
                     && incomplete.granted() == exact - 1
         ));
         assert!(matches!(
-            run(grant(exact), closed_axes, &decision.completeness_complete),
+            run(
+                grant(exact),
+                closed_axes,
+                &decision.completeness_complete,
+                AssessmentExecution::Completed,
+            ),
             OperationOutcome::Completed(())
         ));
     }

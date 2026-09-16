@@ -8,6 +8,7 @@ use std::time::{Duration, Instant};
 use agent_ix_baseline_producer::StaticProducerBundle;
 use ix_trace_rs::trace;
 use quire_observation::{
+    authority::{closure, completeness, observation, progress, OpenClosed},
     QualifiedSubject, Relationship, RelationshipIdentity, SubjectIdentity, SubjectKind,
 };
 use quire_protocol::bounds::inventory::{Budget, BudgetDimension};
@@ -570,6 +571,35 @@ fn evidence(scope: &str, identity: &str) -> native_temporal::EvidenceRef {
         1,
     )
 }
+
+#[derive(Clone, Copy)]
+struct RequestEvidence<'a> {
+    observation: &'a observation::View,
+    decision_progress: &'a progress::View,
+    decision_closure: &'a closure::View,
+    surrounding_progress: &'a progress::View,
+    surrounding_closure: &'a closure::View,
+    completeness: &'a completeness::View,
+    execution: temporal::Execution,
+}
+
+impl<'a> RequestEvidence<'a> {
+    fn closed(
+        decision: &'a observation_owner::ScopeViews,
+        surrounding: &'a observation_owner::ScopeViews,
+    ) -> Self {
+        Self {
+            observation: &decision.observation,
+            decision_progress: &decision.progress_closed,
+            decision_closure: &decision.closure_closed,
+            surrounding_progress: &surrounding.progress_closed,
+            surrounding_closure: &surrounding.closure_closed,
+            completeness: &decision.completeness_complete,
+            execution: temporal::Execution::Completed,
+        }
+    }
+}
+
 fn activated_request(
     package: &quire_spec_language::protocol_artifact::v2::AdmittedPackage,
     trigger: &[u8],
@@ -585,6 +615,20 @@ fn activated_request_at(
     anchor: &str,
     decision: &observation_owner::ScopeViews,
     surrounding: &observation_owner::ScopeViews,
+) -> temporal_v2::ValidatedRequest {
+    activated_request_at_with_evidence(
+        package,
+        trigger,
+        anchor,
+        RequestEvidence::closed(decision, surrounding),
+    )
+}
+
+fn activated_request_at_with_evidence(
+    package: &quire_spec_language::protocol_artifact::v2::AdmittedPackage,
+    trigger: &[u8],
+    anchor: &str,
+    selected: RequestEvidence<'_>,
 ) -> temporal_v2::ValidatedRequest {
     let subject = activated_temporal_subject(package);
     let leaf = package.inherited().declarations
@@ -603,7 +647,7 @@ fn activated_request_at(
         correspondence: evidence("correspondence", "correspondence:engine"),
         positions: vec![request::ObservedPosition {
             observation: observation_owner::observation_evidence(
-                &decision.observation,
+                selected.observation,
                 "observation",
             ),
             position: temporal::Position {
@@ -627,36 +671,48 @@ fn activated_request_at(
         trigger_scope: temporal::Closure::Closed,
         decision_progress: request::ProgressInput {
             reference: observation_owner::progress_evidence(
-                &decision.progress_closed,
+                selected.decision_progress,
                 "decision-progress",
             ),
-            watermark: observation_owner::progress_watermark(&decision.progress_closed),
+            watermark: observation_owner::progress_watermark(selected.decision_progress),
         },
         decision_closure: request::ClosureInput {
             reference: observation_owner::closure_evidence(
-                &decision.closure_closed,
+                selected.decision_closure,
                 "decision-closure",
             ),
-            state: temporal::Closure::Closed,
+            state: match selected.decision_closure.payload().state() {
+                OpenClosed::Open => temporal::Closure::Open,
+                OpenClosed::Closed => temporal::Closure::Closed,
+            },
         },
         surrounding_progress: request::ProgressInput {
             reference: observation_owner::progress_evidence(
-                &surrounding.progress_closed,
+                selected.surrounding_progress,
                 "surrounding-progress",
             ),
-            watermark: observation_owner::progress_watermark(&surrounding.progress_closed),
+            watermark: observation_owner::progress_watermark(selected.surrounding_progress),
         },
         surrounding_closure: request::ClosureInput {
             reference: observation_owner::closure_evidence(
-                &surrounding.closure_closed,
+                selected.surrounding_closure,
                 "surrounding-closure",
             ),
-            state: temporal::Closure::Closed,
+            state: match selected.surrounding_closure.payload().state() {
+                OpenClosed::Open => temporal::Closure::Open,
+                OpenClosed::Closed => temporal::Closure::Closed,
+            },
         },
-        execution: temporal::Execution::Completed,
+        execution: selected.execution,
         completeness: request::CompletenessInput {
-            reference: observation_owner::completeness_evidence(&decision.completeness_complete),
-            state: temporal::Completeness::Complete,
+            reference: observation_owner::completeness_evidence(selected.completeness),
+            state: match selected.completeness.payload().state() {
+                completeness::State::Complete => temporal::Completeness::Complete,
+                completeness::State::Incomplete => temporal::Completeness::Incomplete,
+                completeness::State::Contradicted => {
+                    panic!("the QSL request fixture has no contradicted completeness member")
+                }
+            },
             facts: vec![evidence("completeness-fact", "fact:observation:0")],
         },
         authoritative_origin: true,
@@ -2568,79 +2624,159 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
                 Err(ActivatedAssessmentError::Conformance(refusal))
                     if refusal.code() == ErrorCode::InvalidPremises
             ));
-            for axes in [
-                AxisInputs {
-                    decision_scope_progress: &decision.progress_open,
-                    decision_scope_closure: &decision.closure_closed,
-                    surrounding_execution_progress: &surrounding.progress_closed,
-                    surrounding_execution_closure: &surrounding.closure_closed,
-                },
-                AxisInputs {
-                    decision_scope_progress: &decision.progress_closed,
-                    decision_scope_closure: &decision.closure_open,
-                    surrounding_execution_progress: &surrounding.progress_closed,
-                    surrounding_execution_closure: &surrounding.closure_closed,
-                },
-                AxisInputs {
-                    decision_scope_progress: &decision.progress_closed,
-                    decision_scope_closure: &decision.closure_closed,
-                    surrounding_execution_progress: &surrounding.progress_open,
-                    surrounding_execution_closure: &surrounding.closure_closed,
-                },
-                AxisInputs {
-                    decision_scope_progress: &decision.progress_closed,
-                    decision_scope_closure: &decision.closure_closed,
-                    surrounding_execution_progress: &surrounding.progress_closed,
-                    surrounding_execution_closure: &surrounding.closure_open,
-                },
-            ] {
-                let report = engine
-                    .conformance()
-                    .assess_activated(
-                        std::slice::from_ref(&fact),
+            let closed_evidence = RequestEvidence::closed(&decision, &surrounding);
+            let assess_evidence =
+                |request_evidence: RequestEvidence<'_>,
+                 axes: AxisInputs<'_>,
+                 completeness: &completeness::View,
+                 execution: AssessmentExecution| {
+                    let evidence_request = activated_request_at_with_evidence(
+                        &package,
+                        activation_subject.identity().as_bytes(),
+                        "origin",
+                        request_evidence,
+                    );
+                    let evidence_result_document = temporal_v2::evaluate(
+                        &evidence_request,
+                        temporal_v2::Relation::Original,
+                        native_temporal::Limits::default(),
+                    )
+                    .into_result()
+                    .expect("owner-matched evidence request evaluates");
+                    let evidence_result = temporal_v2::read_result(
+                        evidence_result_document.bytes(),
+                        &evidence_request,
+                        temporal_v2::Relation::Original,
+                        native_temporal::Limits::default(),
+                    )
+                    .into_result()
+                    .expect("owner-matched evidence result reads");
+                    let evidence_activation = engine
+                        .conformance()
+                        .bind_activation(
+                            engine.linked(),
+                            &mappings,
+                            &activation_subject,
+                            &temporal_subject,
+                            &evidence_request,
+                            &evidence_result,
+                        )
+                        .expect("owner-matched evidence activation binds");
+                    let evidence_occurrence = engine
+                        .conformance()
+                        .activate_occurrence(&evidence_activation, occurrence.clone())
+                        .expect("owner-matched evidence occurrence activates");
+                    let evidence_fact = engine
+                        .conformance()
+                        .activation_fact(evidence_occurrence, Some(request_evidence.observation));
+                    engine.conformance().assess_activated(
+                        std::slice::from_ref(&evidence_fact),
                         axes,
-                        &decision.completeness_complete,
+                        completeness,
                         &global,
-                        AssessmentExecution::Completed,
+                        execution,
                         ConformanceLimits::default(),
                     )
-                    .expect("each open scope axis remains independently observable");
+                };
+            for (request_evidence, axes) in [
+                (
+                    RequestEvidence {
+                        decision_progress: &decision.progress_open,
+                        ..closed_evidence
+                    },
+                    AxisInputs {
+                        decision_scope_progress: &decision.progress_open,
+                        decision_scope_closure: &decision.closure_closed,
+                        surrounding_execution_progress: &surrounding.progress_closed,
+                        surrounding_execution_closure: &surrounding.closure_closed,
+                    },
+                ),
+                (
+                    RequestEvidence {
+                        decision_closure: &decision.closure_open,
+                        ..closed_evidence
+                    },
+                    AxisInputs {
+                        decision_scope_progress: &decision.progress_closed,
+                        decision_scope_closure: &decision.closure_open,
+                        surrounding_execution_progress: &surrounding.progress_closed,
+                        surrounding_execution_closure: &surrounding.closure_closed,
+                    },
+                ),
+                (
+                    RequestEvidence {
+                        surrounding_progress: &surrounding.progress_open,
+                        ..closed_evidence
+                    },
+                    AxisInputs {
+                        decision_scope_progress: &decision.progress_closed,
+                        decision_scope_closure: &decision.closure_closed,
+                        surrounding_execution_progress: &surrounding.progress_open,
+                        surrounding_execution_closure: &surrounding.closure_closed,
+                    },
+                ),
+                (
+                    RequestEvidence {
+                        surrounding_closure: &surrounding.closure_open,
+                        ..closed_evidence
+                    },
+                    AxisInputs {
+                        decision_scope_progress: &decision.progress_closed,
+                        decision_scope_closure: &decision.closure_closed,
+                        surrounding_execution_progress: &surrounding.progress_closed,
+                        surrounding_execution_closure: &surrounding.closure_open,
+                    },
+                ),
+            ] {
+                let report = assess_evidence(
+                    request_evidence,
+                    axes,
+                    &decision.completeness_complete,
+                    AssessmentExecution::Completed,
+                )
+                .expect("each owner-matched open scope axis remains independently observable");
                 assert_eq!(report.global, GlobalDisposition::Pending);
             }
-            let incomplete = engine
-                .conformance()
-                .assess_activated(
-                    std::slice::from_ref(&fact),
-                    closed_axes(&decision, &surrounding),
-                    &decision.completeness_incomplete,
-                    &global,
-                    AssessmentExecution::Completed,
-                    ConformanceLimits::default(),
-                )
-                .expect("incomplete QObs authority remains independently observable");
+            let incomplete = assess_evidence(
+                RequestEvidence {
+                    completeness: &decision.completeness_incomplete,
+                    ..closed_evidence
+                },
+                closed_axes(&decision, &surrounding),
+                &decision.completeness_incomplete,
+                AssessmentExecution::Completed,
+            )
+            .expect("owner-matched incomplete QObs authority remains independently observable");
             assert_eq!(incomplete.global, GlobalDisposition::Unavailable);
+            let failed = assess_evidence(
+                RequestEvidence {
+                    execution: temporal::Execution::Failed,
+                    ..closed_evidence
+                },
+                closed_axes(&decision, &surrounding),
+                &decision.completeness_complete,
+                AssessmentExecution::Failed,
+            )
+            .expect("owner-matched failed execution remains independently observable");
+            assert_eq!(failed.global, GlobalDisposition::Unavailable);
             for execution in [
                 AssessmentExecution::Refused,
                 AssessmentExecution::Unsupported,
                 AssessmentExecution::ResourceIncomplete,
-                AssessmentExecution::Failed,
             ] {
-                let report = engine
-                    .conformance()
-                    .assess_activated(
+                assert!(matches!(
+                    engine.conformance().assess_activated(
                         std::slice::from_ref(&fact),
                         closed_axes(&decision, &surrounding),
                         &decision.completeness_complete,
                         &global,
                         execution,
                         ConformanceLimits::default(),
-                    )
-                    .expect("each non-completed execution remains independently observable");
-                assert_eq!(report.global, GlobalDisposition::Unavailable);
-                assert_eq!(
-                    report.obligations[0].disposition,
-                    ObligationDisposition::Unavailable
-                );
+                    ),
+                    Err(ActivatedAssessmentError::Kernel(
+                        quire_protocol::conformance::KernelRefusal::TemporalEvidenceMismatch
+                    ))
+                ));
             }
             let other = occurrence_schema
                 .nodes()

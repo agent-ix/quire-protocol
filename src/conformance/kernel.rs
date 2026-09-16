@@ -2,7 +2,10 @@
 //! One immutable conformance input assembled from linked static and compensation facts.
 
 use crate::assessment::{AxisInputs, GlobalConformanceInput};
-use crate::bounds::inventory::{OperationOutcome, ResourceAccountant};
+use crate::bounds::inventory::{
+    BudgetDimension, ChargeError, OperationOutcome, ResourceAccountant, SourceSite,
+};
+use crate::bounds::{SiteId, SiteKind};
 use crate::closure::AssessmentExecution;
 use crate::compensation::registration::{Registration, Snapshot as CompensationSnapshot};
 use crate::conformance::batch::{
@@ -15,16 +18,56 @@ use crate::model::v2::{
     LinkedCompensationDefinition, LinkedProtocol,
 };
 use quire_observation::{
-    authority::{completeness, observation},
+    authority::{
+        closure as observation_closure, completeness, observation, progress, AuthoritySelection,
+        BoundaryRef, OpenClosed,
+    },
     QualifiedSubject,
 };
 use quire_spec_language::protocol_artifact::{
-    native_temporal::{request::CaptureView, result::ActivationState, v2 as temporal_v2},
+    native_temporal::{self, request::CaptureView, result::ActivationState, v2 as temporal_v2},
     temporal_subject::ValidatedTemporalSubject,
     v3,
     wire::{Body, ControlOperation, EdgeKind, Handle},
     OccurrenceKey,
 };
+use sha2::{Digest as _, Sha256};
+
+/// Exact owner-document bytes traversed while correlating QSL evidence to QObs.
+pub(crate) const TEMPORAL_EVIDENCE_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("conformance/temporal-evidence/hash"),
+    "conformance::kernel::validate_temporal_evidence_bounded",
+    BudgetDimension::InputByte,
+    SiteKind::Iteration,
+);
+/// Activation-derived model nodes retained before batch assessment.
+pub(crate) const ACTIVATION_NODE_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("conformance/activation-model/node"),
+    "conformance::kernel::assess_activated_bounded",
+    BudgetDimension::Node,
+    SiteKind::Retention,
+);
+/// Caller/owner identity bytes traversed while deriving obligation identities.
+pub(crate) const ACTIVATION_IDENTITY_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("conformance/activation-model/identity"),
+    "conformance::kernel::assess_activated_bounded",
+    BudgetDimension::InputByte,
+    SiteKind::Iteration,
+);
+/// Duplicate and predecessor comparisons required to derive the fixed model.
+pub(crate) const ACTIVATION_OPERATION_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("conformance/activation-model/operation"),
+    "conformance::kernel::assess_activated_bounded",
+    BudgetDimension::Operation,
+    SiteKind::Traversal,
+);
+/// Stable activation-model and observation-vector allocation population.
+pub(crate) const ACTIVATION_ALLOCATION_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("conformance/activation-model/allocate"),
+    "conformance::kernel::assess_activated_bounded",
+    BudgetDimension::AccountedAllocation,
+    SiteKind::Allocation,
+);
 
 /// Why linked static and derived compensation state cannot form one kernel.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -61,6 +104,8 @@ pub enum Refusal {
     InvalidDerivedModel,
     /// An incremental fact was not selected in this kernel's activation population.
     UnexpectedActivatedOccurrence,
+    /// QSL's admitted temporal evidence does not name the supplied QObs owner views.
+    TemporalEvidenceMismatch,
 }
 
 /// Constructor-private FR-300 join of QSL, linked-graph, and QObs facts.
@@ -259,10 +304,27 @@ impl std::error::Error for ActivatedAssessmentError {}
 /// The complete activation population is fixed before the first prefix, while
 /// QObs facts arrive one at a time. This preserves the existing earliest-prefix
 /// settlement behavior without reopening the caller-built `Model` boundary.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct ActivatedIncremental<'a> {
     model: Model,
     inner: Incremental<'a>,
+    latest_request: Option<&'a temporal_v2::ValidatedRequest>,
+}
+
+impl core::fmt::Debug for ActivatedIncremental<'_> {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        formatter
+            .debug_struct("ActivatedIncremental")
+            .field("model", &self.model)
+            .field("inner", &self.inner)
+            .field(
+                "latest_request",
+                &self
+                    .latest_request
+                    .map(|request| request.document().identity()),
+            )
+            .finish()
+    }
 }
 
 impl<'a> ActivatedIncremental<'a> {
@@ -273,6 +335,7 @@ impl<'a> ActivatedIncremental<'a> {
         Ok(Self {
             inner: Incremental::new(model.clone()),
             model,
+            latest_request: None,
         })
     }
 
@@ -286,6 +349,13 @@ impl<'a> ActivatedIncremental<'a> {
         execution: AssessmentExecution,
         limits: ConformanceLimits,
     ) -> std::result::Result<&Report, ActivatedAssessmentError> {
+        validate_temporal_evidence(
+            fact.occurrence.activation.request,
+            axes,
+            completeness,
+            execution,
+        )
+        .map_err(ActivatedAssessmentError::Kernel)?;
         let observation = fact.observation.ok_or(ActivatedAssessmentError::Kernel(
             Refusal::UnexpectedActivatedOccurrence,
         ))?;
@@ -298,7 +368,8 @@ impl<'a> ActivatedIncremental<'a> {
             .ok_or(ActivatedAssessmentError::Kernel(
                 Refusal::UnexpectedActivatedOccurrence,
             ))?;
-        self.inner
+        let report = self
+            .inner
             .push(
                 BoundObservation {
                     obligation: obligation.identity.clone(),
@@ -312,7 +383,9 @@ impl<'a> ActivatedIncremental<'a> {
                 execution,
                 limits,
             )
-            .map_err(ActivatedAssessmentError::Conformance)
+            .map_err(ActivatedAssessmentError::Conformance)?;
+        self.latest_request = Some(fact.occurrence.activation.request);
+        Ok(report)
     }
 
     /// Finishes the retained prefix under final owner-provided axes.
@@ -324,6 +397,11 @@ impl<'a> ActivatedIncremental<'a> {
         execution: AssessmentExecution,
         limits: ConformanceLimits,
     ) -> std::result::Result<&Report, ActivatedAssessmentError> {
+        let request = self.latest_request.ok_or(ActivatedAssessmentError::Kernel(
+            Refusal::UnexpectedActivatedOccurrence,
+        ))?;
+        validate_temporal_evidence(request, axes, completeness, execution)
+            .map_err(ActivatedAssessmentError::Kernel)?;
         self.inner
             .finish(axes, completeness, global_conformance, execution, limits)
             .map_err(ActivatedAssessmentError::Conformance)
@@ -694,21 +772,22 @@ impl Kernel {
         &self,
         activations: &[ActivatedOccurrence<'_>],
     ) -> Result<Model, Refusal> {
+        let mut keyed = activations
+            .iter()
+            .map(|activation| (derived_obligation_id(activation), activation))
+            .collect::<Vec<_>>();
+        keyed.sort_by(|(left, _), (right, _)| left.cmp(right));
+        if keyed.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+            return Err(Refusal::DuplicateActivatedObligation);
+        }
         let mut obligations = Vec::with_capacity(activations.len());
-        for activation in activations {
+        for (identity, activation) in &keyed {
             if activation.activation.definition != self.definition {
                 return Err(Refusal::ForeignActivatedOccurrence);
             }
-            let identity = derived_obligation_id(activation);
-            if obligations
+            let predecessors = keyed
                 .iter()
-                .any(|existing: &ObservationObligation| existing.identity == identity)
-            {
-                return Err(Refusal::DuplicateActivatedObligation);
-            }
-            let predecessors = activations
-                .iter()
-                .filter(|candidate| {
+                .filter(|(_, candidate)| {
                     same_occurrence_scope(candidate, activation)
                         && candidate.activation.control() != activation.activation.control()
                         && self.causal_edges.iter().any(|edge| {
@@ -717,10 +796,10 @@ impl Kernel {
                                 && edge.to.node == *activation.activation.control()
                         })
                 })
-                .map(derived_obligation_id)
+                .map(|(identity, _)| identity.clone())
                 .collect();
             obligations.push(ObservationObligation {
-                identity,
+                identity: identity.clone(),
                 subject_kind: activation.activation.subject().kind().as_bytes().into(),
                 subject_identity: activation.activation.subject().identity().as_bytes().into(),
                 workflow_identity: activation.occurrence.workflow().as_str().into(),
@@ -771,6 +850,15 @@ impl Kernel {
         execution: AssessmentExecution,
         limits: ConformanceLimits,
     ) -> std::result::Result<Report, ActivatedAssessmentError> {
+        for fact in facts {
+            validate_temporal_evidence(
+                fact.occurrence.activation.request,
+                axes,
+                completeness,
+                execution,
+            )
+            .map_err(ActivatedAssessmentError::Kernel)?;
+        }
         let activations = facts
             .iter()
             .map(|fact| fact.occurrence.clone())
@@ -780,10 +868,14 @@ impl Kernel {
             .map_err(ActivatedAssessmentError::Kernel)?;
         let observations = facts
             .iter()
-            .zip(model.obligations())
-            .filter_map(|(fact, obligation)| {
+            .filter_map(|fact| {
+                let identity = derived_obligation_id(&fact.occurrence);
+                let obligation = model
+                    .obligations()
+                    .iter()
+                    .find(|obligation| obligation.identity == identity)?;
                 fact.observation.map(|observation| BoundObservation {
-                    obligation: obligation.identity.clone(),
+                    obligation: identity,
                     observation,
                     workflow_identity: fact.occurrence.occurrence.workflow().as_str().into(),
                     effect_identity: obligation.effect_identity.clone(),
@@ -817,6 +909,9 @@ impl Kernel {
         limits: ConformanceLimits,
         resources: &mut ResourceAccountant<'_>,
     ) -> OperationOutcome<Report, ActivatedAssessmentError> {
+        if let Err(error) = precharge_activation_model(facts, limits, resources) {
+            return OperationOutcome::from_charge(error);
+        }
         let activations = facts
             .iter()
             .map(|fact| fact.occurrence.clone())
@@ -829,10 +924,14 @@ impl Kernel {
         };
         let observations = facts
             .iter()
-            .zip(model.obligations())
-            .filter_map(|(fact, obligation)| {
+            .filter_map(|fact| {
+                let identity = derived_obligation_id(&fact.occurrence);
+                let obligation = model
+                    .obligations()
+                    .iter()
+                    .find(|obligation| obligation.identity == identity)?;
                 fact.observation.map(|observation| BoundObservation {
-                    obligation: obligation.identity.clone(),
+                    obligation: identity,
                     observation,
                     workflow_identity: fact.occurrence.occurrence.workflow().as_str().into(),
                     effect_identity: obligation.effect_identity.clone(),
@@ -864,41 +963,21 @@ impl Kernel {
 }
 
 fn derived_obligation_id(activation: &ActivatedOccurrence<'_>) -> ObligationId {
-    let mut identity = String::from("fr230:");
-    identity.push_str(
-        &activation
-            .activation
-            .definition()
-            .source_document()
-            .identity,
-    );
-    identity.push(':');
-    identity.push_str(
-        &activation
-            .activation
-            .definition()
-            .declaration_handle()
-            .to_string(),
-    );
-    identity.push(':');
-    identity.push_str(&activation.activation.control().index.to_string());
-    identity.push(':');
-    append_hex(
-        &mut identity,
+    let definition = activation.activation.definition();
+    let digest = occurrence_identity_digest(
+        definition.source_document().identity.as_bytes(),
+        definition.declaration_handle(),
+        activation.activation.control().index,
         activation.activation.subject().identity().as_bytes(),
-    );
-    identity.push(':');
-    append_hex(&mut identity, activation.activation.semantic_trigger());
-    identity.push_str(":workflow:");
-    append_hex(
-        &mut identity,
+        activation.activation.semantic_trigger(),
         activation.occurrence.workflow().as_str().as_bytes(),
+        activation
+            .occurrence
+            .repeat_ordinals()
+            .iter()
+            .map(|ordinal| ordinal.value()),
     );
-    identity.push_str(":repeats:");
-    for ordinal in activation.occurrence.repeat_ordinals() {
-        append_hex(&mut identity, &ordinal.value().to_be_bytes());
-    }
-    ObligationId::retained(identity)
+    ObligationId::retained(format!("fr230:sha256:{digest:x}"))
 }
 
 fn same_occurrence_scope(left: &ActivatedOccurrence<'_>, right: &ActivatedOccurrence<'_>) -> bool {
@@ -906,12 +985,315 @@ fn same_occurrence_scope(left: &ActivatedOccurrence<'_>, right: &ActivatedOccurr
         && left.occurrence.repeat_ordinals() == right.occurrence.repeat_ordinals()
 }
 
-fn append_hex(target: &mut String, bytes: &[u8]) {
-    const HEX: &[u8; 16] = b"0123456789abcdef";
-    for byte in bytes {
-        target.push(char::from(HEX[usize::from(byte >> 4)]));
-        target.push(char::from(HEX[usize::from(byte & 0x0f)]));
+fn occurrence_identity_digest(
+    source_document: &[u8],
+    declaration: u32,
+    control: u32,
+    subject: &[u8],
+    trigger: &[u8],
+    workflow: &[u8],
+    repeats: impl IntoIterator<Item = i64>,
+) -> sha2::digest::Output<Sha256> {
+    let mut digest = Sha256::new();
+    for component in [source_document, subject, trigger, workflow] {
+        let mut length = [0_u8; 16];
+        let native_length = component.len().to_be_bytes();
+        let offset = length.len() - native_length.len();
+        length[offset..].copy_from_slice(&native_length);
+        digest.update(length);
+        digest.update(component);
     }
+    digest.update(declaration.to_be_bytes());
+    digest.update(control.to_be_bytes());
+    for ordinal in repeats {
+        digest.update(ordinal.to_be_bytes());
+    }
+    digest.finalize()
+}
+
+fn precharge_activation_model(
+    facts: &[ActivationFact<'_>],
+    limits: ConformanceLimits,
+    resources: &mut ResourceAccountant<'_>,
+) -> Result<(), ChargeError> {
+    const COMPONENT_COUNT: usize = 4;
+    const COMPONENT_LENGTH_BYTES: usize = 16;
+    const HANDLE_BYTES: usize = 2 * core::mem::size_of::<u32>();
+
+    let population = facts.len();
+    resources.charge(ACTIVATION_OPERATION_SOURCE.id(), population)?;
+    let mut identity_bytes = 0usize;
+    for fact in facts {
+        let activation = &fact.occurrence.activation;
+        let occurrence = &fact.occurrence.occurrence;
+        let framing_bytes = COMPONENT_COUNT
+            .checked_mul(COMPONENT_LENGTH_BYTES)
+            .and_then(|bytes| bytes.checked_add(HANDLE_BYTES))
+            .ok_or(ChargeError::CounterOverflow {
+                site: ACTIVATION_IDENTITY_SOURCE.id(),
+                consumed: identity_bytes,
+                requested: COMPONENT_LENGTH_BYTES,
+            })?;
+        identity_bytes =
+            identity_bytes
+                .checked_add(framing_bytes)
+                .ok_or(ChargeError::CounterOverflow {
+                    site: ACTIVATION_IDENTITY_SOURCE.id(),
+                    consumed: identity_bytes,
+                    requested: framing_bytes,
+                })?;
+        for bytes in [
+            activation
+                .definition()
+                .source_document()
+                .identity
+                .as_bytes(),
+            activation.subject().identity().as_bytes(),
+            activation.semantic_trigger(),
+            occurrence.workflow().as_str().as_bytes(),
+        ] {
+            identity_bytes =
+                identity_bytes
+                    .checked_add(bytes.len())
+                    .ok_or(ChargeError::CounterOverflow {
+                        site: ACTIVATION_IDENTITY_SOURCE.id(),
+                        consumed: identity_bytes,
+                        requested: bytes.len(),
+                    })?;
+        }
+        let repeat_bytes = occurrence.repeat_ordinals().len().checked_mul(8).ok_or(
+            ChargeError::CounterOverflow {
+                site: ACTIVATION_IDENTITY_SOURCE.id(),
+                consumed: identity_bytes,
+                requested: occurrence.repeat_ordinals().len(),
+            },
+        )?;
+        identity_bytes =
+            identity_bytes
+                .checked_add(repeat_bytes)
+                .ok_or(ChargeError::CounterOverflow {
+                    site: ACTIVATION_IDENTITY_SOURCE.id(),
+                    consumed: identity_bytes,
+                    requested: repeat_bytes,
+                })?;
+    }
+    let pair_operations =
+        population
+            .checked_mul(population)
+            .ok_or(ChargeError::CounterOverflow {
+                site: ACTIVATION_OPERATION_SOURCE.id(),
+                consumed: population,
+                requested: population,
+            })?;
+    let allocation_count = population
+        .checked_mul(6)
+        .and_then(|count| count.checked_add(4))
+        .ok_or(ChargeError::CounterOverflow {
+            site: ACTIVATION_ALLOCATION_SOURCE.id(),
+            consumed: population,
+            requested: 6,
+        })?;
+    resources.charge_all_mixed(&[
+        (
+            ACTIVATION_NODE_SOURCE.id(),
+            population,
+            Some(limits.effective().max_obligations),
+        ),
+        (ACTIVATION_IDENTITY_SOURCE.id(), identity_bytes, None),
+        (ACTIVATION_OPERATION_SOURCE.id(), pair_operations, None),
+        (ACTIVATION_ALLOCATION_SOURCE.id(), allocation_count, None),
+    ])
+}
+
+pub(crate) fn validate_temporal_evidence_bounded(
+    request: &temporal_v2::ValidatedRequest,
+    axes: AxisInputs<'_>,
+    completeness: &completeness::View,
+    execution: AssessmentExecution,
+    resources: &mut ResourceAccountant<'_>,
+) -> OperationOutcome<(), Refusal> {
+    let charges = [
+        axes.decision_scope_progress.bytes().len(),
+        axes.decision_scope_closure.bytes().len(),
+        axes.surrounding_execution_progress.bytes().len(),
+        axes.surrounding_execution_closure.bytes().len(),
+        completeness.bytes().len(),
+    ]
+    .map(|bytes| (TEMPORAL_EVIDENCE_SOURCE.id(), bytes));
+    if let Err(error) = resources.charge_all(&charges) {
+        return OperationOutcome::from_charge(error);
+    }
+    OperationOutcome::from_domain(validate_temporal_evidence(
+        request,
+        axes,
+        completeness,
+        execution,
+    ))
+}
+
+fn validate_temporal_evidence(
+    request: &temporal_v2::ValidatedRequest,
+    axes: AxisInputs<'_>,
+    completeness: &completeness::View,
+    execution: AssessmentExecution,
+) -> Result<(), Refusal> {
+    let matches = progress_evidence_matches(
+        request.decision_progress(),
+        axes.decision_scope_progress,
+        "decision-progress",
+    ) && closure_evidence_matches(
+        request.decision_closure(),
+        axes.decision_scope_closure,
+        "decision-closure",
+    ) && progress_evidence_matches(
+        request.surrounding_progress(),
+        axes.surrounding_execution_progress,
+        "surrounding-progress",
+    ) && closure_evidence_matches(
+        request.surrounding_closure(),
+        axes.surrounding_execution_closure,
+        "surrounding-closure",
+    ) && completeness_evidence_matches(request.completeness(), completeness)
+        && execution_matches(request.execution(), execution);
+    matches
+        .then_some(())
+        .ok_or(Refusal::TemporalEvidenceMismatch)
+}
+
+fn progress_evidence_matches(
+    admitted: native_temporal::request::ProgressView<'_>,
+    owner: &progress::View,
+    scope: &str,
+) -> bool {
+    evidence_matches(
+        admitted.reference(),
+        progress::CONTRACT,
+        progress::SCHEMA_SHA256,
+        owner.identity().as_str(),
+        owner.bytes(),
+        owner.authority(),
+        scope,
+        owner.payload().required_sources().len(),
+    ) && progress_watermark(owner).is_some_and(|watermark| admitted.watermark() == watermark)
+}
+
+fn closure_evidence_matches(
+    admitted: native_temporal::request::ClosureView<'_>,
+    owner: &observation_closure::View,
+    scope: &str,
+) -> bool {
+    evidence_matches(
+        admitted.reference(),
+        observation_closure::CONTRACT,
+        observation_closure::SCHEMA_SHA256,
+        owner.identity().as_str(),
+        owner.bytes(),
+        owner.authority(),
+        scope,
+        owner.payload().required_sources().len(),
+    ) && matches!(
+        (owner.payload().state(), admitted.state()),
+        (
+            OpenClosed::Open,
+            quire_spec_language::temporal::Closure::Open
+        ) | (
+            OpenClosed::Closed,
+            quire_spec_language::temporal::Closure::Closed
+        )
+    )
+}
+
+fn completeness_evidence_matches(
+    admitted: native_temporal::request::CompletenessView<'_>,
+    owner: &completeness::View,
+) -> bool {
+    evidence_matches(
+        admitted.reference(),
+        completeness::CONTRACT,
+        completeness::SCHEMA_SHA256,
+        owner.identity().as_str(),
+        owner.bytes(),
+        owner.authority(),
+        "completeness",
+        owner.payload().fact_count(),
+    ) && matches!(
+        (owner.payload().state(), admitted.state()),
+        (
+            completeness::State::Complete,
+            quire_spec_language::temporal::Completeness::Complete
+        ) | (
+            completeness::State::Incomplete,
+            quire_spec_language::temporal::Completeness::Incomplete
+        )
+    )
+}
+
+#[allow(
+    clippy::too_many_arguments,
+    reason = "the comparison preserves every independently owned evidence coordinate"
+)]
+fn evidence_matches(
+    admitted: &native_temporal::EvidenceRef,
+    contract: &str,
+    schema_sha256: &str,
+    identity: &str,
+    bytes: &[u8],
+    authority: &AuthoritySelection,
+    scope: &str,
+    population: usize,
+) -> bool {
+    admitted.contract() == contract
+        && admitted.schema_digest() == schema_sha256
+        && admitted.identity() == identity
+        && digest_matches(bytes, admitted.digest())
+        && admitted.authority_identity() == authority.definition_identity.as_str()
+        && admitted.authority_revision() == authority.definition_revision.as_str()
+        && hex_matches(
+            authority.definition_digest.as_bytes(),
+            admitted.authority_digest(),
+        )
+        && admitted.scope() == scope
+        && u64::try_from(population).is_ok_and(|population| admitted.population() == population)
+}
+
+fn progress_watermark(view: &progress::View) -> Option<i64> {
+    let watermark = match view.payload().boundary() {
+        BoundaryRef::EventPosition { watermark, .. }
+        | BoundaryRef::FixedSample { watermark, .. } => watermark,
+        BoundaryRef::TimestampedEvent {
+            watermark_nanos, ..
+        } => watermark_nanos,
+    };
+    watermark.parse().ok()
+}
+
+fn execution_matches(
+    admitted: quire_spec_language::temporal::Execution,
+    owner: AssessmentExecution,
+) -> bool {
+    matches!(
+        (admitted, owner),
+        (
+            quire_spec_language::temporal::Execution::Completed,
+            AssessmentExecution::Completed
+        ) | (
+            quire_spec_language::temporal::Execution::Failed,
+            AssessmentExecution::Failed
+        )
+    )
+}
+
+fn digest_matches(bytes: &[u8], expected: &str) -> bool {
+    hex_matches(&Sha256::digest(bytes), expected)
+}
+
+fn hex_matches(bytes: &[u8], expected: &str) -> bool {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    expected.len() == bytes.len() * 2
+        && bytes.iter().enumerate().all(|(index, byte)| {
+            expected.as_bytes()[index * 2] == HEX[usize::from(byte >> 4)]
+                && expected.as_bytes()[index * 2 + 1] == HEX[usize::from(byte & 0x0f)]
+        })
 }
 
 /// Confirms that a `/3` activation table extends this exact admitted `/2`
@@ -955,4 +1337,227 @@ fn registration_for(
         })
         .cloned()
         .ok_or(Refusal::UnknownRegistration)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{evidence_matches, occurrence_identity_digest};
+    use ix_trace_rs::trace;
+    use quire_observation::{authority::AuthoritySelection, Digest as ObservationDigest, Identity};
+    use quire_spec_language::protocol_artifact::native_temporal::EvidenceRef;
+    use sha2::{Digest as _, Sha256};
+
+    #[test]
+    #[trace("Task-021")]
+    fn temporal_evidence_requires_every_owner_coordinate() {
+        let bytes = b"owner document";
+        let document_digest = format!("{:x}", Sha256::digest(bytes));
+        let authority_digest_bytes = Sha256::digest(b"authority definition");
+        let authority_digest = format!("{authority_digest_bytes:x}");
+        let authority = AuthoritySelection {
+            definition_identity: Identity::new("authority:owner"),
+            definition_revision: Identity::new("7"),
+            definition_digest: ObservationDigest::new(authority_digest_bytes.into()),
+        };
+        let make = |contract: &str,
+                    schema: &str,
+                    identity: &str,
+                    digest: &str,
+                    authority_identity: &str,
+                    authority_revision: &str,
+                    authority_digest: &str,
+                    scope: &str,
+                    population: u64| {
+            EvidenceRef::new(
+                contract,
+                schema,
+                identity,
+                digest,
+                authority_identity,
+                authority_revision,
+                authority_digest,
+                scope,
+                population,
+            )
+        };
+        let matches = |evidence: &EvidenceRef| {
+            evidence_matches(
+                evidence,
+                "owner.contract/1",
+                "schema-digest",
+                "document:owner",
+                bytes,
+                &authority,
+                "decision-progress",
+                7,
+            )
+        };
+
+        assert!(matches(&make(
+            "owner.contract/1",
+            "schema-digest",
+            "document:owner",
+            &document_digest,
+            "authority:owner",
+            "7",
+            &authority_digest,
+            "decision-progress",
+            7,
+        )));
+
+        let mutations = [
+            (
+                "contract",
+                make(
+                    "owner.contract/2",
+                    "schema-digest",
+                    "document:owner",
+                    &document_digest,
+                    "authority:owner",
+                    "7",
+                    &authority_digest,
+                    "decision-progress",
+                    7,
+                ),
+            ),
+            (
+                "schema digest",
+                make(
+                    "owner.contract/1",
+                    "other-schema",
+                    "document:owner",
+                    &document_digest,
+                    "authority:owner",
+                    "7",
+                    &authority_digest,
+                    "decision-progress",
+                    7,
+                ),
+            ),
+            (
+                "document identity",
+                make(
+                    "owner.contract/1",
+                    "schema-digest",
+                    "document:other",
+                    &document_digest,
+                    "authority:owner",
+                    "7",
+                    &authority_digest,
+                    "decision-progress",
+                    7,
+                ),
+            ),
+            (
+                "document digest",
+                make(
+                    "owner.contract/1",
+                    "schema-digest",
+                    "document:owner",
+                    &"0".repeat(64),
+                    "authority:owner",
+                    "7",
+                    &authority_digest,
+                    "decision-progress",
+                    7,
+                ),
+            ),
+            (
+                "authority identity",
+                make(
+                    "owner.contract/1",
+                    "schema-digest",
+                    "document:owner",
+                    &document_digest,
+                    "authority:other",
+                    "7",
+                    &authority_digest,
+                    "decision-progress",
+                    7,
+                ),
+            ),
+            (
+                "authority revision",
+                make(
+                    "owner.contract/1",
+                    "schema-digest",
+                    "document:owner",
+                    &document_digest,
+                    "authority:owner",
+                    "8",
+                    &authority_digest,
+                    "decision-progress",
+                    7,
+                ),
+            ),
+            (
+                "authority digest",
+                make(
+                    "owner.contract/1",
+                    "schema-digest",
+                    "document:owner",
+                    &document_digest,
+                    "authority:owner",
+                    "7",
+                    &"f".repeat(64),
+                    "decision-progress",
+                    7,
+                ),
+            ),
+            (
+                "scope",
+                make(
+                    "owner.contract/1",
+                    "schema-digest",
+                    "document:owner",
+                    &document_digest,
+                    "authority:owner",
+                    "7",
+                    &authority_digest,
+                    "decision-closure",
+                    7,
+                ),
+            ),
+            (
+                "population",
+                make(
+                    "owner.contract/1",
+                    "schema-digest",
+                    "document:owner",
+                    &document_digest,
+                    "authority:owner",
+                    "7",
+                    &authority_digest,
+                    "decision-progress",
+                    8,
+                ),
+            ),
+        ];
+        for (coordinate, mutation) in mutations {
+            assert!(!matches(&mutation), "accepted mutated {coordinate}");
+        }
+    }
+
+    #[test]
+    #[trace("Task-021")]
+    fn repeat_ordinals_are_part_of_the_derived_obligation_identity() {
+        let derive = |repeats: &[i64]| {
+            occurrence_identity_digest(
+                b"source:document",
+                3,
+                5,
+                b"subject:identity",
+                b"semantic-trigger",
+                b"workflow:identity",
+                repeats.iter().copied(),
+            )
+        };
+
+        assert_ne!(derive(&[0]), derive(&[1]));
+        assert_ne!(derive(&[0, 1]), derive(&[0, 2]));
+        assert_ne!(
+            occurrence_identity_digest(b"a", 3, 5, b"bc", b"d", b"e", []),
+            occurrence_identity_digest(b"ab", 3, 5, b"c", b"d", b"e", [])
+        );
+    }
 }
