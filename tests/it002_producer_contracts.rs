@@ -10,8 +10,9 @@ use quire_protocol::bounds::Clock;
 use quire_protocol::claims::Claim;
 use quire_protocol::outcome::OperationOutcome;
 use quire_protocol::producer_contracts::{
-    resolve_producer_contracts, ProducerContract, ProducerResolution, ProducerResolutionRequest,
-    UnsupportedObservationCapability, QOBS_REVISION,
+    resolve_producer_contracts, ProducerContract, ProducerRequestError, ProducerResolution,
+    ProducerResolutionRequest, ProducerValueSelection, UnsupportedObservationCapability,
+    QOBS_REVISION,
 };
 use quire_protocol::refusal::{AffectedIdentity, ProtocolCause, ProtocolRefusal, RefusalCause};
 use quire_protocol::version_lock::{
@@ -237,6 +238,17 @@ fn it_002_sc_08_resolves_only_the_exact_scenario_contract_inventory() {
         ByteDigest::of(b"it002:scenario-package"),
         [7; 32],
         &[Claim::Conformance],
+        ProducerValueSelection::new([0x23; 32], 1),
+    )
+    .expect("the closed claim selection is representable");
+    assert_eq!(
+        ProducerResolutionRequest::for_assessment(
+            ByteDigest::of(b"package:too-many-claims"),
+            [7; 32],
+            &[Claim::Conformance; 7],
+            ProducerValueSelection::new([0x23; 32], 1),
+        ),
+        Err(ProducerRequestError::TooManyClaims),
     );
     let outcome =
         resolve_producer_contracts(&request, &manifest(), exact_budget(), generous_clock());

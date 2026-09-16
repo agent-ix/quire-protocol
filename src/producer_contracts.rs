@@ -19,11 +19,13 @@ use quire_spec_language::protocol_artifact::{
     v2 as artifact_v2, v3 as artifact_v3,
 };
 use quire_spec_language::ByteDigest;
+use sha2::{Digest as _, Sha256};
 
 use crate::bounds::inventory::ResourceIncomplete;
 use crate::bounds::inventory::Usage;
 use crate::bounds::Clock;
 use crate::claims::Claim;
+use crate::model::v2::RuntimeBindingSet;
 use crate::outcome::OperationOutcome;
 use crate::refusal::ProtocolRefusal;
 use crate::version_lock::{
@@ -45,47 +47,185 @@ const QOBS_OWNER: &str = "agent-ix/quire-observation";
 const QSL_OWNER: &str = "agent-ix/quire-spec-language";
 const IMMUTABILITY_ASSERTION: &[u8] = b"owner asserts immutable and published";
 
-/// Fixed-size digest of one complete QObs authority-qualified subject
-/// selection. Components are length-framed so no authority, kind, or identity
-/// boundary can collide with another.
-#[must_use]
-pub fn subject_selection_digest(subject: &QualifiedSubject) -> ByteDigest {
-    let authority = subject.authority();
-    let mut bytes = Vec::new();
-    for component in [
-        authority.bundle_identity.as_bytes(),
-        authority.bundle_revision.namespace.as_bytes(),
-        authority.bundle_revision.value.as_bytes(),
-        authority.digest.algorithm.as_bytes(),
-        authority.digest.domain.as_bytes(),
-        authority.digest.version.as_bytes(),
-        authority.digest.value.as_bytes(),
-        subject.kind().as_bytes(),
-        subject.identity().as_bytes(),
-    ] {
-        bytes.extend_from_slice(
-            &u128::try_from(component.len())
+/// Exact bounded digest and measured framed-byte count for one producer value.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ProducerValueSelection {
+    digest: [u8; 32],
+    framed_bytes: usize,
+}
+
+impl ProducerValueSelection {
+    /// Exact SHA-256 and framed byte count independently selected by a request.
+    #[must_use]
+    pub const fn new(digest: [u8; 32], framed_bytes: usize) -> Self {
+        Self {
+            digest,
+            framed_bytes,
+        }
+    }
+
+    const fn digest(self) -> [u8; 32] {
+        self.digest
+    }
+
+    /// Exact work ceiling selected for later value verification.
+    #[must_use]
+    pub const fn framed_bytes(self) -> usize {
+        self.framed_bytes
+    }
+}
+
+/// A producer selection exceeded the caller's explicit byte ceiling.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ProducerSelectionTooLarge {
+    /// Exact caller-selected ceiling.
+    pub limit: usize,
+}
+
+impl fmt::Display for ProducerSelectionTooLarge {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            formatter,
+            "producer selection exceeds {} framed bytes",
+            self.limit
+        )
+    }
+}
+
+impl std::error::Error for ProducerSelectionTooLarge {}
+
+struct SelectionHasher {
+    digest: Sha256,
+    consumed: usize,
+    limit: usize,
+}
+
+impl SelectionHasher {
+    fn new(limit: usize) -> Self {
+        Self {
+            digest: Sha256::new(),
+            consumed: 0,
+            limit,
+        }
+    }
+
+    fn component(&mut self, bytes: &[u8]) -> Result<(), ProducerSelectionTooLarge> {
+        let charged = 16usize
+            .checked_add(bytes.len())
+            .and_then(|value| self.consumed.checked_add(value))
+            .ok_or(ProducerSelectionTooLarge { limit: self.limit })?;
+        if charged > self.limit {
+            return Err(ProducerSelectionTooLarge { limit: self.limit });
+        }
+        self.digest.update(
+            u128::try_from(bytes.len())
                 .expect("Rust slice length always fits u128")
                 .to_be_bytes(),
         );
-        bytes.extend_from_slice(component);
+        self.digest.update(bytes);
+        self.consumed = charged;
+        Ok(())
     }
-    ByteDigest::of(&bytes)
+
+    fn finish(self) -> ProducerValueSelection {
+        ProducerValueSelection::new(self.digest.finalize().into(), self.consumed)
+    }
+}
+
+fn hash_authority_components(
+    hasher: &mut SelectionHasher,
+    components: [&[u8]; 7],
+) -> Result<(), ProducerSelectionTooLarge> {
+    for component in components {
+        hasher.component(component)?;
+    }
+    Ok(())
+}
+
+fn hash_subject(
+    hasher: &mut SelectionHasher,
+    subject: &QualifiedSubject,
+) -> Result<(), ProducerSelectionTooLarge> {
+    let authority = subject.authority();
+    hash_authority_components(
+        hasher,
+        [
+            authority.bundle_identity.as_bytes(),
+            authority.bundle_revision.namespace.as_bytes(),
+            authority.bundle_revision.value.as_bytes(),
+            authority.digest.algorithm.as_bytes(),
+            authority.digest.domain.as_bytes(),
+            authority.digest.version.as_bytes(),
+            authority.digest.value.as_bytes(),
+        ],
+    )?;
+    hasher.component(subject.kind().as_bytes())?;
+    hasher.component(subject.identity().as_bytes())
+}
+
+/// Select one complete QObs authority-qualified subject under an explicit
+/// caller byte ceiling. Hashing streams the framed components and allocates no
+/// caller-sized preimage.
+pub fn select_subject(
+    subject: &QualifiedSubject,
+    byte_limit: usize,
+) -> Result<ProducerValueSelection, ProducerSelectionTooLarge> {
+    let mut hasher = SelectionHasher::new(byte_limit);
+    hash_subject(&mut hasher, subject)?;
+    Ok(hasher.finish())
+}
+
+/// Select one complete ordered runtime-binding set under an explicit caller
+/// byte ceiling. Every QObs subject and relationship component participates.
+pub fn select_runtime_bindings(
+    runtime: &RuntimeBindingSet,
+    byte_limit: usize,
+) -> Result<ProducerValueSelection, ProducerSelectionTooLarge> {
+    let mut hasher = SelectionHasher::new(byte_limit);
+    hasher.component(runtime.target().identity.as_bytes())?;
+    hasher.component(runtime.target().revision.as_bytes())?;
+    hasher.component(&runtime.target().digest)?;
+    for binding in runtime.bindings() {
+        hasher.component(&binding.slot().get().to_be_bytes())?;
+        if let Some(subject) = binding.subject_value() {
+            hasher.component(b"subject")?;
+            hash_subject(&mut hasher, subject)?;
+        } else if let Some(relationship) = binding.relationship_value() {
+            hasher.component(b"relationship")?;
+            hasher.component(relationship.declaration_identity().as_bytes())?;
+            let authority = relationship.authority();
+            hash_authority_components(
+                &mut hasher,
+                [
+                    authority.bundle_identity.as_bytes(),
+                    authority.bundle_revision.namespace.as_bytes(),
+                    authority.bundle_revision.value.as_bytes(),
+                    authority.digest.algorithm.as_bytes(),
+                    authority.digest.domain.as_bytes(),
+                    authority.digest.version.as_bytes(),
+                    authority.digest.value.as_bytes(),
+                ],
+            )?;
+            hasher.component(relationship.interface_version().as_bytes())?;
+            hasher.component(relationship.identity().as_bytes())?;
+            hash_subject(&mut hasher, relationship.source())?;
+            hash_subject(&mut hasher, relationship.target())?;
+        } else {
+            unreachable!("the closed runtime value has exactly one owner variant")
+        }
+    }
+    Ok(hasher.finish())
 }
 
 /// Fixed-size digest of one admissible exact ordered claim selection.
 ///
 /// The request retains only the digest, so later producer resolution cannot be
 /// reused with a different claim population or ordering. An over-complete
-/// selection receives one invalid marker because it necessarily contains a
-/// duplicate and cannot start an Engine.
-#[must_use]
-pub(crate) fn claim_selection_digest(claims: &[Claim]) -> ByteDigest {
+/// selection is refused because it necessarily contains a duplicate and
+/// cannot start an Engine.
+fn claim_selection_digest(claims: &[Claim]) -> Result<ByteDigest, ProducerRequestError> {
     if claims.len() > Claim::ALL.len() {
-        // More than the closed six-member population necessarily contains a
-        // duplicate and cannot start an Engine. Keep even that invalid path
-        // fixed-work rather than hashing caller-sized input before resolution.
-        return ByteDigest::of(b"invalid:too-many-claims");
+        return Err(ProducerRequestError::TooManyClaims);
     }
     let mut selection = [u8::MAX; 1 + Claim::ALL.len()];
     selection[0] = u8::try_from(claims.len()).expect("the closed claim population fits u8");
@@ -99,8 +239,29 @@ pub(crate) fn claim_selection_digest(claims: &[Claim]) -> ByteDigest {
             Claim::Composition => 5,
         };
     }
-    ByteDigest::of(&selection)
+    Ok(ByteDigest::of(&selection))
 }
+
+/// A request cannot be represented as one exact bounded producer selection.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ProducerRequestError {
+    /// The request exceeds the closed six-claim population and is necessarily
+    /// duplicate-bearing.
+    TooManyClaims,
+    /// Selected producer-value byte counts overflow the platform counter.
+    SelectionBytesOverflow,
+}
+
+impl fmt::Display for ProducerRequestError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(match self {
+            Self::TooManyClaims => "producer request contains more than six claims",
+            Self::SelectionBytesOverflow => "producer selection byte count overflows usize",
+        })
+    }
+}
+
+impl std::error::Error for ProducerRequestError {}
 
 /// One exact owner schema selection retained beside a producer contract.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -378,25 +539,36 @@ impl UnsupportedObservationCapability {
 /// binding artifact, ordered claims and every selected QObs/QSL value used by
 /// that assessment. Callers cannot supply arbitrary or unbounded identity
 /// bytes.
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct ProducerResolutionRequest(Box<[u8]>);
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProducerResolutionRequest {
+    identity: Box<[u8]>,
+    runtime: ProducerValueSelection,
+    subject: Option<ProducerValueSelection>,
+    selection_bytes: usize,
+}
 
 impl ProducerResolutionRequest {
     /// Select one non-temporal assessment request from fixed-size owner
     /// digests known before producer values are loaded.
-    #[must_use]
-    pub fn for_assessment(package: ByteDigest, static_binding: [u8; 32], claims: &[Claim]) -> Self {
+    pub fn for_assessment(
+        package: ByteDigest,
+        static_binding: [u8; 32],
+        claims: &[Claim],
+        runtime: ProducerValueSelection,
+    ) -> Result<Self, ProducerRequestError> {
         Self::encode(
             0,
             package,
             static_binding,
-            &[claim_selection_digest(claims)],
+            claim_selection_digest(claims)?,
+            runtime,
+            None,
+            &[],
         )
     }
 
     /// Select one activated assessment from every fixed-size producer
     /// selection known before producer values are loaded.
-    #[must_use]
     #[allow(
         clippy::too_many_arguments,
         reason = "each digest binds one independently owned producer value without accepting an aggregate derived from the offer"
@@ -405,20 +577,22 @@ impl ProducerResolutionRequest {
         package: ByteDigest,
         static_binding: [u8; 32],
         claims: &[Claim],
+        runtime: ProducerValueSelection,
         activation_mappings: ByteDigest,
-        subject: ByteDigest,
+        subject: ProducerValueSelection,
         temporal_subject: ByteDigest,
         temporal_request: ByteDigest,
         temporal_result: ByteDigest,
-    ) -> Self {
+    ) -> Result<Self, ProducerRequestError> {
         Self::encode(
             1,
             package,
             static_binding,
+            claim_selection_digest(claims)?,
+            runtime,
+            Some(subject),
             &[
-                claim_selection_digest(claims),
                 activation_mappings,
-                subject,
                 temporal_subject,
                 temporal_request,
                 temporal_result,
@@ -428,7 +602,6 @@ impl ProducerResolutionRequest {
 
     /// Select one canonical-result assessment from every fixed-size producer
     /// selection known before producer values are loaded.
-    #[must_use]
     #[allow(
         clippy::too_many_arguments,
         reason = "each digest binds one independently owned producer value without accepting an aggregate derived from the offer"
@@ -437,21 +610,23 @@ impl ProducerResolutionRequest {
         package: ByteDigest,
         static_binding: [u8; 32],
         claims: &[Claim],
+        runtime: ProducerValueSelection,
         activation_mappings: ByteDigest,
-        subject: ByteDigest,
+        subject: ProducerValueSelection,
         temporal_subject: ByteDigest,
         temporal_request: ByteDigest,
         temporal_result: ByteDigest,
         checked_predicate: ByteDigest,
-    ) -> Self {
+    ) -> Result<Self, ProducerRequestError> {
         Self::encode(
             2,
             package,
             static_binding,
+            claim_selection_digest(claims)?,
+            runtime,
+            Some(subject),
             &[
-                claim_selection_digest(claims),
                 activation_mappings,
-                subject,
                 temporal_subject,
                 temporal_request,
                 temporal_result,
@@ -464,23 +639,66 @@ impl ProducerResolutionRequest {
         kind: u8,
         package: ByteDigest,
         static_binding: [u8; 32],
+        claims: ByteDigest,
+        runtime: ProducerValueSelection,
+        subject: Option<ProducerValueSelection>,
         producer_values: &[ByteDigest],
-    ) -> Self {
+    ) -> Result<Self, ProducerRequestError> {
         let package = format!("{package:x}");
-        let mut identity = Vec::with_capacity(1 + 64 + 32 + 64 * producer_values.len());
+        let claims = format!("{claims:x}");
+        let mut identity =
+            Vec::with_capacity(1 + 64 + 32 + 64 + 32 + 16 + 48 + 64 * producer_values.len());
         identity.push(kind);
         identity.extend_from_slice(package.as_bytes());
         identity.extend_from_slice(&static_binding);
+        identity.extend_from_slice(claims.as_bytes());
+        identity.extend_from_slice(&runtime.digest());
+        identity.extend_from_slice(
+            &u128::try_from(runtime.framed_bytes())
+                .expect("Rust usize always fits u128")
+                .to_be_bytes(),
+        );
+        if let Some(subject) = subject {
+            identity.extend_from_slice(&subject.digest());
+            identity.extend_from_slice(
+                &u128::try_from(subject.framed_bytes())
+                    .expect("Rust usize always fits u128")
+                    .to_be_bytes(),
+            );
+        }
         for digest in producer_values {
             identity.extend_from_slice(format!("{digest:x}").as_bytes());
         }
-        Self(identity.into())
+        let selection_bytes = subject.map_or(Ok(runtime.framed_bytes()), |subject| {
+            runtime
+                .framed_bytes()
+                .checked_add(subject.framed_bytes())
+                .ok_or(ProducerRequestError::SelectionBytesOverflow)
+        })?;
+        Ok(Self {
+            identity: identity.into(),
+            runtime,
+            subject,
+            selection_bytes,
+        })
     }
 
     /// Exact retained identity bytes.
     #[must_use]
     pub fn as_bytes(&self) -> &[u8] {
-        &self.0
+        &self.identity
+    }
+
+    pub(crate) const fn runtime_selection(&self) -> ProducerValueSelection {
+        self.runtime
+    }
+
+    pub(crate) const fn subject_selection(&self) -> Option<ProducerValueSelection> {
+        self.subject
+    }
+
+    const fn selection_bytes(&self) -> usize {
+        self.selection_bytes
     }
 }
 
@@ -569,6 +787,22 @@ impl ProducerResolution {
             .expect("fixed producer request identities are nonempty");
         self.resolved.authorize_request(&actual)
     }
+
+    /// Refuse an actual selection that exceeded or could not inhabit the
+    /// bounded request identity before it could be encoded.
+    pub(crate) fn refuse_unrepresentable_selection<T>(&self) -> OperationOutcome<T> {
+        let actual = ResolutionRequestIdentity::new(b"unrepresentable-producer-selection")
+            .expect("static mismatch identity is nonempty");
+        match self.resolved.authorize_request(&actual) {
+            OperationOutcome::Refused(refusal) => OperationOutcome::Refused(refusal),
+            OperationOutcome::ResourceIncomplete(incomplete) => {
+                OperationOutcome::ResourceIncomplete(incomplete)
+            }
+            OperationOutcome::Completed(()) => {
+                unreachable!("a structured request identity cannot equal the static mismatch")
+            }
+        }
+    }
 }
 
 /// Resolve the complete producer-contract inventory for one request.
@@ -592,15 +826,20 @@ pub fn resolve_producer_contracts<C: Clock + 'static>(
             )
         })
         .collect::<Vec<_>>();
-    let resolved =
-        match version_lock::resolve_interfaces(private_request, manifest, &required, budget, clock)
-        {
-            OperationOutcome::Completed(resolved) => resolved,
-            OperationOutcome::Refused(refusal) => return OperationOutcome::Refused(refusal),
-            OperationOutcome::ResourceIncomplete(incomplete) => {
-                return OperationOutcome::ResourceIncomplete(incomplete)
-            }
-        };
+    let resolved = match version_lock::resolve_interfaces(
+        private_request,
+        manifest,
+        &required,
+        request.selection_bytes(),
+        budget,
+        clock,
+    ) {
+        OperationOutcome::Completed(resolved) => resolved,
+        OperationOutcome::Refused(refusal) => return OperationOutcome::Refused(refusal),
+        OperationOutcome::ResourceIncomplete(incomplete) => {
+            return OperationOutcome::ResourceIncomplete(incomplete)
+        }
+    };
 
     let contracts = ProducerContract::ALL.map(|contract| ResolvedProducerContract {
         contract,

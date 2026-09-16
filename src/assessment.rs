@@ -5,6 +5,11 @@
 //! those stage outputs into private result construction. It does not parse or
 //! repair owner bytes, and callers cannot restate the semantic result facts.
 
+use std::{
+    marker::PhantomData,
+    ops::{Deref, DerefMut},
+};
+
 use quire_observation::authority::{
     closure as observation_closure, completeness, observation as observation_record, position,
     progress,
@@ -53,8 +58,8 @@ use crate::model::v2::{
 };
 use crate::outcome::ClaimOutcome;
 use crate::producer_contracts::{
-    resolve_before_producer_read, subject_selection_digest, ProducerReadiness, ProducerResolution,
-    ProducerResolutionRequest,
+    resolve_before_producer_read, select_runtime_bindings, select_subject, ProducerReadiness,
+    ProducerResolution, ProducerResolutionRequest,
 };
 use crate::refusal::catalog::{
     CatalogSelection, CodeEntry, CodeModule, Provenance, RefusalCode, RetainedBytes,
@@ -878,7 +883,7 @@ pub struct Engine<'a> {
 
 /// An assessment engine whose complete producer inventory resolved first.
 ///
-/// Construction is private to the atomic `start_*_after_resolving` boundaries.
+/// Construction is private to the atomic `with_*_after_resolving` boundaries.
 /// Consequently the public producer-dependent assessment path cannot consume
 /// QObs/QSL values with an absent, unresolved, unpinned, repointed, or
 /// differently request-bound manifest.
@@ -886,6 +891,60 @@ pub struct Engine<'a> {
 pub struct ResolvedAssessmentEngine<'a> {
     engine: Engine<'a>,
     resolution: ProducerResolution,
+}
+
+/// A non-escaping post-resolution execution scope.
+///
+/// The scope is created only after the complete producer manifest and exact
+/// request identity resolve. Its higher-ranked lifetime prevents callers from
+/// returning the engine and supplying producer-backed operation values later.
+///
+/// ```compile_fail,E0521
+/// use quire_protocol::assessment::{
+///     with_assessment_after_resolving, AssessmentInputs, ProducerReadPermit,
+///     ResolvedAssessmentScope,
+/// };
+/// use quire_protocol::bounds::Clock;
+/// use quire_protocol::outcome::OperationOutcome;
+/// use quire_protocol::producer_contracts::{ProducerReadiness, ProducerResolutionRequest};
+/// use quire_protocol::version_lock::{ResolutionBudget, VersionLockManifest};
+///
+/// fn escape<'a, C: Clock + 'static>(
+///     request: &ProducerResolutionRequest,
+///     manifest: &VersionLockManifest,
+///     budget: ResolutionBudget,
+///     clock: C,
+///     load: impl FnOnce(ProducerReadPermit) -> AssessmentInputs<'a>,
+/// ) -> ResolvedAssessmentScope<'static, 'a> {
+///     let ProducerReadiness::Executable(OperationOutcome::Completed(scope)) =
+///         with_assessment_after_resolving(request, manifest, budget, clock, load, |scope| scope)
+///     else {
+///         panic!("resolution did not complete")
+///     };
+///     scope
+/// }
+/// ```
+pub struct ResolvedAssessmentScope<'scope, 'a> {
+    engine: Option<ResolvedAssessmentEngine<'a>>,
+    _scope: PhantomData<&'scope mut ()>,
+}
+
+impl<'a> Deref for ResolvedAssessmentScope<'_, 'a> {
+    type Target = ResolvedAssessmentEngine<'a>;
+
+    fn deref(&self) -> &Self::Target {
+        self.engine
+            .as_ref()
+            .expect("a live resolution scope retains its engine")
+    }
+}
+
+impl DerefMut for ResolvedAssessmentScope<'_, '_> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.engine
+            .as_mut()
+            .expect("a live resolution scope retains its engine")
+    }
 }
 
 impl ResolvedAssessmentEngine<'_> {
@@ -1761,7 +1820,7 @@ impl<'a> Engine<'a> {
     /// Retain one independent outcome for every selected claim.
     ///
     /// Generic assembly is internal support for the typed result stage. The
-    /// public path is [`ResolvedAssessmentEngine::assess_activated`], which
+    /// public path is [`ResolvedAssessmentScope::assess_activated`], which
     /// owns production and strict reading from the Engine's exact linked
     /// assessment after producer resolution.
     pub(crate) fn assemble<Row>(
@@ -2023,7 +2082,7 @@ impl<'a> Engine<'a> {
 
 /// Unforgeable authority to assemble producer inputs after resolution.
 ///
-/// Only the atomic `start_*_after_resolving` functions can construct this
+/// Only the atomic `with_*_after_resolving` functions can construct this
 /// value. It is consumed by an input-bundle constructor and cannot escape the
 /// loader as a reusable capability.
 pub struct ProducerReadPermit {
@@ -2143,45 +2202,69 @@ impl<'a> ResultAssessmentInputs<'a> {
 /// Resolve every producer before invoking the loader for a non-temporal
 /// assessment. The loader is not called on refusal or resource exhaustion.
 #[must_use]
-pub fn start_assessment_after_resolving<'a, C: Clock + 'static>(
+pub fn with_assessment_after_resolving<'a, C: Clock + 'static, T>(
     request: &ProducerResolutionRequest,
     manifest: &VersionLockManifest,
     budget: ResolutionBudget,
     clock: C,
     load: impl FnOnce(ProducerReadPermit) -> AssessmentInputs<'a>,
-) -> ProducerReadiness<crate::outcome::OperationOutcome<ResolvedAssessmentEngine<'a>>> {
+    run: impl for<'scope> FnOnce(ResolvedAssessmentScope<'scope, 'a>) -> T,
+) -> ProducerReadiness<crate::outcome::OperationOutcome<T>> {
     resolve_before_producer_read(request, manifest, budget, clock, |resolution| {
-        resolution.start(load(ProducerReadPermit { _private: () }))
+        resolution
+            .start(load(ProducerReadPermit { _private: () }))
+            .map(|engine| {
+                run(ResolvedAssessmentScope {
+                    engine: Some(engine),
+                    _scope: PhantomData,
+                })
+            })
     })
 }
 
 /// Resolve every producer before invoking the loader for an event-activated
 /// assessment. The loader is not called on refusal or resource exhaustion.
 #[must_use]
-pub fn start_activated_after_resolving<'a, C: Clock + 'static>(
+pub fn with_activated_after_resolving<'a, C: Clock + 'static, T>(
     request: &ProducerResolutionRequest,
     manifest: &VersionLockManifest,
     budget: ResolutionBudget,
     clock: C,
     load: impl FnOnce(ProducerReadPermit) -> ActivatedAssessmentInputs<'a>,
-) -> ProducerReadiness<crate::outcome::OperationOutcome<ResolvedAssessmentEngine<'a>>> {
+    run: impl for<'scope> FnOnce(ResolvedAssessmentScope<'scope, 'a>) -> T,
+) -> ProducerReadiness<crate::outcome::OperationOutcome<T>> {
     resolve_before_producer_read(request, manifest, budget, clock, |resolution| {
-        resolution.start_activated(load(ProducerReadPermit { _private: () }))
+        resolution
+            .start_activated(load(ProducerReadPermit { _private: () }))
+            .map(|engine| {
+                run(ResolvedAssessmentScope {
+                    engine: Some(engine),
+                    _scope: PhantomData,
+                })
+            })
     })
 }
 
 /// Resolve every producer before invoking the loader for canonical result
 /// assessment. The loader is not called on refusal or resource exhaustion.
 #[must_use]
-pub fn start_result_assessment_after_resolving<'a, C: Clock + 'static>(
+pub fn with_result_assessment_after_resolving<'a, C: Clock + 'static, T>(
     request: &ProducerResolutionRequest,
     manifest: &VersionLockManifest,
     budget: ResolutionBudget,
     clock: C,
     load: impl FnOnce(ProducerReadPermit) -> ResultAssessmentInputs<'a>,
-) -> ProducerReadiness<crate::outcome::OperationOutcome<ResolvedAssessmentEngine<'a>>> {
+    run: impl for<'scope> FnOnce(ResolvedAssessmentScope<'scope, 'a>) -> T,
+) -> ProducerReadiness<crate::outcome::OperationOutcome<T>> {
     resolve_before_producer_read(request, manifest, budget, clock, |resolution| {
-        resolution.start_result_assessment(load(ProducerReadPermit { _private: () }))
+        resolution
+            .start_result_assessment(load(ProducerReadPermit { _private: () }))
+            .map(|engine| {
+                run(ResolvedAssessmentScope {
+                    engine: Some(engine),
+                    _scope: PhantomData,
+                })
+            })
     })
 }
 
@@ -2190,11 +2273,20 @@ impl ProducerResolution {
         self,
         inputs: AssessmentInputs<'a>,
     ) -> crate::outcome::OperationOutcome<ResolvedAssessmentEngine<'a>> {
-        let actual = ProducerResolutionRequest::for_assessment(
+        let expected_runtime = self.request().runtime_selection();
+        let Ok(runtime) =
+            select_runtime_bindings(inputs.context.runtime(), expected_runtime.framed_bytes())
+        else {
+            return self.refuse_unrepresentable_selection();
+        };
+        let Ok(actual) = ProducerResolutionRequest::for_assessment(
             inputs.context.package().digest(),
             inputs.context.definition().selection().digest,
             &inputs.requested,
-        );
+            runtime,
+        ) else {
+            return self.refuse_unrepresentable_selection();
+        };
         match self.authorize(&actual) {
             crate::outcome::OperationOutcome::Completed(()) => {}
             crate::outcome::OperationOutcome::Refused(refusal) => {
@@ -2216,16 +2308,32 @@ impl ProducerResolution {
         self,
         inputs: ActivatedAssessmentInputs<'a>,
     ) -> crate::outcome::OperationOutcome<ResolvedAssessmentEngine<'a>> {
-        let actual = ProducerResolutionRequest::for_activated_assessment(
+        let expected_runtime = self.request().runtime_selection();
+        let Ok(runtime) =
+            select_runtime_bindings(inputs.context.runtime(), expected_runtime.framed_bytes())
+        else {
+            return self.refuse_unrepresentable_selection();
+        };
+        let expected_subject = self
+            .request()
+            .subject_selection()
+            .expect("an activated request retains its subject selection");
+        let Ok(subject) = select_subject(inputs.subject, expected_subject.framed_bytes()) else {
+            return self.refuse_unrepresentable_selection();
+        };
+        let Ok(actual) = ProducerResolutionRequest::for_activated_assessment(
             inputs.context.package().digest(),
             inputs.context.definition().selection().digest,
             &inputs.requested,
+            runtime,
             inputs.mappings.digest(),
-            subject_selection_digest(inputs.subject),
+            subject,
             inputs.temporal_subject.document().digest(),
             inputs.request.document().digest(),
             inputs.result.document().digest(),
-        );
+        ) else {
+            return self.refuse_unrepresentable_selection();
+        };
         match self.authorize(&actual) {
             crate::outcome::OperationOutcome::Completed(()) => {}
             crate::outcome::OperationOutcome::Refused(refusal) => {
@@ -2256,17 +2364,33 @@ impl ProducerResolution {
         self,
         inputs: ResultAssessmentInputs<'a>,
     ) -> crate::outcome::OperationOutcome<ResolvedAssessmentEngine<'a>> {
-        let actual = ProducerResolutionRequest::for_result_assessment(
+        let expected_runtime = self.request().runtime_selection();
+        let Ok(runtime) =
+            select_runtime_bindings(inputs.context.runtime(), expected_runtime.framed_bytes())
+        else {
+            return self.refuse_unrepresentable_selection();
+        };
+        let expected_subject = self
+            .request()
+            .subject_selection()
+            .expect("a result request retains its subject selection");
+        let Ok(subject) = select_subject(inputs.subject, expected_subject.framed_bytes()) else {
+            return self.refuse_unrepresentable_selection();
+        };
+        let Ok(actual) = ProducerResolutionRequest::for_result_assessment(
             inputs.context.package().digest(),
             inputs.context.definition().selection().digest,
             &inputs.requested,
+            runtime,
             inputs.mappings.digest(),
-            subject_selection_digest(inputs.subject),
+            subject,
             inputs.temporal_subject.document().digest(),
             inputs.request.document().digest(),
             inputs.result.document().digest(),
             inputs.checked_predicate.document().digest(),
-        );
+        ) else {
+            return self.refuse_unrepresentable_selection();
+        };
         match self.authorize(&actual) {
             crate::outcome::OperationOutcome::Completed(()) => {}
             crate::outcome::OperationOutcome::Refused(refusal) => {
@@ -2476,6 +2600,44 @@ impl<'a> ResolvedAssessmentEngine<'a> {
             controls,
             budget,
         )
+    }
+}
+
+impl<'a> ResolvedAssessmentScope<'_, 'a> {
+    /// Consume this post-resolution scope in the canonical activated-result
+    /// operation. No producer-dependent engine can escape the scope.
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "the resolved scope preserves independently owned conformance, dispatch, result-control, and budget inputs"
+    )]
+    pub fn assess_activated(
+        mut self,
+        requests: &[ClaimRequest<'_>],
+        facts: &[ActivationFact<'a>],
+        axes: AxisInputs<'a>,
+        completeness: &'a completeness::View,
+        global_conformance: &GlobalConformanceInput,
+        execution: crate::closure::AssessmentExecution,
+        conformance_limits: ConformanceLimits,
+        dispatch_limits: DispatchLimits,
+        controls: Vec<Option<CanonicalRowControls>>,
+        budget: Budget,
+    ) -> crate::outcome::OperationOutcome<AssessmentBundle<'a, result::ValidatedResult>> {
+        self.engine
+            .take()
+            .expect("a live resolution scope retains its engine")
+            .assess_activated(
+                requests,
+                facts,
+                axes,
+                completeness,
+                global_conformance,
+                execution,
+                conformance_limits,
+                dispatch_limits,
+                controls,
+                budget,
+            )
     }
 }
 

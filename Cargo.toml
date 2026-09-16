@@ -17,6 +17,9 @@ quire-verification = { git = "https://github.com/agent-ix/quire-verification", r
 serde_json = "=1.0.151"
 serde = { version = "=1.0.228", features = ["derive"] }
 jsonschema = { version = "=0.17.1", default-features = false, features = ["draft202012"] }
+# Streams bounded producer-value request identities without allocating a
+# caller-sized preimage. This is a digest carrier, not a semantic owner.
+sha2 = "=0.10.9"
 
 [dev-dependencies]
 agent-ix-baseline-producer = { version = "=0.0.0", git = "https://github.com/agent-ix/filament-core-data", rev = "404288282402d60de007295ccbafa960532b955e" }

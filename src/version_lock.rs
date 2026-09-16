@@ -1305,7 +1305,18 @@ pub(crate) fn resolve<C: Clock + 'static>(
     budget: ResolutionBudget,
     clock: C,
 ) -> OperationOutcome<ResolvedRequest> {
-    resolve_selected(request, manifest, required, deliveries, &[], budget, clock)
+    resolve_selected(
+        request,
+        manifest,
+        required,
+        SelectedResolution {
+            deliveries,
+            interfaces: &[],
+            request_selection_bytes: 0,
+        },
+        budget,
+        clock,
+    )
 }
 
 /// Resolve and validate a closed interface inventory under the same entry,
@@ -1315,6 +1326,7 @@ pub(crate) fn resolve_interfaces<C: Clock + 'static>(
     request: ResolutionRequestIdentity,
     manifest: &VersionLockManifest,
     required: &[InterfaceRequirement],
+    request_selection_bytes: usize,
     budget: ResolutionBudget,
     clock: C,
 ) -> OperationOutcome<ResolvedRequest> {
@@ -1322,15 +1334,31 @@ pub(crate) fn resolve_interfaces<C: Clock + 'static>(
         .iter()
         .map(|selection| selection.key.clone())
         .collect::<Vec<_>>();
-    resolve_selected(request, manifest, &keys, &[], required, budget, clock)
+    resolve_selected(
+        request,
+        manifest,
+        &keys,
+        SelectedResolution {
+            deliveries: &[],
+            interfaces: required,
+            request_selection_bytes,
+        },
+        budget,
+        clock,
+    )
+}
+
+struct SelectedResolution<'a> {
+    deliveries: &'a [ArtifactDelivery],
+    interfaces: &'a [InterfaceRequirement],
+    request_selection_bytes: usize,
 }
 
 fn resolve_selected<C: Clock + 'static>(
     request: ResolutionRequestIdentity,
     manifest: &VersionLockManifest,
     required: &[EntryKey],
-    deliveries: &[ArtifactDelivery],
-    interfaces: &[InterfaceRequirement],
+    selected: SelectedResolution<'_>,
     budget: ResolutionBudget,
     clock: C,
 ) -> OperationOutcome<ResolvedRequest> {
@@ -1350,39 +1378,39 @@ fn resolve_selected<C: Clock + 'static>(
     let manifest_outcome = resources.run_resolution_unit(MANIFEST_UNIT, |_| {
         inventory::OperationOutcome::from_domain(prevalidate_manifest(manifest, required).and_then(
             |ordered| {
-                for selected in interfaces {
-                    let entry = entry_for(manifest, &selected.key)
+                for interface in selected.interfaces {
+                    let entry = entry_for(manifest, &interface.key)
                         .expect("manifest prevalidation established each interface key");
                     let Some(revision) = entry.revision.as_ref() else {
                         return Err(outcome_refusal(refused_key::<()>(
                             ResolutionRefusalCode::RevisionAbsent,
-                            &selected.key,
+                            &interface.key,
                             incomplete_field(b"revision"),
                         )));
                     };
                     if entry.kind() != EntryKind::Interface {
                         return Err(outcome_refusal(refused_key::<()>(
                             ResolutionRefusalCode::InterfaceSelectionMismatch,
-                            &selected.key,
+                            &interface.key,
                             wrong_kind(b"interface", b"artifact"),
                         )));
                     }
-                    if revision != &selected.revision {
+                    if revision != &interface.revision {
                         return Err(outcome_refusal(refused_key::<()>(
                             ResolutionRefusalCode::InterfaceSelectionMismatch,
-                            &selected.key,
-                            identity_mismatch(&selected.revision, revision),
+                            &interface.key,
+                            identity_mismatch(&interface.revision, revision),
                         )));
                     }
                     let assertion = entry
                         .immutability_assertion
                         .as_ref()
                         .expect("manifest prevalidation established an owner assertion");
-                    if assertion != &selected.immutability_assertion {
+                    if assertion != &interface.immutability_assertion {
                         return Err(outcome_refusal(refused_key::<()>(
                             ResolutionRefusalCode::InterfaceSelectionMismatch,
-                            &selected.key,
-                            identity_mismatch(&selected.immutability_assertion, assertion),
+                            &interface.key,
+                            identity_mismatch(&interface.immutability_assertion, assertion),
                         )));
                     }
                 }
@@ -1398,9 +1426,18 @@ fn resolve_selected<C: Clock + 'static>(
         }
     };
 
+    if let Err(error) = resources.charge(
+        RESOLUTION_BYTES_SOURCE.id(),
+        selected.request_selection_bytes,
+    ) {
+        return charge_outcome(error);
+    }
+
     let delivery_outcome = resources.run_resolution_unit(DELIVERY_UNIT, |_| {
         inventory::OperationOutcome::from_domain(prevalidate_delivery(
-            manifest, &ordered, deliveries,
+            manifest,
+            &ordered,
+            selected.deliveries,
         ))
     });
     let required_bytes = match bounded_outcome(delivery_outcome) {
@@ -1426,7 +1463,8 @@ fn resolve_selected<C: Clock + 'static>(
                     member,
                     digest: expected,
                 } => {
-                    let delivery = deliveries
+                    let delivery = selected
+                        .deliveries
                         .iter()
                         .find(|delivery| delivery.member == *member)
                         .expect("delivery prevalidation established the selected member");

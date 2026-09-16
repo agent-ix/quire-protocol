@@ -590,7 +590,8 @@ fn it_001_inventory_identifies_one_b_owned_reader_path() {
             "quire-verification",
             "serde_json",
             "serde",
-            "jsonschema"
+            "jsonschema",
+            "sha2"
         ]
     );
 
@@ -598,6 +599,7 @@ fn it_001_inventory_identifies_one_b_owned_reader_path() {
     assert!(consumer.contains(r#""quire-spec-language""#));
     assert!(consumer.contains(r#""quire-observation""#));
     assert!(consumer.contains(r#""quire-verification""#));
+    assert!(consumer.contains(r#""sha2 0.10.9""#));
     assert!(consumer.contains(r#""serde_json""#));
     assert!(!consumer.contains(r#""logos""#));
 }
