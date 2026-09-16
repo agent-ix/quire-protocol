@@ -5,31 +5,45 @@ description: "Chronological log of changes to the Plan-001 bundle."
 ---
 # Plan-001 — Update Log
 
-* **2026-09-15** — Completed Task-010 for `quire-protocol#12`, scoped to
-  IT-002 SC-01..SC-04. Exact QObs `93bc565` authority facts and QSL
-  `0c2f13e` native-temporal v2 request/result facts now execute through the
-  strict FR-300 activation join, batch and settled-incremental conformance,
-  claim dispatch and atomic canonical-result assembly. The paired real Rust
-  tests preserve owner values and refuse subject, result, occurrence, scoped
-  closure, global premise, completeness and execution substitutions without a
-  local producer mirror. The task and Plan-001 row are done; IT-002 itself
-  remains in progress because SC-05..SC-08 are later replay, budget and
-  retained-evidence extensions. `/rust-review` SR-120 and `/gap-analysis`
-  SR-121 pass the scoped allocation; no claim is made for Plan-001, IT-003 or
-  the later IT-002 scenarios.
-
 ## History
 
-* **2026-09-15** — Reopened Task-006 after independent exact-head review. The
-  Engine now retains the complete owner activation binding, rejects unselected
-  dispatch and same-trigger superseding-result substitution, and reports each
-  result-selection axis separately. Producer structural work is preflighted and
-  charged before allocation. The pinned QSL v2 result surface still does not
-  expose settlement/support/predecessor owner views, and pinned QObs exposes no
-  authenticated oracle/dependence or correction producer. Protocol therefore
-  remains fail-closed with unavailable truth and absent correction; those are
-  safe interim outcomes, not completion evidence for FR-032/FR-033. Task-006 and
-  SR-116/SR-117 are in progress/blocked pending the owner capabilities.
+* **2026-09-15** — Completed Task-008's final resource/reproduction sweep over
+  the combined Task-006, Task-007 and Task-010 paths. `ResourceAccountant` is
+  now the sole supported request accountant: the unused public
+  `CountGuard`/`BoundedRun` architecture, its duplicate site registry and its
+  eight dead `bounds.*` refusal registrations are removed. E02 projection runs
+  as a bounded deadline unit, strict-reads through the shared accountant and
+  inventories derived/item/operation work, candidate/output/source-copy
+  allocations and exact canonical output bytes. TC-009 retains only production
+  accountant/inventory/deadline cases and adds real projection exact,
+  representable one-short and fresh-exact controls. TC-008 adds reverse-map E02
+  byte/typed equivalence, adapter-identity discrimination and the legal IT-002
+  batch/incremental permutation to the existing full named identity matrix.
+  NFR-001 and NFR-002 are fully trace-backed; no targeted row or Task-008 tag is
+  unbacked, unmatched or untracked. SR-120/SR-121 pass the Rust and scoped gap
+  reviews. Native Quoin `0.23.1-86-gc721d71` reports no finding; Quire's known
+  multiline trace-scanner defect remains tracked in `quire-cli#90`.
+
+* **2026-09-15** — Completed Task-010's observation/native-temporal integration
+  allocation against accepted QObs `93bc565` and QSL native-temporal v1
+  `f1700a9` / opaque-trigger v2 `0c2f13e`. A closed 14-contract inventory now
+  resolves through Task-013's bounded request-bound capabilities before the
+  public composed assessment completes; foreign request reuse and every absent,
+  unpinned, unresolved, duplicate or repointed entry refuse. IT-002's ten
+  non-record scenario units run by default from QSL's published `/2` handoff and
+  strict `/3` activation map through QObs subjects, activation-derived batch and
+  settled-incremental conformance, claim dispatch and canonical result readback.
+  The lane preserves every scoped axis, completeness state, operative global
+  closure state and exact global-premise defect; proves early settlement,
+  non-singleton permitted-order invariance, changed-premise agreement and exact/
+  one-short/fresh request bounds; and fixes obligation identity to include
+  workflow and repeat ordinals. Completed bundles retain the resolved manifest,
+  selected contracts, resolver usage, caller grants and assessment usage as
+  typed inputs to Task-018. Final FR-017 record composition and SC-07b record-set
+  distinctness remain exclusively Task-018-owned; they are not pre-credited.
+  SR-118/SR-119 pass the Rust and scoped gap reviews. The exact serialized,
+  locked NFR-004 format, all-target Clippy-with-warnings-denied and full test
+  gate passes on the reconciled candidate, including 43 doc-tests.
 
 * **2026-09-15** — Completed the Task-006 / issue #8 candidate as one atomic
   activation-to-result Engine operation. Exact conformance axes, completeness
@@ -43,24 +57,10 @@ description: "Chronological log of changes to the Plan-001 bundle."
   compile-fail inaccessible. TC-006/TC-011 include atomic, strict-reader,
   provenance, cumulative-accounting, accounting-fault and FR-008 decomposition
   controls. SR-116/SR-117 pass; `quire coverage` reports 154/342 repository rows
-  backed and 272/279 Rust candidates bound/tagged, with no in-scope
-  unbacked/status-lie/
+  backed and 270/278 evidence symbols tagged, with no unbacked/status-lie/
   untracked-Task-006 record. The exact unchanged-worktree NFR-004 gate passes
   after repairing the two static-test oracle defects it exposed. Downstream
   Tasks 007, 008 and 010 and the wider Plan-001/epic remain open.
-  Independent PR-head reviews then found and fixed the residual boundary gaps:
-  raw public constructors, caller-supplied semantic result facts, order-insensitive
-  requests, activation-fact retargeting, invented oracle/support and role-instance
-  identities, caller-authored correction semantics, collapsed row-refusal
-  identities and post-hoc owner-limit routing. Result startup accepts any exact
-  declaration-qualified member of QSL's reachable predicate-leaf set and rejects
-  foreign or unreachable leaves. Exact FR-287 role-instance subjects come only
-  from admitted runtime bindings. Because current conformance output supplies no
-  owner-authenticated oracle/dependence fact, canonical orchestration reports
-  truth and settlement unavailable with empty support rather than inventing a
-  decisive result; correction likewise remains absent pending an authenticated
-  contradiction capability. Producer output bytes, retained strings, depth and
-  field traversal now charge distinct reconciled accountant sites.
 
 * **2026-09-15** — Completed Task-005 / issue #7 as the activation-derived
   independent-claim bridge. The public Engine now assesses strict FR-300 facts

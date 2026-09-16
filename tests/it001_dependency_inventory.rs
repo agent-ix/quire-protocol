@@ -63,6 +63,7 @@ const LIBRARY_MODULES: &[&str] = &[
     "link",
     "model",
     "outcome.rs",
+    "producer_contracts.rs",
     "projection.rs",
     "refusal",
     "repro.rs",

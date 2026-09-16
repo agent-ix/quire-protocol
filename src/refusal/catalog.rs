@@ -274,30 +274,6 @@ pub const EXECUTION_CODES: CodeModule = CodeModule {
     ],
 };
 
-/// The two deadline-observation codes `crate::bounds` emits, under the reserved
-/// root `bounds`. Owner chunk: **C-30**.
-pub const BOUNDS_CODES: CodeModule = CodeModule {
-    root: "bounds",
-    owner: "C-30",
-    module_path: "quire_protocol::bounds",
-    entries: &[
-        CodeEntry {
-            provenance: Provenance::Minted,
-            code: "bounds.deadline.expired",
-            domain: RefusalDomain::Assessment,
-            retry: RetryDecision::AfterResourceRelease,
-            summary: "the elapsed budget ran out",
-        },
-        CodeEntry {
-            provenance: Provenance::Minted,
-            code: "bounds.deadline.clock-regressed",
-            domain: RefusalDomain::Assessment,
-            retry: RetryDecision::Never,
-            summary: "the monotonic clock read backwards",
-        },
-    ],
-};
-
 /// Task-013's independently assertable version-lock refusal axes.
 pub const VERSION_LOCK_CODES: CodeModule = CodeModule {
     root: "version-lock",
@@ -436,7 +412,6 @@ pub const REGISTRY: &[CodeModule] = &[
     SPEC_NAMED_CODES,
     CLOSURE_CODES,
     EXECUTION_CODES,
-    BOUNDS_CODES,
     crate::assessment::CODES,
     crate::assessment::REPRESENTATION_CODES,
     crate::assessment::CONFORMANCE_CODES,

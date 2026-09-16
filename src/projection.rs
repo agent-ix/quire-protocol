@@ -19,9 +19,13 @@ use quire_verification::contracts::{
 use serde::Serialize;
 use serde_json::{json, Map, Value};
 
-use crate::bounds::inventory::Usage;
-use crate::bounds::Clock;
+use crate::bounds::inventory::{
+    BudgetDimension, ChargeError, OperationOutcome as BoundedOutcome, ResourceAccountant,
+    SourceSite, Usage,
+};
+use crate::bounds::{Clock, SiteId, SiteKind, UnitLabel};
 use crate::closure::AssessmentExecution;
+use crate::digest::jcs::canonical_len;
 use crate::outcome::OperationOutcome;
 use crate::refusal::catalog::{
     CatalogSelection, CodeEntry, CodeModule, Provenance, RefusalCode, RetainedBytes,
@@ -50,6 +54,55 @@ pub const SOURCE_MEDIA_TYPE: &str =
     "application/vnd.agent-ix.quire-protocol-result+json;version=1-draft.1";
 
 const IMMUTABILITY_ASSERTION: &[u8] = b"owner asserts immutable and published";
+
+pub(crate) const DERIVED_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("projection/e02/derive"),
+    "projection::project_e02",
+    BudgetDimension::DerivedArtifact,
+    SiteKind::Retention,
+);
+pub(crate) const ITEM_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("projection/e02/item/retain"),
+    "projection::project_e02",
+    BudgetDimension::ResultItem,
+    SiteKind::Retention,
+);
+pub(crate) const OPERATION_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("projection/e02/item/visit"),
+    "projection::project_e02",
+    BudgetDimension::Operation,
+    SiteKind::Traversal,
+);
+pub(crate) const CANDIDATE_ALLOCATION_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("projection/e02/candidate/allocate"),
+    "projection::project_e02",
+    BudgetDimension::AccountedAllocation,
+    SiteKind::Allocation,
+);
+pub(crate) const OUTPUT_ALLOCATION_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("projection/e02/output/allocate"),
+    "projection::project_e02",
+    BudgetDimension::AccountedAllocation,
+    SiteKind::Allocation,
+);
+pub(crate) const TARGET_READ_ALLOCATION_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("projection/e02/target-read/allocate"),
+    "projection::project_e02",
+    BudgetDimension::AccountedAllocation,
+    SiteKind::Allocation,
+);
+pub(crate) const SOURCE_COPY_ALLOCATION_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("projection/e02/source-copy/allocate"),
+    "projection::project_e02",
+    BudgetDimension::AccountedAllocation,
+    SiteKind::Allocation,
+);
+pub(crate) const OUTPUT_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("projection/e02/output/retain"),
+    "projection::project_e02",
+    BudgetDimension::OutputByte,
+    SiteKind::Retention,
+);
 
 /// The one qverify contract this adapter is compiled to consume.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -325,36 +378,99 @@ pub fn project_e02(
     request: &ProjectionRequestId,
     resolution: &E02Resolution,
     context: &ProjectionContext,
-) -> OperationOutcome<ProjectedTechniqueResult> {
+    resources: &mut ResourceAccountant<'_>,
+) -> BoundedOutcome<ProjectedTechniqueResult, ProtocolRefusal> {
+    resources.run_unit(UnitLabel::new("projection::project_e02"), |resources| {
+        project_e02_unit(
+            source_bytes,
+            source_expected,
+            source_limits,
+            request,
+            resolution,
+            context,
+            resources,
+        )
+    })
+}
+
+fn project_e02_unit(
+    source_bytes: &[u8],
+    source_expected: Expected<'_>,
+    source_limits: Limits,
+    request: &ProjectionRequestId,
+    resolution: &E02Resolution,
+    context: &ProjectionContext,
+    resources: &mut ResourceAccountant<'_>,
+) -> BoundedOutcome<ProjectedTechniqueResult, ProtocolRefusal> {
     match resolution.authorize(request) {
         OperationOutcome::Completed(()) => {}
-        OperationOutcome::Refused(refusal) => return OperationOutcome::Refused(refusal),
+        OperationOutcome::Refused(refusal) => return BoundedOutcome::DomainError(refusal),
         OperationOutcome::ResourceIncomplete(incomplete) => {
-            return OperationOutcome::ResourceIncomplete(incomplete);
+            return BoundedOutcome::ResourceIncomplete(incomplete);
         }
     }
     let source_affected = source_expected.enclosing_digest;
-    let source = match result::read(source_bytes, source_expected, source_limits) {
-        Ok(source) => source,
-        Err(_) => {
-            return OperationOutcome::Refused(projection_refusal(
+    let source = match result::read_bounded(source_bytes, source_expected, source_limits, resources)
+    {
+        BoundedOutcome::Completed(source) => source,
+        BoundedOutcome::DomainError(_) => {
+            return BoundedOutcome::DomainError(projection_refusal(
                 ProjectionRefusalCode::InvalidSourceResult,
                 source_affected.as_bytes(),
             ));
         }
-    };
-    match project_validated(&source, context) {
-        Ok(projected) => OperationOutcome::Completed(projected),
-        Err((code, identity)) => {
-            OperationOutcome::Refused(projection_refusal(code, identity.as_bytes()))
+        BoundedOutcome::ResourceIncomplete(incomplete) => {
+            return BoundedOutcome::ResourceIncomplete(incomplete);
         }
+        BoundedOutcome::AccountingFault(fault) => {
+            return BoundedOutcome::AccountingFault(fault);
+        }
+    };
+    match project_validated(&source, context, resources) {
+        Ok(projected) => BoundedOutcome::Completed(projected),
+        Err(ProjectionFailure::Domain(code, identity)) => {
+            BoundedOutcome::DomainError(projection_refusal(code, identity.as_bytes()))
+        }
+        Err(ProjectionFailure::Resource(error)) => BoundedOutcome::from_charge(error),
+    }
+}
+
+enum ProjectionFailure {
+    Domain(ProjectionRefusalCode, String),
+    Resource(ChargeError),
+}
+
+impl From<(ProjectionRefusalCode, String)> for ProjectionFailure {
+    fn from((code, identity): (ProjectionRefusalCode, String)) -> Self {
+        Self::Domain(code, identity)
+    }
+}
+
+impl From<ChargeError> for ProjectionFailure {
+    fn from(error: ChargeError) -> Self {
+        Self::Resource(error)
     }
 }
 
 fn project_validated(
     source: &ValidatedResult,
     context: &ProjectionContext,
-) -> Result<ProjectedTechniqueResult, (ProjectionRefusalCode, String)> {
+    resources: &mut ResourceAccountant<'_>,
+) -> Result<ProjectedTechniqueResult, ProjectionFailure> {
+    let item_count = context
+        .subject_refs
+        .len()
+        .saturating_add(context.binding_refs.len())
+        .saturating_add(source.decision_support().len())
+        .saturating_add(source.assumptions().len())
+        .saturating_add(source.limitations().len().saturating_mul(2))
+        .saturating_add(1);
+    resources.charge_all(&[
+        (DERIVED_SOURCE.id(), 1),
+        (ITEM_SOURCE.id(), item_count),
+        (OPERATION_SOURCE.id(), item_count),
+        (CANDIDATE_ALLOCATION_SOURCE.id(), 1),
+    ])?;
     validate_versions(context)?;
     validate_nonempty_context(context)?;
     let source_value: Value = serde_json::from_slice(source.bytes()).map_err(|_| {
@@ -373,7 +489,8 @@ fn project_validated(
         return Err(affected(
             ProjectionRefusalCode::InvalidSourceResult,
             &context.source_digest,
-        ));
+        )
+        .into());
     }
 
     let target_binding = json!({
@@ -413,7 +530,8 @@ fn project_validated(
                 .expected_result_id
                 .as_deref()
                 .unwrap_or(source.result_id()),
-        ));
+        )
+        .into());
     }
 
     let contributions = map_contributions(source, context, &result_id)?;
@@ -475,29 +593,24 @@ fn project_validated(
     });
     verify_projection(source, context, &candidate)?;
 
-    let result = match contracts::validate_contract(candidate.clone()) {
-        Ok(PublicContract::TechniqueResult(result)) => *result,
-        Ok(_) => {
-            return Err(affected(
-                ProjectionRefusalCode::FindingLoss,
-                source.result_id(),
-            ));
-        }
-        Err(error) => return Err(map_target_error(error.code(), source.result_id())),
-    };
+    let required = canonical_len(&candidate)
+        .map_err(|_| affected(ProjectionRefusalCode::FindingLoss, source.result_id()))?;
+    resources.charge_all(&[
+        (OUTPUT_ALLOCATION_SOURCE.id(), 1),
+        (OUTPUT_SOURCE.id(), required),
+    ])?;
     let bytes = jcs_canonicalize(&candidate)
         .map_err(|_| affected(ProjectionRefusalCode::FindingLoss, source.result_id()))?;
+    resources.charge(TARGET_READ_ALLOCATION_SOURCE.id(), 1)?;
     let reread = contracts::parse_bounded_json(&bytes)
         .and_then(contracts::validate_contract)
         .map_err(|error| map_target_error(error.code(), source.result_id()))?;
-    if !matches!(reread, PublicContract::TechniqueResult(_)) {
-        return Err(affected(
-            ProjectionRefusalCode::FindingLoss,
-            source.result_id(),
-        ));
-    }
+    let PublicContract::TechniqueResult(result) = reread else {
+        return Err(affected(ProjectionRefusalCode::FindingLoss, source.result_id()).into());
+    };
+    resources.charge(SOURCE_COPY_ALLOCATION_SOURCE.id(), 1)?;
     Ok(ProjectedTechniqueResult {
-        result,
+        result: *result,
         bytes: bytes.into_boxed_slice(),
         source_bytes: source.bytes().into(),
     })

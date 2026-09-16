@@ -272,7 +272,7 @@ fn tc_002_compile_fail_proof_is_present() {
     }
 }
 
-#[trace("TC-002", "TC-009", "NFR-002-AC-1", "NFR-002-AC-3", "Task-008")]
+#[trace("TC-002", "TC-009", "NFR-002-AC-1", "NFR-002-AC-3")]
 #[test]
 fn tc_009_linked_identities_charge_before_retention() {
     let inventory = production_inventory().expect("production inventory");

@@ -1562,7 +1562,7 @@ fn assert_result_mutation(label: &str, baseline: &result::Document, input: Input
 }
 
 #[test]
-#[trace("TC-008", "NFR-001-AC-1", "FR-017-AC-5", "NFR-008-AC-7", "Task-008")]
+#[trace("TC-008", "NFR-001-AC-1", "FR-017-AC-5", "NFR-008-AC-7")]
 fn tc_008_result_bytes_ignore_allocation_layout_and_localized_rendering() {
     let first_fixture = fixture();
     let first_input = base_input(&first_fixture);
@@ -1601,7 +1601,7 @@ fn tc_008_result_bytes_ignore_allocation_layout_and_localized_rendering() {
 }
 
 #[test]
-#[trace("TC-008", "NFR-001-AC-1", "Task-008")]
+#[trace("TC-008", "NFR-001-AC-1")]
 fn tc_008_process_locale_does_not_change_canonical_result() {
     const CHILD: &str = "QUIRE_TC008_LOCALE_CHILD";
     const MARKER: &str = "TC008-CANONICAL:";
@@ -1645,7 +1645,7 @@ fn tc_008_process_locale_does_not_change_canonical_result() {
 }
 
 #[test]
-#[trace("TC-008", "NFR-001-AC-2", "NFR-001-AC-3", "FR-031-AC-5", "Task-008")]
+#[trace("TC-008", "NFR-001-AC-2", "NFR-001-AC-3", "FR-031-AC-5")]
 fn tc_008_every_named_semantic_identity_is_discriminated() {
     let owner = fixture();
     let baseline = result::produce(base_input(&owner), Limits::owner_max()).expect("baseline");
@@ -1728,7 +1728,7 @@ fn tc_008_every_named_semantic_identity_is_discriminated() {
 }
 
 #[test]
-#[trace("TC-008", "TC-009", "NFR-002-AC-1", "Task-008")]
+#[trace("TC-008", "TC-009", "NFR-002-AC-1")]
 fn tc_009_reproduction_provenance_obeys_result_string_bounds() {
     let owner = fixture();
     let mut input = base_input(&owner);
@@ -3373,6 +3373,40 @@ fn projection_result<T>(
     }
 }
 
+fn project_e02_without_budget(
+    source_bytes: &[u8],
+    source_expected: result::Expected<'_>,
+    source_limits: Limits,
+    request: &ProjectionRequestId,
+    resolution: &E02Resolution,
+    context: &ProjectionContext,
+) -> quire_protocol::OperationOutcome<ProjectedTechniqueResult> {
+    let inventory = production_inventory().expect("production inventory");
+    let mut resources = ResourceAccountant::new(Budget::nothing_granted(), &inventory);
+    match quire_protocol::projection::project_e02(
+        source_bytes,
+        source_expected,
+        source_limits,
+        request,
+        resolution,
+        context,
+        &mut resources,
+    ) {
+        OperationOutcome::Completed(projected) => {
+            quire_protocol::OperationOutcome::Completed(projected)
+        }
+        OperationOutcome::DomainError(refusal) => {
+            quire_protocol::OperationOutcome::Refused(refusal)
+        }
+        OperationOutcome::ResourceIncomplete(incomplete) => {
+            quire_protocol::OperationOutcome::ResourceIncomplete(incomplete)
+        }
+        OperationOutcome::AccountingFault(fault) => {
+            panic!("projection accounting fault in production inventory: {fault:?}")
+        }
+    }
+}
+
 fn e02_context(document: &result::Document, input: &Input<'_>) -> ProjectionContext {
     ProjectionContext {
         source_contract_version: result::CONTRACT.into(),
@@ -3430,7 +3464,7 @@ fn project_input<'a>(
     let document = result::produce(input.clone(), Limits::owner_max()).expect("canonical source");
     let mut context = e02_context(&document, &input);
     mutate(&mut context);
-    quire_protocol::projection::project_e02(
+    project_e02_without_budget(
         document.bytes(),
         result::Expected {
             input,
@@ -3441,6 +3475,36 @@ fn project_input<'a>(
         resolution,
         &context,
     )
+}
+
+fn project_input_bounded<'a>(
+    input: Input<'a>,
+    request: &ProjectionRequestId,
+    resolution: &E02Resolution,
+    budget: Budget,
+    mutate: impl FnOnce(&mut ProjectionContext),
+) -> (
+    OperationOutcome<ProjectedTechniqueResult, quire_protocol::refusal::ProtocolRefusal>,
+    quire_protocol::bounds::inventory::Usage,
+) {
+    let document = result::produce(input.clone(), Limits::owner_max()).expect("canonical source");
+    let mut context = e02_context(&document, &input);
+    mutate(&mut context);
+    let inventory = production_inventory().expect("production inventory");
+    let mut resources = ResourceAccountant::new(budget, &inventory);
+    let outcome = quire_protocol::projection::project_e02(
+        document.bytes(),
+        result::Expected {
+            input,
+            enclosing_digest: document.digest(),
+        },
+        Limits::owner_max(),
+        request,
+        resolution,
+        &context,
+        &mut resources,
+    );
+    (outcome, resources.usage())
 }
 
 fn projected_value(
@@ -3491,7 +3555,7 @@ fn tc_007_projection_has_exact_identity_binding_and_retention() {
     let context = e02_context(&document, &input);
     let request = ProjectionRequestId::new(b"tc-007:exact-projection").expect("request id");
     let resolution = e02_resolution(&request);
-    let projected = projection_result(quire_protocol::projection::project_e02(
+    let projected = projection_result(project_e02_without_budget(
         document.bytes(),
         result::Expected {
             input,
@@ -3921,7 +3985,7 @@ fn tc_007_identity_mutations_lineage_and_refusals_are_exact() {
     let input = base_input(&owner);
     let document = result::produce(input.clone(), Limits::owner_max()).expect("canonical source");
     let context = e02_context(&document, &input);
-    let refusal = projection_result(quire_protocol::projection::project_e02(
+    let refusal = projection_result(project_e02_without_budget(
         b"not-json",
         result::Expected {
             input,
@@ -3989,4 +4053,130 @@ fn tc_007_identity_mutations_lineage_and_refusals_are_exact() {
         projected.result_id()
     );
     assert_eq!(value["oracleContributions"][3]["relation"], "unknown");
+}
+
+#[test]
+#[trace("TC-008", "NFR-001-AC-1", "NFR-001-AC-2", "NFR-001-AC-3")]
+fn tc_008_e02_projection_reproduces_equivalent_maps_and_discriminates_identity() {
+    let owner = fixture();
+    let request = ProjectionRequestId::new(b"tc-008:e02-reproduction").expect("request id");
+    let resolution = e02_resolution(&request);
+
+    let first = projection_result(project_input(
+        base_input(&owner),
+        &request,
+        &resolution,
+        |context| {
+            context.execution_scope = [
+                ("repository".into(), json!("agent-ix/quire-protocol")),
+                ("revision".into(), json!("tc-008")),
+                ("paths".into(), json!(["src/projection.rs"])),
+            ]
+            .into_iter()
+            .collect();
+        },
+    ))
+    .expect("first map presentation projects");
+    let second = projection_result(project_input(
+        base_input(&owner),
+        &request,
+        &resolution,
+        |context| {
+            context.execution_scope = [
+                ("paths".into(), json!(["src/projection.rs"])),
+                ("revision".into(), json!("tc-008")),
+                ("repository".into(), json!("agent-ix/quire-protocol")),
+            ]
+            .into_iter()
+            .collect();
+        },
+    ))
+    .expect("reverse insertion presentation projects");
+
+    assert_eq!(first.bytes(), second.bytes());
+    assert_eq!(
+        serde_json::to_value(first.result()).expect("first typed result serializes"),
+        serde_json::to_value(second.result()).expect("second typed result serializes")
+    );
+    assert_eq!(first.source_bytes(), second.source_bytes());
+
+    let mutated = projection_result(project_input(
+        base_input(&owner),
+        &request,
+        &resolution,
+        |context| context.adapter_identity.push_str("/mutated"),
+    ))
+    .expect("one semantic identity mutation projects distinctly");
+    assert_ne!(first.result_id(), mutated.result_id());
+    assert_ne!(first.bytes(), mutated.bytes());
+}
+
+#[test]
+#[trace("TC-009", "NFR-002-AC-1", "NFR-002-AC-3")]
+fn tc_009_e02_projection_enforces_exact_one_short_and_fresh_exact_budgets() {
+    let owner = fixture();
+    let request = ProjectionRequestId::new(b"tc-009:e02-resources").expect("request id");
+    let resolution = e02_resolution(&request);
+    let (baseline, usage) = project_input_bounded(
+        base_input(&owner),
+        &request,
+        &resolution,
+        Budget::nothing_granted(),
+        |_| {},
+    );
+    assert!(matches!(baseline, OperationOutcome::Completed(_)));
+
+    for dimension in [
+        BudgetDimension::ResultItem,
+        BudgetDimension::OutputByte,
+        BudgetDimension::Operation,
+        BudgetDimension::AccountedAllocation,
+    ] {
+        let exact = usage.consumed(dimension);
+        assert!(
+            exact > 1,
+            "{dimension:?} fixture needs a positive one-short grant"
+        );
+
+        let short = Budget::nothing_granted()
+            .grant(dimension, exact - 1)
+            .expect("positive one-short grant");
+        let (short_outcome, _) =
+            project_input_bounded(base_input(&owner), &request, &resolution, short, |_| {});
+        assert!(matches!(
+            short_outcome,
+            OperationOutcome::ResourceIncomplete(incomplete)
+                if incomplete.dimension() == dimension
+        ));
+
+        for _ in 0..2 {
+            let exact_budget = Budget::nothing_granted()
+                .grant(dimension, exact)
+                .expect("positive exact grant");
+            let (exact_outcome, exact_usage) = project_input_bounded(
+                base_input(&owner),
+                &request,
+                &resolution,
+                exact_budget,
+                |_| {},
+            );
+            assert!(matches!(exact_outcome, OperationOutcome::Completed(_)));
+            assert_eq!(exact_usage.consumed(dimension), exact);
+        }
+    }
+
+    let exact_derived = Budget::nothing_granted()
+        .grant(BudgetDimension::DerivedArtifact, 1)
+        .expect("one derived artifact");
+    for _ in 0..2 {
+        let (outcome, exact_usage) = project_input_bounded(
+            base_input(&owner),
+            &request,
+            &resolution,
+            exact_derived.clone(),
+            |_| {},
+        );
+        assert!(matches!(outcome, OperationOutcome::Completed(_)));
+        assert_eq!(exact_usage.consumed(BudgetDimension::DerivedArtifact), 1);
+    }
 }

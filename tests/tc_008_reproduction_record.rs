@@ -100,9 +100,9 @@ fn only_refusal(refusal: ReproductionRefusal, expected: ReproductionRefusal) {
     }
 }
 
-/// Tracing: TC-008, NFR-001-AC-2, Task-008.
+/// Tracing: TC-008, NFR-001-AC-2.
 #[test]
-#[trace("TC-008", "NFR-001-AC-2", "Task-008")]
+#[trace("TC-008", "NFR-001-AC-2")]
 fn tc_008_seed_toolchain_corpus_are_typed_fields() {
     let record = complete_record();
 
@@ -131,9 +131,9 @@ fn tc_008_seed_toolchain_corpus_are_typed_fields() {
     );
 }
 
-/// Tracing: TC-008, NFR-001-AC-2, Task-008.
+/// Tracing: TC-008, NFR-001-AC-2.
 #[test]
-#[trace("TC-008", "NFR-001-AC-2", "Task-008")]
+#[trace("TC-008", "NFR-001-AC-2")]
 fn tc_008_absent_seed_refuses_with_its_own_code() {
     let refusal = ReproductionInputs::nothing_offered()
         .with_toolchain(toolchain())
@@ -146,9 +146,9 @@ fn tc_008_absent_seed_refuses_with_its_own_code() {
     assert!(refusal.is_absence());
 }
 
-/// Tracing: TC-008, NFR-001-AC-2, Task-008.
+/// Tracing: TC-008, NFR-001-AC-2.
 #[test]
-#[trace("TC-008", "NFR-001-AC-2", "Task-008")]
+#[trace("TC-008", "NFR-001-AC-2")]
 fn tc_008_absent_toolchain_identity_refuses_with_its_own_code() {
     let refusal = ReproductionInputs::nothing_offered()
         .with_seed(Seed::new(7))
@@ -161,9 +161,9 @@ fn tc_008_absent_toolchain_identity_refuses_with_its_own_code() {
     assert!(refusal.is_absence());
 }
 
-/// Tracing: TC-008, NFR-001-AC-2, Task-008.
+/// Tracing: TC-008, NFR-001-AC-2.
 #[test]
-#[trace("TC-008", "NFR-001-AC-2", "Task-008")]
+#[trace("TC-008", "NFR-001-AC-2")]
 fn tc_008_absent_corpus_identity_refuses_with_its_own_code() {
     let refusal = ReproductionInputs::nothing_offered()
         .with_seed(Seed::new(7))
@@ -176,9 +176,9 @@ fn tc_008_absent_corpus_identity_refuses_with_its_own_code() {
     assert!(refusal.is_absence());
 }
 
-/// Tracing: TC-008, NFR-001-AC-2, Task-008.
+/// Tracing: TC-008, NFR-001-AC-2.
 #[test]
-#[trace("TC-008", "NFR-001-AC-2", "Task-008")]
+#[trace("TC-008", "NFR-001-AC-2")]
 fn tc_008_empty_toolchain_identity_refuses_distinctly_from_absent() {
     let refusal = ReproductionInputs::nothing_offered()
         .with_seed(Seed::new(7))
@@ -199,9 +199,9 @@ fn tc_008_empty_toolchain_identity_refuses_distinctly_from_absent() {
     );
 }
 
-/// Tracing: TC-008, NFR-001-AC-2, Task-008.
+/// Tracing: TC-008, NFR-001-AC-2.
 #[test]
-#[trace("TC-008", "NFR-001-AC-2", "Task-008")]
+#[trace("TC-008", "NFR-001-AC-2")]
 fn tc_008_empty_corpus_identity_refuses_distinctly_from_absent() {
     let refusal = ReproductionInputs::nothing_offered()
         .with_seed(Seed::new(7))
@@ -220,9 +220,9 @@ fn tc_008_empty_corpus_identity_refuses_distinctly_from_absent() {
     );
 }
 
-/// Tracing: TC-008, NFR-001-AC-2, Task-008.
+/// Tracing: TC-008, NFR-001-AC-2.
 #[test]
-#[trace("TC-008", "Task-008", "FR-011-AC-6")]
+#[trace("TC-008", "FR-011-AC-6")]
 fn tc_008_absent_seed_never_becomes_zero() {
     // The default-collapse bug in its exact shape: an unsupplied seed must not
     // arrive as the zero a `unwrap_or_default()` would have produced.
@@ -252,9 +252,9 @@ fn tc_008_absent_seed_never_becomes_zero() {
     assert_ne!(chosen_zero, chosen_one);
 }
 
-/// Tracing: TC-008, NFR-001-AC-2, Task-008.
+/// Tracing: TC-008, NFR-001-AC-2.
 #[test]
-#[trace("TC-008", "NFR-001-AC-2", "Task-008")]
+#[trace("TC-008", "NFR-001-AC-2")]
 fn tc_008_two_different_identities_never_compare_equal() {
     let base = complete_record();
 
@@ -322,9 +322,9 @@ fn tc_008_two_different_identities_never_compare_equal() {
     }
 }
 
-/// Tracing: TC-008, NFR-001-AC-2, Task-008.
+/// Tracing: TC-008, NFR-001-AC-2.
 #[test]
-#[trace("TC-008", "Task-008", "FR-011-AC-2")]
+#[trace("TC-008", "FR-011-AC-2")]
 fn tc_008_display_text_is_not_identity() {
     // Equal bytes, different display text: the same toolchain.
     let rendered_one = ToolchainIdentity::new(TOOLCHAIN_BYTES, "rustc 1.98.0");
@@ -350,9 +350,9 @@ fn tc_008_display_text_is_not_identity() {
     assert_eq!(hash_of(&complete_record()), hash_of(&rendered_record));
 }
 
-/// Tracing: TC-008, NFR-001-AC-1, Task-008.
+/// Tracing: TC-008, NFR-001-AC-1.
 #[test]
-#[trace("TC-008", "NFR-001-AC-1", "Task-008")]
+#[trace("TC-008", "NFR-001-AC-1")]
 fn tc_008_same_seed_same_toolchain_same_bytes() {
     let first = complete_record();
     let second = complete_record();
@@ -361,9 +361,9 @@ fn tc_008_same_seed_same_toolchain_same_bytes() {
     assert_eq!(hash_of(&first), hash_of(&second));
 }
 
-/// Tracing: TC-008, NFR-001-AC-2, Task-008.
+/// Tracing: TC-008, NFR-001-AC-2.
 #[test]
-#[trace("TC-008", "NFR-001-AC-2", "Task-008")]
+#[trace("TC-008", "NFR-001-AC-2")]
 fn tc_008_every_refusal_has_its_own_code_and_kind() {
     assert_eq!(ReproductionRefusal::ALL.len(), 5);
 
@@ -406,7 +406,7 @@ fn tc_008_every_refusal_has_its_own_code_and_kind() {
     );
 }
 
-/// Tracing: TC-008, NFR-001-AC-2, Task-008.
+/// Tracing: TC-008, NFR-001-AC-2.
 ///
 /// A source-inspection test, and deliberately supplementary: the *behaviour* of
 /// a defaulted seed is already caught by `tc_008_absent_seed_refuses_with_its_own_code`
@@ -414,7 +414,7 @@ fn tc_008_every_refusal_has_its_own_code_and_kind() {
 /// is the construct's absence from code paths that do not exist yet, which is
 /// what this test holds closed for every future edit to the module.
 #[test]
-#[trace("TC-008", "NFR-001-AC-2", "Task-008")]
+#[trace("TC-008", "NFR-001-AC-2")]
 fn tc_008_reproduction_module_contains_no_default_or_fallback_read() {
     // The bug this chunk exists to prevent, checked in the source itself: a
     // sibling repo shipped `revision.parse().unwrap_or_default()`, which
@@ -457,7 +457,7 @@ fn tc_008_reproduction_module_contains_no_default_or_fallback_read() {
 }
 
 #[test]
-#[trace("TC-008", "TC-009", "NFR-002-AC-1", "NFR-002-AC-3", "Task-008")]
+#[trace("TC-008", "TC-009", "NFR-002-AC-1", "NFR-002-AC-3")]
 fn tc_009_reproduction_identities_charge_before_retention() {
     let inventory = production_inventory().expect("production inventory");
     let display = "rustc 1.98.0";

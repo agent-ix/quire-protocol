@@ -1,19 +1,30 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Monotonic deadline observations and resource-site identities.
+//! Source-bound caller-budget accounting and monotonic request deadlines.
 //!
-//! inventory::ResourceAccountant is the sole supported Protocol request
-//! accountant. It owns caller-budget charging, inventory reconciliation, and
-//! the translation of a deadline observation into a Protocol outcome. This
-//! module deliberately contains only the reusable monotonic deadline kernel;
-//! it does not offer a second count or allocation guard.
+//! [`inventory::ResourceAccountant`] is the sole supported request accountant.
+//! Static work is charged at reconciled source sites before it begins; elapsed
+//! time is observed with a monotonic clock around each declared indivisible unit.
+//! Owner-specific accounting remains with the owner crate and is never mirrored
+//! into this caller-facing budget vocabulary.
 
-/// Resource-site inventory and request accounting. Owner chunk: C-30.
+/// Resource-site inventory and mutant-kill assignment. Owner chunk: **C-30**.
+///
+/// Will own the bidirectional reconciliation between caller-controlled
+/// allocation, retention, queue, iteration and traversal sites and their
+/// inventory entries.
 pub mod inventory;
 
 use std::fmt;
 use std::time::{Duration, Instant};
 
+// ---------------------------------------------------------------------------
+// Sites — the inventory hook C-30 reconciles against
+// ---------------------------------------------------------------------------
+
 /// The stable name of one caller-controlled resource site.
+///
+/// A site name is a compile-time constant, not caller text: an inventory keyed
+/// on runtime strings could not be reconciled against the source at all.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct SiteId(&'static str);
 
@@ -23,19 +34,24 @@ impl SiteId {
     pub const fn new(name: &'static str) -> Self {
         Self(name)
     }
+
     /// The site's stable name.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         self.0
     }
 }
+
 impl fmt::Display for SiteId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.0)
     }
 }
 
-/// What a source site does with caller-controlled data.
+/// What a site does with caller-controlled data.
+///
+/// NFR-002's Verification clause enumerates exactly these five; C-30 inventories
+/// every source site under one of them.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum SiteKind {
     /// Reserves memory sized by caller-controlled data.
@@ -50,63 +66,43 @@ pub enum SiteKind {
     Traversal,
 }
 
-/// The stable code of a deadline observation refusal.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub enum DeadlineCode {
-    /// The elapsed budget ran out.
-    Expired,
-    /// The clock read backwards. Not an expiry — a fault.
-    ClockRegressed,
-}
-impl DeadlineCode {
-    /// Every deadline code.
-    pub const ALL: [Self; 2] = [Self::Expired, Self::ClockRegressed];
-    /// The code's stable string.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Expired => "bounds.deadline.expired",
-            Self::ClockRegressed => "bounds.deadline.clock-regressed",
-        }
-    }
-}
-impl fmt::Display for DeadlineCode {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
-    }
-}
+// ---------------------------------------------------------------------------
+// Mechanism 2 — monotonic deadline observation
+// ---------------------------------------------------------------------------
 
 /// The name of one declared indivisible unit of work.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct UnitLabel(&'static str);
+
 impl UnitLabel {
     /// Name an indivisible unit.
     #[must_use]
     pub const fn new(name: &'static str) -> Self {
         Self(name)
     }
+
     /// The unit's stable name.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         self.0
     }
 }
+
 impl fmt::Display for UnitLabel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.0)
     }
 }
 
-/// Which mandatory observation around an indivisible unit refused.
+/// Which of the two mandatory observations around an indivisible unit refused.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum Phase {
     /// Observed before the unit started; no later unit was started.
     BeforeUnit,
-    /// Observed after the unit finished; overshoot is measured.
+    /// Observed after the unit finished; the unit itself was indivisible and
+    /// ran to completion, so its overshoot is reported as measured.
     AfterUnit,
 }
-/// Every phase, for coverage reconciliation.
-pub const ALL_PHASES: [Phase; 2] = [Phase::BeforeUnit, Phase::AfterUnit];
 
 pub(crate) const REQUEST_DEADLINE_SOURCE: inventory::SourceSite = inventory::SourceSite::new(
     SiteId::new("request/unit/deadline"),
@@ -115,26 +111,9 @@ pub(crate) const REQUEST_DEADLINE_SOURCE: inventory::SourceSite = inventory::Sou
     SiteKind::Iteration,
 );
 
-/// Rendering an observed duration as whole nanoseconds did not fit u64.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct DurationOverflow {
-    /// The duration that does not fit.
-    pub observed: Duration,
-}
-impl fmt::Display for DurationOverflow {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "observed duration {:?} does not fit u64 nanoseconds",
-            self.observed
-        )
-    }
-}
-impl std::error::Error for DurationOverflow {}
-
 /// A monotonic deadline observation refused the run.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum DeadlineRefusal {
+pub(crate) enum DeadlineRefusal {
     /// Observed elapsed time passed the budget.
     Expired {
         /// The unit being entered or left.
@@ -145,7 +124,7 @@ pub enum DeadlineRefusal {
         budget: Duration,
         /// Elapsed time as measured, never clamped to the budget.
         observed: Duration,
-        /// observed minus budget, always strictly positive.
+        /// `observed - budget`, always strictly positive.
         overshoot: Duration,
     },
     /// The clock read earlier than a previous reading in the same run.
@@ -158,61 +137,14 @@ pub enum DeadlineRefusal {
         previous: Duration,
     },
 }
-impl DeadlineRefusal {
-    /// This refusal's stable code.
-    #[must_use]
-    pub const fn code(&self) -> DeadlineCode {
-        match self {
-            Self::Expired { .. } => DeadlineCode::Expired,
-            Self::ClockRegressed { .. } => DeadlineCode::ClockRegressed,
-        }
-    }
-    /// The unit this refusal surrounds.
-    #[must_use]
-    pub const fn unit(&self) -> UnitLabel {
-        match self {
-            Self::Expired { unit, .. } | Self::ClockRegressed { unit, .. } => *unit,
-        }
-    }
-    /// Which mandatory observation refused.
-    #[must_use]
-    pub const fn phase(&self) -> Phase {
-        match self {
-            Self::Expired { phase, .. } | Self::ClockRegressed { phase, .. } => *phase,
-        }
-    }
-    /// The observed elapsed time rendered for a wire or result record.
-    ///
-    /// # Errors
-    ///
-    /// DurationOverflow when the observation does not fit u64 nanoseconds.
-    pub fn observed_nanos(&self) -> Result<u64, DurationOverflow> {
-        let observed = match self {
-            Self::Expired { observed, .. } => *observed,
-            Self::ClockRegressed { previous, .. } => *previous,
-        };
-        u64::try_from(observed.as_nanos()).map_err(|_| DurationOverflow { observed })
-    }
-}
-impl fmt::Display for DeadlineRefusal {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Expired { unit, phase, budget, observed, overshoot } => write!(
-                f,
-                "{}: unit {unit} {phase:?} budget {budget:?}: observed {observed:?}, overshoot {overshoot:?}",
-                self.code()
-            ),
-            Self::ClockRegressed { unit, phase, previous } => write!(
-                f,
-                "{}: unit {unit} {phase:?}: clock read earlier than {previous:?}",
-                self.code()
-            ),
-        }
-    }
-}
-impl std::error::Error for DeadlineRefusal {}
 
-/// The one clock reading deadline accounting accepts.
+/// The one clock reading this module accepts.
+///
+/// There is deliberately no `wall_clock` method and no signature anywhere in
+/// this module that takes a `std::time::SystemTime`: an operator or NTP step of
+/// the wall clock must be unable to manufacture or mask a deadline refusal, and
+/// the cheapest way to guarantee that is to make wall-clock time unrepresentable
+/// in the guard rather than to promise it is ignored.
 pub trait Clock: Send {
     /// A reading that never moves backwards.
     fn monotonic(&self) -> Instant;
@@ -221,6 +153,7 @@ pub trait Clock: Send {
 /// The host monotonic clock.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct SystemMonotonicClock;
+
 impl Clock for SystemMonotonicClock {
     fn monotonic(&self) -> Instant {
         Instant::now()
@@ -228,14 +161,20 @@ impl Clock for SystemMonotonicClock {
 }
 
 /// Monotonic deadline observation around declared indivisible units.
+///
+/// The budget is an **inclusive** allowance, matching the inclusive count
+/// maxima: elapsed time exactly equal to the budget has not expired, and expiry
+/// begins strictly beyond it. One boundary convention for the whole module, and
+/// it makes an `Expired` with a zero overshoot unrepresentable.
 #[derive(Clone, Copy, Debug)]
-pub struct DeadlineGuard {
+pub(crate) struct DeadlineGuard {
     start: Instant,
     budget: Duration,
     observed: Duration,
 }
+
 impl DeadlineGuard {
-    /// Begin observing, reading clock once for the origin.
+    /// Begin observing, reading `clock` once for the origin.
     pub fn start<C: Clock + ?Sized>(clock: &C, budget: Duration) -> Self {
         Self {
             start: clock.monotonic(),
@@ -243,16 +182,13 @@ impl DeadlineGuard {
             observed: Duration::ZERO,
         }
     }
-    /// The caller's budget.
-    #[must_use]
-    pub const fn budget(&self) -> Duration {
-        self.budget
-    }
-    /// The greatest elapsed time observed so far.
+
+    /// The greatest elapsed time observed so far, as measured.
     #[must_use]
     pub const fn observed(&self) -> Duration {
         self.observed
     }
+
     fn observe<C: Clock + ?Sized>(
         &mut self,
         clock: &C,
@@ -283,12 +219,15 @@ impl DeadlineGuard {
         }
         Ok(elapsed)
     }
-    /// Observe before starting a unit.
+
+    /// Observe before starting `unit`.
+    ///
+    /// No later unit starts once the budget has been passed.
     ///
     /// # Errors
     ///
-    /// DeadlineRefusal::Expired when the budget is gone, or ClockRegressed
-    /// when the reading moved backwards.
+    /// [`DeadlineRefusal::Expired`] when the budget is already gone, or
+    /// [`DeadlineRefusal::ClockRegressed`] when the reading moved backwards.
     pub fn begin_unit<C: Clock + ?Sized>(
         &mut self,
         clock: &C,
@@ -297,11 +236,16 @@ impl DeadlineGuard {
         self.observe(clock, unit, Phase::BeforeUnit)?;
         Ok(UnitToken { unit })
     }
-    /// Observe after a unit finished.
+
+    /// Observe after `token`'s unit finished.
+    ///
+    /// The unit was indivisible, so it ran to completion; any overshoot is
+    /// reported exactly as measured rather than clamped to the budget.
     ///
     /// # Errors
     ///
-    /// DeadlineRefusal::Expired carries the measured overshoot.
+    /// [`DeadlineRefusal::Expired`] with the measured overshoot, or
+    /// [`DeadlineRefusal::ClockRegressed`] when the reading moved backwards.
     pub fn end_unit<C: Clock + ?Sized>(
         &mut self,
         clock: &C,
@@ -311,16 +255,13 @@ impl DeadlineGuard {
     }
 }
 
-/// Proof that an indivisible unit was entered through DeadlineGuard::begin_unit.
+/// Proof that an indivisible unit was entered through [`DeadlineGuard::begin_unit`].
+///
+/// Not `Copy` and not constructible elsewhere, so the "before" observation
+/// cannot be skipped and the "after" observation cannot name a unit that was
+/// never entered.
 #[derive(Debug, Eq, PartialEq)]
 #[must_use = "an entered unit must be closed by end_unit so its overshoot is observed"]
-pub struct UnitToken {
+pub(crate) struct UnitToken {
     unit: UnitLabel,
-}
-impl UnitToken {
-    /// The unit this token was issued for.
-    #[must_use]
-    pub const fn unit(&self) -> UnitLabel {
-        self.unit
-    }
 }

@@ -1964,6 +1964,54 @@ const DELIVERY_INDEX_ALLOCATION: SourceSite = SourceSite::new(
     BudgetDimension::AccountedAllocation,
     SiteKind::Allocation,
 );
+const PROJECTION_DERIVED: SourceSite = SourceSite::new(
+    SiteId::new("projection/e02/derive"),
+    "projection::project_e02",
+    BudgetDimension::DerivedArtifact,
+    SiteKind::Retention,
+);
+const PROJECTION_ITEM: SourceSite = SourceSite::new(
+    SiteId::new("projection/e02/item/retain"),
+    "projection::project_e02",
+    BudgetDimension::ResultItem,
+    SiteKind::Retention,
+);
+const PROJECTION_OPERATION: SourceSite = SourceSite::new(
+    SiteId::new("projection/e02/item/visit"),
+    "projection::project_e02",
+    BudgetDimension::Operation,
+    SiteKind::Traversal,
+);
+const PROJECTION_CANDIDATE_ALLOCATION: SourceSite = SourceSite::new(
+    SiteId::new("projection/e02/candidate/allocate"),
+    "projection::project_e02",
+    BudgetDimension::AccountedAllocation,
+    SiteKind::Allocation,
+);
+const PROJECTION_OUTPUT_ALLOCATION: SourceSite = SourceSite::new(
+    SiteId::new("projection/e02/output/allocate"),
+    "projection::project_e02",
+    BudgetDimension::AccountedAllocation,
+    SiteKind::Allocation,
+);
+const PROJECTION_TARGET_READ_ALLOCATION: SourceSite = SourceSite::new(
+    SiteId::new("projection/e02/target-read/allocate"),
+    "projection::project_e02",
+    BudgetDimension::AccountedAllocation,
+    SiteKind::Allocation,
+);
+const PROJECTION_SOURCE_COPY_ALLOCATION: SourceSite = SourceSite::new(
+    SiteId::new("projection/e02/source-copy/allocate"),
+    "projection::project_e02",
+    BudgetDimension::AccountedAllocation,
+    SiteKind::Allocation,
+);
+const PROJECTION_OUTPUT: SourceSite = SourceSite::new(
+    SiteId::new("projection/e02/output/retain"),
+    "projection::project_e02",
+    BudgetDimension::OutputByte,
+    SiteKind::Retention,
+);
 
 /// Production work sites derived from reviewed Rust interfaces and paths.
 ///
@@ -2040,6 +2088,14 @@ pub const PRODUCTION_SOURCES: &[SourceSite] = &[
     crate::result::reader::DEPTH_SOURCE,
     crate::result::reader::OPERATION_SOURCE,
     crate::result::reader::ALLOCATION_SOURCE,
+    crate::projection::DERIVED_SOURCE,
+    crate::projection::ITEM_SOURCE,
+    crate::projection::OPERATION_SOURCE,
+    crate::projection::CANDIDATE_ALLOCATION_SOURCE,
+    crate::projection::OUTPUT_ALLOCATION_SOURCE,
+    crate::projection::TARGET_READ_ALLOCATION_SOURCE,
+    crate::projection::SOURCE_COPY_ALLOCATION_SOURCE,
+    crate::projection::OUTPUT_SOURCE,
 ];
 
 const fn entry(
@@ -2473,6 +2529,54 @@ pub const PRODUCTION_ENTRIES: &[InventoryEntry] = &[
         LimitAuthority::ConsumerOwner,
         ChargePoint::BeforeAllocate,
         Termination::SingleUnit,
+    ),
+    entry(
+        PROJECTION_DERIVED,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeRetain,
+        Termination::SingleUnit,
+    ),
+    entry(
+        PROJECTION_ITEM,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeRetain,
+        Termination::CollectionLength,
+    ),
+    entry(
+        PROJECTION_OPERATION,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeTraverse,
+        Termination::CollectionLength,
+    ),
+    entry(
+        PROJECTION_CANDIDATE_ALLOCATION,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeAllocate,
+        Termination::SingleUnit,
+    ),
+    entry(
+        PROJECTION_OUTPUT_ALLOCATION,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeAllocate,
+        Termination::SingleUnit,
+    ),
+    entry(
+        PROJECTION_TARGET_READ_ALLOCATION,
+        LimitAuthority::ProducerOwner,
+        ChargePoint::BeforeAllocate,
+        Termination::SingleUnit,
+    ),
+    entry(
+        PROJECTION_SOURCE_COPY_ALLOCATION,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeAllocate,
+        Termination::SingleUnit,
+    ),
+    entry(
+        PROJECTION_OUTPUT,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeRetain,
+        Termination::InputLength,
     ),
 ];
 

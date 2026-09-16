@@ -2,7 +2,7 @@
 id: Task-008
 title: "Enforce reproduction and resource bounds"
 type: Task
-status: in_progress
+status: done
 track: Cross-Cutting-Closure
 priority: P0
 relationships:
@@ -26,14 +26,14 @@ projection path.
 
 ## Subtasks
 
-- [ ] Write TC-008 equivalent-presentation properties that preserve authored order and independently discriminate every named source/profile/model/protocol/request/binding/input/observation/progress/closure/producer/implementation/backend identity.
+- [x] Write TC-008 equivalent-presentation properties that preserve authored order and independently discriminate every named source/profile/model/protocol/request/binding/input/observation/progress/closure/producer/implementation/backend identity.
 - [x] Build and bidirectionally reconcile the source-bound resource inventory, including each interface/site, authority, charge point, termination argument, typed incomplete code, and assigned boundary case.
-- [ ] Write TC-009 below/at/above cases for every authored maximum and caller-supplied inventoried definition, graph, role, message, branching, iteration, active-instance, observation, lineage, result, derived-artifact, output, operation, allocation, and deadline limit.
+- [x] Write TC-009 below/at/above cases for every authored maximum and caller-supplied inventoried definition, graph, role, message, branching, iteration, active-instance, observation, lineage, result, derived-artifact, output, operation, allocation, and deadline limit.
 - [x] Separate prechecked count/accounted-allocation refusal from monotonic deadline observation and report measured overshoot honestly.
-- [ ] Kill every isolated inventory, guard-removal, guard-direction, and identity-canonicalization mutant for the intended reason.
+- [x] Kill every isolated inventory, guard-removal, guard-direction, and identity-canonicalization mutant for the intended reason.
 - [x] Prove with action-capable doubles that assessment executes no business action or compensation.
 - [x] Record deterministic seeds, toolchain identities, and corpus identities needed for local reproduction.
-- [ ] Reconcile the completed test symbols against NFR-001-AC-1..AC-3 and NFR-002-AC-1..AC-4 with bare `ix-trace-rs` bindings.
+- [x] Reconcile the completed test symbols against NFR-001-AC-1..AC-3 and NFR-002-AC-1..AC-4 with bare `ix-trace-rs` bindings.
 - [x] Internalize the unused parallel `CountGuard`/`RunGuard` public surface so
   `ResourceAccountant` is the one supported Protocol request accountant.
 - [x] Retain external-owner usage under its exact accounting version. For QSL

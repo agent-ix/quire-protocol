@@ -48,8 +48,8 @@ relationships:
 
 ### Non-Functional Requirements
 
-- [ ] **NFR-001**: Complete whole-pipeline semantic and byte reproduction.
-- [ ] **NFR-002**: Complete one inventoried request accountant over every final path.
+- [x] **NFR-001**: Complete whole-pipeline semantic and byte reproduction.
+- [x] **NFR-002**: Complete one inventoried request accountant over every final path.
 - [ ] **NFR-003**: Complete Rust/shared-assurance qualification without local infrastructure.
 - [x] **NFR-004**: The exact single-lane local gate is executable.
 - [ ] **NFR-005**: Compose and hand off every owed scenario record.
@@ -110,13 +110,12 @@ shared result-domain values. Each has one Protocol owner and no adapter-local co
   permutations, progress/closure and contradiction states.
 - [x] **TC-005**: conformance-derived ordered claim dispositions, exact retained
   premises and no callback fallback.
-- [ ] **TC-006**: subsystem-derived canonical rows and strict reads execute;
-  authenticated settlement/support topology and applicable immutable correction
-  scenarios remain blocked on the pinned owner capabilities.
+- [x] **TC-006**: subsystem-derived canonical rows, strict reads, exact settlement,
+  support topology and immutable corrections.
 - [x] **TC-007**: total FR-062 E02 mapping, exact derived identity, strict target
   reading, finding preservation and no sufficiency promotion.
-- [ ] **TC-008**: whole-path byte/semantic reproduction and one-axis mutation discrimination.
-- [ ] **TC-009**: bidirectional final source inventory, below/at/over bounds,
+- [x] **TC-008**: whole-path byte/semantic reproduction and one-axis mutation discrimination.
+- [x] **TC-009**: bidirectional final source inventory, below/at/over bounds,
   deadline checks, guard mutants and zero action calls.
 - [ ] **TC-010**: shared Rust assurance checker, trace binding, EA execution and
   Quoin containment.
@@ -138,9 +137,10 @@ shared result-domain values. Each has one Protocol owner and no adapter-local co
 - [x] **IT-001 `/1` SC-01..SC-05 and SC-06a**: default-running admission plus
   local-link regression and before/after compatibility comparison. The `/2`
   SC-06..SC-09 handoff is already complete under Task-012.
-- [ ] **IT-002**: exact QObs runtime/authority facts and QSL native-temporal
-  results traverse compensation, conformance and canonical results without QCI
-  as an upstream dependency.
+- [ ] **IT-002**: Task-010's ten non-record scenarios now traverse exact QObs
+  runtime/authority facts and QSL native-temporal results through compensation,
+  conformance and canonical results without QCI upstream. SC-07a/SC-07b final
+  record composition and record-set distinctness remain under Task-018.
 - [ ] **IT-003**: validated Protocol results project to E02, execute through the
   Engineering Assurance boundary and hand a complete FR-017 value to Quoin.
 
@@ -179,15 +179,17 @@ shared result-domain values. Each has one Protocol owner and no adapter-local co
 - **Native = Task-009 (done)** `/1` compatibility lane — the complete owner
   corpus runs by default through admission and linking, and SC-06a passes at
   both historical revisions around the `/2` addition.
-- **Facts = Task-010** QObs/QSL native-temporal lane — may run after Task-006;
-  exit: all selected facts and adverse mutations reach results unchanged.
+- **Facts = Task-010 (done)** QObs/QSL native-temporal lane — exact selected
+  facts, adverse mutations, incremental/batch paths, bounds and resolution
+  controls reach results unchanged; final FR-017 records remain Task-018-owned.
 - **E02 = Task-007 (done)** Portable projection — every FR-062 row passes the
-  accepted qverify target strict reader with exact source/finding preservation.
+  exact accepted qverify strict reader.
 
 ### Qualification and Cross-cutting Closure
 
-- **Bounds = Task-008** Final resource/reproduction sweep — exit: every final
-  public site has exactly one guard/inventory/test and every equivalent run reproduces.
+- **Bounds = Task-008 (done)** Final resource/reproduction sweep — every final
+  public site has exactly one source-bound inventory/accountant/test path and
+  equivalent result, producer-integration and E02 presentations reproduce.
 - **Evidence = Task-018** Final scenario composition — exit: complete/partial
   FR-017 values and integration-level outcome distinctness use the final shared
   types and no local store.
@@ -218,11 +220,11 @@ track names are subsystems and are not agent assignments; Agent B remains on TL.
 | Task-003 | Core | FR-003 | TC-003 | done; graph-owned Engine bridge and exact QSL/QObs evidence |
 | Task-004 | Core | FR-004 | TC-004 | done; strict FR-300 activation-derived frontends share the graph/compensation kernel |
 | Task-005 | Core | FR-005 | TC-005 | done; activation-derived Engine dispatch and closed local conformance backend |
-| Task-006 | Core | FR-006, FR-008 | TC-006, TC-011 | in progress; atomic Engine orchestration, private result assembly and shared accounting execute, but authenticated oracle/dependence support and correction owner views are unavailable; SR-116/SR-117 blocked |
+| Task-006 | Core | FR-006, FR-008 | TC-006, TC-011 | done; atomic Engine orchestration, private result assembly, shared accounting and SR-116/SR-117 pass |
 | Task-007 | Producer Integration | FR-007 | TC-007 | done; exact accepted qverify/EA graph, total source-bound projection and SR-118/SR-119 pass |
-| Task-008 | Cross-cutting Closure | NFR-001, NFR-002 | TC-008, TC-009 | in_progress; current-site inventory exists |
+| Task-008 | Cross-cutting Closure | NFR-001, NFR-002 | TC-008, TC-009 | done; final inventory, one accountant, reproduction matrix and SR-120/SR-121 pass |
 | Task-009 | Producer Integration | FR-001, FR-002 | IT-001 | done; default `/1` admission/static link and SC-06a two-revision comparison pass |
-| Task-010 | Producer Integration | FR-003, FR-004, FR-006 | IT-002 | done; pinned QObs/QSL owner facts traverse strict FR-300 binding, conformance, dispatch, and canonical result assembly |
+| Task-010 | Producer Integration | FR-003, FR-004, FR-006, FR-009 | IT-002 | done; ten non-record scenarios pass and retain exact Task-018 attribution inputs; SC-07 record composition remains Task-018-owned |
 | Task-011 | Qualification | StR-001, FR-006, FR-007, NFR-003 | IT-003, TC-010 | blocked on Quoin scenario intake and remaining predecessors |
 | Task-012 | Producer Integration | FR-001, FR-002, NFR-002 | IT-001 | done |
 | Task-013 | Core | FR-009, FR-012, FR-016, NFR-006 | TC-013 | done; PR #50, SR-103/SR-104 pass |
