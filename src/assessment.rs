@@ -53,7 +53,8 @@ use crate::model::v2::{
 };
 use crate::outcome::ClaimOutcome;
 use crate::producer_contracts::{
-    resolve_before_producer_read, ProducerReadiness, ProducerResolution, ProducerResolutionRequest,
+    resolve_before_producer_read, subject_selection_digest, ProducerReadiness, ProducerResolution,
+    ProducerResolutionRequest,
 };
 use crate::refusal::catalog::{
     CatalogSelection, CodeEntry, CodeModule, Provenance, RefusalCode, RetainedBytes,
@@ -2020,50 +2021,123 @@ impl<'a> Engine<'a> {
     }
 }
 
-/// Producer-backed inputs loaded only after the complete manifest resolves.
+/// Unforgeable authority to assemble producer inputs after resolution.
+///
+/// Only the atomic `start_*_after_resolving` functions can construct this
+/// value. It is consumed by an input-bundle constructor and cannot escape the
+/// loader as a reusable capability.
+pub struct ProducerReadPermit {
+    _private: (),
+}
+
+/// Producer-backed inputs assembled only under a post-resolution permit.
 pub struct AssessmentInputs<'a> {
-    /// Exact linked package, static definition and runtime bindings.
-    pub context: LinkedAssessment<'a>,
-    /// Closed claim population selected for this assessment.
-    pub requested: Vec<Claim>,
+    _permit: ProducerReadPermit,
+    context: LinkedAssessment<'a>,
+    requested: Vec<Claim>,
 }
 
-/// Event-activated inputs loaded only after the complete manifest resolves.
+impl<'a> AssessmentInputs<'a> {
+    /// Assemble one linked assessment after producer resolution succeeds.
+    #[must_use]
+    pub fn new(
+        permit: ProducerReadPermit,
+        context: LinkedAssessment<'a>,
+        requested: Vec<Claim>,
+    ) -> Self {
+        Self {
+            _permit: permit,
+            context,
+            requested,
+        }
+    }
+}
+
+/// Event-activated inputs assembled only under a post-resolution permit.
 pub struct ActivatedAssessmentInputs<'a> {
-    /// Exact linked package, static definition and runtime bindings.
-    pub context: LinkedAssessment<'a>,
-    /// Closed claim population selected for this assessment.
-    pub requested: Vec<Claim>,
-    /// Strict QSL v3 activation mapping package.
-    pub mappings: &'a v3::AdmittedPackage,
-    /// QObs authority-qualified activation subject.
-    pub subject: &'a QualifiedSubject,
-    /// Strict QSL temporal subject.
-    pub temporal_subject: &'a ValidatedTemporalSubject,
-    /// Strict QSL native-temporal request.
-    pub request: &'a temporal_v2::ValidatedRequest,
-    /// Strict QSL native-temporal result bound to `request`.
-    pub result: &'a temporal_v2::ValidatedResult,
+    _permit: ProducerReadPermit,
+    context: LinkedAssessment<'a>,
+    requested: Vec<Claim>,
+    mappings: &'a v3::AdmittedPackage,
+    subject: &'a QualifiedSubject,
+    temporal_subject: &'a ValidatedTemporalSubject,
+    request: &'a temporal_v2::ValidatedRequest,
+    result: &'a temporal_v2::ValidatedResult,
 }
 
-/// Canonical-result inputs loaded only after the complete manifest resolves.
+impl<'a> ActivatedAssessmentInputs<'a> {
+    /// Assemble one activated request after producer resolution succeeds.
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "each argument is an independently owned producer selection retained without a shadow aggregate"
+    )]
+    #[must_use]
+    pub fn new(
+        permit: ProducerReadPermit,
+        context: LinkedAssessment<'a>,
+        requested: Vec<Claim>,
+        mappings: &'a v3::AdmittedPackage,
+        subject: &'a QualifiedSubject,
+        temporal_subject: &'a ValidatedTemporalSubject,
+        request: &'a temporal_v2::ValidatedRequest,
+        result: &'a temporal_v2::ValidatedResult,
+    ) -> Self {
+        Self {
+            _permit: permit,
+            context,
+            requested,
+            mappings,
+            subject,
+            temporal_subject,
+            request,
+            result,
+        }
+    }
+}
+
+/// Canonical-result inputs assembled only under a post-resolution permit.
 pub struct ResultAssessmentInputs<'a> {
-    /// Exact linked package, static definition and runtime bindings.
-    pub context: LinkedAssessment<'a>,
-    /// Closed claim population selected for this assessment.
-    pub requested: Vec<Claim>,
-    /// Strict QSL v3 activation mapping package.
-    pub mappings: &'a v3::AdmittedPackage,
-    /// QObs authority-qualified activation subject.
-    pub subject: &'a QualifiedSubject,
-    /// Strict QSL native-temporal request.
-    pub request: &'a temporal_v2::ValidatedRequest,
-    /// Strict QSL native-temporal result bound to `request`.
-    pub result: &'a temporal_v2::ValidatedResult,
-    /// Strict QSL checked predicate selected for result construction.
-    pub checked_predicate: &'a ValidatedCheckedPredicate,
-    /// Strict QSL temporal subject selected for result construction.
-    pub temporal_subject: &'a ValidatedTemporalSubject,
+    _permit: ProducerReadPermit,
+    context: LinkedAssessment<'a>,
+    requested: Vec<Claim>,
+    mappings: &'a v3::AdmittedPackage,
+    subject: &'a QualifiedSubject,
+    request: &'a temporal_v2::ValidatedRequest,
+    result: &'a temporal_v2::ValidatedResult,
+    checked_predicate: &'a ValidatedCheckedPredicate,
+    temporal_subject: &'a ValidatedTemporalSubject,
+}
+
+impl<'a> ResultAssessmentInputs<'a> {
+    /// Assemble one canonical-result request after producer resolution succeeds.
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "each argument is an independently owned producer selection retained without a shadow aggregate"
+    )]
+    #[must_use]
+    pub fn new(
+        permit: ProducerReadPermit,
+        context: LinkedAssessment<'a>,
+        requested: Vec<Claim>,
+        mappings: &'a v3::AdmittedPackage,
+        subject: &'a QualifiedSubject,
+        request: &'a temporal_v2::ValidatedRequest,
+        result: &'a temporal_v2::ValidatedResult,
+        checked_predicate: &'a ValidatedCheckedPredicate,
+        temporal_subject: &'a ValidatedTemporalSubject,
+    ) -> Self {
+        Self {
+            _permit: permit,
+            context,
+            requested,
+            mappings,
+            subject,
+            request,
+            result,
+            checked_predicate,
+            temporal_subject,
+        }
+    }
 }
 
 /// Resolve every producer before invoking the loader for a non-temporal
@@ -2074,10 +2148,10 @@ pub fn start_assessment_after_resolving<'a, C: Clock + 'static>(
     manifest: &VersionLockManifest,
     budget: ResolutionBudget,
     clock: C,
-    load: impl FnOnce() -> AssessmentInputs<'a>,
+    load: impl FnOnce(ProducerReadPermit) -> AssessmentInputs<'a>,
 ) -> ProducerReadiness<crate::outcome::OperationOutcome<ResolvedAssessmentEngine<'a>>> {
     resolve_before_producer_read(request, manifest, budget, clock, |resolution| {
-        resolution.start(load())
+        resolution.start(load(ProducerReadPermit { _private: () }))
     })
 }
 
@@ -2089,10 +2163,10 @@ pub fn start_activated_after_resolving<'a, C: Clock + 'static>(
     manifest: &VersionLockManifest,
     budget: ResolutionBudget,
     clock: C,
-    load: impl FnOnce() -> ActivatedAssessmentInputs<'a>,
+    load: impl FnOnce(ProducerReadPermit) -> ActivatedAssessmentInputs<'a>,
 ) -> ProducerReadiness<crate::outcome::OperationOutcome<ResolvedAssessmentEngine<'a>>> {
     resolve_before_producer_read(request, manifest, budget, clock, |resolution| {
-        resolution.start_activated(load())
+        resolution.start_activated(load(ProducerReadPermit { _private: () }))
     })
 }
 
@@ -2104,10 +2178,10 @@ pub fn start_result_assessment_after_resolving<'a, C: Clock + 'static>(
     manifest: &VersionLockManifest,
     budget: ResolutionBudget,
     clock: C,
-    load: impl FnOnce() -> ResultAssessmentInputs<'a>,
+    load: impl FnOnce(ProducerReadPermit) -> ResultAssessmentInputs<'a>,
 ) -> ProducerReadiness<crate::outcome::OperationOutcome<ResolvedAssessmentEngine<'a>>> {
     resolve_before_producer_read(request, manifest, budget, clock, |resolution| {
-        resolution.start_result_assessment(load())
+        resolution.start_result_assessment(load(ProducerReadPermit { _private: () }))
     })
 }
 
@@ -2119,6 +2193,7 @@ impl ProducerResolution {
         let actual = ProducerResolutionRequest::for_assessment(
             inputs.context.package().digest(),
             inputs.context.definition().selection().digest,
+            &inputs.requested,
         );
         match self.authorize(&actual) {
             crate::outcome::OperationOutcome::Completed(()) => {}
@@ -2141,10 +2216,15 @@ impl ProducerResolution {
         self,
         inputs: ActivatedAssessmentInputs<'a>,
     ) -> crate::outcome::OperationOutcome<ResolvedAssessmentEngine<'a>> {
-        let actual = ProducerResolutionRequest::for_temporal_assessment(
+        let actual = ProducerResolutionRequest::for_activated_assessment(
             inputs.context.package().digest(),
             inputs.context.definition().selection().digest,
+            &inputs.requested,
+            inputs.mappings.digest(),
+            subject_selection_digest(inputs.subject),
+            inputs.temporal_subject.document().digest(),
             inputs.request.document().digest(),
+            inputs.result.document().digest(),
         );
         match self.authorize(&actual) {
             crate::outcome::OperationOutcome::Completed(()) => {}
@@ -2176,10 +2256,16 @@ impl ProducerResolution {
         self,
         inputs: ResultAssessmentInputs<'a>,
     ) -> crate::outcome::OperationOutcome<ResolvedAssessmentEngine<'a>> {
-        let actual = ProducerResolutionRequest::for_temporal_assessment(
+        let actual = ProducerResolutionRequest::for_result_assessment(
             inputs.context.package().digest(),
             inputs.context.definition().selection().digest,
+            &inputs.requested,
+            inputs.mappings.digest(),
+            subject_selection_digest(inputs.subject),
+            inputs.temporal_subject.document().digest(),
             inputs.request.document().digest(),
+            inputs.result.document().digest(),
+            inputs.checked_predicate.document().digest(),
         );
         match self.authorize(&actual) {
             crate::outcome::OperationOutcome::Completed(()) => {}
@@ -2361,7 +2447,10 @@ impl<'a> ResolvedAssessmentEngine<'a> {
 
     /// Run conformance, claim dispatch, canonical result production, and
     /// strict reading after exact producer resolution.
-    #[allow(clippy::too_many_arguments)]
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "the resolved wrapper preserves independently owned conformance, dispatch, result-control, and budget inputs"
+    )]
     pub fn assess_activated(
         self,
         requests: &[ClaimRequest<'_>],

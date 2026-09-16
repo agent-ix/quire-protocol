@@ -229,6 +229,7 @@ fn engine(fixture: &Fixture) -> ResolvedAssessmentEngine<'_> {
     let request = ProducerResolutionRequest::for_assessment(
         fixture.package.digest(),
         fixture.definition.selection().digest,
+        &[Claim::Conformance],
     );
     let manifest = VersionLockManifest::new(
         ProducerContract::ALL
@@ -240,17 +241,20 @@ fn engine(fixture: &Fixture) -> ResolvedAssessmentEngine<'_> {
     let budget = ResolutionBudget::new(ProducerContract::ALL.len(), 1, Duration::from_secs(1))
         .expect("exact producer budget");
     let ProducerReadiness::Executable(OperationOutcome::Completed(engine)) =
-        start_assessment_after_resolving(&request, &manifest, budget, SystemMonotonicClock, || {
-            AssessmentInputs {
-                context: LinkedAssessment::new(
-                    &fixture.package,
-                    &fixture.definition,
-                    &fixture.runtime,
+        start_assessment_after_resolving(
+            &request,
+            &manifest,
+            budget,
+            SystemMonotonicClock,
+            |permit| {
+                AssessmentInputs::new(
+                    permit,
+                    LinkedAssessment::new(&fixture.package, &fixture.definition, &fixture.runtime)
+                        .expect("linked assessment"),
+                    vec![Claim::Conformance],
                 )
-                .expect("linked assessment"),
-                requested: vec![Claim::Conformance],
-            }
-        })
+            },
+        )
     else {
         panic!("request-scoped engine must start")
     };

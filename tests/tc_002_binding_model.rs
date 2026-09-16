@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! TC-002: versioned static/runtime binding capability admission.
 
-use std::cell::Cell;
+use std::cell::{Cell, OnceCell};
 use std::collections::{BTreeMap, BTreeSet};
 use std::time::Duration;
 
@@ -36,7 +36,9 @@ use quire_protocol::{
         Limits as ConformanceLimits, ObligationDisposition,
     },
     outcome::OperationOutcome,
-    producer_contracts::{ProducerContract, ProducerReadiness, ProducerResolutionRequest},
+    producer_contracts::{
+        subject_selection_digest, ProducerContract, ProducerReadiness, ProducerResolutionRequest,
+    },
     version_lock::{ManifestEntry, ResolutionBudget, VersionLockManifest},
 };
 use quire_spec_language::protocol_artifact::{
@@ -1464,18 +1466,16 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
     )
     .into_result()
     .expect("strict temporal result evaluates");
-    let result = temporal_v2::read_result(
-        result_document.bytes(),
-        &request,
-        temporal_v2::Relation::Original,
-        native_temporal::Limits::default(),
-    )
-    .into_result()
-    .expect("strict temporal result reads");
-    let producer_request = ProducerResolutionRequest::for_temporal_assessment(
+    let result_cell = OnceCell::new();
+    let producer_request = ProducerResolutionRequest::for_activated_assessment(
         package.digest(),
         definition.selection().digest,
+        &[Claim::Conformance],
+        mappings.digest(),
+        subject_selection_digest(&activation_subject),
+        temporal_subject.document().digest(),
         request.document().digest(),
+        result_document.digest(),
     );
     let producer_reads = Cell::new(0usize);
     let mut unresolved_entries = producer_manifest().entries().to_vec();
@@ -1488,44 +1488,74 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
         &VersionLockManifest::new(unresolved_entries),
         producer_budget(),
         SystemMonotonicClock,
-        || {
+        |permit| {
             producer_reads.set(producer_reads.get() + 1);
-            let _ = request.document().bytes();
-            ActivatedAssessmentInputs {
+            let result = result_cell.get_or_init(|| {
+                temporal_v2::read_result(
+                    result_document.bytes(),
+                    &request,
+                    temporal_v2::Relation::Original,
+                    native_temporal::Limits::default(),
+                )
+                .into_result()
+                .expect("strict temporal result reads only after resolution")
+            });
+            ActivatedAssessmentInputs::new(
+                permit,
                 context,
-                requested: vec![Claim::Conformance],
-                mappings: &mappings,
-                subject: &activation_subject,
-                temporal_subject: &temporal_subject,
-                request: &request,
-                result: &result,
-            }
+                vec![Claim::Conformance],
+                &mappings,
+                &activation_subject,
+                &temporal_subject,
+                &request,
+                result,
+            )
         },
     );
     assert!(matches!(unresolved, ProducerReadiness::Unexecutable(_)));
     assert_eq!(producer_reads.get(), 0, "owner inputs are not read");
+    assert!(
+        result_cell.get().is_none(),
+        "the strict QSL result reader is not invoked before resolution"
+    );
 
-    let mismatched_request = ProducerResolutionRequest::for_temporal_assessment(
+    let mismatched_request = ProducerResolutionRequest::for_activated_assessment(
         package.digest(),
         definition.selection().digest,
+        &[Claim::Conformance],
+        mappings.digest(),
+        subject_selection_digest(&activation_subject),
+        temporal_subject.document().digest(),
         ByteDigest::of(b"another temporal request"),
+        result_document.digest(),
     );
     let mismatched_resolution = start_activated_after_resolving(
         &mismatched_request,
         &producer_manifest(),
         producer_budget(),
         SystemMonotonicClock,
-        || {
+        |permit| {
             producer_reads.set(producer_reads.get() + 1);
-            ActivatedAssessmentInputs {
+            let result = result_cell.get_or_init(|| {
+                temporal_v2::read_result(
+                    result_document.bytes(),
+                    &request,
+                    temporal_v2::Relation::Original,
+                    native_temporal::Limits::default(),
+                )
+                .into_result()
+                .expect("strict temporal result reads only after resolution")
+            });
+            ActivatedAssessmentInputs::new(
+                permit,
                 context,
-                requested: vec![Claim::Conformance],
-                mappings: &mappings,
-                subject: &activation_subject,
-                temporal_subject: &temporal_subject,
-                request: &request,
-                result: &result,
-            }
+                vec![Claim::Conformance],
+                &mappings,
+                &activation_subject,
+                &temporal_subject,
+                &request,
+                result,
+            )
         },
     );
     assert!(matches!(
@@ -1545,27 +1575,137 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
             &producer_manifest(),
             producer_budget(),
             SystemMonotonicClock,
-            || {
+            |permit| {
                 producer_reads.set(producer_reads.get() + 1);
-                ActivatedAssessmentInputs {
+                let result = result_cell.get_or_init(|| {
+                    temporal_v2::read_result(
+                        result_document.bytes(),
+                        &request,
+                        temporal_v2::Relation::Original,
+                        native_temporal::Limits::default(),
+                    )
+                    .into_result()
+                    .expect("strict temporal result reads only after resolution")
+                });
+                ActivatedAssessmentInputs::new(
+                    permit,
                     context,
-                    requested: vec![Claim::Conformance],
-                    mappings: &mappings,
-                    subject: &activation_subject,
-                    temporal_subject: &temporal_subject,
-                    request: &request,
-                    result: &result,
-                }
+                    vec![Claim::Conformance],
+                    &mappings,
+                    &activation_subject,
+                    &temporal_subject,
+                    &request,
+                    result,
+                )
             },
         )
     else {
         panic!("strict QSL request and QObs subject must activate this linked engine")
     };
+    let result = result_cell
+        .get()
+        .expect("one post-resolution strict read retains the validated result");
     assert_eq!(producer_reads.get(), 2, "resolved inputs load exactly once");
     assert_eq!(
         activated.producer_resolution().request().as_bytes(),
         producer_request.as_bytes(),
     );
+    let retargeted_requests = [
+        (
+            "claim selection",
+            ProducerResolutionRequest::for_activated_assessment(
+                package.digest(),
+                definition.selection().digest,
+                &[Claim::Monitorability],
+                mappings.digest(),
+                subject_selection_digest(&activation_subject),
+                temporal_subject.document().digest(),
+                request.document().digest(),
+                result.document().digest(),
+            ),
+        ),
+        (
+            "activation mapping",
+            ProducerResolutionRequest::for_activated_assessment(
+                package.digest(),
+                definition.selection().digest,
+                &[Claim::Conformance],
+                ByteDigest::of(b"another activation mapping"),
+                subject_selection_digest(&activation_subject),
+                temporal_subject.document().digest(),
+                request.document().digest(),
+                result.document().digest(),
+            ),
+        ),
+        (
+            "QObs subject",
+            ProducerResolutionRequest::for_activated_assessment(
+                package.digest(),
+                definition.selection().digest,
+                &[Claim::Conformance],
+                mappings.digest(),
+                ByteDigest::of(b"another QObs subject"),
+                temporal_subject.document().digest(),
+                request.document().digest(),
+                result.document().digest(),
+            ),
+        ),
+        (
+            "temporal subject",
+            ProducerResolutionRequest::for_activated_assessment(
+                package.digest(),
+                definition.selection().digest,
+                &[Claim::Conformance],
+                mappings.digest(),
+                subject_selection_digest(&activation_subject),
+                ByteDigest::of(b"another temporal subject"),
+                request.document().digest(),
+                result.document().digest(),
+            ),
+        ),
+        (
+            "temporal result",
+            ProducerResolutionRequest::for_activated_assessment(
+                package.digest(),
+                definition.selection().digest,
+                &[Claim::Conformance],
+                mappings.digest(),
+                subject_selection_digest(&activation_subject),
+                temporal_subject.document().digest(),
+                request.document().digest(),
+                ByteDigest::of(b"another temporal result"),
+            ),
+        ),
+    ];
+    for (axis, retargeted) in retargeted_requests {
+        let outcome = start_activated_after_resolving(
+            &retargeted,
+            &producer_manifest(),
+            producer_budget(),
+            SystemMonotonicClock,
+            |permit| {
+                producer_reads.set(producer_reads.get() + 1);
+                ActivatedAssessmentInputs::new(
+                    permit,
+                    context,
+                    vec![Claim::Conformance],
+                    &mappings,
+                    &activation_subject,
+                    &temporal_subject,
+                    &request,
+                    result,
+                )
+            },
+        );
+        assert!(
+            matches!(
+                outcome,
+                ProducerReadiness::Executable(OperationOutcome::Refused(refusal))
+                    if refusal.code().as_str() == "version-lock.capability.request-mismatch"
+            ),
+            "a resolved capability cannot be retargeted on its {axis} axis",
+        );
+    }
     assert_eq!(
         activated
             .activation()
@@ -1590,7 +1730,7 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
                 &activation_subject,
                 &temporal_subject,
                 &request,
-                &result,
+                result,
             )
             .expect_err(
                 "a separately admitted v3 temporal table cannot extend this exact v2 package",
@@ -1654,14 +1794,17 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
             &producer_manifest(),
             producer_budget(),
             SystemMonotonicClock,
-            || ActivatedAssessmentInputs {
-                context,
-                requested: vec![Claim::Conformance],
-                mappings: &mappings,
-                subject: &mismatched_subject,
-                temporal_subject: &temporal_subject,
-                request: &request,
-                result: &result,
+            |permit| {
+                ActivatedAssessmentInputs::new(
+                    permit,
+                    context,
+                    vec![Claim::Conformance],
+                    &mappings,
+                    &mismatched_subject,
+                    &temporal_subject,
+                    &request,
+                    result,
+                )
             },
         )
     else {
@@ -1669,7 +1812,7 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
     };
     assert_eq!(
         refusal.code().as_str(),
-        "assessment-activation.runtime-binding-mismatch"
+        "version-lock.capability.request-mismatch"
     );
 
     let engine = activated;
@@ -1681,7 +1824,7 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
         &mismatched_subject,
         &temporal_subject,
         &request,
-        &result,
+        result,
     ) {
         Err(refusal) => assert_eq!(
             refusal,
@@ -1697,7 +1840,7 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
             &activation_subject,
             &temporal_subject,
             &request,
-            &result,
+            result,
         )
         .expect("only the strict /3 mapping joins the selected event activation");
     assert_eq!(activation.definition(), &identity);
@@ -1743,7 +1886,7 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
     assert!(
         temporal_v2::evaluate(
             &request,
-            temporal_v2::Relation::Superseding(&result),
+            temporal_v2::Relation::Superseding(result),
             native_temporal::Limits::default(),
         )
         .into_result()
@@ -1752,7 +1895,7 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
     );
     let correction_document = temporal_v2::evaluate(
         &conflicting_request,
-        temporal_v2::Relation::Superseding(&result),
+        temporal_v2::Relation::Superseding(result),
         native_temporal::Limits::default(),
     )
     .into_result()
@@ -1760,7 +1903,7 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
     let correction_result = temporal_v2::read_result(
         correction_document.bytes(),
         &conflicting_request,
-        temporal_v2::Relation::Superseding(&result),
+        temporal_v2::Relation::Superseding(result),
         native_temporal::Limits::default(),
     )
     .into_result()
@@ -2490,18 +2633,18 @@ fn tc_002_effect_projection_requires_an_owner_effect_slot() {
     assert_eq!(context.compensation_attempt_inputs().len(), 1);
     assert_eq!(context.compensation_effect_inputs().len(), 1);
 
-    let producer_request =
-        ProducerResolutionRequest::for_assessment(package.digest(), definition.selection().digest);
+    let producer_request = ProducerResolutionRequest::for_assessment(
+        package.digest(),
+        definition.selection().digest,
+        &[Claim::Conformance],
+    );
     let ProducerReadiness::Executable(OperationOutcome::Completed(engine)) =
         start_assessment_after_resolving(
             &producer_request,
             &producer_manifest(),
             producer_budget(),
             SystemMonotonicClock,
-            || AssessmentInputs {
-                context,
-                requested: vec![Claim::Conformance],
-            },
+            |permit| AssessmentInputs::new(permit, context, vec![Claim::Conformance]),
         )
     else {
         panic!("the linked effect context must start a non-retargetable assessment")

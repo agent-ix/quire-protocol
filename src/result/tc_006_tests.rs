@@ -33,7 +33,7 @@ use quire_protocol::model::v2::{
     RUNTIME_BINDING_CONTRACT, STATIC_BINDING_CONTRACT,
 };
 use quire_protocol::producer_contracts::{
-    ProducerContract, ProducerReadiness, ProducerResolutionRequest,
+    subject_selection_digest, ProducerContract, ProducerReadiness, ProducerResolutionRequest,
 };
 use quire_protocol::projection::{
     resolve_e02_contract, DecisionSupportBinding, E02Contract, E02Resolution,
@@ -104,24 +104,32 @@ fn start_activated<'a>(
     request: &'a temporal_v2::ValidatedRequest,
     result: &'a temporal_v2::ValidatedResult,
 ) -> quire_protocol::outcome::OperationOutcome<ResolvedAssessmentEngine<'a>> {
-    let resolution_request = ProducerResolutionRequest::for_temporal_assessment(
+    let resolution_request = ProducerResolutionRequest::for_activated_assessment(
         context.package().digest(),
         context.definition().selection().digest,
+        &requested,
+        mappings.digest(),
+        subject_selection_digest(subject),
+        temporal_subject.document().digest(),
         request.document().digest(),
+        result.document().digest(),
     );
     match start_activated_after_resolving(
         &resolution_request,
         &producer_manifest(),
         producer_budget(),
         SystemMonotonicClock,
-        || ActivatedAssessmentInputs {
-            context,
-            requested,
-            mappings,
-            subject,
-            temporal_subject,
-            request,
-            result,
+        |permit| {
+            ActivatedAssessmentInputs::new(
+                permit,
+                context,
+                requested,
+                mappings,
+                subject,
+                temporal_subject,
+                request,
+                result,
+            )
         },
     ) {
         ProducerReadiness::Executable(outcome) => outcome,
@@ -148,25 +156,34 @@ fn start_result_assessment<'a>(
     checked_predicate: &'a checked_predicate::ValidatedCheckedPredicate,
     temporal_subject: &'a temporal_subject::ValidatedTemporalSubject,
 ) -> quire_protocol::outcome::OperationOutcome<ResolvedAssessmentEngine<'a>> {
-    let resolution_request = ProducerResolutionRequest::for_temporal_assessment(
+    let resolution_request = ProducerResolutionRequest::for_result_assessment(
         context.package().digest(),
         context.definition().selection().digest,
+        &requested,
+        mappings.digest(),
+        subject_selection_digest(subject),
+        temporal_subject.document().digest(),
         request.document().digest(),
+        result.document().digest(),
+        checked_predicate.document().digest(),
     );
     match start_result_assessment_after_resolving(
         &resolution_request,
         &producer_manifest(),
         producer_budget(),
         SystemMonotonicClock,
-        || ResultAssessmentInputs {
-            context,
-            requested,
-            mappings,
-            subject,
-            request,
-            result,
-            checked_predicate,
-            temporal_subject,
+        |permit| {
+            ResultAssessmentInputs::new(
+                permit,
+                context,
+                requested,
+                mappings,
+                subject,
+                request,
+                result,
+                checked_predicate,
+                temporal_subject,
+            )
         },
     ) {
         ProducerReadiness::Executable(outcome) => outcome,
@@ -1112,10 +1129,15 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
     };
     assert_eq!(
         engine.producer_resolution().request(),
-        &ProducerResolutionRequest::for_temporal_assessment(
+        &ProducerResolutionRequest::for_activated_assessment(
             package.digest(),
             definition.selection().digest,
+            &requested,
+            mapping.digest(),
+            subject_selection_digest(&subject),
+            fixture.temporal.document().digest(),
             temporal_request.document().digest(),
+            temporal_result.document().digest(),
         ),
     );
     let (foreign_declaration, foreign_root) = first_checked_leaf(&package);
@@ -1141,6 +1163,38 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
     )
     .into_result()
     .expect("same-package foreign checked predicate strict-reads");
+    let exact_result_request = ProducerResolutionRequest::for_result_assessment(
+        package.digest(),
+        definition.selection().digest,
+        &requested,
+        mapping.digest(),
+        subject_selection_digest(&subject),
+        fixture.temporal.document().digest(),
+        temporal_request.document().digest(),
+        temporal_result.document().digest(),
+        fixture.predicate.document().digest(),
+    );
+    assert!(matches!(
+        start_result_assessment_after_resolving(
+            &exact_result_request,
+            &producer_manifest(),
+            producer_budget(),
+            SystemMonotonicClock,
+            |permit| ResultAssessmentInputs::new(
+                permit,
+                context,
+                requested.to_vec(),
+                &mapping,
+                &subject,
+                &temporal_request,
+                &temporal_result,
+                &foreign_predicate,
+                &fixture.temporal,
+            ),
+        ),
+        ProducerReadiness::Executable(quire_protocol::outcome::OperationOutcome::Refused(refusal))
+            if refusal.code().as_str() == "version-lock.capability.request-mismatch"
+    ));
     assert!(matches!(
         start_result_assessment(
             context,

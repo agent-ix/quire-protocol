@@ -512,13 +512,15 @@ pub(crate) struct InterfaceSelection<C> {
 pub(crate) struct InterfaceRequirement {
     key: EntryKey,
     revision: ExactBytes,
+    immutability_assertion: ExactBytes,
 }
 
 impl InterfaceRequirement {
-    pub(crate) fn new(key: EntryKey, revision: &[u8]) -> Self {
+    pub(crate) fn new(key: EntryKey, revision: &[u8], immutability_assertion: &[u8]) -> Self {
         Self {
             key,
             revision: ExactBytes::new(revision),
+            immutability_assertion: ExactBytes::new(immutability_assertion),
         }
     }
 }
@@ -1358,11 +1360,29 @@ fn resolve_selected<C: Clock + 'static>(
                             incomplete_field(b"revision"),
                         )));
                     };
-                    if entry.kind() != EntryKind::Interface || revision != &selected.revision {
+                    if entry.kind() != EntryKind::Interface {
+                        return Err(outcome_refusal(refused_key::<()>(
+                            ResolutionRefusalCode::InterfaceSelectionMismatch,
+                            &selected.key,
+                            wrong_kind(b"interface", b"artifact"),
+                        )));
+                    }
+                    if revision != &selected.revision {
                         return Err(outcome_refusal(refused_key::<()>(
                             ResolutionRefusalCode::InterfaceSelectionMismatch,
                             &selected.key,
                             identity_mismatch(&selected.revision, revision),
+                        )));
+                    }
+                    let assertion = entry
+                        .immutability_assertion
+                        .as_ref()
+                        .expect("manifest prevalidation established an owner assertion");
+                    if assertion != &selected.immutability_assertion {
+                        return Err(outcome_refusal(refused_key::<()>(
+                            ResolutionRefusalCode::InterfaceSelectionMismatch,
+                            &selected.key,
+                            identity_mismatch(&selected.immutability_assertion, assertion),
                         )));
                     }
                 }
@@ -1428,10 +1448,10 @@ fn resolve_selected<C: Clock + 'static>(
                     unreachable!("manifest prevalidation refuses unresolved entries")
                 }
             };
-            inventory::OperationOutcome::from_domain(result)
+            inventory::OperationOutcome::from_domain(result.map(|bytes| (bytes, entry.clone())))
         });
-        let bytes = match bounded_outcome(digest_outcome) {
-            OperationOutcome::Completed(bytes) => bytes,
+        let (bytes, resolved_entry) = match bounded_outcome(digest_outcome) {
+            OperationOutcome::Completed(resolved) => resolved,
             OperationOutcome::Refused(refusal) => return OperationOutcome::Refused(refusal),
             OperationOutcome::ResourceIncomplete(incomplete) => {
                 return OperationOutcome::ResourceIncomplete(incomplete)
@@ -1443,7 +1463,7 @@ fn resolve_selected<C: Clock + 'static>(
                 bytes,
             });
         }
-        entries.push(entry.clone());
+        entries.push(resolved_entry);
     }
 
     OperationOutcome::Completed(ResolvedRequest {

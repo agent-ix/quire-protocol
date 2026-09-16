@@ -7,12 +7,13 @@ use std::time::{Duration, Instant};
 use ix_trace_rs::trace;
 use quire_protocol::bounds::inventory::BudgetDimension;
 use quire_protocol::bounds::Clock;
+use quire_protocol::claims::Claim;
 use quire_protocol::outcome::OperationOutcome;
 use quire_protocol::producer_contracts::{
     resolve_producer_contracts, ProducerContract, ProducerResolution, ProducerResolutionRequest,
     UnsupportedObservationCapability, QOBS_REVISION,
 };
-use quire_protocol::refusal::{AffectedIdentity, ProtocolRefusal};
+use quire_protocol::refusal::{AffectedIdentity, ProtocolCause, ProtocolRefusal, RefusalCause};
 use quire_protocol::version_lock::{
     EntryKey, EntryStatus, ManifestEntry, ResolutionBudget, ResolutionRefusalCode,
     VersionLockManifest,
@@ -235,6 +236,7 @@ fn it_002_sc_08_resolves_only_the_exact_scenario_contract_inventory() {
     let request = ProducerResolutionRequest::for_assessment(
         ByteDigest::of(b"it002:scenario-package"),
         [7; 32],
+        &[Claim::Conformance],
     );
     let outcome =
         resolve_producer_contracts(&request, &manifest(), exact_budget(), generous_clock());
@@ -363,6 +365,57 @@ fn it_002_sc_08_resolves_only_the_exact_scenario_contract_inventory() {
         ResolutionRefusalCode::RevisionAbsent,
         &ProducerContract::ALL[0].key(),
     );
+
+    let selected = ProducerContract::ALL[0];
+    let mut wrong_assertion_entries = manifest().entries().to_vec();
+    wrong_assertion_entries[0] = ManifestEntry::pinned_interface(
+        selected.key(),
+        Some(selected.expected_revision().as_bytes()),
+        Some(b"a different owner assertion"),
+        None,
+    );
+    let assertion_refusal = refusal(resolve_producer_contracts(
+        &request,
+        &VersionLockManifest::new(wrong_assertion_entries),
+        generous_budget(),
+        generous_clock(),
+    ));
+    assert_eq!(
+        assertion_refusal.code().as_str(),
+        ResolutionRefusalCode::InterfaceSelectionMismatch.as_str()
+    );
+    assert_eq!(assertion_refusal.identity(), &key_identity(&selected.key()));
+    assert!(matches!(
+        assertion_refusal.causes().declared_order(),
+        [RefusalCause::Protocol(ProtocolCause::IdentityMismatch { expected, observed })]
+            if expected.as_bytes() == b"owner asserts immutable and published"
+                && observed.as_bytes() == b"a different owner assertion"
+    ));
+
+    let mut wrong_kind_entries = manifest().entries().to_vec();
+    wrong_kind_entries[0] = ManifestEntry::pinned_artifact(
+        selected.key(),
+        Some(b"also-the-wrong-revision"),
+        Some(b"owner asserts immutable and published"),
+        b"not-an-interface",
+        ByteDigest::of(b"not-an-interface"),
+    );
+    let kind_refusal = refusal(resolve_producer_contracts(
+        &request,
+        &VersionLockManifest::new(wrong_kind_entries),
+        generous_budget(),
+        generous_clock(),
+    ));
+    assert_eq!(
+        kind_refusal.code().as_str(),
+        ResolutionRefusalCode::InterfaceSelectionMismatch.as_str()
+    );
+    assert_eq!(kind_refusal.identity(), &key_identity(&selected.key()));
+    assert!(matches!(
+        kind_refusal.causes().declared_order(),
+        [RefusalCause::Protocol(ProtocolCause::WrongAnchor { expected, observed })]
+            if expected.as_bytes() == b"interface" && observed.as_bytes() == b"artifact"
+    ));
 
     let mut duplicate_entries = manifest().entries().to_vec();
     duplicate_entries.push(ProducerContract::ObservationRecord.manifest_entry());

@@ -13,6 +13,7 @@ use quire_observation::authority::{
     activation, availability, bundle, capture, clock, closure, completeness, observation, partial,
     population, position, progress,
 };
+use quire_observation::QualifiedSubject;
 use quire_spec_language::protocol_artifact::{
     native_temporal::{request, result, v2 as temporal_v2},
     v2 as artifact_v2, v3 as artifact_v3,
@@ -22,6 +23,7 @@ use quire_spec_language::ByteDigest;
 use crate::bounds::inventory::ResourceIncomplete;
 use crate::bounds::inventory::Usage;
 use crate::bounds::Clock;
+use crate::claims::Claim;
 use crate::outcome::OperationOutcome;
 use crate::refusal::ProtocolRefusal;
 use crate::version_lock::{
@@ -42,6 +44,63 @@ pub const QSL_OPAQUE_TRIGGER_REVISION: &str = "0c2f13e261c0ffeaf89f0638931b573ec
 const QOBS_OWNER: &str = "agent-ix/quire-observation";
 const QSL_OWNER: &str = "agent-ix/quire-spec-language";
 const IMMUTABILITY_ASSERTION: &[u8] = b"owner asserts immutable and published";
+
+/// Fixed-size digest of one complete QObs authority-qualified subject
+/// selection. Components are length-framed so no authority, kind, or identity
+/// boundary can collide with another.
+#[must_use]
+pub fn subject_selection_digest(subject: &QualifiedSubject) -> ByteDigest {
+    let authority = subject.authority();
+    let mut bytes = Vec::new();
+    for component in [
+        authority.bundle_identity.as_bytes(),
+        authority.bundle_revision.namespace.as_bytes(),
+        authority.bundle_revision.value.as_bytes(),
+        authority.digest.algorithm.as_bytes(),
+        authority.digest.domain.as_bytes(),
+        authority.digest.version.as_bytes(),
+        authority.digest.value.as_bytes(),
+        subject.kind().as_bytes(),
+        subject.identity().as_bytes(),
+    ] {
+        bytes.extend_from_slice(
+            &u128::try_from(component.len())
+                .expect("Rust slice length always fits u128")
+                .to_be_bytes(),
+        );
+        bytes.extend_from_slice(component);
+    }
+    ByteDigest::of(&bytes)
+}
+
+/// Fixed-size digest of one admissible exact ordered claim selection.
+///
+/// The request retains only the digest, so later producer resolution cannot be
+/// reused with a different claim population or ordering. An over-complete
+/// selection receives one invalid marker because it necessarily contains a
+/// duplicate and cannot start an Engine.
+#[must_use]
+pub(crate) fn claim_selection_digest(claims: &[Claim]) -> ByteDigest {
+    if claims.len() > Claim::ALL.len() {
+        // More than the closed six-member population necessarily contains a
+        // duplicate and cannot start an Engine. Keep even that invalid path
+        // fixed-work rather than hashing caller-sized input before resolution.
+        return ByteDigest::of(b"invalid:too-many-claims");
+    }
+    let mut selection = [u8::MAX; 1 + Claim::ALL.len()];
+    selection[0] = u8::try_from(claims.len()).expect("the closed claim population fits u8");
+    for (index, claim) in claims.iter().copied().enumerate() {
+        selection[index + 1] = match claim {
+            Claim::Conformance => 0,
+            Claim::Monitorability => 1,
+            Claim::Projection => 2,
+            Claim::Realizability => 3,
+            Claim::Refinement => 4,
+            Claim::Composition => 5,
+        };
+    }
+    ByteDigest::of(&selection)
+}
 
 /// One exact owner schema selection retained beside a producer contract.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -315,9 +374,10 @@ impl UnsupportedObservationCapability {
 
 /// A fixed-size, independently selected assessment-resolution identity.
 ///
-/// The identity binds a resolution to the selected compiled package and static
-/// binding artifact and, for temporal assessments, to one exact QSL request
-/// document. Callers cannot supply arbitrary or unbounded identity bytes.
+/// The identity binds a resolution to the selected compiled package, static
+/// binding artifact, ordered claims and every selected QObs/QSL value used by
+/// that assessment. Callers cannot supply arbitrary or unbounded identity
+/// bytes.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct ProducerResolutionRequest(Box<[u8]>);
 
@@ -325,34 +385,94 @@ impl ProducerResolutionRequest {
     /// Select one non-temporal assessment request from fixed-size owner
     /// digests known before producer values are loaded.
     #[must_use]
-    pub fn for_assessment(package: ByteDigest, static_binding: [u8; 32]) -> Self {
-        Self::encode(package, static_binding, None)
+    pub fn for_assessment(package: ByteDigest, static_binding: [u8; 32], claims: &[Claim]) -> Self {
+        Self::encode(
+            0,
+            package,
+            static_binding,
+            &[claim_selection_digest(claims)],
+        )
     }
 
-    /// Select one temporal assessment request from fixed-size owner digests
-    /// known before producer values are loaded.
+    /// Select one activated assessment from every fixed-size producer
+    /// selection known before producer values are loaded.
     #[must_use]
-    pub fn for_temporal_assessment(
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "each digest binds one independently owned producer value without accepting an aggregate derived from the offer"
+    )]
+    pub fn for_activated_assessment(
         package: ByteDigest,
         static_binding: [u8; 32],
+        claims: &[Claim],
+        activation_mappings: ByteDigest,
+        subject: ByteDigest,
+        temporal_subject: ByteDigest,
         temporal_request: ByteDigest,
+        temporal_result: ByteDigest,
     ) -> Self {
-        Self::encode(package, static_binding, Some(temporal_request))
+        Self::encode(
+            1,
+            package,
+            static_binding,
+            &[
+                claim_selection_digest(claims),
+                activation_mappings,
+                subject,
+                temporal_subject,
+                temporal_request,
+                temporal_result,
+            ],
+        )
+    }
+
+    /// Select one canonical-result assessment from every fixed-size producer
+    /// selection known before producer values are loaded.
+    #[must_use]
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "each digest binds one independently owned producer value without accepting an aggregate derived from the offer"
+    )]
+    pub fn for_result_assessment(
+        package: ByteDigest,
+        static_binding: [u8; 32],
+        claims: &[Claim],
+        activation_mappings: ByteDigest,
+        subject: ByteDigest,
+        temporal_subject: ByteDigest,
+        temporal_request: ByteDigest,
+        temporal_result: ByteDigest,
+        checked_predicate: ByteDigest,
+    ) -> Self {
+        Self::encode(
+            2,
+            package,
+            static_binding,
+            &[
+                claim_selection_digest(claims),
+                activation_mappings,
+                subject,
+                temporal_subject,
+                temporal_request,
+                temporal_result,
+                checked_predicate,
+            ],
+        )
     }
 
     fn encode(
+        kind: u8,
         package: ByteDigest,
         static_binding: [u8; 32],
-        temporal_request: Option<ByteDigest>,
+        producer_values: &[ByteDigest],
     ) -> Self {
         let package = format!("{package:x}");
-        let temporal = temporal_request.map(|digest| format!("{digest:x}"));
-        let mut identity = Vec::with_capacity(1 + 64 + 32 + 64);
-        identity.push(u8::from(temporal.is_some()));
+        let mut identity = Vec::with_capacity(1 + 64 + 32 + 64 * producer_values.len());
+        identity.push(kind);
         identity.extend_from_slice(package.as_bytes());
         identity.extend_from_slice(&static_binding);
-        if let Some(temporal) = temporal {
-            identity.extend_from_slice(temporal.as_bytes());
+        for digest in producer_values {
+            identity.extend_from_slice(format!("{digest:x}").as_bytes());
         }
         Self(identity.into())
     }
@@ -465,7 +585,11 @@ pub fn resolve_producer_contracts<C: Clock + 'static>(
         .iter()
         .copied()
         .map(|contract| {
-            InterfaceRequirement::new(contract.key(), contract.expected_revision().as_bytes())
+            InterfaceRequirement::new(
+                contract.key(),
+                contract.expected_revision().as_bytes(),
+                IMMUTABILITY_ASSERTION,
+            )
         })
         .collect::<Vec<_>>();
     let resolved =
