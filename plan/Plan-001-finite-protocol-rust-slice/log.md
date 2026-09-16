@@ -7,6 +7,17 @@ description: "Chronological log of changes to the Plan-001 bundle."
 
 ## History
 
+* **2026-09-15** — Reopened Task-006 after independent exact-head review. The
+  Engine now retains the complete owner activation binding, rejects unselected
+  dispatch and same-trigger superseding-result substitution, and reports each
+  result-selection axis separately. Producer structural work is preflighted and
+  charged before allocation. The pinned QSL v2 result surface still does not
+  expose settlement/support/predecessor owner views, and pinned QObs exposes no
+  authenticated oracle/dependence or correction producer. Protocol therefore
+  remains fail-closed with unavailable truth and absent correction; those are
+  safe interim outcomes, not completion evidence for FR-032/FR-033. Task-006 and
+  SR-116/SR-117 are in progress/blocked pending the owner capabilities.
+
 * **2026-09-15** — Completed the Task-006 / issue #8 candidate as one atomic
   activation-to-result Engine operation. Exact conformance axes, completeness
   and global closure now flow through sealed dispatch into private canonical
@@ -19,10 +30,24 @@ description: "Chronological log of changes to the Plan-001 bundle."
   compile-fail inaccessible. TC-006/TC-011 include atomic, strict-reader,
   provenance, cumulative-accounting, accounting-fault and FR-008 decomposition
   controls. SR-116/SR-117 pass; `quire coverage` reports 154/342 repository rows
-  backed and 270/278 evidence symbols tagged, with no unbacked/status-lie/
+  backed and 272/279 Rust candidates bound/tagged, with no in-scope
+  unbacked/status-lie/
   untracked-Task-006 record. The exact unchanged-worktree NFR-004 gate passes
   after repairing the two static-test oracle defects it exposed. Downstream
   Tasks 007, 008 and 010 and the wider Plan-001/epic remain open.
+  Independent PR-head reviews then found and fixed the residual boundary gaps:
+  raw public constructors, caller-supplied semantic result facts, order-insensitive
+  requests, activation-fact retargeting, invented oracle/support and role-instance
+  identities, caller-authored correction semantics, collapsed row-refusal
+  identities and post-hoc owner-limit routing. Result startup accepts any exact
+  declaration-qualified member of QSL's reachable predicate-leaf set and rejects
+  foreign or unreachable leaves. Exact FR-287 role-instance subjects come only
+  from admitted runtime bindings. Because current conformance output supplies no
+  owner-authenticated oracle/dependence fact, canonical orchestration reports
+  truth and settlement unavailable with empty support rather than inventing a
+  decisive result; correction likewise remains absent pending an authenticated
+  contradiction capability. Producer output bytes, retained strings, depth and
+  field traversal now charge distinct reconciled accountant sites.
 
 * **2026-09-15** — Completed Task-005 / issue #7 as the activation-derived
   independent-claim bridge. The public Engine now assesses strict FR-300 facts

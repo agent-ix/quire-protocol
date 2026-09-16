@@ -7,14 +7,16 @@ use serde::Serialize;
 use serde_json::{json, Value};
 
 use crate::assessment::{AxisInputs, GlobalConformanceInput, GlobalPremise};
-use crate::bounds::inventory::{BudgetDimension, OperationOutcome, ResourceAccountant, SourceSite};
+use crate::bounds::inventory::{
+    BudgetDimension, ChargeError, OperationOutcome, ResourceAccountant, SourceSite,
+};
 use crate::bounds::{SiteId, SiteKind, UnitLabel};
 use crate::closure::{AssessmentExecution, GlobalConformanceClosure, ScopeState};
-use crate::digest::jcs::{canonical_len, canonicalize, ResultDigest};
+use crate::digest::jcs::{canonical_len, canonicalize, encoded_string_content_len, ResultDigest};
 use crate::repro::ReproductionRecord;
 use crate::ByteDigest;
 
-use super::{global, lineage, ErrorCode, Refusal, Result};
+use super::{global, lineage, reader::StructuralUsage, ErrorCode, Refusal, Result};
 
 pub(crate) const ITEM_SOURCE: SourceSite = SourceSite::new(
     SiteId::new("result/item/retain"),
@@ -45,6 +47,24 @@ pub(crate) const OUTPUT_SOURCE: SourceSite = SourceSite::new(
     "result::record::produce",
     BudgetDimension::OutputByte,
     SiteKind::Allocation,
+);
+pub(crate) const STRING_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("result/output/string/retain"),
+    "result::record::produce",
+    BudgetDimension::OutputByte,
+    SiteKind::Retention,
+);
+pub(crate) const DEPTH_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("result/output/container/depth"),
+    "result::record::produce",
+    BudgetDimension::Operation,
+    SiteKind::Traversal,
+);
+pub(crate) const OPERATION_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("result/output/field/visit"),
+    "result::record::produce",
+    BudgetDimension::Operation,
+    SiteKind::Traversal,
 );
 pub(crate) const ALLOCATION_SOURCE: SourceSite = SourceSite::new(
     SiteId::new("result/document/allocate"),
@@ -825,16 +845,29 @@ struct Prepared {
     semantic_usage: Usage,
 }
 
+struct PreparedWithoutIdentity {
+    snapshot: Snapshot,
+    value: Value,
+    semantic_usage: Usage,
+}
+
+// Adding `resultId` to the nonempty root object contributes one comma, the
+// canonical `"resultId":` key, and one quoted 75-byte sha256-jcs identity.
+const RESULT_ID_MEMBER_BYTES: usize = 89;
+
 /// Produce one canonical FR-286 result or one typed refusal with no partial output.
 pub(crate) fn produce(input: Input<'_>, limits: Limits) -> Result<Document> {
     let effective = limits.effective();
-    finish(prepare(input, effective)?, effective)
+    let prepared = prepare_without_identity(input, effective)?;
+    finish(seal_identity(prepared)?, effective)
 }
 
 /// Produce one canonical result under the shared QProtocol caller budget.
 ///
-/// The exact canonical byte length is computed without an output buffer, then
-/// checked against both owner and caller ceilings before canonical allocation.
+/// Exact string, depth and field requirements are charged before the governed
+/// snapshot/value allocation. The exact final canonical-byte requirement is
+/// then computed without allocating canonical text and charged before either
+/// identity-preimage or final-output canonical bytes are allocated.
 pub(crate) fn produce_bounded(
     input: Input<'_>,
     limits: Limits,
@@ -884,18 +917,24 @@ fn produce_bounded_unit(
     if let Err(error) = resources.charge_all_mixed(&charges) {
         return OperationOutcome::from_charge(error);
     }
-    let prepared = match prepare(input, effective) {
+    // Preflight charges every structural unit before traversing it. Only after
+    // all caller-controlled shape and text has been admitted may the retained
+    // snapshot and typed JSON value be allocated.
+    if let Err(error) = charge_output_preflight(&input, effective, resources) {
+        return OperationOutcome::from_charge(error);
+    }
+    let prepared = match prepare_without_identity(input, effective) {
         Ok(prepared) => prepared,
         Err(error) => return OperationOutcome::DomainError(error),
     };
-    let required = match canonical_len(&prepared.value) {
+    let required = match canonical_output_len(&prepared.value) {
         Ok(required) => required,
         Err(_) => {
             return OperationOutcome::DomainError(refusal(
                 ErrorCode::InvalidSelection,
                 "result cannot determine its canonical output length",
                 Usage::default(),
-                Some(&prepared.result_id),
+                None,
             ));
         }
     };
@@ -904,15 +943,41 @@ fn produce_bounded_unit(
     {
         return OperationOutcome::from_charge(error);
     }
+    let prepared = match seal_identity(prepared) {
+        Ok(prepared) => prepared,
+        Err(error) => return OperationOutcome::DomainError(error),
+    };
     OperationOutcome::from_domain(finish(prepared, effective))
 }
 
-fn prepare(input: Input<'_>, effective: Limits) -> Result<Prepared> {
+fn prepare_without_identity(
+    input: Input<'_>,
+    effective: Limits,
+) -> Result<PreparedWithoutIdentity> {
     validate_input(&input, effective)?;
     let semantic_usage = semantic_usage(&input);
     let snapshot = snapshot(&input);
-    let mut value = result_value(&input, &snapshot, None)?;
-    let preimage = json!({"identityVersion": IDENTITY_VERSION, "result": value});
+    let value = result_value(&snapshot, None)?;
+    Ok(PreparedWithoutIdentity {
+        snapshot,
+        value,
+        semantic_usage,
+    })
+}
+
+fn canonical_output_len(
+    value_without_identity: &Value,
+) -> std::result::Result<usize, crate::digest::jcs::JcsError> {
+    canonical_len(value_without_identity)?
+        .checked_add(RESULT_ID_MEMBER_BYTES)
+        .ok_or(crate::digest::jcs::JcsError::LengthOverflow)
+}
+
+fn seal_identity(prepared: PreparedWithoutIdentity) -> Result<Prepared> {
+    let preimage = json!({
+        "identityVersion": IDENTITY_VERSION,
+        "result": &prepared.value,
+    });
     let result_id = ResultDigest::of_result(&preimage)
         .map_err(|_| {
             refusal(
@@ -923,30 +988,34 @@ fn prepare(input: Input<'_>, effective: Limits) -> Result<Prepared> {
             )
         })?
         .text();
-    value = result_value(&input, &snapshot, Some(&result_id))?;
+    let value = result_value(&prepared.snapshot, Some(&result_id))?;
     Ok(Prepared {
-        snapshot,
+        snapshot: prepared.snapshot,
         value,
         result_id,
-        semantic_usage,
+        semantic_usage: prepared.semantic_usage,
     })
 }
 
 fn finish(prepared: Prepared, effective: Limits) -> Result<Document> {
+    let canonical = canonicalize(&prepared.value).map_err(|_| {
+        refusal(
+            ErrorCode::InvalidSelection,
+            "result contains an unsupported JCS number",
+            Usage::default(),
+            Some(&prepared.result_id),
+        )
+    })?;
+    finish_canonical(prepared, canonical, effective)
+}
+
+fn finish_canonical(prepared: Prepared, canonical: String, effective: Limits) -> Result<Document> {
     let Prepared {
         snapshot,
         value,
         result_id,
         semantic_usage,
     } = prepared;
-    let canonical = canonicalize(&value).map_err(|_| {
-        refusal(
-            ErrorCode::InvalidSelection,
-            "result contains an unsupported JCS number",
-            Usage::default(),
-            Some(&result_id),
-        )
-    })?;
     let bytes = canonical.into_bytes();
     let usage = super::reader::preflight_output(&bytes, effective, semantic_usage)?;
     let digest = ResultDigest::of_result(&value)
@@ -966,6 +1035,316 @@ fn finish(prepared: Prepared, effective: Limits) -> Result<Document> {
         usage,
         snapshot,
     })
+}
+
+fn largest_reproduction_string(input: &Input<'_>) -> Option<usize> {
+    let provenance = &input.provenance;
+    Some(
+        provenance
+            .reproduction
+            .toolchain()
+            .bytes()
+            .len()
+            .checked_mul(2)?
+            .max(
+                provenance
+                    .reproduction
+                    .corpus()
+                    .bytes()
+                    .len()
+                    .checked_mul(2)?,
+            )
+            .max(decimal_len(provenance.reproduction.seed().value())),
+    )
+}
+
+fn decimal_len(mut value: u64) -> usize {
+    let mut digits = 1;
+    while value >= 10 {
+        value /= 10;
+        digits += 1;
+    }
+    digits
+}
+
+fn base_output_fields(input: &Input<'_>) -> Option<usize> {
+    fn add(total: &mut usize, value: usize) -> Option<()> {
+        *total = total.checked_add(value)?;
+        Some(())
+    }
+
+    fn add_records(total: &mut usize, count: usize, width: usize) -> Option<()> {
+        add(total, count.checked_mul(width)?)
+    }
+
+    // The final result always contains 24 root members, four ten-member axis
+    // records, the four-member claim, the eight-member completeness record,
+    // the two-member global record, the thirteen provenance/reproduction
+    // members and the three-member settlement record.
+    let mut fields = 24usize;
+    add_records(&mut fields, input.assumptions.len(), 3)?;
+    add(&mut fields, 4 + 8)?;
+    add(&mut fields, input.completeness.payload().fact_count())?;
+    if input.correction.is_some() {
+        add(&mut fields, 5)?;
+    }
+    add(&mut fields, 40)?;
+    add_records(&mut fields, input.decision_support.len(), 6)?;
+    add(&mut fields, 2)?;
+    add_records(&mut fields, input.global_conformance.premises.len(), 5)?;
+    add_records(&mut fields, input.limitations.len(), 3)?;
+    match &input.participation {
+        Participation::Known {
+            required_role_instance_refs,
+            participating_role_instance_refs,
+        } => {
+            add(
+                &mut fields,
+                3usize
+                    .checked_add(required_role_instance_refs.len())?
+                    .checked_add(participating_role_instance_refs.len())?,
+            )?;
+        }
+        Participation::Unknown {
+            participating_role_instance_refs,
+            missing_dependency_refs,
+            reasons,
+        } => {
+            add(
+                &mut fields,
+                4usize
+                    .checked_add(participating_role_instance_refs.len())?
+                    .checked_add(missing_dependency_refs.len())?
+                    .checked_add(reasons.len())?,
+            )?;
+        }
+    }
+    add(&mut fields, 13 + 3)?;
+    add(
+        &mut fields,
+        input
+            .settlement
+            .supporting_fact_identities
+            .len()
+            .checked_add(input.settlement.supporting_progress_identities.len())?,
+    )?;
+
+    Some(fields)
+}
+
+fn charge_output_preflight(
+    input: &Input<'_>,
+    effective: Limits,
+    resources: &mut ResourceAccountant<'_>,
+) -> core::result::Result<StructuralUsage, ChargeError> {
+    // Three container levels are unconditional. A global premise makes the
+    // fourth level visible without traversal; a nested support predecessor
+    // charges that fourth level immediately before it is entered below.
+    let mut depth = if input.global_conformance.premises.is_empty() {
+        3
+    } else {
+        4
+    };
+    resources.charge_with_limit(DEPTH_SOURCE.id(), depth, effective.max_depth)?;
+
+    // The base field count uses only O(1) collection lengths and variant
+    // discriminants. It deliberately excludes the two predecessor members,
+    // which are charged immediately before each optional nested record.
+    let mut fields =
+        base_output_fields(input).unwrap_or_else(|| effective.max_visited_fields.saturating_add(1));
+    resources.charge_with_limit(OPERATION_SOURCE.id(), fields, effective.max_visited_fields)?;
+    for support in &input.decision_support {
+        if support.predecessor.is_some() {
+            if depth == 3 {
+                resources.charge_with_limit(DEPTH_SOURCE.id(), 1, effective.max_depth)?;
+                depth = 4;
+            }
+            resources.charge_with_limit(OPERATION_SOURCE.id(), 2, effective.max_visited_fields)?;
+            fields = fields.saturating_add(2);
+        }
+    }
+
+    // The fixed result identity is always a 75-byte string. Reserving it first
+    // means an exhausted output budget refuses before any caller string is
+    // traversed. Each variable string then reserves its O(1) raw byte length
+    // before scanning escapes, and reserves any escape expansion before the
+    // retained snapshot is built.
+    let mut string_bytes = 0usize;
+    charge_string_size(resources, effective.max_string_bytes, &mut string_bytes, 75)?;
+    let reproduction_string = largest_reproduction_string(input)
+        .unwrap_or_else(|| effective.max_string_bytes.saturating_add(1));
+    charge_string_size(
+        resources,
+        effective.max_string_bytes,
+        &mut string_bytes,
+        reproduction_string,
+    )?;
+    let mut observe = |value: &str| {
+        charge_encoded_string(
+            resources,
+            effective.max_string_bytes,
+            &mut string_bytes,
+            value,
+        )
+    };
+    observe(input.checked_predicate.document().identity())?;
+    observe(input.temporal_subject.document().identity())?;
+    for assumption in &input.assumptions {
+        observe(&assumption.identity)?;
+    }
+    if let Some(identity) = input.claim.admitted_fragment_identity.as_deref() {
+        observe(identity)?;
+    }
+    if let Some(identity) = input.claim.backend_identity.as_deref() {
+        observe(identity)?;
+    }
+    for view in [
+        input.axes.decision_scope_progress,
+        input.axes.surrounding_execution_progress,
+    ] {
+        observe(view.identity().as_str())?;
+        observe(view.authority().definition_identity.as_str())?;
+        observe(view.authority().definition_revision.as_str())?;
+        observe(view.subject().scope_identity.as_str())?;
+        observe(view.subject().population_identity.as_str())?;
+    }
+    for view in [
+        input.axes.decision_scope_closure,
+        input.axes.surrounding_execution_closure,
+    ] {
+        observe(view.identity().as_str())?;
+        observe(view.authority().definition_identity.as_str())?;
+        observe(view.authority().definition_revision.as_str())?;
+        observe(view.subject().scope_identity.as_str())?;
+        observe(view.subject().population_identity.as_str())?;
+    }
+    observe(input.completeness.identity().as_str())?;
+    observe(input.completeness.payload().population_identity())?;
+    observe(input.completeness.payload().boundary_identity())?;
+    for fact in input.completeness.payload().facts() {
+        observe(fact.observation_identity.unwrap_or(fact.member_identity))?;
+    }
+    for support in &input.decision_support {
+        observe(&support.oracle_identity)?;
+        observe(&support.observation_identity)?;
+        if let Some(predecessor) = &support.predecessor {
+            observe(&predecessor.oracle_identity)?;
+            observe(&predecessor.observation_identity)?;
+        }
+        if let Some(group) = support.dependence_group.as_deref() {
+            observe(group)?;
+        }
+    }
+    for premise in &input.global_conformance.premises {
+        observe(&premise.identity)?;
+        observe(&premise.scope_identity)?;
+        observe(&premise.authority_identity)?;
+    }
+    for limitation in &input.limitations {
+        observe(&limitation.code)?;
+        observe(&limitation.affected_identity)?;
+    }
+    match &input.participation {
+        Participation::Known {
+            required_role_instance_refs,
+            participating_role_instance_refs,
+        } => {
+            for value in required_role_instance_refs
+                .iter()
+                .chain(participating_role_instance_refs)
+            {
+                observe(value)?;
+            }
+        }
+        Participation::Unknown {
+            participating_role_instance_refs,
+            missing_dependency_refs,
+            reasons,
+        } => {
+            for value in participating_role_instance_refs
+                .iter()
+                .chain(missing_dependency_refs)
+                .chain(reasons)
+            {
+                observe(value)?;
+            }
+        }
+    }
+    for value in [
+        input.provenance.source_identity.as_str(),
+        input.provenance.profile_identity.as_str(),
+        input.provenance.model_identity.as_str(),
+        input.provenance.protocol_identity.as_str(),
+        input.provenance.request_identity.as_str(),
+        input.provenance.binding_identity.as_str(),
+        input.provenance.input_identity.as_str(),
+        input.provenance.backend_identity.as_str(),
+        input.provenance.producer_identity.as_str(),
+    ] {
+        observe(value)?;
+    }
+    for value in input
+        .settlement
+        .supporting_fact_identities
+        .iter()
+        .chain(&input.settlement.supporting_progress_identities)
+    {
+        observe(value)?;
+    }
+    if let Some(correction) = input.correction {
+        observe(correction.predecessor.result_id())?;
+        observe(correction.predecessor.digest())?;
+        observe(correction.contradicted_premise_identity)?;
+        observe(correction.corrected_input_identity)?;
+    }
+
+    Ok(StructuralUsage {
+        fields,
+        depth,
+        string_bytes,
+    })
+}
+
+fn charge_string_size(
+    resources: &mut ResourceAccountant<'_>,
+    limit: usize,
+    largest: &mut usize,
+    size: usize,
+) -> core::result::Result<(), ChargeError> {
+    if size > *largest {
+        resources.charge_with_limit(STRING_SOURCE.id(), size - *largest, limit)?;
+        *largest = size;
+    }
+    Ok(())
+}
+
+fn charge_encoded_string(
+    resources: &mut ResourceAccountant<'_>,
+    limit: usize,
+    largest: &mut usize,
+    value: &str,
+) -> core::result::Result<(), ChargeError> {
+    // `str::len` is O(1), so the raw bytes are reserved before the escaping
+    // scan. JCS never shortens a UTF-8 string; only the expansion delta can
+    // remain after this reservation, and it is charged before retention.
+    charge_string_size(resources, limit, largest, value.len())?;
+    let encoded = match encoded_string_content_len(value) {
+        Ok(encoded) => encoded,
+        Err(_) => return force_string_refusal(resources, limit, *largest),
+    };
+    charge_string_size(resources, limit, largest, encoded)
+}
+
+fn force_string_refusal(
+    resources: &mut ResourceAccountant<'_>,
+    limit: usize,
+    consumed: usize,
+) -> core::result::Result<(), ChargeError> {
+    resources.charge_with_limit(
+        STRING_SOURCE.id(),
+        limit.saturating_sub(consumed).saturating_add(1),
+        limit,
+    )
 }
 
 fn validate_input(input: &Input<'_>, limits: Limits) -> Result<()> {
@@ -1025,8 +1404,7 @@ fn validate_nonempty(input: &Input<'_>, limits: Limits) -> Result<()> {
             None,
         ));
     }
-    let Some(toolchain_string_bytes) = p.reproduction.toolchain().bytes().len().checked_mul(2)
-    else {
+    let Some(largest_reproduction_string) = largest_reproduction_string(input) else {
         return Err(refusal(
             ErrorCode::ResourceIncomplete,
             "a reproduction identity cannot be represented within the result domain",
@@ -1037,20 +1415,6 @@ fn validate_nonempty(input: &Input<'_>, limits: Limits) -> Result<()> {
             None,
         ));
     };
-    let Some(corpus_string_bytes) = p.reproduction.corpus().bytes().len().checked_mul(2) else {
-        return Err(refusal(
-            ErrorCode::ResourceIncomplete,
-            "a reproduction identity cannot be represented within the result domain",
-            Usage {
-                string_bytes: usize::MAX,
-                ..Usage::default()
-            },
-            None,
-        ));
-    };
-    let largest_reproduction_string = toolchain_string_bytes
-        .max(corpus_string_bytes)
-        .max(p.reproduction.seed().to_string().len());
     if largest_reproduction_string > limits.max_string_bytes {
         return Err(refusal(
             ErrorCode::ResourceIncomplete,
@@ -1561,33 +1925,36 @@ struct SettlementWire<'a> {
     supporting_progress_identities: &'a [String],
 }
 
-fn result_value(input: &Input<'_>, snapshot: &Snapshot, result_id: Option<&str>) -> Result<Value> {
+fn result_value(snapshot: &Snapshot, result_id: Option<&str>) -> Result<Value> {
     let axes = &snapshot.axes;
     let wire = ResultWire {
-        activation: input.activation.label(),
-        assumptions: input.assumptions.iter().map(assumption_wire).collect(),
-        claim: claim_wire(&input.claim),
+        activation: snapshot.activation.label(),
+        assumptions: snapshot.assumptions.iter().map(assumption_wire).collect(),
+        claim: claim_wire(&snapshot.claim),
         completeness: completeness_wire(&snapshot.completeness),
         contract_version: CONTRACT,
         correction: snapshot.correction.as_ref().map(correction_wire),
         decision_scope_closure: axis_wire(&axes[1]),
         decision_scope_progress: axis_wire(&axes[0]),
-        decision_support: input.decision_support.iter().map(support_wire).collect(),
-        execution: input.execution.label(),
-        global_conformance: global_wire(&input.global_conformance),
+        decision_support: snapshot.decision_support.iter().map(support_wire).collect(),
+        execution: snapshot.execution.label(),
+        global_conformance: GlobalWire {
+            premises: snapshot.global_premises.iter().map(premise_wire).collect(),
+            state: snapshot.global_conformance_state.label(),
+        },
         kind: "ProtocolResult",
-        limitations: input.limitations.iter().map(limitation_wire).collect(),
+        limitations: snapshot.limitations.iter().map(limitation_wire).collect(),
         native_correspondence_identity: &snapshot.native_correspondence_identity,
         native_subject_identity: &snapshot.native_subject_identity,
-        observation_adequacy: input.observation_adequacy.label(),
-        participation: participation_wire(&input.participation),
-        protocol_adequacy: input.protocol_adequacy.label(),
-        provenance: provenance_wire(&input.provenance)?,
+        observation_adequacy: snapshot.observation_adequacy.label(),
+        participation: participation_wire(&snapshot.participation),
+        protocol_adequacy: snapshot.protocol_adequacy.label(),
+        provenance: provenance_wire(&snapshot.provenance)?,
         result_id,
-        settlement: settlement_wire(&input.settlement),
+        settlement: settlement_wire(&snapshot.settlement),
         surrounding_execution_closure: axis_wire(&axes[3]),
         surrounding_execution_progress: axis_wire(&axes[2]),
-        truth: input.truth.label(),
+        truth: snapshot.truth.label(),
     };
     serde_json::to_value(wire).map_err(|_| {
         refusal(
@@ -1666,13 +2033,6 @@ fn support_wire(support: &DecisionSupport) -> SupportWire<'_> {
                 oracle_identity: &predecessor.oracle_identity,
             }),
         relation: support.relation.label(),
-    }
-}
-
-fn global_wire(global: &GlobalConformanceInput) -> GlobalWire<'_> {
-    GlobalWire {
-        premises: global.premises.iter().map(premise_wire).collect(),
-        state: global.state.label(),
     }
 }
 

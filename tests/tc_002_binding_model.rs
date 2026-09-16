@@ -17,9 +17,7 @@ use quire_protocol::model::v2::{
 };
 use quire_protocol::wire::{BindingKind, Body, CausalEdge, ControlOperation, EdgeKind, Port};
 use quire_protocol::{
-    assessment::{
-        AxisInputs, BundleRefusal, Engine, GlobalConformanceInput, GlobalPremise, PremiseKind,
-    },
+    assessment::{AxisInputs, Engine, GlobalConformanceInput, GlobalPremise, PremiseKind},
     claims::{
         dispatch::{ClaimRequest, Decision, Limits as DispatchLimits},
         premises::{Assumption, AssumptionState, BackendSelection, Component, PremiseSet},
@@ -34,7 +32,8 @@ use quire_protocol::{
 };
 use quire_spec_language::protocol_artifact::{
     native_temporal::{self, request, v2 as temporal_v2},
-    occurrence_key_schema, temporal_subject, v3, wire as qsl_wire, WorkflowInstanceIdentity,
+    occurrence_key_schema, temporal_subject, v2 as artifact_v2, v3, wire as qsl_wire,
+    WorkflowInstanceIdentity,
 };
 use quire_spec_language::{temporal, ByteDigest};
 
@@ -105,6 +104,70 @@ fn admitted_published_v2() -> quire_spec_language::protocol_artifact::v2::Admitt
     quire_protocol::intake::v2::admit(loaded.offer(), &expected, loaded.limits())
         .into_result()
         .expect("published v2 offer admits")
+}
+
+fn foreign_clock(
+    clock: &artifact_v2::wire::ClockConfiguration,
+) -> artifact_v2::wire::ClockConfiguration {
+    match clock {
+        artifact_v2::wire::ClockConfiguration::EventPosition { sequence_authority } => {
+            artifact_v2::wire::ClockConfiguration::EventPosition {
+                sequence_authority: format!("{sequence_authority}:foreign"),
+            }
+        }
+        artifact_v2::wire::ClockConfiguration::FixedSample {
+            epoch,
+            period,
+            unit,
+        } => artifact_v2::wire::ClockConfiguration::FixedSample {
+            epoch: epoch.clone(),
+            period: period.clone(),
+            unit: format!("{unit}:foreign"),
+        },
+        artifact_v2::wire::ClockConfiguration::TimestampedEvent { timestamp_unit } => {
+            artifact_v2::wire::ClockConfiguration::TimestampedEvent {
+                timestamp_unit: format!("{timestamp_unit}:foreign"),
+            }
+        }
+    }
+}
+
+fn admitted_v2_with_foreign_temporal_table() -> artifact_v2::AdmittedPackage {
+    let package = admitted_published_v2();
+    let mut offer = package.package().clone();
+    let binding = offer
+        .temporal_bindings
+        .first_mut()
+        .expect("published v2 package retains a temporal binding");
+    let changed_clock = foreign_clock(&binding.clock);
+    binding.clock = changed_clock.clone();
+    let candidate = artifact_v2::encode_candidate(
+        &offer,
+        quire_spec_language::protocol_artifact::Limits::default(),
+    )
+    .into_result()
+    .expect("foreign temporal v2 offer encodes");
+    let loaded = handoff::Handoff::load().expect("published v2 handoff");
+    let declarations = loaded.declarations();
+    let inventories = loaded.inventories(&declarations);
+    let mut seal = package
+        .artifact()
+        .expect("strict v2 handoff retained its artifact seal")
+        .clone();
+    seal.digest = candidate.digest();
+    let base = loaded.expected_for(&inventories, &seal);
+    let mut temporal = base.temporal.to_vec();
+    temporal
+        .first_mut()
+        .expect("published expectation retains a temporal selection")
+        .clock = &changed_clock;
+    let expected = artifact_v2::Expected {
+        inherited: base.inherited,
+        temporal: &temporal,
+    };
+    quire_protocol::intake::v2::admit(candidate.bytes(), &expected, loaded.limits())
+        .into_result()
+        .expect("independently selected foreign temporal v2 package admits")
 }
 
 /// Strictly admit the published `/2` graph with one independently authored
@@ -189,6 +252,68 @@ fn admitted_published_v3(
     )
     .into_result()
     .expect("strict v3 mapping package admits")
+}
+
+/// Strictly admit another `/3` package whose inherited v1 graph and activation
+/// mapping equal the linked package while its independently selected complete
+/// `/2` temporal table differs. Protocol must not treat this as an extension of
+/// the linked `/2` owner value.
+fn admitted_v3_with_foreign_temporal_table(
+    package: &artifact_v2::AdmittedPackage,
+) -> v3::AdmittedPackage {
+    let canonical = admitted_published_v3(package);
+    let mut offer = canonical.package().clone();
+    let binding = offer
+        .temporal_bindings
+        .first_mut()
+        .expect("published v3 package retains a temporal binding");
+    let changed_clock = foreign_clock(&binding.clock);
+    binding.clock = changed_clock.clone();
+
+    let candidate = v3::encode_candidate(
+        &offer,
+        quire_spec_language::protocol_artifact::Limits::default(),
+    )
+    .into_result()
+    .expect("foreign temporal v3 mapping offer encodes");
+    let loaded = handoff::Handoff::load().expect("published v2 handoff");
+    let declarations = loaded.declarations();
+    let inventories = loaded.inventories(&declarations);
+    let mut seal = package
+        .artifact()
+        .expect("strict v2 handoff retained its artifact seal")
+        .clone();
+    seal.wire.version = "3".into();
+    seal.digest = candidate.digest();
+    let base = loaded.expected_for(&inventories, &seal);
+    let mut temporal = base.temporal.to_vec();
+    let first = temporal
+        .first_mut()
+        .expect("published expectation retains a temporal selection");
+    first.clock = &changed_clock;
+    let inherited = artifact_v2::Expected {
+        inherited: base.inherited,
+        temporal: &temporal,
+    };
+    let selected = offer
+        .activation_mappings
+        .first()
+        .expect("published v3 package retains an activation mapping");
+    let activation = v3::ExpectedActivation {
+        control: selected.control.clone(),
+        temporal_declaration: selected.temporal_declaration,
+    };
+    let expected = v3::Expected {
+        inherited,
+        activations: std::slice::from_ref(&activation),
+    };
+    v3::read(
+        candidate.bytes(),
+        &expected,
+        quire_spec_language::protocol_artifact::Limits::default(),
+    )
+    .into_result()
+    .expect("independently selected foreign temporal v3 package admits")
 }
 
 fn protocol_coordinates(
@@ -399,37 +524,17 @@ fn activated_request_at(
     trigger: &[u8],
     anchor: &str,
 ) -> temporal_v2::ValidatedRequest {
-    let declaration = package
-        .inherited()
-        .declarations
-        .iter()
-        .enumerate()
-        .find_map(|(index, declaration)| {
-            matches!(declaration.body, Body::Temporal { .. })
-                .then(|| u32::try_from(index).expect("fixture temporal declaration fits"))
-        })
-        .expect("published fixture has one temporal declaration");
-    let selection = temporal_subject::DeclarationSelection::new(declaration);
-    let subject = temporal_subject::derive(package, selection, temporal_subject::Limits::default())
-        .into_result()
-        .expect("derive temporal subject");
-    let subject = temporal_subject::read(
-        subject.bytes(),
-        package,
-        selection,
-        temporal_subject::Limits::default(),
-    )
-    .into_result()
-    .expect("strict-read temporal subject");
-    let leaf = package.inherited().declarations[usize::try_from(declaration).unwrap()]
-        .temporal
-        .iter()
-        .enumerate()
-        .find_map(|(index, node)| {
-            matches!(node.operation, qsl_wire::TemporalOperation::Holds { .. })
-                .then(|| u32::try_from(index).expect("fixture temporal node fits"))
-        })
-        .expect("temporal fixture has a holds leaf");
+    let subject = activated_temporal_subject(package);
+    let leaf = package.inherited().declarations
+        [usize::try_from(subject.declaration()).expect("temporal declaration fits")]
+    .temporal
+    .iter()
+    .enumerate()
+    .find_map(|(index, node)| {
+        matches!(node.operation, qsl_wire::TemporalOperation::Holds { .. })
+            .then(|| u32::try_from(index).expect("fixture temporal node fits"))
+    })
+    .expect("temporal fixture has a holds leaf");
     let input = temporal_v2::Input {
         trigger: temporal_v2::SemanticTriggerIdentity::new(trigger.to_vec())
             .expect("QObs subject identity is nonempty"),
@@ -490,6 +595,34 @@ fn activated_request_at(
     )
     .into_result()
     .expect("strict-read opaque temporal request")
+}
+
+fn activated_temporal_subject(
+    package: &quire_spec_language::protocol_artifact::v2::AdmittedPackage,
+) -> quire_spec_language::protocol_artifact::temporal_subject::ValidatedTemporalSubject {
+    let declaration = package
+        .inherited()
+        .declarations
+        .iter()
+        .enumerate()
+        .find_map(|(index, declaration)| {
+            matches!(declaration.body, Body::Temporal { .. })
+                .then(|| u32::try_from(index).expect("fixture temporal declaration fits"))
+        })
+        .expect("published fixture has one temporal declaration");
+    let selection = temporal_subject::DeclarationSelection::new(declaration);
+    let subject = temporal_subject::derive(package, selection, temporal_subject::Limits::default())
+        .into_result()
+        .expect("derive temporal subject");
+    let subject = temporal_subject::read(
+        subject.bytes(),
+        package,
+        selection,
+        temporal_subject::Limits::default(),
+    )
+    .into_result()
+    .expect("strict-read temporal subject");
+    subject
 }
 fn order_shipment(producer: &quire_observation::AdmittedStaticBundle) -> Relationship {
     order_shipment_with_identity(
@@ -1285,56 +1418,8 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
         .definition_identity()
         .expect("the admitted static selection has an FR-288 identity");
 
+    let temporal_subject = activated_temporal_subject(&package);
     let request = activated_request(&package, activation_subject.identity().as_bytes());
-    let activated = Engine::new_activated(
-        context,
-        vec![Claim::Conformance],
-        &activation_subject,
-        &request,
-    )
-    .expect("strict QSL request and QObs subject activate this linked engine");
-    assert_eq!(
-        activated
-            .activation()
-            .expect("event-triggered engine retains its activation binding")
-            .subject(),
-        &activation_subject
-    );
-    assert_eq!(
-        activated
-            .activation()
-            .expect("event-triggered engine retains its activation binding")
-            .request()
-            .semantic_trigger(),
-        activation_subject.identity().as_bytes()
-    );
-    let mismatched_subject = QualifiedSubject::new(
-        &producer,
-        SubjectKind::new(ORDER_KIND.to_vec()).expect("non-empty kind"),
-        SubjectIdentity::new(b"order:43".to_vec()).expect("non-empty identity"),
-    );
-    assert_eq!(
-        Engine::new_activated(
-            context,
-            vec![Claim::Conformance],
-            &mismatched_subject,
-            &request,
-        )
-        .expect_err("different QObs subject cannot reuse a strict temporal request"),
-        BundleRefusal::ActivationSubjectMismatch
-    );
-
-    let engine = match Engine::start(context, vec![Claim::Conformance]) {
-        OperationOutcome::Completed(engine) => engine,
-        OperationOutcome::Refused(refusal) => {
-            panic!("linked context must start an engine: {refusal}")
-        }
-        OperationOutcome::ResourceIncomplete(incomplete) => {
-            panic!("engine startup has no resource work: {incomplete:?}")
-        }
-    };
-    assert_eq!(engine.linked().identity(), &identity);
-    assert_eq!(engine.conformance().definition(), &identity);
     let mappings = admitted_published_v3(&package);
     let result_document = temporal_v2::evaluate(
         &request,
@@ -1351,10 +1436,124 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
     )
     .into_result()
     .expect("strict temporal result reads");
+    let activated = Engine::start_activated(
+        context,
+        vec![Claim::Conformance],
+        &mappings,
+        &activation_subject,
+        &temporal_subject,
+        &request,
+        &result,
+    );
+    let OperationOutcome::Completed(activated) = activated else {
+        panic!("strict QSL request and QObs subject must activate this linked engine")
+    };
+    assert_eq!(
+        activated
+            .activation()
+            .expect("event-triggered engine retains its activation binding")
+            .subject(),
+        &activation_subject
+    );
+    assert_eq!(
+        activated
+            .activation()
+            .expect("event-triggered engine retains its activation binding")
+            .semantic_trigger(),
+        activation_subject.identity().as_bytes()
+    );
+    let foreign_temporal_mappings = admitted_v3_with_foreign_temporal_table(&package);
+    assert_eq!(
+        activated
+            .conformance()
+            .bind_activation(
+                activated.linked(),
+                &foreign_temporal_mappings,
+                &activation_subject,
+                &temporal_subject,
+                &request,
+                &result,
+            )
+            .expect_err(
+                "a separately admitted v3 temporal table cannot extend this exact v2 package",
+            ),
+        quire_protocol::conformance::KernelRefusal::ForeignActivationPackage
+    );
+    let foreign_temporal_package = admitted_v2_with_foreign_temporal_table();
+    let foreign_temporal_subject = activated_temporal_subject(&foreign_temporal_package);
+    let foreign_temporal_request = activated_request(
+        &foreign_temporal_package,
+        activation_subject.identity().as_bytes(),
+    );
+    let foreign_temporal_result_document = temporal_v2::evaluate(
+        &foreign_temporal_request,
+        temporal_v2::Relation::Original,
+        native_temporal::Limits::default(),
+    )
+    .into_result()
+    .expect("foreign strict temporal result evaluates");
+    let foreign_temporal_result = temporal_v2::read_result(
+        foreign_temporal_result_document.bytes(),
+        &foreign_temporal_request,
+        temporal_v2::Relation::Original,
+        native_temporal::Limits::default(),
+    )
+    .into_result()
+    .expect("foreign strict temporal result reads");
+    assert_ne!(foreign_temporal_package.digest(), package.digest());
+    assert_eq!(
+        foreign_temporal_request.declaration(),
+        request.declaration()
+    );
+    assert_eq!(
+        foreign_temporal_request.semantic_trigger(),
+        request.semantic_trigger()
+    );
+    assert_eq!(
+        activated
+            .conformance()
+            .bind_activation(
+                activated.linked(),
+                &mappings,
+                &activation_subject,
+                &foreign_temporal_subject,
+                &foreign_temporal_request,
+                &foreign_temporal_result,
+            )
+            .expect_err(
+                "the linked mappings cannot authorize a request from another strict package",
+            ),
+        quire_protocol::conformance::KernelRefusal::InvalidActivationTemporal
+    );
+    let mismatched_subject = QualifiedSubject::new(
+        &producer,
+        SubjectKind::new(ORDER_KIND.to_vec()).expect("non-empty kind"),
+        SubjectIdentity::new(b"order:43".to_vec()).expect("non-empty identity"),
+    );
+    let OperationOutcome::Refused(refusal) = Engine::start_activated(
+        context,
+        vec![Claim::Conformance],
+        &mappings,
+        &mismatched_subject,
+        &temporal_subject,
+        &request,
+        &result,
+    ) else {
+        panic!("different QObs subject cannot reuse a strict temporal request")
+    };
+    assert_eq!(
+        refusal.code().as_str(),
+        "assessment-activation.runtime-binding-mismatch"
+    );
+
+    let engine = activated;
+    assert_eq!(engine.linked().identity(), &identity);
+    assert_eq!(engine.conformance().definition(), &identity);
     match engine.conformance().bind_activation(
         engine.linked(),
         &mappings,
         &mismatched_subject,
+        &temporal_subject,
         &request,
         &result,
     ) {
@@ -1370,6 +1569,7 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
             engine.linked(),
             &mappings,
             &activation_subject,
+            &temporal_subject,
             &request,
             &result,
         )
@@ -1388,24 +1588,10 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
     ));
     let mut activations = quire_protocol::conformance::ActivationRegistry::default();
     activations
-        .admit(
-            engine.conformance(),
-            engine.linked(),
-            &mappings,
-            &activation_subject,
-            &request,
-            &result,
-        )
+        .admit(activation.clone())
         .expect("first strict activation retains");
     activations
-        .admit(
-            engine.conformance(),
-            engine.linked(),
-            &mappings,
-            &activation_subject,
-            &request,
-            &result,
-        )
+        .admit(activation.clone())
         .expect("an exact strict activation replay is idempotent");
     assert_eq!(activations.bindings().len(), 1);
     let conflicting_request = activated_request_at(
@@ -1428,6 +1614,31 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
     )
     .into_result()
     .expect("changed strict temporal result reads");
+    assert!(
+        temporal_v2::evaluate(
+            &request,
+            temporal_v2::Relation::Superseding(&result),
+            native_temporal::Limits::default(),
+        )
+        .into_result()
+        .is_err(),
+        "QSL refuses a second relation for the same request identity"
+    );
+    let correction_document = temporal_v2::evaluate(
+        &conflicting_request,
+        temporal_v2::Relation::Superseding(&result),
+        native_temporal::Limits::default(),
+    )
+    .into_result()
+    .expect("same-trigger changed request admits a superseding result");
+    let correction_result = temporal_v2::read_result(
+        correction_document.bytes(),
+        &conflicting_request,
+        temporal_v2::Relation::Superseding(&result),
+        native_temporal::Limits::default(),
+    )
+    .into_result()
+    .expect("strict superseding result reads against its changed request");
     assert_eq!(
         engine
             .conformance()
@@ -1435,6 +1646,7 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
                 engine.linked(),
                 &mappings,
                 &activation_subject,
+                &temporal_subject,
                 &request,
                 &conflicting_result,
             )
@@ -1444,12 +1656,17 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
     assert_eq!(
         activations
             .admit(
-                engine.conformance(),
-                engine.linked(),
-                &mappings,
-                &activation_subject,
-                &conflicting_request,
-                &conflicting_result,
+                engine
+                    .conformance()
+                    .bind_activation(
+                        engine.linked(),
+                        &mappings,
+                        &activation_subject,
+                        &temporal_subject,
+                        &conflicting_request,
+                        &conflicting_result,
+                    )
+                    .expect("changed checked anchor still forms an owner-valid binding"),
             )
             .expect_err("a changed checked anchor cannot overwrite the same FR-300 key"),
         quire_protocol::conformance::KernelRefusal::ConflictingActivation
@@ -1491,6 +1708,33 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
     let fact = engine
         .conformance()
         .activation_fact(derived_occurrence.clone(), Some(&decision.observation));
+    let corrected_activation = engine
+        .conformance()
+        .bind_activation(
+            engine.linked(),
+            &mappings,
+            &activation_subject,
+            &temporal_subject,
+            &conflicting_request,
+            &correction_result,
+        )
+        .expect("the owner admits a same-trigger superseding activation");
+    let corrected_occurrence = occurrence_schema
+        .bind(
+            WorkflowInstanceIdentity::new("workflow:corrected")
+                .expect("nonempty corrected workflow identity"),
+            corrected_activation.control(),
+            node.role().clone(),
+            &[],
+        )
+        .expect("the corrected activation occurrence admits");
+    let corrected_occurrence = engine
+        .conformance()
+        .activate_occurrence(&corrected_activation, corrected_occurrence)
+        .expect("the corrected activation produces an occurrence");
+    let corrected_fact = engine
+        .conformance()
+        .activation_fact(corrected_occurrence, Some(&decision.observation));
     let batch = engine
         .conformance()
         .assess_activated(
@@ -1582,6 +1826,21 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
         Some(Decision::Established),
         "the claim result comes from the actual activation-derived conformance report"
     );
+    assert!(matches!(
+        engine.dispatch_activated(
+            std::slice::from_ref(&dispatch_request),
+            std::slice::from_ref(&corrected_fact),
+            closed_axes(&decision, &surrounding),
+            &decision.completeness_complete,
+            &global,
+            AssessmentExecution::Completed,
+            ConformanceLimits::default(),
+            DispatchLimits::default(),
+            Budget::nothing_granted(),
+        ),
+        OperationOutcome::Refused(refusal)
+            if refusal.code().as_str() == "assessment-activation.fact-mismatch"
+    ));
     let unexpected_fact = engine
         .conformance()
         .activation_fact(derived_occurrence.clone(), Some(&surrounding.observation));
@@ -2105,8 +2364,10 @@ fn tc_002_effect_projection_requires_an_owner_effect_slot() {
     assert_eq!(context.compensation_attempt_inputs().len(), 1);
     assert_eq!(context.compensation_effect_inputs().len(), 1);
 
-    let engine = Engine::new(context, vec![Claim::Conformance])
-        .expect("the linked effect context starts a non-retargetable assessment");
+    let OperationOutcome::Completed(engine) = Engine::start(context, vec![Claim::Conformance])
+    else {
+        panic!("the linked effect context must start a non-retargetable assessment")
+    };
     let Body::Protocol { controls, .. } = &engine.linked().declaration().body else {
         panic!("the linked assessment retains the selected protocol declaration")
     };

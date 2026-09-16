@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Shared, producer-owned facts consumed by assessment and result construction.
+//! Assessment orchestration over shared, producer-owned facts.
 //!
-//! This module is deliberately neutral: conformance assesses these inputs and
-//! the result owner serializes them, but neither subsystem owns or re-derives
-//! the QObs facts or the declared global-closure premise set.
+//! Conformance assesses authenticated QSL/QObs inputs and the Engine carries
+//! those stage outputs into private result construction. It does not parse or
+//! repair owner bytes, and callers cannot restate the semantic result facts.
 
 use quire_observation::authority::{
     closure as observation_closure, completeness, observation as observation_record, position,
@@ -11,8 +11,12 @@ use quire_observation::authority::{
 };
 use quire_observation::QualifiedSubject;
 use quire_spec_language::protocol_artifact::native_temporal::v2 as temporal_v2;
+use quire_spec_language::protocol_artifact::v3;
 use quire_spec_language::protocol_artifact::wire::{BindingKind, ControlOperation};
 use quire_spec_language::protocol_artifact::ProtocolNumber;
+use quire_spec_language::protocol_artifact::{
+    checked_predicate::ValidatedCheckedPredicate, temporal_subject::ValidatedTemporalSubject,
+};
 use quire_spec_language::state::{
     self as state_evaluation, EvaluationOutcome, EvaluationReport, StateView,
     ValueKind as StateValueKind,
@@ -38,8 +42,9 @@ use crate::compensation::{
     registration::Registration as CompensationRegistration,
 };
 use crate::conformance::{
-    ActivatedAssessmentError, ActivationFact, Kernel as ConformanceKernel,
-    KernelRefusal as ConformanceKernelRefusal, Limits as ConformanceLimits,
+    ActivatedAssessmentError, ActivationBinding as ConformanceActivationBinding, ActivationFact,
+    Kernel as ConformanceKernel, KernelRefusal as ConformanceKernelRefusal,
+    Limits as ConformanceLimits,
 };
 use crate::model::v2::{
     link as link_v2, CompensationRegistrationInput, DefinitionIdentity, DefinitionRegistry,
@@ -69,112 +74,86 @@ pub struct ClaimRow<Row> {
     pub outcome: ClaimOutcome<Row>,
 }
 
-/// Independently owned facts needed to construct one canonical claim row.
+/// Caller-owned controls for one canonical claim row.
 ///
-/// This deliberately omits execution, truth, claim identity/strength/backend,
-/// assumptions, progress/closure axes, completeness, and global conformance.
-/// The Engine derives or reuses those fields from the exact conformance and
-/// dispatch stages executed inside the same atomic assessment operation, so a
-/// production caller cannot restate a complete result-owner [`result::Input`]
-/// and substitute values for the preceding stages.
+/// Every semantic result value is derived from the Engine's authenticated QSL,
+/// QObs, conformance, and dispatch outputs. This type deliberately exposes only
+/// the local reproduction selection and caller-lowered result-owner limits.
+/// Correction semantics remain absent until an owner-authenticated
+/// contradiction capability can supply them; a caller cannot restate one.
 ///
 /// ```compile_fail,E0603
-/// // The complete row input is an Engine-private transition value.
-/// use quire_protocol::assessment::CanonicalRowInput;
+/// use quire_protocol::assessment::CanonicalRowFacts;
 /// ```
 #[derive(Clone, Debug)]
-pub struct CanonicalRowFacts<'a> {
-    /// Strict QSL checked-predicate owner view selected for this assessment.
-    pub checked_predicate:
-        &'a quire_spec_language::protocol_artifact::checked_predicate::ValidatedCheckedPredicate,
-    /// Strict QSL temporal-subject owner view selected for this assessment.
-    pub temporal_subject:
-        &'a quire_spec_language::protocol_artifact::temporal_subject::ValidatedTemporalSubject,
-    /// Typed settlement and exact supporting identities.
-    pub settlement: result::Settlement,
-    /// Typed activation state.
-    pub activation: result::Activation,
-    /// Typed role participation state.
-    pub participation: result::Participation,
-    /// Typed observation-adequacy state.
-    pub observation_adequacy: result::Adequacy,
-    /// Typed protocol-adequacy state.
-    pub protocol_adequacy: result::ProtocolAdequacy,
-    /// Complete decision-support population.
-    pub decision_support: Vec<result::DecisionSupport>,
-    /// Exact limitations retained for this claim.
-    pub limitations: Vec<result::Limitation>,
-    /// Exact selected model artifact; the Engine verifies it belongs to its
-    /// immutable semantic selection closure before retaining its identity.
-    pub model_artifact: &'a quire_spec_language::protocol_artifact::wire::ArtifactRef,
-    /// Exact QObs runtime input; the Engine verifies it is one of its admitted
-    /// runtime bindings and derives the reversible result-field carrier.
-    pub runtime_input: &'a QualifiedSubject,
-    /// Caller-selected deterministic inputs needed to reproduce this run.
-    pub reproduction: ReproductionRecord,
-    /// Optional validated direct correction edge.
-    pub correction: Option<result::CorrectionInput<'a>>,
-    /// Result-owner limits, which may lower but never raise owner maxima.
-    pub limits: result::Limits,
+pub struct CanonicalRowControls {
+    reproduction: ReproductionRecord,
+    limits: result::Limits,
 }
 
-/// The exact QObs event and QSL v2 request selected for one activation site.
-///
-/// The request is already constructor-private and strict-read by QSL. This
-/// boundary only binds its opaque trigger bytes to the QObs-authoritative
-/// subject and proves that the temporal declaration belongs to this immutable
-/// protocol definition; it does not interpret either owner value.
-#[derive(Clone, Copy)]
-pub struct ActivationBinding<'a> {
+impl CanonicalRowControls {
+    /// Select deterministic local-run provenance and result-owner ceilings.
+    #[must_use]
+    pub const fn new(reproduction: ReproductionRecord, limits: result::Limits) -> Self {
+        Self {
+            reproduction,
+            limits,
+        }
+    }
+}
+
+/// Engine-derived transition value consumed only by canonical result assembly.
+#[derive(Clone, Debug)]
+struct CanonicalRowFacts<'a> {
+    checked_predicate: &'a ValidatedCheckedPredicate,
+    temporal_subject: &'a ValidatedTemporalSubject,
+    truth: result::Truth,
+    settlement: result::Settlement,
+    activation: result::Activation,
+    participation: result::Participation,
+    observation_adequacy: result::Adequacy,
+    protocol_adequacy: result::ProtocolAdequacy,
+    decision_support: Vec<result::DecisionSupport>,
+    limitations: Vec<result::Limitation>,
+    model_artifact: &'a quire_spec_language::protocol_artifact::wire::ArtifactRef,
+    runtime_input: &'a QualifiedSubject,
+    reproduction: ReproductionRecord,
+    limits: result::Limits,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct ResultSelection<'a> {
+    checked_predicate: &'a ValidatedCheckedPredicate,
+    temporal_subject: &'a ValidatedTemporalSubject,
+}
+
+#[derive(Clone, Debug)]
+struct SelectedActivation<'a> {
+    owner: ConformanceActivationBinding<'a>,
     subject: &'a QualifiedSubject,
-    request: &'a temporal_v2::ValidatedRequest,
 }
 
-impl core::fmt::Debug for ActivationBinding<'_> {
-    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        formatter
-            .debug_struct("ActivationBinding")
-            .field("subject", self.subject)
-            .field("temporal_declaration", &self.request.declaration())
-            .finish_non_exhaustive()
+#[derive(Clone, Copy, Debug)]
+enum StartupRefusal {
+    Bundle(BundleRefusal),
+    Kernel(ConformanceKernelRefusal),
+}
+
+impl From<BundleRefusal> for StartupRefusal {
+    fn from(value: BundleRefusal) -> Self {
+        Self::Bundle(value)
     }
 }
 
-impl<'a> ActivationBinding<'a> {
-    /// Bind one strict QSL v2 request to the selected QObs subject and static
-    /// definition identity.
-    pub fn new(
-        identity: &DefinitionIdentity,
-        subject: &'a QualifiedSubject,
-        request: &'a temporal_v2::ValidatedRequest,
-    ) -> Result<Self, BundleRefusal> {
-        if request.semantic_trigger() != subject.identity().as_bytes() {
-            return Err(BundleRefusal::ActivationSubjectMismatch);
-        }
-        if !identity
-            .temporal_bindings()
-            .iter()
-            .any(|binding| binding.declaration == request.declaration())
-        {
-            return Err(BundleRefusal::ActivationDeclarationMismatch);
-        }
-        Ok(Self { subject, request })
-    }
-
-    #[must_use]
-    pub const fn subject(&self) -> &'a QualifiedSubject {
-        self.subject
-    }
-
-    #[must_use]
-    pub const fn request(&self) -> &'a temporal_v2::ValidatedRequest {
-        self.request
+impl From<ConformanceKernelRefusal> for StartupRefusal {
+    fn from(value: ConformanceKernelRefusal) -> Self {
+        Self::Kernel(value)
     }
 }
 
 /// Why an exact linked assessment cannot become one complete claim bundle.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum BundleRefusal {
+pub(crate) enum BundleRefusal {
     /// No claim was selected for this assessment request.
     EmptyRequest,
     /// The caller selected one claim more than once.
@@ -193,14 +172,45 @@ pub enum BundleRefusal {
     InvalidConformanceKernel,
     /// A canonical result row was offered under a different requested claim.
     CanonicalClaimMismatch,
-    /// A canonical input borrows a QSL view from another admitted package.
-    CanonicalPackageMismatch,
     /// The ordered claim-dispatch report differs from this Engine request or its rows.
     DispatchReportMismatch,
-    /// QSL v2 opaque trigger bytes differ from the selected QObs subject.
-    ActivationSubjectMismatch,
-    /// The QSL v2 temporal declaration is not selected by this protocol definition.
-    ActivationDeclarationMismatch,
+    /// Canonical production was requested without authenticated result-owner views.
+    MissingResultSelection,
+    /// The checked predicate belongs to another admitted package.
+    CheckedPredicatePackageMismatch,
+    /// The temporal subject belongs to another admitted package.
+    TemporalSubjectPackageMismatch,
+    /// The checked predicate names another temporal declaration.
+    CheckedPredicateDeclarationMismatch,
+    /// The strict temporal request names another declaration.
+    ResultRequestDeclarationMismatch,
+    /// The strict temporal request names another temporal-subject document.
+    ResultRequestSubjectMismatch,
+    /// The linked definition does not select the request's temporal declaration.
+    ResultTemporalBindingMissing,
+    /// The checked predicate is not reachable from the selected temporal subject.
+    ResultPredicateUnreachable,
+    /// The static closure does not select exactly one result model artifact.
+    AmbiguousResultModel,
+    /// Activated dispatch was attempted without one Engine-selected activation.
+    MissingActivationSelection,
+    /// The activation subject is not one of the linked runtime bindings.
+    ActivationRuntimeBindingMismatch,
+    /// An activation fact belongs to another Engine-selected activation.
+    ActivationFactMismatch,
+}
+
+#[derive(Clone, Copy, Debug)]
+enum RowAssemblyRefusal<'a> {
+    UnknownClaimStrength(&'a [u8]),
+    MissingAssumptionState(&'a [u8]),
+    NonTextRequestIdentity(&'a [u8]),
+    NonTextAdmittedFragmentIdentity(&'a [u8]),
+    NonTextBackendIdentity(&'a [u8]),
+    NonTextAssumptionIdentity(&'a [u8]),
+    ForeignModelProvenance,
+    ForeignRuntimeInput,
+    UnrepresentableRuntimeInput,
 }
 
 macro_rules! bundle_code {
@@ -268,13 +278,98 @@ bundle_code!(
     RefusalDomain::Result
 );
 bundle_code!(
-    BUNDLE_PACKAGE_MISMATCH,
-    "assessment-result.bundle-package-mismatch",
+    BUNDLE_DISPATCH_MISMATCH,
+    "assessment-result.bundle-dispatch-mismatch",
     RefusalDomain::Result
 );
 bundle_code!(
-    BUNDLE_DISPATCH_MISMATCH,
-    "assessment-result.bundle-dispatch-mismatch",
+    BUNDLE_MISSING_RESULT_SELECTION,
+    "assessment-result.missing-owner-selection",
+    RefusalDomain::Result
+);
+bundle_code!(
+    BUNDLE_CHECKED_PREDICATE_PACKAGE_MISMATCH,
+    "assessment-result.checked-predicate-package-mismatch",
+    RefusalDomain::Result
+);
+bundle_code!(
+    BUNDLE_TEMPORAL_SUBJECT_PACKAGE_MISMATCH,
+    "assessment-result.temporal-subject-package-mismatch",
+    RefusalDomain::Result
+);
+bundle_code!(
+    BUNDLE_CHECKED_PREDICATE_DECLARATION_MISMATCH,
+    "assessment-result.checked-predicate-declaration-mismatch",
+    RefusalDomain::Result
+);
+bundle_code!(
+    BUNDLE_RESULT_REQUEST_DECLARATION_MISMATCH,
+    "assessment-result.request-declaration-mismatch",
+    RefusalDomain::Result
+);
+bundle_code!(
+    BUNDLE_RESULT_REQUEST_SUBJECT_MISMATCH,
+    "assessment-result.request-subject-mismatch",
+    RefusalDomain::Result
+);
+bundle_code!(
+    BUNDLE_RESULT_TEMPORAL_BINDING_MISSING,
+    "assessment-result.temporal-binding-missing",
+    RefusalDomain::Result
+);
+bundle_code!(
+    BUNDLE_RESULT_PREDICATE_UNREACHABLE,
+    "assessment-result.predicate-unreachable",
+    RefusalDomain::Result
+);
+bundle_code!(
+    BUNDLE_AMBIGUOUS_RESULT_MODEL,
+    "assessment-result.ambiguous-model-selection",
+    RefusalDomain::Result
+);
+bundle_code!(
+    ROW_UNKNOWN_CLAIM_STRENGTH,
+    "assessment-result.unknown-claim-strength",
+    RefusalDomain::Result
+);
+bundle_code!(
+    ROW_MISSING_ASSUMPTION_STATE,
+    "assessment-result.missing-assumption-state",
+    RefusalDomain::Result
+);
+bundle_code!(
+    ROW_NON_TEXT_REQUEST_IDENTITY,
+    "assessment-result.non-text-request-identity",
+    RefusalDomain::Result
+);
+bundle_code!(
+    ROW_NON_TEXT_ADMITTED_FRAGMENT_IDENTITY,
+    "assessment-result.non-text-admitted-fragment-identity",
+    RefusalDomain::Result
+);
+bundle_code!(
+    ROW_NON_TEXT_BACKEND_IDENTITY,
+    "assessment-result.non-text-backend-identity",
+    RefusalDomain::Result
+);
+bundle_code!(
+    ROW_NON_TEXT_ASSUMPTION_IDENTITY,
+    "assessment-result.non-text-assumption-identity",
+    RefusalDomain::Result
+);
+bundle_code!(
+    ROW_FOREIGN_MODEL_PROVENANCE,
+    "assessment-result.foreign-model-provenance",
+    RefusalDomain::Result
+);
+bundle_code!(
+    ROW_FOREIGN_RUNTIME_INPUT,
+    "assessment-result.foreign-runtime-input",
+    RefusalDomain::Result
+);
+bundle_code!(
+    ROW_UNREPRESENTABLE_RUNTIME_INPUT,
+    "assessment-result.unrepresentable-runtime-input",
     RefusalDomain::Result
 );
 const RESULT_ACCOUNTING_FAULT: CodeEntry = CodeEntry {
@@ -285,13 +380,18 @@ const RESULT_ACCOUNTING_FAULT: CodeEntry = CodeEntry {
     summary: "the Protocol resource accountant could not represent result work",
 };
 bundle_code!(
-    BUNDLE_ACTIVATION_SUBJECT,
-    "assessment-activation.subject-mismatch",
+    BUNDLE_MISSING_ACTIVATION_SELECTION,
+    "assessment-activation.missing-selection",
     RefusalDomain::Assessment
 );
 bundle_code!(
-    BUNDLE_ACTIVATION_DECLARATION,
-    "assessment-activation.declaration-mismatch",
+    BUNDLE_ACTIVATION_RUNTIME_BINDING,
+    "assessment-activation.runtime-binding-mismatch",
+    RefusalDomain::Assessment
+);
+bundle_code!(
+    BUNDLE_ACTIVATION_FACT,
+    "assessment-activation.fact-mismatch",
     RefusalDomain::Assessment
 );
 /// Refusal codes minted by the assessment-bundle orchestration boundary.
@@ -339,8 +439,25 @@ pub const RESULT_CODES: CodeModule = CodeModule {
     module_path: "quire_protocol::assessment",
     entries: &[
         BUNDLE_CLAIM_MISMATCH,
-        BUNDLE_PACKAGE_MISMATCH,
         BUNDLE_DISPATCH_MISMATCH,
+        BUNDLE_MISSING_RESULT_SELECTION,
+        BUNDLE_CHECKED_PREDICATE_PACKAGE_MISMATCH,
+        BUNDLE_TEMPORAL_SUBJECT_PACKAGE_MISMATCH,
+        BUNDLE_CHECKED_PREDICATE_DECLARATION_MISMATCH,
+        BUNDLE_RESULT_REQUEST_DECLARATION_MISMATCH,
+        BUNDLE_RESULT_REQUEST_SUBJECT_MISMATCH,
+        BUNDLE_RESULT_TEMPORAL_BINDING_MISSING,
+        BUNDLE_RESULT_PREDICATE_UNREACHABLE,
+        BUNDLE_AMBIGUOUS_RESULT_MODEL,
+        ROW_UNKNOWN_CLAIM_STRENGTH,
+        ROW_MISSING_ASSUMPTION_STATE,
+        ROW_NON_TEXT_REQUEST_IDENTITY,
+        ROW_NON_TEXT_ADMITTED_FRAGMENT_IDENTITY,
+        ROW_NON_TEXT_BACKEND_IDENTITY,
+        ROW_NON_TEXT_ASSUMPTION_IDENTITY,
+        ROW_FOREIGN_MODEL_PROVENANCE,
+        ROW_FOREIGN_RUNTIME_INPUT,
+        ROW_UNREPRESENTABLE_RUNTIME_INPUT,
         RESULT_ACCOUNTING_FAULT,
     ],
 };
@@ -350,7 +467,11 @@ pub const ACTIVATION_CODES: CodeModule = CodeModule {
     root: "assessment-activation",
     owner: "Task-006",
     module_path: "quire_protocol::assessment",
-    entries: &[BUNDLE_ACTIVATION_SUBJECT, BUNDLE_ACTIVATION_DECLARATION],
+    entries: &[
+        BUNDLE_MISSING_ACTIVATION_SELECTION,
+        BUNDLE_ACTIVATION_RUNTIME_BINDING,
+        BUNDLE_ACTIVATION_FACT,
+    ],
 };
 
 fn outcome_refusal(error: BundleRefusal) -> ProtocolRefusal {
@@ -376,17 +497,55 @@ fn outcome_refusal(error: BundleRefusal) -> ProtocolRefusal {
         BundleRefusal::CanonicalClaimMismatch => {
             (&BUNDLE_CLAIM_MISMATCH, ProtocolStage::ResultAssembly)
         }
-        BundleRefusal::CanonicalPackageMismatch => {
-            (&BUNDLE_PACKAGE_MISMATCH, ProtocolStage::ResultAssembly)
-        }
         BundleRefusal::DispatchReportMismatch => {
             (&BUNDLE_DISPATCH_MISMATCH, ProtocolStage::ResultAssembly)
         }
-        BundleRefusal::ActivationSubjectMismatch => {
-            (&BUNDLE_ACTIVATION_SUBJECT, ProtocolStage::Conformance)
-        }
-        BundleRefusal::ActivationDeclarationMismatch => {
-            (&BUNDLE_ACTIVATION_DECLARATION, ProtocolStage::Conformance)
+        BundleRefusal::MissingResultSelection => (
+            &BUNDLE_MISSING_RESULT_SELECTION,
+            ProtocolStage::ResultAssembly,
+        ),
+        BundleRefusal::CheckedPredicatePackageMismatch => (
+            &BUNDLE_CHECKED_PREDICATE_PACKAGE_MISMATCH,
+            ProtocolStage::ResultAssembly,
+        ),
+        BundleRefusal::TemporalSubjectPackageMismatch => (
+            &BUNDLE_TEMPORAL_SUBJECT_PACKAGE_MISMATCH,
+            ProtocolStage::ResultAssembly,
+        ),
+        BundleRefusal::CheckedPredicateDeclarationMismatch => (
+            &BUNDLE_CHECKED_PREDICATE_DECLARATION_MISMATCH,
+            ProtocolStage::ResultAssembly,
+        ),
+        BundleRefusal::ResultRequestDeclarationMismatch => (
+            &BUNDLE_RESULT_REQUEST_DECLARATION_MISMATCH,
+            ProtocolStage::ResultAssembly,
+        ),
+        BundleRefusal::ResultRequestSubjectMismatch => (
+            &BUNDLE_RESULT_REQUEST_SUBJECT_MISMATCH,
+            ProtocolStage::ResultAssembly,
+        ),
+        BundleRefusal::ResultTemporalBindingMissing => (
+            &BUNDLE_RESULT_TEMPORAL_BINDING_MISSING,
+            ProtocolStage::ResultAssembly,
+        ),
+        BundleRefusal::ResultPredicateUnreachable => (
+            &BUNDLE_RESULT_PREDICATE_UNREACHABLE,
+            ProtocolStage::ResultAssembly,
+        ),
+        BundleRefusal::AmbiguousResultModel => (
+            &BUNDLE_AMBIGUOUS_RESULT_MODEL,
+            ProtocolStage::ResultAssembly,
+        ),
+        BundleRefusal::MissingActivationSelection => (
+            &BUNDLE_MISSING_ACTIVATION_SELECTION,
+            ProtocolStage::Conformance,
+        ),
+        BundleRefusal::ActivationRuntimeBindingMismatch => (
+            &BUNDLE_ACTIVATION_RUNTIME_BINDING,
+            ProtocolStage::Conformance,
+        ),
+        BundleRefusal::ActivationFactMismatch => {
+            (&BUNDLE_ACTIVATION_FACT, ProtocolStage::Conformance)
         }
     };
     let code = RefusalCode::of(entry);
@@ -430,6 +589,93 @@ fn outcome_refusal(error: BundleRefusal) -> ProtocolRefusal {
     builder.emitting_nothing()
 }
 
+fn row_assembly_refusal(error: RowAssemblyRefusal<'_>) -> ProtocolRefusal {
+    let (entry, affected, cause) = match error {
+        RowAssemblyRefusal::UnknownClaimStrength(value) => (
+            &ROW_UNKNOWN_CLAIM_STRENGTH,
+            value,
+            ProtocolCause::UnsupportedCapability {
+                capability: RetainedBytes::new(value),
+            },
+        ),
+        RowAssemblyRefusal::MissingAssumptionState(identity) => (
+            &ROW_MISSING_ASSUMPTION_STATE,
+            identity,
+            ProtocolCause::IncompleteEvidence {
+                evidence: RetainedBytes::new(identity),
+            },
+        ),
+        RowAssemblyRefusal::NonTextRequestIdentity(value) => (
+            &ROW_NON_TEXT_REQUEST_IDENTITY,
+            value,
+            ProtocolCause::IncompleteEvidence {
+                evidence: RetainedBytes::new(value),
+            },
+        ),
+        RowAssemblyRefusal::NonTextAdmittedFragmentIdentity(value) => (
+            &ROW_NON_TEXT_ADMITTED_FRAGMENT_IDENTITY,
+            value,
+            ProtocolCause::IncompleteEvidence {
+                evidence: RetainedBytes::new(value),
+            },
+        ),
+        RowAssemblyRefusal::NonTextBackendIdentity(value) => (
+            &ROW_NON_TEXT_BACKEND_IDENTITY,
+            value,
+            ProtocolCause::IncompleteEvidence {
+                evidence: RetainedBytes::new(value),
+            },
+        ),
+        RowAssemblyRefusal::NonTextAssumptionIdentity(value) => (
+            &ROW_NON_TEXT_ASSUMPTION_IDENTITY,
+            value,
+            ProtocolCause::IncompleteEvidence {
+                evidence: RetainedBytes::new(value),
+            },
+        ),
+        RowAssemblyRefusal::ForeignModelProvenance => (
+            &ROW_FOREIGN_MODEL_PROVENANCE,
+            b"model-provenance".as_slice(),
+            ProtocolCause::IdentityMismatch {
+                expected: RetainedBytes::new(b"engine-selected-model"),
+                observed: RetainedBytes::new(b"foreign-model-provenance"),
+            },
+        ),
+        RowAssemblyRefusal::ForeignRuntimeInput => (
+            &ROW_FOREIGN_RUNTIME_INPUT,
+            b"runtime-input-provenance".as_slice(),
+            ProtocolCause::IdentityMismatch {
+                expected: RetainedBytes::new(b"engine-bound-runtime-input"),
+                observed: RetainedBytes::new(b"foreign-runtime-input"),
+            },
+        ),
+        RowAssemblyRefusal::UnrepresentableRuntimeInput => (
+            &ROW_UNREPRESENTABLE_RUNTIME_INPUT,
+            b"runtime-input-identity".as_slice(),
+            ProtocolCause::IncompleteEvidence {
+                evidence: RetainedBytes::new(b"runtime-input-identity"),
+            },
+        ),
+    };
+    let code = RefusalCode::of(entry);
+    ProtocolRefusal::builder(
+        code,
+        CatalogSelection::local(),
+        ProtocolStage::ResultAssembly,
+        RefusalAxis::from_registered_code(code),
+        cause.into(),
+        ResourceUsage::protocol("quire.protocol/assessment-usage/1", &[]),
+    )
+    .expect("row-assembly codes belong to the result stage")
+    .identity(AffectedIdentity::retained(affected))
+    .prerequisite(Prerequisite::new(
+        ProtocolStage::ClaimDispatch,
+        PrerequisiteState::Established,
+    ))
+    .unavailable_location(Unavailability::NotApplicableToStage)
+    .emitting_nothing()
+}
+
 fn bundle_cause(error: BundleRefusal, code: RefusalCode) -> crate::refusal::RefusalCause {
     let code = RetainedBytes::new(code.as_str().as_bytes());
     match error {
@@ -449,10 +695,19 @@ fn bundle_cause(error: BundleRefusal, code: RefusalCode) -> crate::refusal::Refu
         }
         BundleRefusal::UnexpectedClaim
         | BundleRefusal::CanonicalClaimMismatch
-        | BundleRefusal::CanonicalPackageMismatch
         | BundleRefusal::DispatchReportMismatch
-        | BundleRefusal::ActivationSubjectMismatch
-        | BundleRefusal::ActivationDeclarationMismatch => ProtocolCause::IdentityMismatch {
+        | BundleRefusal::MissingResultSelection
+        | BundleRefusal::CheckedPredicatePackageMismatch
+        | BundleRefusal::TemporalSubjectPackageMismatch
+        | BundleRefusal::CheckedPredicateDeclarationMismatch
+        | BundleRefusal::ResultRequestDeclarationMismatch
+        | BundleRefusal::ResultRequestSubjectMismatch
+        | BundleRefusal::ResultTemporalBindingMissing
+        | BundleRefusal::ResultPredicateUnreachable
+        | BundleRefusal::AmbiguousResultModel
+        | BundleRefusal::MissingActivationSelection
+        | BundleRefusal::ActivationRuntimeBindingMismatch
+        | BundleRefusal::ActivationFactMismatch => ProtocolCause::IdentityMismatch {
             expected: RetainedBytes::new(b"engine-bound-assessment-value"),
             observed: code,
         },
@@ -610,7 +865,8 @@ pub struct Engine<'a> {
     compensation: CompensationSnapshot,
     compensation_state: CompensationState,
     conformance: ConformanceKernel,
-    activation: Option<ActivationBinding<'a>>,
+    activation: Option<SelectedActivation<'a>>,
+    result_selection: Option<ResultSelection<'a>>,
     requested: Vec<Claim>,
 }
 
@@ -625,8 +881,72 @@ impl<'a> Engine<'a> {
             Err(error) => crate::outcome::OperationOutcome::Refused(outcome_refusal(error)),
         }
     }
+
+    /// Start one activated assessment through the shared public operation
+    /// outcome algebra.
+    pub fn start_activated(
+        context: LinkedAssessment<'a>,
+        requested: Vec<Claim>,
+        mappings: &v3::AdmittedPackage,
+        subject: &'a QualifiedSubject,
+        temporal_subject: &'a ValidatedTemporalSubject,
+        request: &'a temporal_v2::ValidatedRequest,
+        result: &'a temporal_v2::ValidatedResult,
+    ) -> crate::outcome::OperationOutcome<Self> {
+        match Self::new_activated(
+            context,
+            requested,
+            mappings,
+            subject,
+            temporal_subject,
+            request,
+            result,
+        ) {
+            Ok(engine) => crate::outcome::OperationOutcome::Completed(engine),
+            Err(StartupRefusal::Bundle(error)) => {
+                crate::outcome::OperationOutcome::Refused(outcome_refusal(error))
+            }
+            Err(StartupRefusal::Kernel(error)) => {
+                crate::outcome::OperationOutcome::Refused(kernel_refusal(error))
+            }
+        }
+    }
+
+    /// Start canonical result orchestration bound to exact strict QSL owner
+    /// views for this activated request.
+    #[allow(clippy::too_many_arguments)]
+    pub fn start_result_assessment(
+        context: LinkedAssessment<'a>,
+        requested: Vec<Claim>,
+        mappings: &v3::AdmittedPackage,
+        subject: &'a QualifiedSubject,
+        request: &'a temporal_v2::ValidatedRequest,
+        result: &'a temporal_v2::ValidatedResult,
+        checked_predicate: &'a ValidatedCheckedPredicate,
+        temporal_subject: &'a ValidatedTemporalSubject,
+    ) -> crate::outcome::OperationOutcome<Self> {
+        match Self::new_result_assessment(
+            context,
+            requested,
+            mappings,
+            subject,
+            request,
+            result,
+            checked_predicate,
+            temporal_subject,
+        ) {
+            Ok(engine) => crate::outcome::OperationOutcome::Completed(engine),
+            Err(StartupRefusal::Bundle(error)) => {
+                crate::outcome::OperationOutcome::Refused(outcome_refusal(error))
+            }
+            Err(StartupRefusal::Kernel(error)) => {
+                crate::outcome::OperationOutcome::Refused(kernel_refusal(error))
+            }
+        }
+    }
+
     /// Start one assessment over an exact linked context and claim population.
-    pub fn new(
+    pub(crate) fn new(
         context: LinkedAssessment<'a>,
         requested: Vec<Claim>,
     ) -> Result<Self, BundleRefusal> {
@@ -634,23 +954,73 @@ impl<'a> Engine<'a> {
     }
 
     /// Start one assessment with an exact QSL-v2/QObs activation binding.
-    pub fn new_activated(
+    fn new_activated(
         context: LinkedAssessment<'a>,
         requested: Vec<Claim>,
+        mappings: &v3::AdmittedPackage,
+        subject: &'a QualifiedSubject,
+        temporal_subject: &'a ValidatedTemporalSubject,
+        request: &'a temporal_v2::ValidatedRequest,
+        result: &'a temporal_v2::ValidatedResult,
+    ) -> Result<Self, StartupRefusal> {
+        let mut engine = Self::new_bound(context, requested, None)?;
+        if !engine.context.runtime().bindings().iter().any(|binding| {
+            binding
+                .subject_value()
+                .is_some_and(|runtime_subject| runtime_subject == subject)
+        }) {
+            return Err(BundleRefusal::ActivationRuntimeBindingMismatch.into());
+        }
+        let owner = engine.conformance.bind_activation(
+            &engine.linked,
+            mappings,
+            subject,
+            temporal_subject,
+            request,
+            result,
+        )?;
+        engine.activation = Some(SelectedActivation { owner, subject });
+        Ok(engine)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn new_result_assessment(
+        context: LinkedAssessment<'a>,
+        requested: Vec<Claim>,
+        mappings: &v3::AdmittedPackage,
         subject: &'a QualifiedSubject,
         request: &'a temporal_v2::ValidatedRequest,
-    ) -> Result<Self, BundleRefusal> {
-        let identity = context
-            .definition_identity()
-            .map_err(|_| BundleRefusal::InvalidDefinitionIdentity)?;
-        let activation = ActivationBinding::new(&identity, subject, request)?;
-        Self::new_bound(context, requested, Some(activation))
+        result: &'a temporal_v2::ValidatedResult,
+        checked_predicate: &'a ValidatedCheckedPredicate,
+        temporal_subject: &'a ValidatedTemporalSubject,
+    ) -> Result<Self, StartupRefusal> {
+        let mut engine = Self::new_activated(
+            context,
+            requested,
+            mappings,
+            subject,
+            temporal_subject,
+            request,
+            result,
+        )?;
+        validate_result_selection(
+            engine.context.package().digest(),
+            &engine.identity,
+            request,
+            checked_predicate,
+            temporal_subject,
+        )?;
+        engine.result_selection = Some(ResultSelection {
+            checked_predicate,
+            temporal_subject,
+        });
+        Ok(engine)
     }
 
     fn new_bound(
         context: LinkedAssessment<'a>,
         requested: Vec<Claim>,
-        activation: Option<ActivationBinding<'a>>,
+        result_selection: Option<ResultSelection<'a>>,
     ) -> Result<Self, BundleRefusal> {
         validate_requested(&requested)?;
         let identity = context
@@ -674,7 +1044,8 @@ impl<'a> Engine<'a> {
             compensation,
             compensation_state: CompensationState::default(),
             conformance,
-            activation,
+            activation: None,
+            result_selection,
             requested,
         })
     }
@@ -715,8 +1086,8 @@ impl<'a> Engine<'a> {
 
     /// Returns the immutable activation pair where this assessment is event-triggered.
     #[must_use]
-    pub const fn activation(&self) -> Option<ActivationBinding<'a>> {
-        self.activation
+    pub fn activation(&self) -> Option<&ConformanceActivationBinding<'a>> {
+        self.activation.as_ref().map(|selected| &selected.owner)
     }
 
     /// Dispatch this Engine's exact requested claims from an admitted
@@ -733,7 +1104,7 @@ impl<'a> Engine<'a> {
     pub fn dispatch_activated(
         &self,
         requests: &[ClaimRequest<'_>],
-        facts: &[ActivationFact<'_>],
+        facts: &[ActivationFact<'a>],
         axes: AxisInputs<'_>,
         completeness: &completeness::View,
         global_conformance: &GlobalConformanceInput,
@@ -790,6 +1161,9 @@ impl<'a> Engine<'a> {
         if let Err(error) = validate_dispatch_request(&self.requested, requests) {
             return BoundedOutcome::DomainError(outcome_refusal(error));
         }
+        if let Err(error) = self.validate_activation_facts(facts) {
+            return BoundedOutcome::DomainError(outcome_refusal(error));
+        }
         let report = match self.conformance.assess_activated_bounded(
             facts,
             axes,
@@ -826,6 +1200,19 @@ impl<'a> Engine<'a> {
                 accounting_refusal(fault, AccountingStage::ClaimDispatch, resources.usage()),
             ),
         }
+    }
+
+    fn validate_activation_facts(&self, facts: &[ActivationFact<'_>]) -> Result<(), BundleRefusal> {
+        let Some(selected) = &self.activation else {
+            return Err(BundleRefusal::MissingActivationSelection);
+        };
+        for fact in facts {
+            let offered = fact.occurrence().activation();
+            if !selected.owner.same_binding(offered) {
+                return Err(BundleRefusal::ActivationFactMismatch);
+            }
+        }
+        Ok(())
     }
 
     /// Evaluate the exact admitted guard and transactionally create every
@@ -1397,54 +1784,96 @@ impl<'a> Engine<'a> {
         axes: AxisInputs<'a>,
         completeness: &'a completeness::View,
         global_conformance: &GlobalConformanceInput,
-        inputs: Vec<Option<CanonicalRowFacts<'a>>>,
+        facts: &[ActivationFact<'a>],
+        controls: Vec<Option<CanonicalRowControls>>,
         resources: &mut ResourceAccountant<'_>,
     ) -> crate::outcome::OperationOutcome<AssessmentBundle<'a, result::ValidatedResult>> {
-        if let Err(error) = validate_dispatch_rows(&self.requested, dispatch, &inputs) {
+        if let Err(error) = validate_dispatch_rows(&self.requested, dispatch, &controls) {
             return crate::outcome::OperationOutcome::Refused(outcome_refusal(error));
         }
-        let mut rows = Vec::with_capacity(inputs.len());
-        for (selected, disposition) in inputs.into_iter().zip(dispatch.dispositions()) {
+        let Some(selection) = self.result_selection else {
+            return crate::outcome::OperationOutcome::Refused(outcome_refusal(
+                BundleRefusal::MissingResultSelection,
+            ));
+        };
+        let model_artifact = match selected_model_artifact(&self.context, &self.identity) {
+            Ok(model) => model,
+            Err(error) => {
+                return crate::outcome::OperationOutcome::Refused(outcome_refusal(error));
+            }
+        };
+        let Some(activation) = &self.activation else {
+            return crate::outcome::OperationOutcome::Refused(outcome_refusal(
+                BundleRefusal::MissingResultSelection,
+            ));
+        };
+        let runtime_input = activation.subject;
+        let mut rows = Vec::with_capacity(controls.len());
+        for (control, disposition) in controls.into_iter().zip(dispatch.dispositions()) {
             let outcome = if let Some(failure) = &disposition.failure {
                 ClaimOutcome::Refused(failure.envelope().clone())
             } else {
-                let Some(selected) = selected else {
+                let Some(control) = control else {
                     return crate::outcome::OperationOutcome::Refused(outcome_refusal(
                         BundleRefusal::MissingClaimRow,
                     ));
                 };
-                if let Err(error) = validate_input_package(
-                    self.context.package().digest(),
-                    selected.checked_predicate.package_digest(),
-                    selected.temporal_subject.package_digest(),
-                ) {
-                    return crate::outcome::OperationOutcome::Refused(outcome_refusal(error));
-                }
-                match result_input_from_dispatch(
+                let selected = derive_canonical_row_facts(
+                    selection,
                     disposition,
                     conformance,
-                    &self.identity,
-                    &self.context,
+                    facts,
                     axes,
                     completeness,
-                    global_conformance,
-                    selected,
-                ) {
+                    &self.context,
+                    model_artifact,
+                    runtime_input,
+                    control,
+                );
+                match selected {
                     Err(refusal) => ClaimOutcome::Refused(refusal.envelope().clone()),
-                    Ok((input, limits)) => {
-                        match result::produce_bounded(input.clone(), limits, resources) {
-                            BoundedOutcome::Completed(document) => match result::read_bounded(
-                                document.bytes(),
-                                result::Expected {
-                                    input,
-                                    enclosing_digest: document.digest(),
+                    Ok(selected) => match result_input_from_dispatch(
+                        disposition,
+                        &self.identity,
+                        &self.context,
+                        axes,
+                        completeness,
+                        global_conformance,
+                        selected,
+                    ) {
+                        Err(refusal) => ClaimOutcome::Refused(row_assembly_refusal(refusal)),
+                        Ok((input, limits)) => {
+                            match result::produce_bounded(input.clone(), limits, resources) {
+                                BoundedOutcome::Completed(document) => match result::read_bounded(
+                                    document.bytes(),
+                                    result::Expected {
+                                        input,
+                                        enclosing_digest: document.digest(),
+                                    },
+                                    limits,
+                                    resources,
+                                ) {
+                                    BoundedOutcome::Completed(validated) => {
+                                        ClaimOutcome::Canonical(validated)
+                                    }
+                                    BoundedOutcome::DomainError(refusal) => {
+                                        ClaimOutcome::Refused(refusal.envelope().clone())
+                                    }
+                                    BoundedOutcome::ResourceIncomplete(incomplete) => {
+                                        return crate::outcome::OperationOutcome::ResourceIncomplete(
+                                        incomplete,
+                                    );
+                                    }
+                                    BoundedOutcome::AccountingFault(fault) => {
+                                        return crate::outcome::OperationOutcome::Refused(
+                                            accounting_refusal(
+                                                fault,
+                                                AccountingStage::ResultRead,
+                                                resources.usage(),
+                                            ),
+                                        );
+                                    }
                                 },
-                                limits,
-                                resources,
-                            ) {
-                                BoundedOutcome::Completed(validated) => {
-                                    ClaimOutcome::Canonical(validated)
-                                }
                                 BoundedOutcome::DomainError(refusal) => {
                                     ClaimOutcome::Refused(refusal.envelope().clone())
                                 }
@@ -1457,31 +1886,14 @@ impl<'a> Engine<'a> {
                                     return crate::outcome::OperationOutcome::Refused(
                                         accounting_refusal(
                                             fault,
-                                            AccountingStage::ResultRead,
+                                            AccountingStage::ResultAssembly,
                                             resources.usage(),
                                         ),
                                     );
                                 }
-                            },
-                            BoundedOutcome::DomainError(refusal) => {
-                                ClaimOutcome::Refused(refusal.envelope().clone())
-                            }
-                            BoundedOutcome::ResourceIncomplete(incomplete) => {
-                                return crate::outcome::OperationOutcome::ResourceIncomplete(
-                                    incomplete,
-                                );
-                            }
-                            BoundedOutcome::AccountingFault(fault) => {
-                                return crate::outcome::OperationOutcome::Refused(
-                                    accounting_refusal(
-                                        fault,
-                                        AccountingStage::ResultAssembly,
-                                        resources.usage(),
-                                    ),
-                                );
                             }
                         }
-                    }
+                    },
                 }
             };
             rows.push(ClaimRow {
@@ -1508,42 +1920,36 @@ impl<'a> Engine<'a> {
     /// Run conformance, claim dispatch, canonical result production, and strict
     /// reading as one non-retargetable assessment operation.
     ///
-    /// Callers provide `Some` result-owner facts only for dispositions that can
+    /// Callers provide `Some` local controls only for dispositions that can
     /// reach row construction and `None` for claim-local dispatch refusals. The
-    /// Engine derives truth, execution, claim selection, and assumptions and
-    /// reuses the exact progress, closure, completeness, and global-conformance
-    /// values it assessed. One resource accountant spans every stage.
+    /// Engine derives every semantic result value and provenance selection from
+    /// exact authenticated stage outputs. One resource accountant spans every
+    /// stage.
     ///
     /// ```compile_fail,E0599
-    /// use quire_protocol::assessment::{CanonicalRowFacts, Engine};
-    /// use quire_protocol::bounds::inventory::Budget;
+    /// use quire_protocol::assessment::Engine;
     /// use quire_protocol::claims::dispatch::Report;
     ///
     /// fn retarget<'a>(
     ///     engine: Engine<'a>,
     ///     foreign_report: &Report,
-    ///     facts: Vec<Option<CanonicalRowFacts<'a>>>,
     /// ) {
     ///     // Result construction accepts no report produced by another Engine.
-    ///     let _ = engine.construct_canonical_outcome(
-    ///         foreign_report,
-    ///         facts,
-    ///         Budget::nothing_granted(),
-    ///     );
+    ///     let _ = engine.construct_canonical_outcome(foreign_report);
     /// }
     /// ```
     #[allow(clippy::too_many_arguments)]
     pub fn assess_activated(
         self,
         requests: &[ClaimRequest<'_>],
-        facts: &[ActivationFact<'_>],
+        facts: &[ActivationFact<'a>],
         axes: AxisInputs<'a>,
         completeness: &'a completeness::View,
         global_conformance: &GlobalConformanceInput,
         execution: crate::closure::AssessmentExecution,
         conformance_limits: ConformanceLimits,
         dispatch_limits: DispatchLimits,
-        inputs: Vec<Option<CanonicalRowFacts<'a>>>,
+        controls: Vec<Option<CanonicalRowControls>>,
         budget: Budget,
     ) -> crate::outcome::OperationOutcome<AssessmentBundle<'a, result::ValidatedResult>> {
         let inventory = production_inventory()
@@ -1581,7 +1987,8 @@ impl<'a> Engine<'a> {
             axes,
             completeness,
             global_conformance,
-            inputs,
+            facts,
+            controls,
             &mut resources,
         )
     }
@@ -1594,14 +2001,8 @@ fn validate_dispatch_request(
     if requests.len() != requested.len()
         || requests
             .iter()
-            .any(|request| !requested.contains(&request.claim))
-        || requested.iter().any(|claim| {
-            requests
-                .iter()
-                .filter(|request| request.claim == *claim)
-                .count()
-                != 1
-        })
+            .map(|request| request.claim)
+            .ne(requested.iter().copied())
     {
         Err(BundleRefusal::UnexpectedClaim)
     } else {
@@ -1776,45 +2177,295 @@ fn observation_position(
         .position(|(_, identity)| identity == observation.payload().observation_identity())
 }
 
+fn selected_model_artifact<'a>(
+    context: &LinkedAssessment<'a>,
+    definition: &DefinitionIdentity,
+) -> Result<&'a quire_spec_language::protocol_artifact::wire::ArtifactRef, BundleRefusal> {
+    let [model] = definition.closure().models() else {
+        return Err(BundleRefusal::AmbiguousResultModel);
+    };
+    context
+        .package()
+        .inherited()
+        .dependencies
+        .get(usize::try_from(model.value().artifact).unwrap_or(usize::MAX))
+        .map(|dependency| &dependency.artifact)
+        .ok_or(BundleRefusal::AmbiguousResultModel)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn derive_canonical_row_facts<'a>(
+    selection: ResultSelection<'a>,
+    disposition: &dispatch::Disposition,
+    conformance: &crate::conformance::Report,
+    facts: &[ActivationFact<'a>],
+    axes: AxisInputs<'a>,
+    completeness: &completeness::View,
+    context: &LinkedAssessment<'_>,
+    model_artifact: &'a quire_spec_language::protocol_artifact::wire::ArtifactRef,
+    runtime_input: &'a QualifiedSubject,
+    controls: CanonicalRowControls,
+) -> result::Result<CanonicalRowFacts<'a>> {
+    let mut truth = truth_from_dispatch(disposition, conformance);
+    let mut decision_support = decision_support_from_report(truth, conformance);
+    if matches!(truth, result::Truth::Satisfied | result::Truth::Violated)
+        && decision_support.is_empty()
+    {
+        truth = result::Truth::Unavailable;
+    }
+    if matches!(truth, result::Truth::Pending | result::Truth::Unavailable) {
+        decision_support.clear();
+    }
+    let settlement = settlement_from_report(truth, axes, &decision_support);
+    Ok(CanonicalRowFacts {
+        checked_predicate: selection.checked_predicate,
+        temporal_subject: selection.temporal_subject,
+        truth,
+        settlement,
+        activation: activation_from_facts(facts),
+        participation: participation_from_facts(facts, conformance, context)?,
+        observation_adequacy: observation_adequacy_from_report(conformance, completeness),
+        protocol_adequacy: protocol_adequacy_from_report(disposition, conformance, completeness),
+        decision_support,
+        limitations: limitations_from_report(conformance),
+        model_artifact,
+        runtime_input,
+        reproduction: controls.reproduction,
+        limits: controls.limits,
+    })
+}
+
+fn decision_support_from_report(
+    _truth: result::Truth,
+    _conformance: &crate::conformance::Report,
+) -> Vec<result::DecisionSupport> {
+    // The conformance report retains exact obligation and observation
+    // identities, but no owner-authenticated oracle identity or dependence
+    // capability. FR-248 forbids substituting the obligation for that oracle.
+    // Keep support absent; the caller below consequently reports truth as
+    // unavailable instead of fabricating a settled row.
+    Vec::new()
+}
+
+fn settlement_from_report(
+    truth: result::Truth,
+    axes: AxisInputs<'_>,
+    support: &[result::DecisionSupport],
+) -> result::Settlement {
+    use quire_observation::authority::OpenClosed;
+    let closed = axes.decision_scope_progress.payload().state() == OpenClosed::Closed
+        && axes.decision_scope_closure.payload().state() == OpenClosed::Closed;
+    let basis = match truth {
+        result::Truth::Satisfied if closed => result::SettlementBasis::ClosedScope,
+        result::Truth::Satisfied => result::SettlementBasis::DecisiveWitness,
+        result::Truth::Violated if closed => result::SettlementBasis::ClosedScope,
+        result::Truth::Violated => result::SettlementBasis::DecisiveCounterexample,
+        result::Truth::Pending => result::SettlementBasis::Unsettled,
+        result::Truth::Unavailable => result::SettlementBasis::Unavailable,
+    };
+    result::Settlement {
+        basis,
+        supporting_fact_identities: support
+            .iter()
+            .map(|record| record.observation_identity.clone())
+            .collect(),
+        supporting_progress_identities: vec![axes
+            .decision_scope_progress
+            .identity()
+            .as_str()
+            .to_owned()],
+    }
+}
+
+fn activation_from_facts(facts: &[ActivationFact<'_>]) -> result::Activation {
+    use quire_spec_language::protocol_artifact::native_temporal::result::ActivationState;
+    let mut states = facts
+        .iter()
+        .map(|fact| fact.occurrence().activation().activation());
+    let Some(first) = states.next() else {
+        return result::Activation::ActivationUnknown;
+    };
+    if states.any(|state| state != first) {
+        return result::Activation::ActivationUnknown;
+    }
+    match first {
+        ActivationState::Active => result::Activation::Triggered,
+        ActivationState::Inactive => result::Activation::Inactive,
+        ActivationState::Unknown | ActivationState::Unavailable => {
+            result::Activation::ActivationUnknown
+        }
+    }
+}
+
+fn participation_from_facts(
+    facts: &[ActivationFact<'_>],
+    conformance: &crate::conformance::Report,
+    context: &LinkedAssessment<'_>,
+) -> result::Result<result::Participation> {
+    use quire_spec_language::protocol_artifact::NodeRole;
+    let mut required = std::collections::BTreeSet::new();
+    let mut participating = std::collections::BTreeSet::new();
+    for fact in facts {
+        let occurrence = fact.occurrence().occurrence();
+        let NodeRole::Role(role) = occurrence.role() else {
+            continue;
+        };
+        let subject = context.role_instance_subject(role.index).ok_or_else(|| {
+            result_owner_evidence_refusal(
+                "an activated role has no exact FR-287 role-instance binding",
+                "participation-role-instance",
+            )
+        })?;
+        required.insert(subject);
+        if fact.observation().is_some() {
+            participating.insert(subject);
+        }
+    }
+    let encode = |subject: &&QualifiedSubject| {
+        result::runtime_reference::encode_subject(subject).map_err(|_| {
+            result_owner_evidence_refusal(
+                "an exact role-instance reference cannot be represented",
+                "participation-role-instance",
+            )
+        })
+    };
+    let required_refs = required
+        .iter()
+        .map(encode)
+        .collect::<result::Result<Vec<_>>>()?;
+    let participating_refs = participating
+        .iter()
+        .map(encode)
+        .collect::<result::Result<Vec<_>>>()?;
+    let mut missing_dependency_refs = required
+        .difference(&participating)
+        .map(encode)
+        .collect::<result::Result<Vec<_>>>()?;
+    missing_dependency_refs.extend(conformance.incomplete.iter().map(|cause| match cause {
+        crate::conformance::IncompleteCause::MissingValuation { obligation, .. } => {
+            obligation.as_str().to_owned()
+        }
+    }));
+    missing_dependency_refs.sort();
+    missing_dependency_refs.dedup();
+    if missing_dependency_refs.is_empty() {
+        Ok(result::Participation::Known {
+            required_role_instance_refs: required_refs,
+            participating_role_instance_refs: participating_refs,
+        })
+    } else {
+        Ok(result::Participation::Unknown {
+            participating_role_instance_refs: participating_refs,
+            missing_dependency_refs,
+            reasons: vec!["required-observation-missing".to_owned()],
+        })
+    }
+}
+
+fn observation_adequacy_from_report(
+    conformance: &crate::conformance::Report,
+    completeness: &completeness::View,
+) -> result::Adequacy {
+    use quire_observation::authority::completeness::State;
+    match completeness.payload().state() {
+        State::Complete if conformance.incomplete.is_empty() => result::Adequacy::Adequate,
+        State::Incomplete => result::Adequacy::Inadequate,
+        State::Contradicted => result::Adequacy::Unknown,
+        State::Complete => result::Adequacy::Inadequate,
+    }
+}
+
+fn protocol_adequacy_from_report(
+    disposition: &dispatch::Disposition,
+    conformance: &crate::conformance::Report,
+    completeness: &completeness::View,
+) -> result::ProtocolAdequacy {
+    use crate::conformance::GlobalDisposition;
+    use quire_observation::authority::completeness::State;
+    if disposition.claim != Claim::Conformance {
+        return result::ProtocolAdequacy::Inapplicable;
+    }
+    match (conformance.global, completeness.payload().state()) {
+        (GlobalDisposition::Conforms, State::Complete) => result::ProtocolAdequacy::Demonstrated,
+        (GlobalDisposition::Violates, _) => result::ProtocolAdequacy::NotDemonstrated,
+        _ => result::ProtocolAdequacy::Unknown,
+    }
+}
+
+fn limitations_from_report(conformance: &crate::conformance::Report) -> Vec<result::Limitation> {
+    let incomplete = conformance
+        .incomplete
+        .iter()
+        .enumerate()
+        .map(|(index, cause)| {
+            let affected_identity = match cause {
+                crate::conformance::IncompleteCause::MissingValuation { obligation, .. } => {
+                    obligation.as_str().to_owned()
+                }
+            };
+            result::Limitation {
+                code: format!("conformance-incomplete:{index}"),
+                affected_identity,
+            }
+        });
+    let premises = conformance
+        .global_premise_defects
+        .iter()
+        .enumerate()
+        .map(|(index, defect)| result::Limitation {
+            code: format!("global-premise-defect:{index}"),
+            affected_identity: defect.premise_identity.to_string(),
+        });
+    incomplete.chain(premises).collect()
+}
+
 #[allow(
     clippy::too_many_arguments,
     reason = "the private transition receives exact owner outputs separately so no caller-built result aggregate can substitute for them"
 )]
-fn result_input_from_dispatch<'a>(
-    disposition: &dispatch::Disposition,
-    conformance: &crate::conformance::Report,
+fn result_input_from_dispatch<'a, 'd>(
+    disposition: &'d dispatch::Disposition,
     definition: &DefinitionIdentity,
     context: &LinkedAssessment<'_>,
     axes: AxisInputs<'a>,
     completeness: &'a completeness::View,
     global_conformance: &GlobalConformanceInput,
     selected: CanonicalRowFacts<'a>,
-) -> result::Result<(result::Input<'a>, result::Limits)> {
+) -> Result<(result::Input<'a>, result::Limits), RowAssemblyRefusal<'d>> {
     let strength = match disposition.strength.as_ref() {
         b"proven" => result::ClaimStrength::Proven,
         b"bounded-checked" => result::ClaimStrength::BoundedChecked,
         b"tested" => result::ClaimStrength::Tested,
         b"observed" => result::ClaimStrength::Observed,
         _ => {
-            return Err(dispatch_value_refusal(
-                "dispatch selected an unknown result claim strength",
-            ));
+            return Err(RowAssemblyRefusal::UnknownClaimStrength(
+                &disposition.strength,
+            ))
         }
     };
-    let admitted_fragment_identity =
-        retained_text(disposition.premises.admitted_fragment.identity.as_ref())?;
-    let backend_identity = retained_text(disposition.premises.backend.identity.as_ref())?;
+    let admitted_fragment_identity = retained_text(
+        disposition.premises.admitted_fragment.identity.as_ref(),
+        RowAssemblyRefusal::NonTextAdmittedFragmentIdentity,
+    )?;
+    let backend_identity = retained_text(
+        disposition.premises.backend.identity.as_ref(),
+        RowAssemblyRefusal::NonTextBackendIdentity,
+    )?;
     let assumptions = disposition
         .premises
         .assumptions
         .iter()
         .map(|assumption| {
             Ok(result::Assumption {
-                identity: retained_text(assumption.component.identity.as_ref())?,
+                identity: retained_text(
+                    assumption.component.identity.as_ref(),
+                    RowAssemblyRefusal::NonTextAssumptionIdentity,
+                )?,
                 state: match assumption
                     .state
-                    .ok_or_else(|| dispatch_value_refusal("dispatch omitted an assumption state"))?
-                {
+                    .ok_or(RowAssemblyRefusal::MissingAssumptionState(
+                        &assumption.component.identity,
+                    ))? {
                     crate::claims::premises::AssumptionState::Met => result::AssumptionState::Met,
                     crate::claims::premises::AssumptionState::NotMet => {
                         result::AssumptionState::NotMet
@@ -1828,7 +2479,7 @@ fn result_input_from_dispatch<'a>(
                 },
             })
         })
-        .collect::<result::Result<Vec<_>>>()?;
+        .collect::<Result<Vec<_>, RowAssemblyRefusal<'d>>>()?;
     let provenance = provenance_from_dispatch(disposition, definition, context, &selected)?;
     let limits = selected.limits;
     Ok((
@@ -1838,7 +2489,7 @@ fn result_input_from_dispatch<'a>(
             axes,
             completeness,
             execution: disposition.execution,
-            truth: truth_from_dispatch(disposition, conformance),
+            truth: selected.truth,
             settlement: selected.settlement,
             activation: selected.activation,
             participation: selected.participation,
@@ -1855,18 +2506,18 @@ fn result_input_from_dispatch<'a>(
             global_conformance: global_conformance.clone(),
             limitations: selected.limitations,
             provenance,
-            correction: selected.correction,
+            correction: None,
         },
         limits,
     ))
 }
 
-fn provenance_from_dispatch(
-    disposition: &dispatch::Disposition,
+fn provenance_from_dispatch<'d>(
+    disposition: &'d dispatch::Disposition,
     definition: &DefinitionIdentity,
     context: &LinkedAssessment<'_>,
     selected: &CanonicalRowFacts<'_>,
-) -> result::Result<result::ProvenanceRecord> {
+) -> Result<result::ProvenanceRecord, RowAssemblyRefusal<'d>> {
     let model_selected = definition.closure().models().iter().any(|model| {
         context
             .package()
@@ -1876,9 +2527,7 @@ fn provenance_from_dispatch(
             .is_some_and(|dependency| dependency.artifact == *selected.model_artifact)
     });
     if !model_selected {
-        return Err(dispatch_value_refusal(
-            "result model provenance is outside the Engine selection closure",
-        ));
+        return Err(RowAssemblyRefusal::ForeignModelProvenance);
     }
     let runtime_selected = context.runtime().bindings().iter().any(|binding| {
         binding
@@ -1886,12 +2535,10 @@ fn provenance_from_dispatch(
             .is_some_and(|subject| subject == selected.runtime_input)
     });
     if !runtime_selected {
-        return Err(dispatch_value_refusal(
-            "result runtime input is outside the Engine binding set",
-        ));
+        return Err(RowAssemblyRefusal::ForeignRuntimeInput);
     }
     let input_identity = result::runtime_reference::encode_subject(selected.runtime_input)
-        .map_err(|_| dispatch_value_refusal("result runtime input cannot be represented"))?;
+        .map_err(|_| RowAssemblyRefusal::UnrepresentableRuntimeInput)?;
     Ok(result::ProvenanceRecord {
         source_identity: definition.source_document().identity.clone(),
         profile_identity: definition.closure().profile().value().identity.clone(),
@@ -1901,29 +2548,34 @@ fn provenance_from_dispatch(
             definition.source_document().identity,
             definition.declaration_handle()
         ),
-        request_identity: retained_text(disposition.request_identity.as_ref())?,
+        request_identity: retained_text(
+            disposition.request_identity.as_ref(),
+            RowAssemblyRefusal::NonTextRequestIdentity,
+        )?,
         binding_identity: definition.static_binding().identity.to_string(),
         input_identity,
-        backend_identity: retained_text(disposition.premises.backend.identity.as_ref())?,
+        backend_identity: retained_text(
+            disposition.premises.backend.identity.as_ref(),
+            RowAssemblyRefusal::NonTextBackendIdentity,
+        )?,
         producer_identity: context.definition().producer().bundle_identity.clone(),
         reproduction: selected.reproduction.clone(),
     })
 }
 
-fn retained_text(bytes: &[u8]) -> result::Result<String> {
-    String::from_utf8(bytes.to_vec()).map_err(|_| {
-        dispatch_value_refusal(
-            "dispatch identity cannot be represented in the selected result contract",
-        )
-    })
+fn retained_text<'a>(
+    bytes: &'a [u8],
+    refusal: fn(&'a [u8]) -> RowAssemblyRefusal<'a>,
+) -> Result<String, RowAssemblyRefusal<'a>> {
+    String::from_utf8(bytes.to_vec()).map_err(|_| refusal(bytes))
 }
 
-fn dispatch_value_refusal(detail: &'static str) -> result::Refusal {
+fn result_owner_evidence_refusal(detail: &'static str, identity: &'static str) -> result::Refusal {
     result::Refusal::assembly(
-        result::ErrorCode::InvalidSelection,
+        result::ErrorCode::OwnerEvidenceUnavailable,
         detail,
         result::Usage::default(),
-        None,
+        Some(identity),
     )
 }
 
@@ -1963,19 +2615,54 @@ const fn result_claim_kind(claim: Claim) -> ClaimKind {
     }
 }
 
-/// Require both strict QSL source views used by a result owner to answer this
-/// Engine's one admitted package. A result reader may validate each view on its
-/// own, but only this boundary can prevent cross-assessment retargeting.
-fn validate_input_package(
-    expected: crate::ByteDigest,
-    predicate: crate::ByteDigest,
-    temporal: crate::ByteDigest,
+fn validate_result_selection(
+    package: crate::ByteDigest,
+    definition: &DefinitionIdentity,
+    request: &temporal_v2::ValidatedRequest,
+    checked_predicate: &ValidatedCheckedPredicate,
+    temporal_subject: &ValidatedTemporalSubject,
 ) -> Result<(), BundleRefusal> {
-    if expected == predicate && expected == temporal {
-        Ok(())
-    } else {
-        Err(BundleRefusal::CanonicalPackageMismatch)
+    if checked_predicate.package_digest() != package {
+        return Err(BundleRefusal::CheckedPredicatePackageMismatch);
     }
+    if temporal_subject.package_digest() != package {
+        return Err(BundleRefusal::TemporalSubjectPackageMismatch);
+    }
+    if checked_predicate.declaration() != temporal_subject.declaration() {
+        return Err(BundleRefusal::CheckedPredicateDeclarationMismatch);
+    }
+    if temporal_subject.declaration() != request.declaration() {
+        return Err(BundleRefusal::ResultRequestDeclarationMismatch);
+    }
+    if request.subject_identity() != temporal_subject.document().identity() {
+        return Err(BundleRefusal::ResultRequestSubjectMismatch);
+    }
+    if !definition
+        .temporal_bindings()
+        .iter()
+        .any(|binding| binding.declaration == temporal_subject.declaration())
+    {
+        return Err(BundleRefusal::ResultTemporalBindingMissing);
+    }
+    if !predicate_selection_matches(
+        checked_predicate.declaration(),
+        checked_predicate.leaf(),
+        temporal_subject.declaration(),
+        temporal_subject.predicate_leaves(),
+    ) {
+        return Err(BundleRefusal::ResultPredicateUnreachable);
+    }
+    Ok(())
+}
+
+fn predicate_selection_matches(
+    checked_declaration: u32,
+    checked_leaf: &quire_spec_language::protocol_artifact::wire::Handle,
+    temporal_declaration: u32,
+    reachable_leaves: Option<&[quire_spec_language::protocol_artifact::wire::Handle]>,
+) -> bool {
+    checked_declaration == temporal_declaration
+        && reachable_leaves.is_some_and(|leaves| leaves.contains(checked_leaf))
 }
 
 /// Require the preceding closed dispatch stage to answer this Engine's exact
@@ -1983,7 +2670,7 @@ fn validate_input_package(
 fn validate_dispatch_rows(
     requested: &[Claim],
     dispatch: &DispatchReport,
-    inputs: &[Option<CanonicalRowFacts<'_>>],
+    inputs: &[Option<CanonicalRowControls>],
 ) -> Result<(), BundleRefusal> {
     validate_dispatch_population(requested, dispatch)?;
     if inputs.len() != requested.len() {
@@ -2114,21 +2801,25 @@ impl<Row> AssessmentBundle<'_, Row> {
 mod tests {
     use super::{
         accounting_refusal, claim_from_result_kind, encode_accounting_fault, kernel_refusal,
-        outcome_refusal, validate_dispatch_population, validate_input_package, validate_requested,
-        validate_rows, AccountingStage, BundleRefusal, ClaimRow,
+        outcome_refusal, predicate_selection_matches, row_assembly_refusal,
+        validate_dispatch_population, validate_dispatch_request, validate_requested, validate_rows,
+        AccountingStage, BundleRefusal, ClaimRow, RowAssemblyRefusal,
     };
     use crate::bounds::inventory::{
         production_inventory, AccountingFault, Budget, BudgetDimension, ResourceAccountant,
     };
     use crate::bounds::{Phase, SiteId, UnitLabel};
-    use crate::claims::{dispatch::Report as DispatchReport, Claim};
+    use crate::claims::{
+        dispatch::{ClaimRequest, Report as DispatchReport},
+        premises::{BackendSelection, Component, PremiseSet},
+        Claim,
+    };
     use crate::conformance::KernelRefusal;
     use crate::outcome::ClaimOutcome;
     use crate::refusal::{AffectedIdentity, PartialOutput, ProtocolStage, RefusalDomain};
     use crate::result::ClaimKind;
-    use crate::ByteDigest;
     use ix_trace_rs::trace;
-    use std::collections::BTreeSet;
+    use std::collections::{BTreeSet, HashSet};
     use std::time::Duration;
 
     #[test]
@@ -2149,6 +2840,54 @@ mod tests {
         assert_eq!(
             validate_requested(&[Claim::Conformance, Claim::Monitorability]),
             Ok(())
+        );
+    }
+
+    fn dispatch_request(claim: Claim) -> ClaimRequest<'static> {
+        let component = |identity: &[u8]| {
+            Component::retained(
+                identity.to_vec().into_boxed_slice(),
+                identity.to_vec().into_boxed_slice(),
+            )
+        };
+        ClaimRequest {
+            identity: b"request".to_vec().into_boxed_slice(),
+            claim,
+            strength: b"tested".to_vec().into_boxed_slice(),
+            premises: PremiseSet {
+                admitted_fragment: component(b"fragment"),
+                backend: BackendSelection::retained(
+                    b"backend".to_vec().into_boxed_slice(),
+                    b"1".to_vec().into_boxed_slice(),
+                ),
+                assumptions: Vec::new(),
+                communication: Vec::new(),
+                visibility: Vec::new(),
+                environment: Vec::new(),
+                sources: Vec::new(),
+                derived_artifact: None,
+            },
+            correspondence: None,
+        }
+    }
+
+    #[test]
+    #[trace("TC-006", "FR-006-AC-1", "FR-006-AC-9")]
+    fn dispatch_request_order_must_equal_the_engines_order() {
+        let requested = [Claim::Conformance, Claim::Monitorability];
+        let authored = [
+            dispatch_request(Claim::Conformance),
+            dispatch_request(Claim::Monitorability),
+        ];
+        assert_eq!(validate_dispatch_request(&requested, &authored), Ok(()));
+
+        let reversed = [
+            dispatch_request(Claim::Monitorability),
+            dispatch_request(Claim::Conformance),
+        ];
+        assert_eq!(
+            validate_dispatch_request(&requested, &reversed),
+            Err(BundleRefusal::UnexpectedClaim)
         );
     }
 
@@ -2251,22 +2990,67 @@ mod tests {
                 ProtocolStage::ResultAssembly,
             ),
             (
-                BundleRefusal::CanonicalPackageMismatch,
-                RefusalDomain::Result,
-                ProtocolStage::ResultAssembly,
-            ),
-            (
                 BundleRefusal::DispatchReportMismatch,
                 RefusalDomain::Result,
                 ProtocolStage::ResultAssembly,
             ),
             (
-                BundleRefusal::ActivationSubjectMismatch,
+                BundleRefusal::MissingResultSelection,
+                RefusalDomain::Result,
+                ProtocolStage::ResultAssembly,
+            ),
+            (
+                BundleRefusal::CheckedPredicatePackageMismatch,
+                RefusalDomain::Result,
+                ProtocolStage::ResultAssembly,
+            ),
+            (
+                BundleRefusal::TemporalSubjectPackageMismatch,
+                RefusalDomain::Result,
+                ProtocolStage::ResultAssembly,
+            ),
+            (
+                BundleRefusal::CheckedPredicateDeclarationMismatch,
+                RefusalDomain::Result,
+                ProtocolStage::ResultAssembly,
+            ),
+            (
+                BundleRefusal::ResultRequestDeclarationMismatch,
+                RefusalDomain::Result,
+                ProtocolStage::ResultAssembly,
+            ),
+            (
+                BundleRefusal::ResultRequestSubjectMismatch,
+                RefusalDomain::Result,
+                ProtocolStage::ResultAssembly,
+            ),
+            (
+                BundleRefusal::ResultTemporalBindingMissing,
+                RefusalDomain::Result,
+                ProtocolStage::ResultAssembly,
+            ),
+            (
+                BundleRefusal::ResultPredicateUnreachable,
+                RefusalDomain::Result,
+                ProtocolStage::ResultAssembly,
+            ),
+            (
+                BundleRefusal::AmbiguousResultModel,
+                RefusalDomain::Result,
+                ProtocolStage::ResultAssembly,
+            ),
+            (
+                BundleRefusal::MissingActivationSelection,
                 RefusalDomain::Assessment,
                 ProtocolStage::Conformance,
             ),
             (
-                BundleRefusal::ActivationDeclarationMismatch,
+                BundleRefusal::ActivationRuntimeBindingMismatch,
+                RefusalDomain::Assessment,
+                ProtocolStage::Conformance,
+            ),
+            (
+                BundleRefusal::ActivationFactMismatch,
                 RefusalDomain::Assessment,
                 ProtocolStage::Conformance,
             ),
@@ -2282,6 +3066,63 @@ mod tests {
             assert!(codes.insert(refusal.code().as_str()));
             assert!(axes.insert(refusal.axis().as_bytes().to_vec()));
         }
+    }
+
+    #[test]
+    #[trace("TC-006", "FR-006-AC-9", "FR-008-AC-1", "FR-014-AC-1")]
+    fn row_assembly_failures_have_injective_typed_identities() {
+        let failures = [
+            RowAssemblyRefusal::UnknownClaimStrength(b"unknown"),
+            RowAssemblyRefusal::MissingAssumptionState(b"assumption"),
+            RowAssemblyRefusal::NonTextRequestIdentity(b"\xffrequest"),
+            RowAssemblyRefusal::NonTextAdmittedFragmentIdentity(b"\xfffragment"),
+            RowAssemblyRefusal::NonTextBackendIdentity(b"\xffbackend"),
+            RowAssemblyRefusal::NonTextAssumptionIdentity(b"\xffassumption"),
+            RowAssemblyRefusal::ForeignModelProvenance,
+            RowAssemblyRefusal::ForeignRuntimeInput,
+            RowAssemblyRefusal::UnrepresentableRuntimeInput,
+        ];
+        let mut codes = BTreeSet::new();
+        let mut interiors = HashSet::new();
+        for failure in failures {
+            let refusal = row_assembly_refusal(failure);
+            assert_eq!(refusal.domain(), RefusalDomain::Result);
+            assert_eq!(refusal.stage(), ProtocolStage::ResultAssembly);
+            assert!(codes.insert(refusal.code().as_str()));
+            assert!(interiors.insert((
+                refusal.axis().as_bytes().to_vec(),
+                refusal.causes().declared_order()[0].clone(),
+            )));
+        }
+    }
+
+    #[test]
+    #[trace("TC-006", "FR-006-AC-1", "FR-006-AC-4", "FR-031-AC-5")]
+    fn result_selection_accepts_each_reachable_leaf_without_requiring_a_singleton() {
+        use quire_spec_language::protocol_artifact::wire::Handle;
+
+        let first = Handle {
+            declaration: 7,
+            index: 2,
+        };
+        let second = Handle {
+            declaration: 7,
+            index: 5,
+        };
+        let unreachable = Handle {
+            declaration: 7,
+            index: 9,
+        };
+        let leaves = [first.clone(), second.clone()];
+        assert!(predicate_selection_matches(7, &first, 7, Some(&leaves)));
+        assert!(predicate_selection_matches(7, &second, 7, Some(&leaves)));
+        assert!(!predicate_selection_matches(8, &second, 7, Some(&leaves)));
+        assert!(!predicate_selection_matches(
+            7,
+            &unreachable,
+            7,
+            Some(&leaves)
+        ));
     }
 
     #[test]
@@ -2437,20 +3278,6 @@ mod tests {
         assert_eq!(
             claim_from_result_kind(ClaimKind::Composition),
             Claim::Composition
-        );
-    }
-
-    #[test]
-    fn canonical_input_views_must_borrow_the_engines_admitted_package() {
-        let selected = ByteDigest::of(b"selected-package");
-        assert_eq!(validate_input_package(selected, selected, selected), Ok(()));
-        assert_eq!(
-            validate_input_package(selected, ByteDigest::of(b"foreign"), selected),
-            Err(BundleRefusal::CanonicalPackageMismatch)
-        );
-        assert_eq!(
-            validate_input_package(selected, selected, ByteDigest::of(b"foreign")),
-            Err(BundleRefusal::CanonicalPackageMismatch)
         );
     }
 

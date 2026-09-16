@@ -1062,6 +1062,7 @@ pub struct ResourceAccountant<'inventory> {
     budget: Budget,
     usage: Usage,
     site_consumed: Box<[usize]>,
+    in_owner_unit: bool,
     inventory: &'inventory Inventory,
     request_deadline: Option<RequestDeadline>,
     resolution_deadline: Option<RequestDeadline>,
@@ -1123,6 +1124,7 @@ impl<'inventory> ResourceAccountant<'inventory> {
             budget,
             usage: Usage::ZERO,
             site_consumed: vec![0; inventory.entries.len()].into_boxed_slice(),
+            in_owner_unit: false,
             inventory,
             request_deadline,
             resolution_deadline,
@@ -1172,8 +1174,11 @@ impl<'inventory> ResourceAccountant<'inventory> {
     /// Charge one increment against both its authored and caller ceilings.
     ///
     /// A present caller ceiling applies to aggregate usage on the dimension;
-    /// `authored_limit` applies only to this source site's usage. This keeps two
-    /// sites on one dimension from consuming each other's authored allowance.
+    /// `authored_limit` applies only to this source site's usage in the current
+    /// outer owner unit. This keeps two sites on one dimension from consuming
+    /// each other's authored allowance and keeps repeated result rows from
+    /// consuming one another's per-document maxima. The caller ceiling remains
+    /// cumulative across every unit in the request.
     /// An absent caller grant remains absent and cannot weaken or replace the
     /// authored ceiling.
     ///
@@ -1371,6 +1376,19 @@ impl<'inventory> ResourceAccountant<'inventory> {
         )
     }
 
+    fn enter_owner_unit(&mut self) -> bool {
+        let was_in_owner_unit = self.in_owner_unit;
+        if !was_in_owner_unit {
+            self.site_consumed.fill(0);
+            self.in_owner_unit = true;
+        }
+        was_in_owner_unit
+    }
+
+    fn leave_owner_unit(&mut self, was_in_owner_unit: bool) {
+        self.in_owner_unit = was_in_owner_unit;
+    }
+
     /// Execute one declared indivisible owner unit under the request deadline.
     ///
     /// The before observation occurs before `operation`. A successful or
@@ -1387,7 +1405,9 @@ impl<'inventory> ResourceAccountant<'inventory> {
             Ok(token) => token,
             Err(error) => return OperationOutcome::from_charge(error),
         };
+        let was_in_owner_unit = self.enter_owner_unit();
         let outcome = operation(self);
+        self.leave_owner_unit(was_in_owner_unit);
         let stopped = matches!(
             &outcome,
             OperationOutcome::ResourceIncomplete(_) | OperationOutcome::AccountingFault(_)
@@ -1412,7 +1432,9 @@ impl<'inventory> ResourceAccountant<'inventory> {
             Ok(token) => token,
             Err(error) => return OperationOutcome::from_charge(error),
         };
+        let was_in_owner_unit = self.enter_owner_unit();
         let outcome = operation(self);
+        self.leave_owner_unit(was_in_owner_unit);
         let stopped = matches!(
             &outcome,
             OperationOutcome::ResourceIncomplete(_) | OperationOutcome::AccountingFault(_)
@@ -1732,6 +1754,24 @@ const RESULT_OUTPUT: SourceSite = SourceSite::new(
     BudgetDimension::OutputByte,
     SiteKind::Allocation,
 );
+const RESULT_OUTPUT_STRING: SourceSite = SourceSite::new(
+    SiteId::new("result/output/string/retain"),
+    "result::record::produce",
+    BudgetDimension::OutputByte,
+    SiteKind::Retention,
+);
+const RESULT_OUTPUT_DEPTH: SourceSite = SourceSite::new(
+    SiteId::new("result/output/container/depth"),
+    "result::record::produce",
+    BudgetDimension::Operation,
+    SiteKind::Traversal,
+);
+const RESULT_OUTPUT_OPERATION: SourceSite = SourceSite::new(
+    SiteId::new("result/output/field/visit"),
+    "result::record::produce",
+    BudgetDimension::Operation,
+    SiteKind::Traversal,
+);
 const RESULT_ALLOCATION: SourceSite = SourceSite::new(
     SiteId::new("result/document/allocate"),
     "result::record::produce",
@@ -1970,6 +2010,9 @@ pub const PRODUCTION_SOURCES: &[SourceSite] = &[
     crate::result::contract_ir::ALLOCATION_SOURCE,
     crate::result::contract_ir::READ_ALLOCATION_SOURCE,
     crate::result::record::OUTPUT_SOURCE,
+    crate::result::record::STRING_SOURCE,
+    crate::result::record::DEPTH_SOURCE,
+    crate::result::record::OPERATION_SOURCE,
     crate::result::record::ALLOCATION_SOURCE,
     crate::conformance::batch::OPERATION_SOURCE,
     crate::ids::ALLOCATION_SOURCE,
@@ -2250,6 +2293,24 @@ pub const PRODUCTION_ENTRIES: &[InventoryEntry] = &[
         LimitAuthority::ConsumerOwner,
         ChargePoint::BeforeAllocate,
         Termination::InputLength,
+    ),
+    entry(
+        RESULT_OUTPUT_STRING,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeRetain,
+        Termination::InputLength,
+    ),
+    entry(
+        RESULT_OUTPUT_DEPTH,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeTraverse,
+        Termination::FiniteGraph,
+    ),
+    entry(
+        RESULT_OUTPUT_OPERATION,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeTraverse,
+        Termination::FiniteGraph,
     ),
     entry(
         RESULT_ALLOCATION,

@@ -41,7 +41,7 @@ relationships:
 - [ ] **FR-004**: Connect one batch/incremental conformance kernel to graph and compensation outputs.
 - [ ] **FR-005**: Consume conformance through closed independent claim dispatch.
 - [ ] **FR-006**: Assemble the implemented canonical result from typed subsystem outputs.
-- [ ] **FR-007**: Project validated results through accepted E02 draft-2.
+- [x] **FR-007**: Project validated results through accepted E02 draft-2.
 - [ ] **FR-008**: Route every public failure through the shared exact-stage envelope.
 - [ ] **FR-009**: Resolve every consumed external contract before its value is read.
 - [x] **FR-042**: Strict canonical-result reader and complete borrowed Contract-IR map are implemented.
@@ -110,9 +110,10 @@ shared result-domain values. Each has one Protocol owner and no adapter-local co
   permutations, progress/closure and contradiction states.
 - [x] **TC-005**: conformance-derived ordered claim dispositions, exact retained
   premises and no callback fallback.
-- [x] **TC-006**: subsystem-derived canonical rows, strict reads, exact settlement,
-  support topology and immutable corrections.
-- [ ] **TC-007**: total FR-062 E02 mapping, exact derived identity, strict target
+- [ ] **TC-006**: subsystem-derived canonical rows and strict reads execute;
+  authenticated settlement/support topology and applicable immutable correction
+  scenarios remain blocked on the pinned owner capabilities.
+- [x] **TC-007**: total FR-062 E02 mapping, exact derived identity, strict target
   reading, finding preservation and no sufficiency promotion.
 - [ ] **TC-008**: whole-path byte/semantic reproduction and one-axis mutation discrimination.
 - [ ] **TC-009**: bidirectional final source inventory, below/at/over bounds,
@@ -180,8 +181,8 @@ shared result-domain values. Each has one Protocol owner and no adapter-local co
   both historical revisions around the `/2` addition.
 - **Facts = Task-010** QObs/QSL native-temporal lane — may run after Task-006;
   exit: all selected facts and adverse mutations reach results unchanged.
-- **E02 = Task-007** Portable projection — may run after Task-006 and accepted
-  qverify promotion; exit: every FR-062 row passes the target strict reader.
+- **E02 = Task-007 (done)** Portable projection — every FR-062 row passes the
+  accepted qverify target strict reader with exact source/finding preservation.
 
 ### Qualification and Cross-cutting Closure
 
@@ -217,7 +218,7 @@ track names are subsystems and are not agent assignments; Agent B remains on TL.
 | Task-003 | Core | FR-003 | TC-003 | done; graph-owned Engine bridge and exact QSL/QObs evidence |
 | Task-004 | Core | FR-004 | TC-004 | done; strict FR-300 activation-derived frontends share the graph/compensation kernel |
 | Task-005 | Core | FR-005 | TC-005 | done; activation-derived Engine dispatch and closed local conformance backend |
-| Task-006 | Core | FR-006, FR-008 | TC-006, TC-011 | done; atomic Engine orchestration, private result assembly, shared accounting and SR-116/SR-117 pass |
+| Task-006 | Core | FR-006, FR-008 | TC-006, TC-011 | in progress; atomic Engine orchestration, private result assembly and shared accounting execute, but authenticated oracle/dependence support and correction owner views are unavailable; SR-116/SR-117 blocked |
 | Task-007 | Producer Integration | FR-007 | TC-007 | done; exact accepted qverify/EA graph, total source-bound projection and SR-118/SR-119 pass |
 | Task-008 | Cross-cutting Closure | NFR-001, NFR-002 | TC-008, TC-009 | in_progress; current-site inventory exists |
 | Task-009 | Producer Integration | FR-001, FR-002 | IT-001 | done; default `/1` admission/static link and SC-06a two-revision comparison pass |

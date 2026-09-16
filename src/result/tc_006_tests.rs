@@ -13,7 +13,7 @@ use quire_observation::{
     ResourceLimits, ScopeKind, ScopeSelection, SubjectIdentity, SubjectKind, ValueState,
     Visibility, NATIVE_LINKED_PACKAGE_FORMAT,
 };
-use quire_protocol::assessment::{CanonicalRowFacts, Engine};
+use quire_protocol::assessment::{CanonicalRowControls, Engine};
 use quire_protocol::bounds::inventory::{
     production_inventory, Budget, BudgetDimension, OperationOutcome, ResourceAccountant,
 };
@@ -160,24 +160,6 @@ fn fixture() -> Fixture {
     let admitted = quire_protocol::intake::v2::admit(loaded.offer(), &expected, loaded.limits())
         .into_result()
         .expect("strict v2 package");
-    let (predicate_declaration, predicate_root) = checked_leaf(&admitted);
-    let predicate_selection =
-        checked_predicate::ClauseSelection::new(predicate_declaration, predicate_root);
-    let predicate_document = checked_predicate::derive(
-        &admitted,
-        predicate_selection.clone(),
-        checked_predicate::Limits::default(),
-    )
-    .into_result()
-    .expect("checked predicate document");
-    let predicate = checked_predicate::read(
-        predicate_document.bytes(),
-        &admitted,
-        predicate_selection,
-        checked_predicate::Limits::default(),
-    )
-    .into_result()
-    .expect("checked predicate view");
     let temporal_declaration = admitted
         .inherited()
         .declarations
@@ -201,6 +183,28 @@ fn fixture() -> Fixture {
     )
     .into_result()
     .expect("temporal subject view");
+    let predicate_root = temporal
+        .predicate_leaves()
+        .and_then(|leaves| leaves.first())
+        .cloned()
+        .expect("temporal subject has a checked Boolean leaf");
+    let predicate_selection =
+        checked_predicate::ClauseSelection::new(predicate_root.declaration, predicate_root);
+    let predicate_document = checked_predicate::derive(
+        &admitted,
+        predicate_selection.clone(),
+        checked_predicate::Limits::default(),
+    )
+    .into_result()
+    .expect("checked predicate document");
+    let predicate = checked_predicate::read(
+        predicate_document.bytes(),
+        &admitted,
+        predicate_selection,
+        checked_predicate::Limits::default(),
+    )
+    .into_result()
+    .expect("checked predicate view");
     Fixture {
         predicate,
         temporal,
@@ -209,7 +213,7 @@ fn fixture() -> Fixture {
     }
 }
 
-fn checked_leaf(package: &v2::AdmittedPackage) -> (u32, w::Handle) {
+fn first_checked_leaf(package: &v2::AdmittedPackage) -> (u32, w::Handle) {
     package
         .inherited()
         .declarations
@@ -599,28 +603,8 @@ fn base_input<'a>(fixture: &'a Fixture) -> Input<'a> {
     }
 }
 
-fn canonical_row_facts<'a>(
-    input: Input<'a>,
-    limits: Limits,
-    model_artifact: &'a w::ArtifactRef,
-    runtime_input: &'a QualifiedSubject,
-) -> CanonicalRowFacts<'a> {
-    CanonicalRowFacts {
-        checked_predicate: input.checked_predicate,
-        temporal_subject: input.temporal_subject,
-        settlement: input.settlement,
-        activation: input.activation,
-        participation: input.participation,
-        observation_adequacy: input.observation_adequacy,
-        protocol_adequacy: input.protocol_adequacy,
-        decision_support: input.decision_support,
-        limitations: input.limitations,
-        model_artifact,
-        runtime_input,
-        reproduction: input.provenance.reproduction,
-        correction: input.correction,
-        limits,
-    }
+fn canonical_row_controls(input: Input<'_>, limits: Limits) -> CanonicalRowControls {
+    CanonicalRowControls::new(input.provenance.reproduction, limits)
 }
 
 fn temporal_digest(label: &str) -> String {
@@ -891,10 +875,16 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
             let w::Body::Protocol { roles, .. } = &value.body else {
                 return None;
             };
+            let role_instance_slots = roles.iter().map(|role| role.instance).collect::<Vec<_>>();
             let subject_slot = value
                 .bindings
                 .iter()
-                .position(|binding| binding.kind != w::BindingKind::Relationship)?;
+                .enumerate()
+                .find(|(slot, binding)| {
+                    binding.kind != w::BindingKind::Relationship
+                        && !role_instance_slots.contains(&u32::try_from(*slot).unwrap_or(u32::MAX))
+                })
+                .map(|(slot, _)| slot)?;
             Some((
                 u32::try_from(declaration).ok()?,
                 roles,
@@ -904,6 +894,20 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
         .expect("published handoff has a protocol subject slot");
     let producer = producer();
     let subject = runtime_subject(&producer, "canonical-engine");
+    let role_instance_kind =
+        SubjectKind::new(b"role-instance".to_vec()).expect("non-empty role-instance kind");
+    let mut static_slots = vec![StaticSlot {
+        handle: SlotHandle::new(subject_slot),
+        compatibility: SlotCompatibility::Subject {
+            kind: SubjectKind::new(ORDER_KIND.as_bytes().to_vec()).expect("non-empty kind"),
+        },
+    }];
+    static_slots.extend(roles.iter().map(|role| StaticSlot {
+        handle: SlotHandle::new(role.instance),
+        compatibility: SlotCompatibility::Subject {
+            kind: role_instance_kind.clone(),
+        },
+    }));
     let definition = StaticBindingDefinition::new(
         STATIC_BINDING_CONTRACT,
         StaticSelection {
@@ -921,23 +925,29 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
                 internality: Internality::Internal,
             })
             .collect(),
-        vec![StaticSlot {
-            handle: SlotHandle::new(subject_slot),
-            compatibility: SlotCompatibility::Subject {
-                kind: SubjectKind::new(ORDER_KIND.as_bytes().to_vec()).expect("non-empty kind"),
-            },
-        }],
+        static_slots,
     )
     .expect("selected static binding definition admits");
+    let mut runtime_bindings = vec![RuntimeBinding::subject(
+        SlotHandle::new(subject_slot),
+        subject.clone(),
+    )];
+    runtime_bindings.extend(roles.iter().enumerate().map(|(index, role)| {
+        RuntimeBinding::subject(
+            SlotHandle::new(role.instance),
+            runtime_subject_bytes(
+                &producer,
+                b"role-instance".to_vec(),
+                format!("role-instance:canonical-engine:{index}").into_bytes(),
+            ),
+        )
+    }));
     let runtime = RuntimeBindingSet::new(
         RUNTIME_BINDING_CONTRACT,
         definition.selection(),
         &definition,
         &producer,
-        vec![RuntimeBinding::subject(
-            SlotHandle::new(subject_slot),
-            subject.clone(),
-        )],
+        runtime_bindings,
     )
     .expect("selected runtime binding admits");
     let context = LinkedAssessment::new(&package, &definition, &runtime)
@@ -959,18 +969,66 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
     assert_eq!(input.checked_predicate.package_digest(), package.digest());
     assert_eq!(input.temporal_subject.package_digest(), package.digest());
     let requested = [DispatchClaim::Conformance, DispatchClaim::Monitorability];
-    let engine =
-        Engine::new(context, requested.to_vec()).expect("linked assessment starts one engine");
     let mapping = admitted_activation_map(&package);
     let temporal_request =
         activated_request(&package, &fixture.temporal, subject.identity().as_bytes());
     let temporal_result = activated_result(&temporal_request);
+    let quire_protocol::outcome::OperationOutcome::Completed(engine) = Engine::start_activated(
+        context,
+        requested.to_vec(),
+        &mapping,
+        &subject,
+        &fixture.temporal,
+        &temporal_request,
+        &temporal_result,
+    ) else {
+        panic!("linked assessment starts one activation-bound engine")
+    };
+    let (foreign_declaration, foreign_root) = first_checked_leaf(&package);
+    assert!(!fixture
+        .temporal
+        .predicate_leaves()
+        .expect("temporal subject has predicate leaves")
+        .contains(&foreign_root));
+    let foreign_selection =
+        checked_predicate::ClauseSelection::new(foreign_declaration, foreign_root);
+    let foreign_document = checked_predicate::derive(
+        &package,
+        foreign_selection.clone(),
+        checked_predicate::Limits::default(),
+    )
+    .into_result()
+    .expect("same-package foreign checked predicate derives");
+    let foreign_predicate = checked_predicate::read(
+        foreign_document.bytes(),
+        &package,
+        foreign_selection,
+        checked_predicate::Limits::default(),
+    )
+    .into_result()
+    .expect("same-package foreign checked predicate strict-reads");
+    assert!(matches!(
+        Engine::start_result_assessment(
+            context,
+            requested.to_vec(),
+            &mapping,
+            &subject,
+            &temporal_request,
+            &temporal_result,
+            &foreign_predicate,
+            &fixture.temporal,
+        ),
+        quire_protocol::outcome::OperationOutcome::Refused(refusal)
+            if refusal.code().as_str()
+                == "assessment-result.checked-predicate-declaration-mismatch"
+    ));
     let activation = engine
         .conformance()
         .bind_activation(
             engine.linked(),
             &mapping,
             &subject,
+            &fixture.temporal,
             &temporal_request,
             &temporal_result,
         )
@@ -1065,6 +1123,89 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
         quire_protocol::outcome::OperationOutcome::Refused(_)
     ));
     let dispatch_requests = dispatch_inputs_with_claim_refusal();
+    let quire_protocol::outcome::OperationOutcome::Completed(unselected_engine) =
+        Engine::start(context, requested.to_vec())
+    else {
+        panic!("linked assessment starts an engine without an activation selection")
+    };
+    assert!(matches!(
+        unselected_engine.dispatch_activated(
+            &dispatch_requests,
+            std::slice::from_ref(&fact),
+            axes,
+            &decision.completeness_complete,
+            &global,
+            AssessmentExecution::Completed,
+            ConformanceLimits::default(),
+            DispatchLimits::default(),
+            Budget::nothing_granted(),
+        ),
+        quire_protocol::outcome::OperationOutcome::Refused(refusal)
+            if refusal.code().as_str() == "assessment-activation.missing-selection"
+    ));
+    let foreign_subject = runtime_subject(&producer, "canonical-engine-foreign");
+    let foreign_request = activated_request(
+        &package,
+        &fixture.temporal,
+        foreign_subject.identity().as_bytes(),
+    );
+    let foreign_result = activated_result(&foreign_request);
+    let foreign_activation = engine
+        .conformance()
+        .bind_activation(
+            engine.linked(),
+            &mapping,
+            &foreign_subject,
+            &fixture.temporal,
+            &foreign_request,
+            &foreign_result,
+        )
+        .expect("a distinct subject forms its own valid activation");
+    let foreign_occurrence = occurrence_schema
+        .bind(
+            WorkflowInstanceIdentity::new("workflow:canonical-engine-foreign")
+                .expect("nonempty workflow identity"),
+            foreign_activation.control(),
+            occurrence_node.role().clone(),
+            &[],
+        )
+        .expect("the foreign activation occurrence admits");
+    let foreign_activated = engine
+        .conformance()
+        .activate_occurrence(&foreign_activation, foreign_occurrence)
+        .expect("the distinct activation produces an occurrence");
+    let foreign_fact = engine
+        .conformance()
+        .activation_fact(foreign_activated, None);
+    let quire_protocol::outcome::OperationOutcome::Completed(fact_bound_engine) =
+        Engine::start_result_assessment(
+            context,
+            requested.to_vec(),
+            &mapping,
+            &subject,
+            &temporal_request,
+            &temporal_result,
+            &fixture.predicate,
+            &fixture.temporal,
+        )
+    else {
+        panic!("strict owner views start the activation-fact binding check")
+    };
+    assert!(matches!(
+        fact_bound_engine.dispatch_activated(
+            &dispatch_requests,
+            std::slice::from_ref(&foreign_fact),
+            axes,
+            &decision.completeness_complete,
+            &global,
+            AssessmentExecution::Completed,
+            ConformanceLimits::default(),
+            DispatchLimits::default(),
+            Budget::nothing_granted(),
+        ),
+        quire_protocol::outcome::OperationOutcome::Refused(refusal)
+            if refusal.code().as_str() == "assessment-activation.fact-mismatch"
+    ));
     let quire_protocol::outcome::OperationOutcome::Completed(dispatch) = engine.dispatch_activated(
         &dispatch_requests,
         std::slice::from_ref(&fact),
@@ -1114,8 +1255,24 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
         quire_protocol::outcome::OperationOutcome::ResourceIncomplete(incomplete)
             if incomplete.dimension() == BudgetDimension::InputByte
     ));
-    let short_result_engine = Engine::new(context, requested.to_vec())
-        .expect("the same linked assessment starts an independent result operation");
+    let short_result_engine = match Engine::start_result_assessment(
+        context,
+        requested.to_vec(),
+        &mapping,
+        &subject,
+        &temporal_request,
+        &temporal_result,
+        &fixture.predicate,
+        &fixture.temporal,
+    ) {
+        quire_protocol::outcome::OperationOutcome::Completed(engine) => engine,
+        quire_protocol::outcome::OperationOutcome::Refused(refusal) => {
+            panic!("strict owner views refused: {}", refusal.code().as_str())
+        }
+        quire_protocol::outcome::OperationOutcome::ResourceIncomplete(_) => {
+            panic!("strict owner views exhausted resources during setup")
+        }
+    };
     let short_output = Budget::nothing_granted()
         .grant(BudgetDimension::OutputByte, 1)
         .expect("positive one-short output grant");
@@ -1129,12 +1286,7 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
         ConformanceLimits::default(),
         DispatchLimits::default(),
         vec![
-            Some(canonical_row_facts(
-                input.clone(),
-                Limits::owner_max(),
-                model_artifact,
-                &subject,
-            )),
+            Some(canonical_row_controls(input.clone(), Limits::owner_max())),
             None,
         ],
         short_output,
@@ -1145,10 +1297,22 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
             quire_protocol::outcome::OperationOutcome::ResourceIncomplete(ref incomplete)
                 if incomplete.dimension() == BudgetDimension::OutputByte
         ),
-        "expected output exhaustion, got {short_outcome:?}"
+        "expected output exhaustion"
     );
-    let cumulative_engine = Engine::new(context, requested.to_vec())
-        .expect("the same linked assessment starts an accountant-span control");
+    let quire_protocol::outcome::OperationOutcome::Completed(cumulative_engine) =
+        Engine::start_result_assessment(
+            context,
+            requested.to_vec(),
+            &mapping,
+            &subject,
+            &temporal_request,
+            &temporal_result,
+            &fixture.predicate,
+            &fixture.temporal,
+        )
+    else {
+        panic!("strict owner views start the accountant-span control")
+    };
     let cumulative_limit = Budget::nothing_granted()
         .grant(BudgetDimension::AccountedAllocation, 3)
         .expect("three allocations reach into result construction");
@@ -1163,12 +1327,7 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
             ConformanceLimits::default(),
             DispatchLimits::default(),
             vec![
-                Some(canonical_row_facts(
-                    input.clone(),
-                    Limits::owner_max(),
-                    model_artifact,
-                    &subject,
-                )),
+                Some(canonical_row_controls(input.clone(), Limits::owner_max())),
                 None,
             ],
             cumulative_limit,
@@ -1178,12 +1337,24 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
                 && incomplete.consumed() == 3
                 && incomplete.requested() == 1
     ));
-    let mut foreign_model = model_artifact.clone();
-    foreign_model.identity.push_str(":foreign");
-    let foreign_model_engine = Engine::new(context, requested.to_vec())
-        .expect("the same linked assessment starts a model-substitution control");
-    let quire_protocol::outcome::OperationOutcome::Completed(foreign_model_bundle) =
-        foreign_model_engine.assess_activated(
+    let quire_protocol::outcome::OperationOutcome::Completed(owner_limited_engine) =
+        Engine::start_result_assessment(
+            context,
+            requested.to_vec(),
+            &mapping,
+            &subject,
+            &temporal_request,
+            &temporal_result,
+            &fixture.predicate,
+            &fixture.temporal,
+        )
+    else {
+        panic!("strict owner views start the owner-limit control")
+    };
+    let mut owner_limited = Limits::owner_max();
+    owner_limited.max_string_bytes = 1;
+    assert!(matches!(
+        owner_limited_engine.assess_activated(
             &dispatch_requests,
             std::slice::from_ref(&fact),
             axes,
@@ -1192,58 +1363,28 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
             AssessmentExecution::Completed,
             ConformanceLimits::default(),
             DispatchLimits::default(),
-            vec![
-                Some(canonical_row_facts(
-                    input.clone(),
-                    Limits::owner_max(),
-                    &foreign_model,
-                    &subject,
-                )),
-                None,
-            ],
+            vec![Some(canonical_row_controls(input.clone(), owner_limited)), None],
             Budget::nothing_granted(),
+        ),
+        quire_protocol::outcome::OperationOutcome::ResourceIncomplete(incomplete)
+            if incomplete.dimension() == BudgetDimension::OutputByte
+                && incomplete.site().as_str() == "result/output/string/retain"
+    ));
+    let quire_protocol::outcome::OperationOutcome::Completed(result_engine) =
+        Engine::start_result_assessment(
+            context,
+            requested.to_vec(),
+            &mapping,
+            &subject,
+            &temporal_request,
+            &temporal_result,
+            &fixture.predicate,
+            &fixture.temporal,
         )
     else {
-        panic!("a foreign row model is a claim-local construction refusal")
+        panic!("strict owner views start canonical result orchestration")
     };
-    assert!(matches!(
-        &foreign_model_bundle.rows()[0].outcome,
-        quire_protocol::outcome::ClaimOutcome::Refused(refusal)
-            if refusal.code().as_str() == "result.invalid-selection"
-    ));
-    let foreign_subject = runtime_subject(&producer, "canonical-engine-foreign");
-    let foreign_input_engine = Engine::new(context, requested.to_vec())
-        .expect("the same linked assessment starts an input-substitution control");
-    let quire_protocol::outcome::OperationOutcome::Completed(foreign_input_bundle) =
-        foreign_input_engine.assess_activated(
-            &dispatch_requests,
-            std::slice::from_ref(&fact),
-            axes,
-            &decision.completeness_complete,
-            &global,
-            AssessmentExecution::Completed,
-            ConformanceLimits::default(),
-            DispatchLimits::default(),
-            vec![
-                Some(canonical_row_facts(
-                    input.clone(),
-                    Limits::owner_max(),
-                    model_artifact,
-                    &foreign_subject,
-                )),
-                None,
-            ],
-            Budget::nothing_granted(),
-        )
-    else {
-        panic!("a foreign runtime input is a claim-local construction refusal")
-    };
-    assert!(matches!(
-        &foreign_input_bundle.rows()[0].outcome,
-        quire_protocol::outcome::ClaimOutcome::Refused(refusal)
-            if refusal.code().as_str() == "result.invalid-selection"
-    ));
-    let outcome = engine.assess_activated(
+    let outcome = result_engine.assess_activated(
         &dispatch_requests,
         std::slice::from_ref(&fact),
         axes,
@@ -1253,12 +1394,7 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
         ConformanceLimits::default(),
         DispatchLimits::default(),
         vec![
-            Some(canonical_row_facts(
-                input,
-                Limits::owner_max(),
-                model_artifact,
-                &subject,
-            )),
+            Some(canonical_row_controls(input, Limits::owner_max())),
             None,
         ],
         Budget::nothing_granted(),
@@ -1272,7 +1408,24 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
         panic!("the completed conformance disposition must produce its canonical row")
     };
     assert_eq!(canonical.execution(), AssessmentExecution::Completed);
-    assert_eq!(canonical.truth(), Truth::Satisfied);
+    assert_eq!(canonical.truth(), Truth::Unavailable);
+    assert_eq!(canonical.settlement_basis(), SettlementBasis::Unavailable);
+    assert!(canonical.decision_support().is_empty());
+    let Participation::Known {
+        required_role_instance_refs,
+        participating_role_instance_refs,
+    } = canonical.participation()
+    else {
+        panic!("complete activated role bindings produce known participation")
+    };
+    assert_eq!(
+        required_role_instance_refs,
+        participating_role_instance_refs
+    );
+    assert!(!required_role_instance_refs.is_empty());
+    assert!(required_role_instance_refs
+        .iter()
+        .all(|identity| identity.starts_with(runtime_reference::PREFIX)));
     assert_eq!(
         canonical.decision_scope_progress().document_identity(),
         decision.progress_closed.identity().as_str()
@@ -2176,11 +2329,15 @@ fn tc_009_result_output_budget_precedes_canonical_allocation() {
     let input = base_input(&fixture);
     let control = result::produce(input.clone(), Limits::owner_max()).expect("control result");
     let required = control.bytes().len();
+    let retained_string = control.usage().string_bytes;
+    let total_output = required
+        .checked_add(retained_string)
+        .expect("bounded output and retained string");
     assert!(required > 1);
     let inventory = production_inventory().expect("production inventory");
 
     let short = Budget::nothing_granted()
-        .grant(BudgetDimension::OutputByte, required - 1)
+        .grant(BudgetDimension::OutputByte, retained_string + required - 1)
         .expect("positive one-short grant");
     let mut short_resources = ResourceAccountant::new(short, &inventory);
     assert!(matches!(
@@ -2191,17 +2348,19 @@ fn tc_009_result_output_budget_precedes_canonical_allocation() {
         ),
         OperationOutcome::ResourceIncomplete(value)
             if value.dimension() == BudgetDimension::OutputByte
+                && value.site().as_str() == "result/output/allocate"
+                && value.consumed() == retained_string
                 && value.requested() == required
     ));
     assert_eq!(
         short_resources
             .usage()
             .consumed(BudgetDimension::OutputByte),
-        0
+        retained_string
     );
 
     let exact = Budget::nothing_granted()
-        .grant(BudgetDimension::OutputByte, required)
+        .grant(BudgetDimension::OutputByte, total_output)
         .expect("positive exact grant");
     let mut exact_resources = ResourceAccountant::new(exact, &inventory);
     let OperationOutcome::Completed(exact_document) =
@@ -2214,7 +2373,174 @@ fn tc_009_result_output_budget_precedes_canonical_allocation() {
         exact_resources
             .usage()
             .consumed(BudgetDimension::OutputByte),
-        required
+        total_output
+    );
+
+    let mut owner_clamped_input = input.clone();
+    owner_clamped_input.provenance.source_identity =
+        "x".repeat(Limits::owner_max().max_string_bytes + 1);
+    let mut owner_clamped_resources =
+        ResourceAccountant::new(Budget::nothing_granted(), &inventory);
+    assert!(matches!(
+        result::produce_bounded(
+            owner_clamped_input,
+            Limits {
+                max_string_bytes: usize::MAX,
+                ..Limits::owner_max()
+            },
+            &mut owner_clamped_resources,
+        ),
+        OperationOutcome::ResourceIncomplete(value)
+            if value.site().as_str() == "result/output/string/retain"
+                && value.granted() == Limits::owner_max().max_string_bytes
+                && value.consumed().saturating_add(value.requested()) > value.granted()
+    ));
+    assert_eq!(
+        owner_clamped_resources
+            .usage()
+            .consumed(BudgetDimension::OutputByte),
+        control.result_id().len(),
+        "only the fixed result-identity string is admitted before oversized caller text refuses"
+    );
+
+    let structural = control.usage();
+    let operation_total = structural
+        .depth
+        .checked_add(structural.visited_fields)
+        .expect("bounded structural work");
+    let depth_short = Budget::nothing_granted()
+        .grant(BudgetDimension::Operation, structural.depth - 1)
+        .expect("positive one-short depth grant");
+    let mut depth_short_resources = ResourceAccountant::new(depth_short, &inventory);
+    let depth_outcome = result::produce_bounded(
+        input.clone(),
+        Limits::owner_max(),
+        &mut depth_short_resources,
+    );
+    assert!(
+        matches!(
+            depth_outcome,
+            OperationOutcome::ResourceIncomplete(value)
+                if value.site().as_str() == "result/output/container/depth"
+                    && value.consumed() == 0
+                    && value.requested() == structural.depth
+        ),
+        "unexpected depth outcome: {depth_outcome:?}"
+    );
+    assert_eq!(
+        depth_short_resources
+            .usage()
+            .consumed(BudgetDimension::Operation),
+        0
+    );
+
+    let field_short = Budget::nothing_granted()
+        .grant(BudgetDimension::Operation, operation_total - 1)
+        .expect("positive one-short structural grant");
+    let mut field_short_resources = ResourceAccountant::new(field_short, &inventory);
+    assert!(matches!(
+        result::produce_bounded(
+            input.clone(),
+            Limits::owner_max(),
+            &mut field_short_resources,
+        ),
+        OperationOutcome::ResourceIncomplete(value)
+            if value.site().as_str() == "result/output/field/visit"
+                && value.consumed() == structural.depth
+                && value.requested() == structural.visited_fields
+    ));
+    assert_eq!(
+        field_short_resources
+            .usage()
+            .consumed(BudgetDimension::Operation),
+        structural.depth,
+        "returned consumed evidence must equal the accountant state retained after refusal"
+    );
+
+    let operation_exact = Budget::nothing_granted()
+        .grant(BudgetDimension::Operation, operation_total)
+        .expect("positive exact structural grant");
+    let mut operation_exact_resources = ResourceAccountant::new(operation_exact, &inventory);
+    assert!(matches!(
+        result::produce_bounded(
+            input.clone(),
+            Limits::owner_max(),
+            &mut operation_exact_resources,
+        ),
+        OperationOutcome::Completed(_)
+    ));
+    assert_eq!(
+        operation_exact_resources
+            .usage()
+            .consumed(BudgetDimension::Operation),
+        operation_total
+    );
+
+    let exact_per_document = Limits {
+        max_input_bytes: Limits::owner_max().max_input_bytes,
+        max_output_bytes: required,
+        max_depth: structural.depth,
+        max_string_bytes: structural.string_bytes,
+        max_claims: structural.claims,
+        max_premises: structural.premises,
+        max_support_records: structural.support_records,
+        max_limitations: structural.limitations,
+        max_lineage_nodes: structural.lineage_nodes,
+        max_visited_fields: structural.visited_fields,
+    };
+    let mut repeated_resources = ResourceAccountant::new(Budget::nothing_granted(), &inventory);
+    for _ in 0..2 {
+        assert!(matches!(
+            result::produce_bounded(input.clone(), exact_per_document, &mut repeated_resources),
+            OperationOutcome::Completed(_)
+        ));
+    }
+    assert_eq!(
+        repeated_resources
+            .usage()
+            .consumed(BudgetDimension::OutputByte),
+        total_output * 2,
+        "caller usage remains cumulative while each result gets fresh authored maxima"
+    );
+    assert_eq!(
+        repeated_resources
+            .usage()
+            .consumed(BudgetDimension::Operation),
+        operation_total * 2
+    );
+
+    let mut assumption_input = input.clone();
+    assumption_input.assumptions.push(Assumption {
+        identity: "x".repeat(128 * 1024),
+        state: AssumptionState::Met,
+    });
+    let assumption_control = result::produce(assumption_input.clone(), Limits::owner_max())
+        .expect("large admitted assumption has an exact structural usage");
+    let assumption_operation = assumption_control
+        .usage()
+        .depth
+        .checked_add(assumption_control.usage().visited_fields)
+        .expect("bounded assumption structure");
+    let assumption_short = Budget::nothing_granted()
+        .grant(BudgetDimension::Operation, assumption_operation - 1)
+        .expect("positive one-short assumption traversal grant");
+    let mut assumption_resources = ResourceAccountant::new(assumption_short, &inventory);
+    assert!(matches!(
+        result::produce_bounded(
+            assumption_input,
+            Limits::owner_max(),
+            &mut assumption_resources,
+        ),
+        OperationOutcome::ResourceIncomplete(value)
+            if value.dimension() == BudgetDimension::Operation
+                && value.site().as_str() == "result/output/field/visit"
+    ));
+    assert_eq!(
+        assumption_resources
+            .usage()
+            .consumed(BudgetDimension::OutputByte),
+        0,
+        "an operation refusal precedes traversal of the large assumption string"
     );
 
     let one_allocation = Budget::nothing_granted()

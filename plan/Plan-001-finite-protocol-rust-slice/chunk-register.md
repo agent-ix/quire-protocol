@@ -40,7 +40,7 @@ Status meanings:
 | C-20..C-21 | Batch and incremental conformance | landed | PR #76 derives one production `ConformanceKernel` from graph/compensation values and proves batch/incremental frontend agreement. | #6, epic #14 |
 | C-22 | Six independent claim dispositions | landed | PR #41 | #7, epic #14 |
 | C-23..C-24 | Claim premise retention and dispatch | landed | PR #77 consumes only activation-derived conformance output, retains exact claim premises and exposes no arbitrary backend callback or fallback path. | #7, epic #14 |
-| C-26..C-28 | Canonical result, global premises, and lineage | partial | Canonical production, strict reading, lineage, mapped views, atomic Engine orchestration and private result assembly execute in the #8 candidate; status remains partial until it merges to `main`. | #8, epic #14 |
+| C-26..C-28 | Canonical result, global premises, and lineage | partial | Canonical production, strict reading, mapped views, atomic Engine orchestration and private result assembly execute in the #8 candidate. Authenticated oracle/dependence support and applicable correction remain blocked on owner capabilities; merge alone cannot complete this chunk. | #8, epic #14 |
 | C-29 | Count, allocation, and deadline guards | landed | PR #42 | #10, epic #14 |
 | C-30 | Source-bound resource-site inventory | partial | The current-site inventory/accountant exists. Task-008 covers all final sites, internalizes parallel guards and consumes QSL's published accumulation accessor. | #10, epic #14 |
 | C-31 | Reproduction record | landed | PR #38 | #10, epic #14 |
