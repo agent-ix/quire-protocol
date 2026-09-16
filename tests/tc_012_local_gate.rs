@@ -550,6 +550,9 @@ fn tc_012_every_conditional_site_is_selected_and_phantom_features_refuse() {
                 path: "src/link/mod.rs".to_owned(),
             },
             Condition::Test {
+                path: "src/producer_contracts.rs".to_owned(),
+            },
+            Condition::Test {
                 path: "src/projection.rs".to_owned(),
             },
             Condition::Test {

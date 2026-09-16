@@ -982,7 +982,7 @@ dependencies = [
 [[package]]
 name = "quire-observation"
 version = "0.1.0"
-source = "git+https://github.com/agent-ix/quire-observation?rev=93bc565072fb05d1ecf29f15725b75c0a77378fb#93bc565072fb05d1ecf29f15725b75c0a77378fb"
+source = "git+https://github.com/agent-ix/quire-observation?rev=924006300f45b38483be1cbdf99b68f899b7d368#924006300f45b38483be1cbdf99b68f899b7d368"
 dependencies = [
  "agent-ix-baseline-producer",
  "serde",
@@ -1004,6 +1004,7 @@ dependencies = [
  "quire-verification",
  "serde",
  "serde_json",
+ "sha2 0.10.9",
 ]
 
 [[package]]

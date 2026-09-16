@@ -33,15 +33,16 @@ const E02_REVISION: &str = "293e342c6f5e2c69738956ff5165f75761b0364a";
 const ASSURANCE_OWNER: &str = "engineering-assurance";
 const ASSURANCE_REVISION: &str = "9237ce50ce19c6d6c937705bfde4b64adcc9d16b";
 
-/// The only non-frontend crate the published library links. It reads members A
-/// has already published and serialises B's own selections through A's
-/// `Serialize` impls; it carries no schema, grammar or wire decoder. It is named
-/// here so that a second such crate cannot enter unannounced.
+/// Serialization carriers read members A has already published and serialize
+/// B's own selections through A's `Serialize` impls; they carry no schema,
+/// grammar or wire decoder.
 const SERIALISATION: &str = "serde_json";
 const SERIALISATION_DERIVE: &str = "serde";
 
 /// The pinned, local-only closed-schema validator used by hostile-byte readers.
 const SCHEMA_VALIDATOR: &str = "jsonschema";
+/// Fixed implementation used to stream bounded request-identity preimages.
+const STREAMING_DIGEST: &str = "sha2";
 
 /// The library's frozen module set, established in one commit by the chunk
 /// facade (C-00). This is an exact set, not a filter: a module that appears
@@ -290,8 +291,8 @@ fn declared_packages(section: &str) -> BTreeSet<&str> {
 #[trace("IT-001", "Task-009")]
 fn it_001_declares_only_selected_owner_dependencies() {
     // The library links exactly one protocol frontend, the promoted observation
-    // owner, the accepted E02 owner, and the three carriers required to emit and
-    // strictly validate B's own closed documents. No alternate parser,
+    // owner, the accepted E02 owner, and the carriers required to emit,
+    // digest, and strictly validate B's own closed documents. No alternate parser,
     // evaluator or runtime can enter the protocol path unannounced.
     assert_eq!(
         declared_packages(manifest_section("[dependencies]")),
@@ -302,6 +303,7 @@ fn it_001_declares_only_selected_owner_dependencies() {
             SERIALISATION,
             SERIALISATION_DERIVE,
             SCHEMA_VALIDATOR,
+            STREAMING_DIGEST,
         ])
     );
     assert!(

@@ -7,6 +7,29 @@ description: "Chronological log of changes to the Plan-001 bundle."
 
 ## History
 
+* **2026-09-16** — Closed Task-020's promotion prerequisite after QObs PR #27
+  merged as `924006300f45b38483be1cbdf99b68f899b7d368`. Protocol repins Cargo,
+  lockfile, public provenance, SC-08, dependencies, specification, matrix and
+  plan to that accepted revision. The accepted owner changed the activation
+  authority and authority-bundle-v1 schemas; SC-08 failed on the old hashes,
+  then passed after production metadata, the independent literal oracle and
+  IT-002 were reconciled. The twenty-one-contract inventory, fifteen owner-schema
+  digest controls and two typed unsupported capabilities remain unchanged in
+  scope; IT-002 SC-05 through SC-07 and Task-018/#63 remain open.
+
+* **2026-09-15** — Implemented Task-020 after rebasing its QObs C00
+  compatibility successor onto the merged Task-010 and Task-008 mainline.
+  Protocol now pins QObs `9240063`, resolves one declarative twenty-one-contract
+  QObs/QSL inventory, verifies the owner's fifteen exported QObs schema byte
+  arrays against independent digests, and exposes repair and aggregate-query as
+  two typed unsupported capabilities that mint no contract entry. IT-002 SC-08
+  executes separately from Task-010's SC-01 through SC-04 assessment scope;
+  SC-05 through SC-07 remain planned. Subset spec reviews SR-124 through SR-126,
+  Rust review SR-127 passed the code subset. At review time gap analysis SR-128
+  kept the P0 task blocked because exact candidate pin `581d98f` was still the
+  head of draft QObs PR #27; the 2026-09-16 accepted-revision reconciliation
+  above closes that historical prerequisite.
+
 * **2026-09-15** — Completed Task-008's final resource/reproduction sweep over
   the combined Task-006, Task-007 and Task-010 paths. `ResourceAccountant` is
   now the sole supported request accountant: the unused public
@@ -25,25 +48,11 @@ description: "Chronological log of changes to the Plan-001 bundle."
   multiline trace-scanner defect remains tracked in `quire-cli#90`.
 
 * **2026-09-15** — Completed Task-010's observation/native-temporal integration
-  allocation against accepted QObs `93bc565` and QSL native-temporal v1
-  `f1700a9` / opaque-trigger v2 `0c2f13e`. A closed 14-contract inventory now
-  resolves through Task-013's bounded request-bound capabilities before the
-  public composed assessment completes; foreign request reuse and every absent,
-  unpinned, unresolved, duplicate or repointed entry refuse. IT-002's ten
-  non-record scenario units run by default from QSL's published `/2` handoff and
-  strict `/3` activation map through QObs subjects, activation-derived batch and
-  settled-incremental conformance, claim dispatch and canonical result readback.
-  The lane preserves every scoped axis, completeness state, operative global
-  closure state and exact global-premise defect; proves early settlement,
-  non-singleton permitted-order invariance, changed-premise agreement and exact/
-  one-short/fresh request bounds; and fixes obligation identity to include
-  workflow and repeat ordinals. Completed bundles retain the resolved manifest,
-  selected contracts, resolver usage, caller grants and assessment usage as
-  typed inputs to Task-018. Final FR-017 record composition and SC-07b record-set
-  distinctness remain exclusively Task-018-owned; they are not pre-credited.
-  SR-118/SR-119 pass the Rust and scoped gap reviews. The exact serialized,
-  locked NFR-004 format, all-target Clippy-with-warnings-denied and full test
-  gate passes on the reconciled candidate, including 43 doc-tests.
+  allocation for IT-002 SC-01 through SC-04 against accepted QObs `93bc565` and
+  QSL `0c2f13e`. Two real producer-path tests retain exact QObs/QSL authority
+  through strict FR-300 activation, conformance, dispatch and canonical result
+  construction, including exact adverse substitutions. Later IT-002 scenarios
+  remain separately planned. SR-120/SR-121 pass the scoped Rust and gap reviews.
 
 * **2026-09-15** — Completed the Task-006 / issue #8 candidate as one atomic
   activation-to-result Engine operation. Exact conformance axes, completeness

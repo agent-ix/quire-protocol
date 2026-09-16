@@ -13,7 +13,11 @@ use quire_observation::{
     ResourceLimits, ScopeKind, ScopeSelection, SubjectIdentity, SubjectKind, ValueState,
     Visibility, NATIVE_LINKED_PACKAGE_FORMAT,
 };
-use quire_protocol::assessment::{CanonicalRowControls, Engine};
+use quire_protocol::assessment::{
+    with_activated_after_resolving, with_result_assessment_after_resolving,
+    ActivatedAssessmentInputs, CanonicalRowControls, Engine, ResolvedAssessmentScope,
+    ResultAssessmentInputs,
+};
 use quire_protocol::bounds::inventory::{
     production_inventory, Budget, BudgetDimension, OperationOutcome, ResourceAccountant,
 };
@@ -27,6 +31,10 @@ use quire_protocol::model::v2::{
     Internality, LinkedAssessment, RoleClassification, RuntimeBinding, RuntimeBindingSet,
     SlotCompatibility, SlotHandle, StaticBindingDefinition, StaticSelection, StaticSlot,
     RUNTIME_BINDING_CONTRACT, STATIC_BINDING_CONTRACT,
+};
+use quire_protocol::producer_contracts::{
+    select_loaded_runtime_bindings, select_loaded_subject, ProducerContract, ProducerReadiness,
+    ProducerResolutionRequest,
 };
 use quire_protocol::projection::{
     resolve_e02_contract, DecisionSupportBinding, E02Contract, E02Resolution,
@@ -68,6 +76,140 @@ mod handoff;
 mod observation_owner;
 
 const ORDER_KIND: &str = "ix://agent-ix/commerce/type/Order";
+
+fn producer_manifest() -> VersionLockManifest {
+    VersionLockManifest::new(
+        ProducerContract::ALL
+            .iter()
+            .copied()
+            .map(ProducerContract::manifest_entry)
+            .collect(),
+    )
+}
+
+fn producer_budget() -> ResolutionBudget {
+    ResolutionBudget::new(
+        ProducerContract::ALL.len(),
+        1_000_000,
+        Duration::from_secs(1),
+    )
+    .expect("the exact producer-resolution budget is valid")
+}
+
+#[allow(
+    clippy::too_many_arguments,
+    reason = "test helper mirrors the owner seams"
+)]
+fn with_activated<'a, T>(
+    context: LinkedAssessment<'a>,
+    requested: Vec<DispatchClaim>,
+    mappings: &'a v3::AdmittedPackage,
+    subject: &'a QualifiedSubject,
+    temporal_subject: &'a temporal_subject::ValidatedTemporalSubject,
+    request: &'a temporal_v2::ValidatedRequest,
+    result: &'a temporal_v2::ValidatedResult,
+    run: impl for<'scope> FnOnce(ResolvedAssessmentScope<'scope, 'a>) -> T,
+) -> quire_protocol::outcome::OperationOutcome<T> {
+    let resolution_request = ProducerResolutionRequest::for_activated_assessment(
+        context.package().digest(),
+        context.definition().selection().digest,
+        &requested,
+        select_loaded_runtime_bindings(context.runtime(), 500_000)
+            .expect("fixture runtime selection is bounded"),
+        mappings.digest(),
+        select_loaded_subject(subject, 500_000).expect("fixture subject selection is bounded"),
+        temporal_subject.document().digest(),
+        request.document().digest(),
+        result.document().digest(),
+    )
+    .expect("the closed claim selection is representable");
+    match with_activated_after_resolving(
+        &resolution_request,
+        &producer_manifest(),
+        producer_budget(),
+        SystemMonotonicClock,
+        |permit| {
+            ActivatedAssessmentInputs::new(
+                permit,
+                context,
+                requested,
+                mappings,
+                subject,
+                temporal_subject,
+                request,
+                result,
+            )
+        },
+        run,
+    ) {
+        ProducerReadiness::Executable(outcome) => outcome,
+        ProducerReadiness::Unexecutable(refusal) => {
+            quire_protocol::outcome::OperationOutcome::Refused(refusal)
+        }
+        ProducerReadiness::ResourceIncomplete(incomplete) => {
+            quire_protocol::outcome::OperationOutcome::ResourceIncomplete(incomplete)
+        }
+    }
+}
+
+#[allow(
+    clippy::too_many_arguments,
+    reason = "test helper mirrors the owner seams"
+)]
+fn with_result_assessment<'a, T>(
+    context: LinkedAssessment<'a>,
+    requested: Vec<DispatchClaim>,
+    mappings: &'a v3::AdmittedPackage,
+    subject: &'a QualifiedSubject,
+    request: &'a temporal_v2::ValidatedRequest,
+    result: &'a temporal_v2::ValidatedResult,
+    checked_predicate: &'a checked_predicate::ValidatedCheckedPredicate,
+    temporal_subject: &'a temporal_subject::ValidatedTemporalSubject,
+    run: impl for<'scope> FnOnce(ResolvedAssessmentScope<'scope, 'a>) -> T,
+) -> quire_protocol::outcome::OperationOutcome<T> {
+    let resolution_request = ProducerResolutionRequest::for_result_assessment(
+        context.package().digest(),
+        context.definition().selection().digest,
+        &requested,
+        select_loaded_runtime_bindings(context.runtime(), 500_000)
+            .expect("fixture runtime selection is bounded"),
+        mappings.digest(),
+        select_loaded_subject(subject, 500_000).expect("fixture subject selection is bounded"),
+        temporal_subject.document().digest(),
+        request.document().digest(),
+        result.document().digest(),
+        checked_predicate.document().digest(),
+    )
+    .expect("the closed claim selection is representable");
+    match with_result_assessment_after_resolving(
+        &resolution_request,
+        &producer_manifest(),
+        producer_budget(),
+        SystemMonotonicClock,
+        |permit| {
+            ResultAssessmentInputs::new(
+                permit,
+                context,
+                requested,
+                mappings,
+                subject,
+                request,
+                result,
+                checked_predicate,
+                temporal_subject,
+            )
+        },
+        run,
+    ) {
+        ProducerReadiness::Executable(outcome) => outcome,
+        ProducerReadiness::Unexecutable(refusal) => {
+            quire_protocol::outcome::OperationOutcome::Refused(refusal)
+        }
+        ProducerReadiness::ResourceIncomplete(incomplete) => {
+            quire_protocol::outcome::OperationOutcome::ResourceIncomplete(incomplete)
+        }
+    }
+}
 
 struct Fixture {
     predicate: checked_predicate::ValidatedCheckedPredicate,
@@ -871,7 +1013,8 @@ fn dispatch_inputs_with_claim_refusal() -> Vec<ClaimRequest<'static>> {
     "FR-006-AC-1",
     "FR-006-AC-2",
     "FR-006-AC-9",
-    "FR-008-AC-1"
+    "FR-008-AC-1",
+    "FR-009-AC-1"
 )]
 fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
     let loaded = handoff::Handoff::load().expect("published v2 handoff");
@@ -988,7 +1131,7 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
     let temporal_request =
         activated_request(&package, &fixture.temporal, subject.identity().as_bytes());
     let temporal_result = activated_result(&temporal_request);
-    let quire_protocol::outcome::OperationOutcome::Completed(engine) = Engine::start_activated(
+    let completed = with_activated(
         context,
         requested.to_vec(),
         &mapping,
@@ -996,523 +1139,598 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
         &fixture.temporal,
         &temporal_request,
         &temporal_result,
-    ) else {
-        panic!("linked assessment starts one activation-bound engine")
-    };
-    let (foreign_declaration, foreign_root) = first_checked_leaf(&package);
-    assert!(!fixture
-        .temporal
-        .predicate_leaves()
-        .expect("temporal subject has predicate leaves")
-        .contains(&foreign_root));
-    let foreign_selection =
-        checked_predicate::ClauseSelection::new(foreign_declaration, foreign_root);
-    let foreign_document = checked_predicate::derive(
-        &package,
-        foreign_selection.clone(),
-        checked_predicate::Limits::default(),
-    )
-    .into_result()
-    .expect("same-package foreign checked predicate derives");
-    let foreign_predicate = checked_predicate::read(
-        foreign_document.bytes(),
-        &package,
-        foreign_selection,
-        checked_predicate::Limits::default(),
-    )
-    .into_result()
-    .expect("same-package foreign checked predicate strict-reads");
-    assert!(matches!(
-        Engine::start_result_assessment(
-            context,
-            requested.to_vec(),
-            &mapping,
-            &subject,
-            &temporal_request,
-            &temporal_result,
-            &foreign_predicate,
-            &fixture.temporal,
-        ),
-        quire_protocol::outcome::OperationOutcome::Refused(refusal)
-            if refusal.code().as_str()
-                == "assessment-result.checked-predicate-declaration-mismatch"
-    ));
-    let activation = engine
-        .conformance()
-        .bind_activation(
-            engine.linked(),
-            &mapping,
-            &subject,
-            &fixture.temporal,
-            &temporal_request,
-            &temporal_result,
-        )
-        .expect("the strict mapping binds the canonical assessment subject");
-    let occurrence_schema = occurrence_key_schema(
-        &package,
-        declaration_handle,
-        quire_spec_language::protocol_artifact::Limits::default(),
-    )
-    .into_result()
-    .expect("selected protocol produces an occurrence-key schema");
-    let occurrence_node = occurrence_schema
-        .nodes()
-        .get(usize::try_from(activation.control().index).expect("control index fits"))
-        .expect("activation control has an occurrence schema");
-    assert!(occurrence_node.repeats().is_empty());
-    let occurrence = occurrence_schema
-        .bind(
-            WorkflowInstanceIdentity::new("workflow:canonical-engine")
-                .expect("nonempty workflow identity"),
-            activation.control(),
-            occurrence_node.role().clone(),
-            &[],
-        )
-        .expect("activation occurrence admits");
-    let activated = engine
-        .conformance()
-        .activate_occurrence(&activation, occurrence)
-        .expect("mapped activation produces an obligation occurrence");
-    let decision = observation_owner::scope_views("canonical-engine");
-    let surrounding = observation_owner::scope_views("canonical-engine-surrounding");
-    let support_observation = decision
-        .completeness_complete
-        .payload()
-        .facts()
-        .next()
-        .and_then(|fact| fact.observation_identity)
-        .expect("the assessed completeness view retains its available fact")
-        .to_owned();
-    input.settlement.supporting_fact_identities = vec![support_observation.clone()];
-    input.settlement.supporting_progress_identities =
-        vec![decision.progress_closed.identity().as_str().to_owned()];
-    input.decision_support[0].observation_identity = support_observation;
-    let fact = engine
-        .conformance()
-        .activation_fact(activated, Some(&decision.observation));
-    let global_premises = vec![
-        quire_protocol::assessment::GlobalPremise {
-            kind: quire_protocol::assessment::PremiseKind::Execution,
-            identity: "premise:canonical-engine:execution".into(),
-            scope_identity: "scope:canonical-engine".into(),
-            authority_identity: "authority:canonical-engine".into(),
+        |engine| {
+            assert_eq!(
+                engine.producer_resolution().request(),
+                &ProducerResolutionRequest::for_activated_assessment(
+                    package.digest(),
+                    definition.selection().digest,
+                    &requested,
+                    select_loaded_runtime_bindings(context.runtime(), 500_000)
+                        .expect("fixture runtime selection is bounded"),
+                    mapping.digest(),
+                    select_loaded_subject(&subject, 500_000)
+                        .expect("fixture subject selection is bounded"),
+                    fixture.temporal.document().digest(),
+                    temporal_request.document().digest(),
+                    temporal_result.document().digest(),
+                )
+                .expect("the closed claim selection is representable"),
+            );
+            let (foreign_declaration, foreign_root) = first_checked_leaf(&package);
+            assert!(!fixture
+                .temporal
+                .predicate_leaves()
+                .expect("temporal subject has predicate leaves")
+                .contains(&foreign_root));
+            let foreign_selection =
+                checked_predicate::ClauseSelection::new(foreign_declaration, foreign_root);
+            let foreign_document = checked_predicate::derive(
+                &package,
+                foreign_selection.clone(),
+                checked_predicate::Limits::default(),
+            )
+            .into_result()
+            .expect("same-package foreign checked predicate derives");
+            let foreign_predicate = checked_predicate::read(
+                foreign_document.bytes(),
+                &package,
+                foreign_selection,
+                checked_predicate::Limits::default(),
+            )
+            .into_result()
+            .expect("same-package foreign checked predicate strict-reads");
+            let exact_result_request = ProducerResolutionRequest::for_result_assessment(
+                package.digest(),
+                definition.selection().digest,
+                &requested,
+                select_loaded_runtime_bindings(context.runtime(), 500_000)
+                    .expect("fixture runtime selection is bounded"),
+                mapping.digest(),
+                select_loaded_subject(&subject, 500_000)
+                    .expect("fixture subject selection is bounded"),
+                fixture.temporal.document().digest(),
+                temporal_request.document().digest(),
+                temporal_result.document().digest(),
+                fixture.predicate.document().digest(),
+            )
+            .expect("the closed claim selection is representable");
+            assert!(matches!(
+                with_result_assessment_after_resolving(
+                    &exact_result_request,
+                    &producer_manifest(),
+                    producer_budget(),
+                    SystemMonotonicClock,
+                    |permit| ResultAssessmentInputs::new(
+                        permit,
+                        context,
+                        requested.to_vec(),
+                        &mapping,
+                        &subject,
+                        &temporal_request,
+                        &temporal_result,
+                        &foreign_predicate,
+                        &fixture.temporal,
+                    ),
+                    |_| (),
+                ),
+                ProducerReadiness::Executable(quire_protocol::outcome::OperationOutcome::Refused(refusal))
+                    if refusal.code().as_str() == "version-lock.capability.request-mismatch"
+            ));
+            assert!(matches!(
+                with_result_assessment(
+                    context,
+                    requested.to_vec(),
+                    &mapping,
+                    &subject,
+                    &temporal_request,
+                    &temporal_result,
+                    &foreign_predicate,
+                    &fixture.temporal,
+                    |_| (),
+                ),
+                quire_protocol::outcome::OperationOutcome::Refused(refusal)
+                    if refusal.code().as_str()
+                        == "assessment-result.checked-predicate-declaration-mismatch"
+            ));
+            let activation = engine
+                .conformance()
+                .bind_activation(
+                    engine.linked(),
+                    &mapping,
+                    &subject,
+                    &fixture.temporal,
+                    &temporal_request,
+                    &temporal_result,
+                )
+                .expect("the strict mapping binds the canonical assessment subject");
+            let occurrence_schema = occurrence_key_schema(
+                &package,
+                declaration_handle,
+                quire_spec_language::protocol_artifact::Limits::default(),
+            )
+            .into_result()
+            .expect("selected protocol produces an occurrence-key schema");
+            let occurrence_node = occurrence_schema
+                .nodes()
+                .get(usize::try_from(activation.control().index).expect("control index fits"))
+                .expect("activation control has an occurrence schema");
+            assert!(occurrence_node.repeats().is_empty());
+            let occurrence = occurrence_schema
+                .bind(
+                    WorkflowInstanceIdentity::new("workflow:canonical-engine")
+                        .expect("nonempty workflow identity"),
+                    activation.control(),
+                    occurrence_node.role().clone(),
+                    &[],
+                )
+                .expect("activation occurrence admits");
+            let activated = engine
+                .conformance()
+                .activate_occurrence(&activation, occurrence)
+                .expect("mapped activation produces an obligation occurrence");
+            let decision = observation_owner::scope_views("canonical-engine");
+            let surrounding = observation_owner::scope_views("canonical-engine-surrounding");
+            let support_observation = decision
+                .completeness_complete
+                .payload()
+                .facts()
+                .next()
+                .and_then(|fact| fact.observation_identity)
+                .expect("the assessed completeness view retains its available fact")
+                .to_owned();
+            input.settlement.supporting_fact_identities = vec![support_observation.clone()];
+            input.settlement.supporting_progress_identities =
+                vec![decision.progress_closed.identity().as_str().to_owned()];
+            input.decision_support[0].observation_identity = support_observation;
+            let fact = engine
+                .conformance()
+                .activation_fact(activated, Some(&decision.observation));
+            let global_premises = vec![
+                quire_protocol::assessment::GlobalPremise {
+                    kind: quire_protocol::assessment::PremiseKind::Execution,
+                    identity: "premise:canonical-engine:execution".into(),
+                    scope_identity: "scope:canonical-engine".into(),
+                    authority_identity: "authority:canonical-engine".into(),
+                },
+                quire_protocol::assessment::GlobalPremise {
+                    kind: quire_protocol::assessment::PremiseKind::Branch,
+                    identity: "premise:canonical-engine:branch".into(),
+                    scope_identity: "scope:canonical-engine".into(),
+                    authority_identity: "authority:canonical-engine".into(),
+                },
+                quire_protocol::assessment::GlobalPremise {
+                    kind: quire_protocol::assessment::PremiseKind::Workflow,
+                    identity: "premise:canonical-engine:workflow".into(),
+                    scope_identity: "scope:canonical-engine".into(),
+                    authority_identity: "authority:canonical-engine".into(),
+                },
+            ];
+            let global = quire_protocol::assessment::GlobalConformanceInput {
+                state: GlobalConformanceClosure::Closed,
+                required_premises: global_premises.clone(),
+                premises: global_premises,
+            };
+            let axes = quire_protocol::assessment::AxisInputs {
+                decision_scope_progress: &decision.progress_closed,
+                decision_scope_closure: &decision.closure_closed,
+                surrounding_execution_progress: &surrounding.progress_closed,
+                surrounding_execution_closure: &surrounding.closure_closed,
+            };
+            let mut incomplete_requests = dispatch_inputs_with_claim_refusal();
+            incomplete_requests.pop();
+            assert!(matches!(
+                engine.dispatch_activated(
+                    &incomplete_requests,
+                    std::slice::from_ref(&fact),
+                    axes,
+                    &decision.completeness_complete,
+                    &global,
+                    AssessmentExecution::Completed,
+                    ConformanceLimits::default(),
+                    DispatchLimits::default(),
+                    Budget::nothing_granted()
+                ),
+                quire_protocol::outcome::OperationOutcome::Refused(_)
+            ));
+            let dispatch_requests = dispatch_inputs_with_claim_refusal();
+            let quire_protocol::outcome::OperationOutcome::Completed(unselected_engine) =
+                Engine::start(context, requested.to_vec())
+            else {
+                panic!("linked assessment starts an engine without an activation selection")
+            };
+            assert!(matches!(
+                unselected_engine.dispatch_activated(
+                    &dispatch_requests,
+                    std::slice::from_ref(&fact),
+                    axes,
+                    &decision.completeness_complete,
+                    &global,
+                    AssessmentExecution::Completed,
+                    ConformanceLimits::default(),
+                    DispatchLimits::default(),
+                    Budget::nothing_granted(),
+                ),
+                quire_protocol::outcome::OperationOutcome::Refused(refusal)
+                    if refusal.code().as_str() == "assessment-activation.missing-selection"
+            ));
+            let foreign_subject = runtime_subject(&producer, "canonical-engine-foreign");
+            let foreign_request = activated_request(
+                &package,
+                &fixture.temporal,
+                foreign_subject.identity().as_bytes(),
+            );
+            let foreign_result = activated_result(&foreign_request);
+            let foreign_activation = engine
+                .conformance()
+                .bind_activation(
+                    engine.linked(),
+                    &mapping,
+                    &foreign_subject,
+                    &fixture.temporal,
+                    &foreign_request,
+                    &foreign_result,
+                )
+                .expect("a distinct subject forms its own valid activation");
+            let foreign_occurrence = occurrence_schema
+                .bind(
+                    WorkflowInstanceIdentity::new("workflow:canonical-engine-foreign")
+                        .expect("nonempty workflow identity"),
+                    foreign_activation.control(),
+                    occurrence_node.role().clone(),
+                    &[],
+                )
+                .expect("the foreign activation occurrence admits");
+            let foreign_activated = engine
+                .conformance()
+                .activate_occurrence(&foreign_activation, foreign_occurrence)
+                .expect("the distinct activation produces an occurrence");
+            let foreign_fact = engine
+                .conformance()
+                .activation_fact(foreign_activated, None);
+            assert!(matches!(
+                with_result_assessment(
+                    context,
+                    requested.to_vec(),
+                    &mapping,
+                    &subject,
+                    &temporal_request,
+                    &temporal_result,
+                    &fixture.predicate,
+                    &fixture.temporal,
+                    |fact_bound_engine| {
+                        assert!(matches!(
+                            fact_bound_engine.dispatch_activated(
+                                &dispatch_requests,
+                                std::slice::from_ref(&foreign_fact),
+                                axes,
+                                &decision.completeness_complete,
+                                &global,
+                                AssessmentExecution::Completed,
+                                ConformanceLimits::default(),
+                                DispatchLimits::default(),
+                                Budget::nothing_granted(),
+                            ),
+                            quire_protocol::outcome::OperationOutcome::Refused(refusal)
+                                if refusal.code().as_str() == "assessment-activation.fact-mismatch"
+                        ));
+                    },
+                ),
+                quire_protocol::outcome::OperationOutcome::Completed(())
+            ));
+            let quire_protocol::outcome::OperationOutcome::Completed(dispatch) = engine
+                .dispatch_activated(
+                    &dispatch_requests,
+                    std::slice::from_ref(&fact),
+                    axes,
+                    &decision.completeness_complete,
+                    &global,
+                    AssessmentExecution::Completed,
+                    ConformanceLimits::default(),
+                    DispatchLimits::default(),
+                    Budget::nothing_granted(),
+                )
+            else {
+                panic!("engine dispatches only its exact claim population")
+            };
+            assert_eq!(dispatch.dispositions()[0].claim, DispatchClaim::Conformance);
+            assert_eq!(
+                dispatch.dispositions()[0].execution,
+                AssessmentExecution::Completed
+            );
+            assert_eq!(
+                dispatch.dispositions()[0].decision,
+                Some(quire_protocol::claims::dispatch::Decision::Established)
+            );
+            assert_eq!(
+                dispatch.dispositions()[1].claim,
+                DispatchClaim::Monitorability
+            );
+            assert_eq!(
+                dispatch.dispositions()[1].execution,
+                AssessmentExecution::Refused
+            );
+            assert!(dispatch.dispositions()[1].failure.is_some());
+            let short_budget = Budget::nothing_granted()
+                .grant(BudgetDimension::InputByte, 1)
+                .expect("positive one-short input grant");
+            assert!(matches!(
+                engine.dispatch_activated(
+                    &dispatch_requests,
+                    std::slice::from_ref(&fact),
+                    axes,
+                    &decision.completeness_complete,
+                    &global,
+                    AssessmentExecution::Completed,
+                    ConformanceLimits::default(),
+                    DispatchLimits::default(),
+                    short_budget,
+                ),
+                quire_protocol::outcome::OperationOutcome::ResourceIncomplete(incomplete)
+                    if incomplete.dimension() == BudgetDimension::InputByte
+            ));
+            let short_output = Budget::nothing_granted()
+                .grant(BudgetDimension::OutputByte, 1)
+                .expect("positive one-short output grant");
+            assert!(matches!(
+                with_result_assessment(
+                    context,
+                    requested.to_vec(),
+                    &mapping,
+                    &subject,
+                    &temporal_request,
+                    &temporal_result,
+                    &fixture.predicate,
+                    &fixture.temporal,
+                    |short_result_engine| {
+                        let short_outcome = short_result_engine.assess_activated(
+                            &dispatch_requests,
+                            std::slice::from_ref(&fact),
+                            axes,
+                            &decision.completeness_complete,
+                            &global,
+                            AssessmentExecution::Completed,
+                            ConformanceLimits::default(),
+                            DispatchLimits::default(),
+                            vec![
+                                Some(canonical_row_controls(input.clone(), Limits::owner_max())),
+                                None,
+                            ],
+                            short_output,
+                        );
+                        assert!(
+                            matches!(
+                                short_outcome,
+                                quire_protocol::outcome::OperationOutcome::ResourceIncomplete(ref incomplete)
+                                    if incomplete.dimension() == BudgetDimension::OutputByte
+                            ),
+                            "expected output exhaustion"
+                        );
+                    },
+                ),
+                quire_protocol::outcome::OperationOutcome::Completed(())
+            ));
+            let cumulative_limit = Budget::nothing_granted()
+                .grant(BudgetDimension::AccountedAllocation, 3)
+                .expect("three allocations reach into result construction");
+            assert!(matches!(
+                with_result_assessment(
+                    context,
+                    requested.to_vec(),
+                    &mapping,
+                    &subject,
+                    &temporal_request,
+                    &temporal_result,
+                    &fixture.predicate,
+                    &fixture.temporal,
+                    |cumulative_engine| {
+                        assert!(matches!(
+                            cumulative_engine.assess_activated(
+                                &dispatch_requests,
+                                std::slice::from_ref(&fact),
+                                axes,
+                                &decision.completeness_complete,
+                                &global,
+                                AssessmentExecution::Completed,
+                                ConformanceLimits::default(),
+                                DispatchLimits::default(),
+                                vec![
+                                    Some(canonical_row_controls(input.clone(), Limits::owner_max())),
+                                    None,
+                                ],
+                                cumulative_limit,
+                            ),
+                            quire_protocol::outcome::OperationOutcome::ResourceIncomplete(incomplete)
+                                if incomplete.dimension() == BudgetDimension::AccountedAllocation
+                                    && incomplete.consumed() == 3
+                                    && incomplete.requested() == 1
+                        ));
+                    },
+                ),
+                quire_protocol::outcome::OperationOutcome::Completed(())
+            ));
+            let mut owner_limited = Limits::owner_max();
+            owner_limited.max_string_bytes = 1;
+            assert!(matches!(
+                with_result_assessment(
+                    context,
+                    requested.to_vec(),
+                    &mapping,
+                    &subject,
+                    &temporal_request,
+                    &temporal_result,
+                    &fixture.predicate,
+                    &fixture.temporal,
+                    |owner_limited_engine| {
+                        assert!(matches!(
+                            owner_limited_engine.assess_activated(
+                                &dispatch_requests,
+                                std::slice::from_ref(&fact),
+                                axes,
+                                &decision.completeness_complete,
+                                &global,
+                                AssessmentExecution::Completed,
+                                ConformanceLimits::default(),
+                                DispatchLimits::default(),
+                                vec![
+                                    Some(canonical_row_controls(input.clone(), owner_limited)),
+                                    None,
+                                ],
+                                Budget::nothing_granted(),
+                            ),
+                            quire_protocol::outcome::OperationOutcome::ResourceIncomplete(incomplete)
+                                if incomplete.dimension() == BudgetDimension::OutputByte
+                                    && incomplete.site().as_str() == "result/output/string/retain"
+                        ));
+                    },
+                ),
+                quire_protocol::outcome::OperationOutcome::Completed(())
+            ));
+            let result_completed = with_result_assessment(
+                context,
+                requested.to_vec(),
+                &mapping,
+                &subject,
+                &temporal_request,
+                &temporal_result,
+                &fixture.predicate,
+                &fixture.temporal,
+                |result_engine| {
+                    let outcome = result_engine.assess_activated(
+                        &dispatch_requests,
+                        std::slice::from_ref(&fact),
+                        axes,
+                        &decision.completeness_complete,
+                        &global,
+                        AssessmentExecution::Completed,
+                        ConformanceLimits::default(),
+                        DispatchLimits::default(),
+                        vec![
+                            Some(canonical_row_controls(input, Limits::owner_max())),
+                            None,
+                        ],
+                        Budget::nothing_granted(),
+                    );
+                    let quire_protocol::outcome::OperationOutcome::Completed(bundle) = outcome
+                    else {
+                        panic!("the complete assessment returns its bundle only in the completed outcome")
+                    };
+                    assert_eq!(bundle.rows().len(), 2);
+                    let quire_protocol::outcome::ClaimOutcome::Canonical(canonical) =
+                        &bundle.rows()[0].outcome
+                    else {
+                        panic!(
+                            "the completed conformance disposition must produce its canonical row"
+                        )
+                    };
+                    assert_eq!(canonical.execution(), AssessmentExecution::Completed);
+                    assert_eq!(canonical.truth(), Truth::Unavailable);
+                    assert_eq!(canonical.settlement_basis(), SettlementBasis::Unavailable);
+                    assert!(canonical.decision_support().is_empty());
+                    let Participation::Known {
+                        required_role_instance_refs,
+                        participating_role_instance_refs,
+                    } = canonical.participation()
+                    else {
+                        panic!("complete activated role bindings produce known participation")
+                    };
+                    assert_eq!(
+                        required_role_instance_refs,
+                        participating_role_instance_refs
+                    );
+                    assert!(!required_role_instance_refs.is_empty());
+                    assert!(required_role_instance_refs
+                        .iter()
+                        .all(|identity| identity.starts_with(runtime_reference::PREFIX)));
+                    assert_eq!(
+                        canonical.decision_scope_progress().document_identity(),
+                        decision.progress_closed.identity().as_str()
+                    );
+                    assert_eq!(
+                        canonical.completeness().document_identity(),
+                        decision.completeness_complete.identity().as_str()
+                    );
+                    assert_eq!(
+                        canonical.global_conformance_state(),
+                        GlobalConformanceClosure::Closed
+                    );
+                    assert_eq!(canonical.claim().kind, ClaimKind::GlobalConformance);
+                    assert_eq!(canonical.claim().strength, Some(ClaimStrength::Tested));
+                    assert_eq!(
+                        canonical.claim().admitted_fragment_identity.as_deref(),
+                        Some("fragment:canonical-engine")
+                    );
+                    assert_eq!(
+                        canonical.claim().backend_identity.as_deref(),
+                        Some("qprotocol:conformance")
+                    );
+                    assert_eq!(
+                        canonical.provenance().source_identity,
+                        definition_identity.source_document().identity
+                    );
+                    assert_eq!(
+                        canonical.provenance().profile_identity,
+                        definition_identity.closure().profile().value().identity
+                    );
+                    assert_eq!(
+                        canonical.provenance().model_identity,
+                        model_artifact.identity
+                    );
+                    assert_eq!(
+                        canonical.provenance().protocol_identity,
+                        format!(
+                            "{}:{}",
+                            definition_identity.source_document().identity,
+                            definition_identity.declaration_handle()
+                        )
+                    );
+                    assert_eq!(
+                        canonical.provenance().request_identity,
+                        "request:conformance"
+                    );
+                    assert_eq!(
+                        canonical.provenance().binding_identity,
+                        definition_identity.static_binding().identity.as_ref()
+                    );
+                    runtime_reference::validate_subject(
+                        &canonical.provenance().input_identity,
+                        &subject,
+                    )
+                    .expect("Engine provenance retains the exact runtime subject carrier");
+                    assert_eq!(
+                        canonical.provenance().backend_identity,
+                        "qprotocol:conformance"
+                    );
+                    assert_eq!(
+                        canonical.provenance().producer_identity,
+                        context.definition().producer().bundle_identity
+                    );
+                    assert!(canonical.assumptions().is_empty());
+                    let quire_protocol::outcome::ClaimOutcome::Refused(refusal) =
+                        &bundle.rows()[1].outcome
+                    else {
+                        panic!("only the constrained claim construction must refuse");
+                    };
+                    assert_eq!(
+                        refusal.partial_output(),
+                        quire_protocol::refusal::PartialOutput::IndependentResultsRetained
+                    );
+                    assert_eq!(
+                        refusal.stage(),
+                        quire_protocol::refusal::ProtocolStage::ClaimDispatch
+                    );
+                },
+            );
+            assert!(matches!(
+                result_completed,
+                quire_protocol::outcome::OperationOutcome::Completed(())
+            ));
         },
-        quire_protocol::assessment::GlobalPremise {
-            kind: quire_protocol::assessment::PremiseKind::Branch,
-            identity: "premise:canonical-engine:branch".into(),
-            scope_identity: "scope:canonical-engine".into(),
-            authority_identity: "authority:canonical-engine".into(),
-        },
-        quire_protocol::assessment::GlobalPremise {
-            kind: quire_protocol::assessment::PremiseKind::Workflow,
-            identity: "premise:canonical-engine:workflow".into(),
-            scope_identity: "scope:canonical-engine".into(),
-            authority_identity: "authority:canonical-engine".into(),
-        },
-    ];
-    let global = quire_protocol::assessment::GlobalConformanceInput {
-        state: GlobalConformanceClosure::Closed,
-        required_premises: global_premises.clone(),
-        premises: global_premises,
-    };
-    let axes = quire_protocol::assessment::AxisInputs {
-        decision_scope_progress: &decision.progress_closed,
-        decision_scope_closure: &decision.closure_closed,
-        surrounding_execution_progress: &surrounding.progress_closed,
-        surrounding_execution_closure: &surrounding.closure_closed,
-    };
-    let mut incomplete_requests = dispatch_inputs_with_claim_refusal();
-    incomplete_requests.pop();
+    );
     assert!(matches!(
-        engine.dispatch_activated(
-            &incomplete_requests,
-            std::slice::from_ref(&fact),
-            axes,
-            &decision.completeness_complete,
-            &global,
-            AssessmentExecution::Completed,
-            ConformanceLimits::default(),
-            DispatchLimits::default(),
-            Budget::nothing_granted()
-        ),
-        quire_protocol::outcome::OperationOutcome::Refused(_)
+        completed,
+        quire_protocol::outcome::OperationOutcome::Completed(())
     ));
-    let dispatch_requests = dispatch_inputs_with_claim_refusal();
-    let quire_protocol::outcome::OperationOutcome::Completed(unselected_engine) =
-        Engine::start(context, requested.to_vec())
-    else {
-        panic!("linked assessment starts an engine without an activation selection")
-    };
-    assert!(matches!(
-        unselected_engine.dispatch_activated(
-            &dispatch_requests,
-            std::slice::from_ref(&fact),
-            axes,
-            &decision.completeness_complete,
-            &global,
-            AssessmentExecution::Completed,
-            ConformanceLimits::default(),
-            DispatchLimits::default(),
-            Budget::nothing_granted(),
-        ),
-        quire_protocol::outcome::OperationOutcome::Refused(refusal)
-            if refusal.code().as_str() == "assessment-activation.missing-selection"
-    ));
-    let foreign_subject = runtime_subject(&producer, "canonical-engine-foreign");
-    let foreign_request = activated_request(
-        &package,
-        &fixture.temporal,
-        foreign_subject.identity().as_bytes(),
-    );
-    let foreign_result = activated_result(&foreign_request);
-    let foreign_activation = engine
-        .conformance()
-        .bind_activation(
-            engine.linked(),
-            &mapping,
-            &foreign_subject,
-            &fixture.temporal,
-            &foreign_request,
-            &foreign_result,
-        )
-        .expect("a distinct subject forms its own valid activation");
-    let foreign_occurrence = occurrence_schema
-        .bind(
-            WorkflowInstanceIdentity::new("workflow:canonical-engine-foreign")
-                .expect("nonempty workflow identity"),
-            foreign_activation.control(),
-            occurrence_node.role().clone(),
-            &[],
-        )
-        .expect("the foreign activation occurrence admits");
-    let foreign_activated = engine
-        .conformance()
-        .activate_occurrence(&foreign_activation, foreign_occurrence)
-        .expect("the distinct activation produces an occurrence");
-    let foreign_fact = engine
-        .conformance()
-        .activation_fact(foreign_activated, None);
-    let quire_protocol::outcome::OperationOutcome::Completed(fact_bound_engine) =
-        Engine::start_result_assessment(
-            context,
-            requested.to_vec(),
-            &mapping,
-            &subject,
-            &temporal_request,
-            &temporal_result,
-            &fixture.predicate,
-            &fixture.temporal,
-        )
-    else {
-        panic!("strict owner views start the activation-fact binding check")
-    };
-    assert!(matches!(
-        fact_bound_engine.dispatch_activated(
-            &dispatch_requests,
-            std::slice::from_ref(&foreign_fact),
-            axes,
-            &decision.completeness_complete,
-            &global,
-            AssessmentExecution::Completed,
-            ConformanceLimits::default(),
-            DispatchLimits::default(),
-            Budget::nothing_granted(),
-        ),
-        quire_protocol::outcome::OperationOutcome::Refused(refusal)
-            if refusal.code().as_str() == "assessment-activation.fact-mismatch"
-    ));
-    let quire_protocol::outcome::OperationOutcome::Completed(dispatch) = engine.dispatch_activated(
-        &dispatch_requests,
-        std::slice::from_ref(&fact),
-        axes,
-        &decision.completeness_complete,
-        &global,
-        AssessmentExecution::Completed,
-        ConformanceLimits::default(),
-        DispatchLimits::default(),
-        Budget::nothing_granted(),
-    ) else {
-        panic!("engine dispatches only its exact claim population")
-    };
-    assert_eq!(dispatch.dispositions()[0].claim, DispatchClaim::Conformance);
-    assert_eq!(
-        dispatch.dispositions()[0].execution,
-        AssessmentExecution::Completed
-    );
-    assert_eq!(
-        dispatch.dispositions()[0].decision,
-        Some(quire_protocol::claims::dispatch::Decision::Established)
-    );
-    assert_eq!(
-        dispatch.dispositions()[1].claim,
-        DispatchClaim::Monitorability
-    );
-    assert_eq!(
-        dispatch.dispositions()[1].execution,
-        AssessmentExecution::Refused
-    );
-    assert!(dispatch.dispositions()[1].failure.is_some());
-    let short_budget = Budget::nothing_granted()
-        .grant(BudgetDimension::InputByte, 1)
-        .expect("positive one-short input grant");
-    assert!(matches!(
-        engine.dispatch_activated(
-            &dispatch_requests,
-            std::slice::from_ref(&fact),
-            axes,
-            &decision.completeness_complete,
-            &global,
-            AssessmentExecution::Completed,
-            ConformanceLimits::default(),
-            DispatchLimits::default(),
-            short_budget,
-        ),
-        quire_protocol::outcome::OperationOutcome::ResourceIncomplete(incomplete)
-            if incomplete.dimension() == BudgetDimension::InputByte
-    ));
-    let short_result_engine = match Engine::start_result_assessment(
-        context,
-        requested.to_vec(),
-        &mapping,
-        &subject,
-        &temporal_request,
-        &temporal_result,
-        &fixture.predicate,
-        &fixture.temporal,
-    ) {
-        quire_protocol::outcome::OperationOutcome::Completed(engine) => engine,
-        quire_protocol::outcome::OperationOutcome::Refused(refusal) => {
-            panic!("strict owner views refused: {}", refusal.code().as_str())
-        }
-        quire_protocol::outcome::OperationOutcome::ResourceIncomplete(_) => {
-            panic!("strict owner views exhausted resources during setup")
-        }
-    };
-    let short_output = Budget::nothing_granted()
-        .grant(BudgetDimension::OutputByte, 1)
-        .expect("positive one-short output grant");
-    let short_outcome = short_result_engine.assess_activated(
-        &dispatch_requests,
-        std::slice::from_ref(&fact),
-        axes,
-        &decision.completeness_complete,
-        &global,
-        AssessmentExecution::Completed,
-        ConformanceLimits::default(),
-        DispatchLimits::default(),
-        vec![
-            Some(canonical_row_controls(input.clone(), Limits::owner_max())),
-            None,
-        ],
-        short_output,
-    );
-    assert!(
-        matches!(
-            short_outcome,
-            quire_protocol::outcome::OperationOutcome::ResourceIncomplete(ref incomplete)
-                if incomplete.dimension() == BudgetDimension::OutputByte
-        ),
-        "expected output exhaustion"
-    );
-    let quire_protocol::outcome::OperationOutcome::Completed(cumulative_engine) =
-        Engine::start_result_assessment(
-            context,
-            requested.to_vec(),
-            &mapping,
-            &subject,
-            &temporal_request,
-            &temporal_result,
-            &fixture.predicate,
-            &fixture.temporal,
-        )
-    else {
-        panic!("strict owner views start the accountant-span control")
-    };
-    let cumulative_limit = Budget::nothing_granted()
-        .grant(BudgetDimension::AccountedAllocation, 3)
-        .expect("three allocations reach into result construction");
-    assert!(matches!(
-        cumulative_engine.assess_activated(
-            &dispatch_requests,
-            std::slice::from_ref(&fact),
-            axes,
-            &decision.completeness_complete,
-            &global,
-            AssessmentExecution::Completed,
-            ConformanceLimits::default(),
-            DispatchLimits::default(),
-            vec![
-                Some(canonical_row_controls(input.clone(), Limits::owner_max())),
-                None,
-            ],
-            cumulative_limit,
-        ),
-        quire_protocol::outcome::OperationOutcome::ResourceIncomplete(incomplete)
-            if incomplete.dimension() == BudgetDimension::AccountedAllocation
-                && incomplete.consumed() == 3
-                && incomplete.requested() == 1
-    ));
-    let quire_protocol::outcome::OperationOutcome::Completed(owner_limited_engine) =
-        Engine::start_result_assessment(
-            context,
-            requested.to_vec(),
-            &mapping,
-            &subject,
-            &temporal_request,
-            &temporal_result,
-            &fixture.predicate,
-            &fixture.temporal,
-        )
-    else {
-        panic!("strict owner views start the owner-limit control")
-    };
-    let mut owner_limited = Limits::owner_max();
-    owner_limited.max_string_bytes = 1;
-    assert!(matches!(
-        owner_limited_engine.assess_activated(
-            &dispatch_requests,
-            std::slice::from_ref(&fact),
-            axes,
-            &decision.completeness_complete,
-            &global,
-            AssessmentExecution::Completed,
-            ConformanceLimits::default(),
-            DispatchLimits::default(),
-            vec![Some(canonical_row_controls(input.clone(), owner_limited)), None],
-            Budget::nothing_granted(),
-        ),
-        quire_protocol::outcome::OperationOutcome::ResourceIncomplete(incomplete)
-            if incomplete.dimension() == BudgetDimension::OutputByte
-                && incomplete.site().as_str() == "result/output/string/retain"
-    ));
-    let quire_protocol::outcome::OperationOutcome::Completed(result_engine) =
-        Engine::start_result_assessment(
-            context,
-            requested.to_vec(),
-            &mapping,
-            &subject,
-            &temporal_request,
-            &temporal_result,
-            &fixture.predicate,
-            &fixture.temporal,
-        )
-    else {
-        panic!("strict owner views start canonical result orchestration")
-    };
-    let outcome = result_engine.assess_activated(
-        &dispatch_requests,
-        std::slice::from_ref(&fact),
-        axes,
-        &decision.completeness_complete,
-        &global,
-        AssessmentExecution::Completed,
-        ConformanceLimits::default(),
-        DispatchLimits::default(),
-        vec![
-            Some(canonical_row_controls(input, Limits::owner_max())),
-            None,
-        ],
-        Budget::nothing_granted(),
-    );
-    let quire_protocol::outcome::OperationOutcome::Completed(bundle) = outcome else {
-        panic!("the complete assessment returns its bundle only in the completed outcome")
-    };
-    assert_eq!(bundle.rows().len(), 2);
-    let quire_protocol::outcome::ClaimOutcome::Canonical(canonical) = &bundle.rows()[0].outcome
-    else {
-        panic!("the completed conformance disposition must produce its canonical row")
-    };
-    assert_eq!(canonical.execution(), AssessmentExecution::Completed);
-    assert_eq!(canonical.truth(), Truth::Unavailable);
-    assert_eq!(canonical.settlement_basis(), SettlementBasis::Unavailable);
-    assert!(canonical.decision_support().is_empty());
-    let Participation::Known {
-        required_role_instance_refs,
-        participating_role_instance_refs,
-    } = canonical.participation()
-    else {
-        panic!("complete activated role bindings produce known participation")
-    };
-    assert_eq!(
-        required_role_instance_refs,
-        participating_role_instance_refs
-    );
-    assert!(!required_role_instance_refs.is_empty());
-    assert!(required_role_instance_refs
-        .iter()
-        .all(|identity| identity.starts_with(runtime_reference::PREFIX)));
-    assert_eq!(
-        canonical.decision_scope_progress().document_identity(),
-        decision.progress_closed.identity().as_str()
-    );
-    assert_eq!(
-        canonical.completeness().document_identity(),
-        decision.completeness_complete.identity().as_str()
-    );
-    assert_eq!(
-        canonical.global_conformance_state(),
-        GlobalConformanceClosure::Closed
-    );
-    assert_eq!(canonical.claim().kind, ClaimKind::GlobalConformance);
-    assert_eq!(canonical.claim().strength, Some(ClaimStrength::Tested));
-    assert_eq!(
-        canonical.claim().admitted_fragment_identity.as_deref(),
-        Some("fragment:canonical-engine")
-    );
-    assert_eq!(
-        canonical.claim().backend_identity.as_deref(),
-        Some("qprotocol:conformance")
-    );
-    assert_eq!(
-        canonical.provenance().source_identity,
-        definition_identity.source_document().identity
-    );
-    assert_eq!(
-        canonical.provenance().profile_identity,
-        definition_identity.closure().profile().value().identity
-    );
-    assert_eq!(
-        canonical.provenance().model_identity,
-        model_artifact.identity
-    );
-    assert_eq!(
-        canonical.provenance().protocol_identity,
-        format!(
-            "{}:{}",
-            definition_identity.source_document().identity,
-            definition_identity.declaration_handle()
-        )
-    );
-    assert_eq!(
-        canonical.provenance().request_identity,
-        "request:conformance"
-    );
-    assert_eq!(
-        canonical.provenance().binding_identity,
-        definition_identity.static_binding().identity.as_ref()
-    );
-    runtime_reference::validate_subject(&canonical.provenance().input_identity, &subject)
-        .expect("Engine provenance retains the exact runtime subject carrier");
-    assert_eq!(
-        canonical.provenance().backend_identity,
-        "qprotocol:conformance"
-    );
-    assert_eq!(
-        canonical.provenance().producer_identity,
-        context.definition().producer().bundle_identity
-    );
-    assert!(canonical.assumptions().is_empty());
-    let quire_protocol::outcome::ClaimOutcome::Refused(refusal) = &bundle.rows()[1].outcome else {
-        panic!("only the constrained claim construction must refuse");
-    };
-    assert_eq!(
-        refusal.partial_output(),
-        quire_protocol::refusal::PartialOutput::IndependentResultsRetained
-    );
-    assert_eq!(
-        refusal.stage(),
-        quire_protocol::refusal::ProtocolStage::ClaimDispatch
-    );
 }
 
 fn validated<'a>(input: Input<'a>) -> result::ValidatedResult {

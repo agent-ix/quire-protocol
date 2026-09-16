@@ -79,13 +79,16 @@ relationships:
 - `Task-006 -> Task-007, Task-010`
   Reason: both E02 projection and observation/native-temporal integration require
   validated canonical result assembly; Task-010 consumes QSL/QObs, not QCI.
+- `Task-010 -> Task-020`
+  Reason: the completed observation/native-temporal assessment precedes its
+  exact C00 contract/schema compatibility successor.
 - `Task-007 + Task-009 + Task-010 + Task-013 + Task-019 -> Task-008`
   Reason: the final resource/reproduction sweep can close only after every public
   path and external-contract site exists.
 - `Task-006 + Task-008 + Task-013 -> Task-018`
   Reason: scenario evidence is composed only from the final resolution,
   operation/claim outcome and resource types, never from an early duplicate.
-- `Task-007 + Task-008 + Task-009 + Task-010 + Task-014 + Task-018 -> Task-011`
+- `Task-007 + Task-008 + Task-009 + Task-014 + Task-018 + Task-020 -> Task-011`
   Reason: unchanged-head qualification executes all local and external paths with
   resolved contracts and complete scenario evidence.
 - `Task-015 -> QCI FR-025` is delivered; QCI #71 / PR #78 (`69ec82b`) is also
@@ -137,10 +140,10 @@ shared result-domain values. Each has one Protocol owner and no adapter-local co
 - [x] **IT-001 `/1` SC-01..SC-05 and SC-06a**: default-running admission plus
   local-link regression and before/after compatibility comparison. The `/2`
   SC-06..SC-09 handoff is already complete under Task-012.
-- [ ] **IT-002**: Task-010's ten non-record scenarios now traverse exact QObs
-  runtime/authority facts and QSL native-temporal results through compensation,
-  conformance and canonical results without QCI upstream. SC-07a/SC-07b final
-  record composition and record-set distinctness remain under Task-018.
+- [ ] **IT-002**: Task-010's SC-01 through SC-04 traverse exact QObs/QSL owner
+  values through activation, conformance, dispatch and canonical results.
+  Task-020 executes SC-08's exact C00 contract/schema inventory and negative
+  resolution controls. SC-05 through SC-07 remain planned.
 - [ ] **IT-003**: validated Protocol results project to E02, execute through the
   Engineering Assurance boundary and hand a complete FR-017 value to Quoin.
 
@@ -179,9 +182,13 @@ shared result-domain values. Each has one Protocol owner and no adapter-local co
 - **Native = Task-009 (done)** `/1` compatibility lane — the complete owner
   corpus runs by default through admission and linking, and SC-06a passes at
   both historical revisions around the `/2` addition.
-- **Facts = Task-010 (done)** QObs/QSL native-temporal lane — exact selected
-  facts, adverse mutations, incremental/batch paths, bounds and resolution
-  controls reach results unchanged; final FR-017 records remain Task-018-owned.
+- **Facts = Task-010 (done)** QObs/QSL native-temporal lane — SC-01 through
+  SC-04 exact owner facts and adverse substitutions reach conformance, dispatch
+  and canonical results unchanged.
+- **C00 compatibility = Task-020 (done)** QObs accepted-interface successor —
+  SC-08 resolves partial, activation, authority-bundle v1/v2 and lineage
+  contract/schema selections at accepted owner merge `9240063`; repair/query
+  remain typed unsupported.
 - **E02 = Task-007 (done)** Portable projection — every FR-062 row passes the
   exact accepted qverify strict reader.
 
@@ -203,6 +210,7 @@ Task-016 -> Task-017 -> Task-013 -> Task-002 -> Task-003 -> Task-004 -> Task-005
                             |       |                          |          |
                             |       `-> Task-009               |          +-> Task-007
                             `-> Task-019                       `-> Task-010
+Task-010 -> Task-020 -> Task-011
 Task-007 + Task-009 + Task-010 + Task-013 + Task-019 -> Task-008 -> Task-018 -> Task-011
 Task-015 (done) -> QCI FR-025; QCI #71/PR #78 done (external)
 ```
@@ -220,11 +228,11 @@ track names are subsystems and are not agent assignments; Agent B remains on TL.
 | Task-003 | Core | FR-003 | TC-003 | done; graph-owned Engine bridge and exact QSL/QObs evidence |
 | Task-004 | Core | FR-004 | TC-004 | done; strict FR-300 activation-derived frontends share the graph/compensation kernel |
 | Task-005 | Core | FR-005 | TC-005 | done; activation-derived Engine dispatch and closed local conformance backend |
-| Task-006 | Core | FR-006, FR-008 | TC-006, TC-011 | done; atomic Engine orchestration, private result assembly, shared accounting and SR-116/SR-117 pass |
+| Task-006 | Core | FR-006, FR-008 | TC-006, TC-011 | in progress; atomic Engine orchestration and private result assembly execute, but authenticated support/correction owner capabilities remain blocked and SR-116/SR-117 are not pass verdicts |
 | Task-007 | Producer Integration | FR-007 | TC-007 | done; exact accepted qverify/EA graph, total source-bound projection and SR-118/SR-119 pass |
 | Task-008 | Cross-cutting Closure | NFR-001, NFR-002 | TC-008, TC-009 | done; final inventory, one accountant, reproduction matrix and SR-120/SR-121 pass |
 | Task-009 | Producer Integration | FR-001, FR-002 | IT-001 | done; default `/1` admission/static link and SC-06a two-revision comparison pass |
-| Task-010 | Producer Integration | FR-003, FR-004, FR-006, FR-009 | IT-002 | done; ten non-record scenarios pass and retain exact Task-018 attribution inputs; SC-07 record composition remains Task-018-owned |
+| Task-010 | Producer Integration | FR-003, FR-004, FR-006, FR-009 | IT-002 | done; SC-01 through SC-04 pass through real QObs/QSL owner paths; SR-120/SR-121 pass |
 | Task-011 | Qualification | StR-001, FR-006, FR-007, NFR-003 | IT-003, TC-010 | blocked on Quoin scenario intake and remaining predecessors |
 | Task-012 | Producer Integration | FR-001, FR-002, NFR-002 | IT-001 | done |
 | Task-013 | Core | FR-009, FR-012, FR-016, NFR-006 | TC-013 | done; PR #50, SR-103/SR-104 pass |
@@ -234,6 +242,7 @@ track names are subsystems and are not agent assignments; Agent B remains on TL.
 | Task-017 | Cross-cutting Foundation | FR-008, FR-014, FR-016 | TC-011 | done; 30 focused tests and SR-101/SR-102 pass under #62 |
 | Task-018 | Qualification | FR-017, NFR-005 | TC-016 | planned |
 | Task-019 | Producer Integration | FR-018, NFR-006 | TC-017 | done; exact transactional bounded consumer index cannot affect version-lock resolution; SR-108/SR-109 pass |
+| Task-020 | Producer Integration | FR-009, NFR-006 | IT-002 | done; SC-08's independent 21-entry inventory and the request-bound pre-loader resolver with accounted loaded-selection verification pass at exact accepted QObs merge `9240063`; SR-127/SR-128 pass |
 
 ## Coordination Rules
 

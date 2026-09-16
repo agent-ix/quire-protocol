@@ -29,7 +29,10 @@ states them as "every positive caller-supplied input-byte, definition, node,
 edge, role, message, branch, iteration, active-instance, observation, lineage,
 result-item, derived-artifact, output-byte, operation, accounted-allocation, and
 elapsed-time limit selected for the exact request"; `FR-009` "Bounds" adds the
-three dimensions resolution consumes before any producer value is read.
+three dimensions consumed across contract resolution and loaded-selection
+verification. Entry count is consumed before the loader opens; selection bytes
+are pre-charged before opening it and then hashed, while the resolution deadline
+is observed before and after that indivisible verification unit.
 
 These are this repository's own, at its own API boundary. They are not the
 dimensions a producer accounts while reading an offered artifact — those are the
@@ -55,8 +58,8 @@ producer's, and are selected below rather than named here.
 | `accounted-allocation` | Accounted allocations made. Inclusive allocation maximum. |
 | `elapsed-time` | Wall-clock progress against a monotonic deadline, checked before and after each declared indivisible unit. Recorded with the observed elapsed time and any indivisible-unit overshoot, and excluded from the reproducibility comparison — see **Elapsed time is recorded, never compared**. |
 | `resolution-entry-count` | Manifest entries resolved by FR-009 before any producer value is read. FR-009 "Bounds": resolution consumes a budget "covering the entry count, the total bytes digested, and a deadline". |
-| `resolution-bytes-digested` | Bytes digested during FR-009 resolution. |
-| `resolution-deadline` | The deadline FR-009 resolution runs under. It is resolution's own deadline dimension and is not the request's `elapsed-time` budget; exceeding it returns resolution's resource-incomplete outcome and reads no producer value. |
+| `resolution-bytes-digested` | Bytes digested during FR-009 resolution, including the exact request-declared framed bytes reserved before the producer loader opens and then hashed for loaded runtime/subject authorization under the same accountant. |
+| `resolution-deadline` | The deadline FR-009 resolution runs under. It is resolution's own deadline dimension and is not the request's `elapsed-time` budget. It is observed before and after loaded-selection verification; a pre-unit expiry opens no loader, while a measured indivisible-unit overshoot starts no assessment. |
 
 Membership of **this** table is closed to the dimensions the requirements above
 declare. A dimension not declared by a requirement has no budget here, and this
@@ -172,7 +175,7 @@ excluded one.
 | FR-016-AC-5 | A resource-incomplete outcome carries an identity distinct from every typed refusal identity, and is reported as neither a refusal of the input nor a pass. | Test (TC-009, TC-011) |
 | FR-016-AC-6 | The granted and consumed figures on `elapsed-time` and `resolution-deadline` are recorded on every scenario that declares them, and neither consumed figure participates in the reproducibility comparison. | Test (TC-008, TC-009) |
 | FR-016-AC-7 | A dimension with no caller-supplied limit compares only to absence, receives no default, and inherits no other dimension's grant. | Test (TC-009) |
-| FR-016-AC-8 | Exceeding `resolution-entry-count`, `resolution-bytes-digested` or `resolution-deadline` returns that dimension's resource-incomplete outcome with no producer value read. | Test (TC-013) |
+| FR-016-AC-8 | Exceeding `resolution-entry-count` or pre-charged `resolution-bytes-digested`, or reaching `resolution-deadline` before loaded-selection verification, returns that dimension's resource-incomplete outcome without opening the producer loader. The loaded-selection hash runs inside a deadline unit, so an after-unit overshoot is measured and starts no assessment. | Test (TC-002, TC-013) |
 
 ## Dependencies
 

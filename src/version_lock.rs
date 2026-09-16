@@ -36,6 +36,7 @@ mod tests;
 const MANIFEST_UNIT: UnitLabel = UnitLabel::new("version-lock-manifest-validation");
 const DELIVERY_UNIT: UnitLabel = UnitLabel::new("version-lock-delivery-validation");
 const DIGEST_UNIT: UnitLabel = UnitLabel::new("version-lock-digest");
+const REQUEST_SELECTION_UNIT: UnitLabel = UnitLabel::new("producer-request-selection-verification");
 
 pub(crate) const RESOLUTION_ENTRY_SOURCE: SourceSite = SourceSite::new(
     SiteId::new("resolution/entry/validate"),
@@ -506,6 +507,25 @@ pub(crate) struct InterfaceSelection<C> {
     contract: PhantomData<fn() -> C>,
 }
 
+/// Erased adapter-compiled interface selection used to validate a complete
+/// closed inventory inside the resolver's deadline boundary.
+#[derive(Debug)]
+pub(crate) struct InterfaceRequirement {
+    key: EntryKey,
+    revision: ExactBytes,
+    immutability_assertion: ExactBytes,
+}
+
+impl InterfaceRequirement {
+    pub(crate) fn new(key: EntryKey, revision: &[u8], immutability_assertion: &[u8]) -> Self {
+        Self {
+            key,
+            revision: ExactBytes::new(revision),
+            immutability_assertion: ExactBytes::new(immutability_assertion),
+        }
+    }
+}
+
 impl<C> InterfaceSelection<C> {
     /// Compile an adapter's exact interface owner/version/revision selection.
     pub(crate) fn new(key: EntryKey, revision: &[u8]) -> Self {
@@ -640,6 +660,64 @@ impl ResolvedRequest {
         self.usage
     }
 
+    /// Prove that a resolved capability is being used only for its original
+    /// fixed-size request selection.
+    pub(crate) fn authorize_request(
+        &self,
+        request: &ResolutionRequestIdentity,
+    ) -> OperationOutcome<()> {
+        if request != &self.request {
+            let key = self
+                .entries
+                .first()
+                .map(ManifestEntry::key)
+                .expect("completed resolution retains at least one required entry");
+            return refused_key(
+                ResolutionRefusalCode::CapabilityRequestMismatch,
+                key,
+                identity_mismatch(&self.request.0, &request.0),
+            );
+        }
+        OperationOutcome::Completed(())
+    }
+
+    /// Validate an adapter-compiled interface selection without cloning or
+    /// minting a capability that the caller will discard.
+    pub(crate) fn validate_interface<C>(
+        &self,
+        selected: &InterfaceSelection<C>,
+    ) -> OperationOutcome<()> {
+        let Some(entry) = self.entries.iter().find(|entry| entry.key == selected.key) else {
+            return refused_key(
+                ResolutionRefusalCode::InterfaceSelectionMismatch,
+                &selected.key,
+                missing_definition(&selected.key),
+            );
+        };
+        let Some(revision) = entry.revision.as_ref() else {
+            return refused_key(
+                ResolutionRefusalCode::RevisionAbsent,
+                &selected.key,
+                incomplete_field(b"revision"),
+            );
+        };
+        if entry.kind() != EntryKind::Interface {
+            return refused_key(
+                ResolutionRefusalCode::InterfaceSelectionMismatch,
+                &selected.key,
+                wrong_kind(b"interface", b"artifact"),
+            );
+        }
+        if revision != &selected.revision {
+            return refused_key(
+                ResolutionRefusalCode::InterfaceSelectionMismatch,
+                &selected.key,
+                identity_mismatch(&selected.revision, revision),
+            );
+        }
+        OperationOutcome::Completed(())
+    }
+
     /// Mint an artifact capability only for the exact compiled selection.
     pub(crate) fn artifact<C>(
         &self,
@@ -691,33 +769,12 @@ impl ResolvedRequest {
         &self,
         selected: &InterfaceSelection<C>,
     ) -> OperationOutcome<ResolvedInterface<C>> {
-        let Some(entry) = self.entries.iter().find(|entry| entry.key == selected.key) else {
-            return refused_key(
-                ResolutionRefusalCode::InterfaceSelectionMismatch,
-                &selected.key,
-                missing_definition(&selected.key),
-            );
-        };
-        let Some(revision) = entry.revision.as_ref() else {
-            return refused_key(
-                ResolutionRefusalCode::RevisionAbsent,
-                &selected.key,
-                incomplete_field(b"revision"),
-            );
-        };
-        if entry.kind() != EntryKind::Interface {
-            return refused_key(
-                ResolutionRefusalCode::InterfaceSelectionMismatch,
-                &selected.key,
-                wrong_kind(b"interface", b"artifact"),
-            );
-        }
-        if revision != &selected.revision {
-            return refused_key(
-                ResolutionRefusalCode::InterfaceSelectionMismatch,
-                &selected.key,
-                identity_mismatch(&selected.revision, revision),
-            );
+        match self.validate_interface(selected) {
+            OperationOutcome::Completed(()) => {}
+            OperationOutcome::Refused(refusal) => return OperationOutcome::Refused(refusal),
+            OperationOutcome::ResourceIncomplete(incomplete) => {
+                return OperationOutcome::ResourceIncomplete(incomplete)
+            }
         }
         OperationOutcome::Completed(ResolvedInterface {
             request: self.request.clone(),
@@ -1249,6 +1306,116 @@ pub(crate) fn resolve<C: Clock + 'static>(
     budget: ResolutionBudget,
     clock: C,
 ) -> OperationOutcome<ResolvedRequest> {
+    resolve_selected(
+        request,
+        manifest,
+        required,
+        SelectedResolution {
+            deliveries,
+            interfaces: &[],
+        },
+        budget,
+        clock,
+        None::<(usize, SiteId, fn() -> ())>,
+    )
+    .map(|(resolved, _)| resolved)
+}
+
+/// Resolve and validate a closed interface inventory under the same entry,
+/// byte and deadline accountant as manifest resolution.
+#[must_use]
+pub(crate) fn resolve_interfaces<C: Clock + 'static>(
+    request: ResolutionRequestIdentity,
+    manifest: &VersionLockManifest,
+    required: &[InterfaceRequirement],
+    budget: ResolutionBudget,
+    clock: C,
+) -> OperationOutcome<ResolvedRequest> {
+    let keys = required
+        .iter()
+        .map(|selection| selection.key.clone())
+        .collect::<Vec<_>>();
+    resolve_selected(
+        request,
+        manifest,
+        &keys,
+        SelectedResolution {
+            deliveries: &[],
+            interfaces: required,
+        },
+        budget,
+        clock,
+        None::<(usize, SiteId, fn() -> ())>,
+    )
+    .map(|(resolved, _)| resolved)
+}
+
+/// Resolve a closed interface inventory, then verify request-selected producer
+/// values while the same byte accountant and monotonic deadline remain live.
+/// The declared byte count is charged before `verify` can read those values.
+pub(crate) struct InterfaceVerification<F> {
+    /// Exact bytes charged before verification begins.
+    pub(crate) bytes: usize,
+    /// Independently inventoried source of that work.
+    pub(crate) source: SiteId,
+    /// Loaded-selection verification to run inside the deadline unit.
+    pub(crate) run: F,
+}
+
+/// Resolve interfaces and run the supplied loaded-selection verification.
+#[must_use]
+pub(crate) fn resolve_interfaces_then<C, T>(
+    request: ResolutionRequestIdentity,
+    manifest: &VersionLockManifest,
+    required: &[InterfaceRequirement],
+    budget: ResolutionBudget,
+    clock: C,
+    verification: InterfaceVerification<impl FnOnce() -> T>,
+) -> OperationOutcome<(ResolvedRequest, T)>
+where
+    C: Clock + 'static,
+{
+    let keys = required
+        .iter()
+        .map(|selection| selection.key.clone())
+        .collect::<Vec<_>>();
+    resolve_selected(
+        request,
+        manifest,
+        &keys,
+        SelectedResolution {
+            deliveries: &[],
+            interfaces: required,
+        },
+        budget,
+        clock,
+        Some((verification.bytes, verification.source, verification.run)),
+    )
+    .map(|(resolved, verified)| {
+        (
+            resolved,
+            verified.expect("the selected verification callback always runs on completion"),
+        )
+    })
+}
+
+struct SelectedResolution<'a> {
+    deliveries: &'a [ArtifactDelivery],
+    interfaces: &'a [InterfaceRequirement],
+}
+
+fn resolve_selected<C, T>(
+    request: ResolutionRequestIdentity,
+    manifest: &VersionLockManifest,
+    required: &[EntryKey],
+    selected: SelectedResolution<'_>,
+    budget: ResolutionBudget,
+    clock: C,
+    verification: Option<(usize, SiteId, impl FnOnce() -> T)>,
+) -> OperationOutcome<(ResolvedRequest, Option<T>)>
+where
+    C: Clock + 'static,
+{
     let production_inventory = inventory::production_inventory()
         .expect("the compile-time Protocol resource inventory must reconcile");
     let mut resources = ResourceAccountant::with_resolution_clock(
@@ -1263,7 +1430,47 @@ pub(crate) fn resolve<C: Clock + 'static>(
     }
 
     let manifest_outcome = resources.run_resolution_unit(MANIFEST_UNIT, |_| {
-        inventory::OperationOutcome::from_domain(prevalidate_manifest(manifest, required))
+        inventory::OperationOutcome::from_domain(prevalidate_manifest(manifest, required).and_then(
+            |ordered| {
+                for interface in selected.interfaces {
+                    let entry = entry_for(manifest, &interface.key)
+                        .expect("manifest prevalidation established each interface key");
+                    let Some(revision) = entry.revision.as_ref() else {
+                        return Err(outcome_refusal(refused_key::<()>(
+                            ResolutionRefusalCode::RevisionAbsent,
+                            &interface.key,
+                            incomplete_field(b"revision"),
+                        )));
+                    };
+                    if entry.kind() != EntryKind::Interface {
+                        return Err(outcome_refusal(refused_key::<()>(
+                            ResolutionRefusalCode::InterfaceSelectionMismatch,
+                            &interface.key,
+                            wrong_kind(b"interface", b"artifact"),
+                        )));
+                    }
+                    if revision != &interface.revision {
+                        return Err(outcome_refusal(refused_key::<()>(
+                            ResolutionRefusalCode::InterfaceSelectionMismatch,
+                            &interface.key,
+                            identity_mismatch(&interface.revision, revision),
+                        )));
+                    }
+                    let assertion = entry
+                        .immutability_assertion
+                        .as_ref()
+                        .expect("manifest prevalidation established an owner assertion");
+                    if assertion != &interface.immutability_assertion {
+                        return Err(outcome_refusal(refused_key::<()>(
+                            ResolutionRefusalCode::InterfaceSelectionMismatch,
+                            &interface.key,
+                            identity_mismatch(&interface.immutability_assertion, assertion),
+                        )));
+                    }
+                }
+                Ok(ordered)
+            },
+        ))
     });
     let ordered = match bounded_outcome(manifest_outcome) {
         OperationOutcome::Completed(ordered) => ordered,
@@ -1275,7 +1482,9 @@ pub(crate) fn resolve<C: Clock + 'static>(
 
     let delivery_outcome = resources.run_resolution_unit(DELIVERY_UNIT, |_| {
         inventory::OperationOutcome::from_domain(prevalidate_delivery(
-            manifest, &ordered, deliveries,
+            manifest,
+            &ordered,
+            selected.deliveries,
         ))
     });
     let required_bytes = match bounded_outcome(delivery_outcome) {
@@ -1301,7 +1510,8 @@ pub(crate) fn resolve<C: Clock + 'static>(
                     member,
                     digest: expected,
                 } => {
-                    let delivery = deliveries
+                    let delivery = selected
+                        .deliveries
                         .iter()
                         .find(|delivery| delivery.member == *member)
                         .expect("delivery prevalidation established the selected member");
@@ -1323,10 +1533,10 @@ pub(crate) fn resolve<C: Clock + 'static>(
                     unreachable!("manifest prevalidation refuses unresolved entries")
                 }
             };
-            inventory::OperationOutcome::from_domain(result)
+            inventory::OperationOutcome::from_domain(result.map(|bytes| (bytes, entry.clone())))
         });
-        let bytes = match bounded_outcome(digest_outcome) {
-            OperationOutcome::Completed(bytes) => bytes,
+        let (bytes, resolved_entry) = match bounded_outcome(digest_outcome) {
+            OperationOutcome::Completed(resolved) => resolved,
             OperationOutcome::Refused(refusal) => return OperationOutcome::Refused(refusal),
             OperationOutcome::ResourceIncomplete(incomplete) => {
                 return OperationOutcome::ResourceIncomplete(incomplete)
@@ -1338,13 +1548,34 @@ pub(crate) fn resolve<C: Clock + 'static>(
                 bytes,
             });
         }
-        entries.push(entry.clone());
+        entries.push(resolved_entry);
     }
 
-    OperationOutcome::Completed(ResolvedRequest {
-        request,
-        entries,
-        artifacts,
-        usage: resources.usage(),
-    })
+    let verified = if let Some((selection_bytes, selection_source, verify)) = verification {
+        if let Err(error) = resources.charge(selection_source, selection_bytes) {
+            return charge_outcome(error);
+        }
+        let outcome = resources.run_resolution_unit(REQUEST_SELECTION_UNIT, |_| {
+            inventory::OperationOutcome::from_domain(Ok::<T, ProtocolRefusal>(verify()))
+        });
+        match bounded_outcome(outcome) {
+            OperationOutcome::Completed(value) => Some(value),
+            OperationOutcome::Refused(refusal) => return OperationOutcome::Refused(refusal),
+            OperationOutcome::ResourceIncomplete(incomplete) => {
+                return OperationOutcome::ResourceIncomplete(incomplete)
+            }
+        }
+    } else {
+        None
+    };
+
+    OperationOutcome::Completed((
+        ResolvedRequest {
+            request,
+            entries,
+            artifacts,
+            usage: resources.usage(),
+        },
+        verified,
+    ))
 }

@@ -1,14 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! TC-002: versioned static/runtime binding capability admission.
 
+use std::cell::{Cell, OnceCell};
 use std::collections::{BTreeMap, BTreeSet};
+use std::time::{Duration, Instant};
 
 use agent_ix_baseline_producer::StaticProducerBundle;
 use ix_trace_rs::trace;
 use quire_observation::{
     QualifiedSubject, Relationship, RelationshipIdentity, SubjectIdentity, SubjectKind,
 };
-use quire_protocol::bounds::inventory::Budget;
+use quire_protocol::bounds::inventory::{Budget, BudgetDimension};
+use quire_protocol::bounds::{Clock, SystemMonotonicClock};
 use quire_protocol::model::v2::{
     link as link_v2, ChannelHandle, DefinitionRegistry, FifoPartitionRefusal, Internality,
     LinkedAssessment, RegistryRefusal, RoleClassification, RuntimeBinding, RuntimeBindingSet,
@@ -17,7 +20,10 @@ use quire_protocol::model::v2::{
 };
 use quire_protocol::wire::{BindingKind, Body, CausalEdge, ControlOperation, EdgeKind, Port};
 use quire_protocol::{
-    assessment::{AxisInputs, Engine, GlobalConformanceInput, GlobalPremise, PremiseKind},
+    assessment::{
+        with_activated_after_resolving, with_assessment_after_resolving, ActivatedAssessmentInputs,
+        AssessmentInputs, AxisInputs, GlobalConformanceInput, GlobalPremise, PremiseKind,
+    },
     claims::{
         dispatch::{ClaimRequest, Decision, Limits as DispatchLimits},
         premises::{Assumption, AssumptionState, BackendSelection, Component, PremiseSet},
@@ -29,6 +35,11 @@ use quire_protocol::{
         Limits as ConformanceLimits, ObligationDisposition,
     },
     outcome::OperationOutcome,
+    producer_contracts::{
+        ProducerContract, ProducerReadiness, ProducerRequestError, ProducerResolutionRequest,
+        ProducerValueSelection,
+    },
+    version_lock::{ManifestEntry, ResolutionBudget, VersionLockManifest},
 };
 use quire_spec_language::protocol_artifact::{
     native_temporal::{self, request, v2 as temporal_v2},
@@ -48,9 +59,56 @@ mod handoff;
 #[allow(dead_code)]
 mod observation_owner;
 
+#[path = "support/producer_selection.rs"]
+mod producer_selection;
+
 const ORDER_KIND: &[u8] = b"ix://agent-ix/commerce/type/Order";
 const SHIPMENT_KIND: &[u8] = b"ix://agent-ix/commerce/type/Shipment";
 const ORDER_SHIPMENT: &str = "ix://agent-ix/commerce/relationship/Order-shipment";
+
+#[derive(Debug)]
+struct ScriptedClock {
+    origin: Instant,
+    nanos: Vec<u64>,
+    next: Cell<usize>,
+}
+
+impl ScriptedClock {
+    fn new(nanos: &[u64]) -> Self {
+        Self {
+            origin: Instant::now(),
+            nanos: nanos.to_vec(),
+            next: Cell::new(0),
+        }
+    }
+}
+
+impl Clock for ScriptedClock {
+    fn monotonic(&self) -> Instant {
+        let index = self.next.get();
+        self.next.set(index.saturating_add(1));
+        self.origin + Duration::from_nanos(*self.nanos.get(index).unwrap_or(&0))
+    }
+}
+
+fn producer_manifest() -> VersionLockManifest {
+    VersionLockManifest::new(
+        ProducerContract::ALL
+            .iter()
+            .copied()
+            .map(ProducerContract::manifest_entry)
+            .collect(),
+    )
+}
+
+fn producer_budget() -> ResolutionBudget {
+    ResolutionBudget::new(
+        ProducerContract::ALL.len(),
+        1_000_000,
+        Duration::from_secs(1),
+    )
+    .expect("the exact producer-resolution budget is valid")
+}
 
 fn global_conformance(state: GlobalConformanceClosure) -> GlobalConformanceInput {
     let premises = vec![
@@ -1374,7 +1432,11 @@ fn tc_002_linked_assessment_refuses_every_context_coordinate_mutation() {
     "FR-002-AC-3",
     "FR-004-AC-1",
     "FR-005-AC-1",
-    "FR-029-AC-1"
+    "FR-029-AC-1",
+    "FR-009-AC-2",
+    "FR-009-AC-6",
+    "FR-009-AC-8",
+    "FR-016-AC-8"
 )]
 fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
     let package = admitted_published_v2();
@@ -1438,42 +1500,551 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
     )
     .into_result()
     .expect("strict temporal result evaluates");
-    let result = temporal_v2::read_result(
-        result_document.bytes(),
-        &request,
-        temporal_v2::Relation::Original,
-        native_temporal::Limits::default(),
+    let result_cell = OnceCell::new();
+    let (runtime_digest, runtime_framed_bytes) =
+        producer_selection::runtime_parts(context.runtime(), 500_000)
+            .expect("fixture runtime selection is bounded");
+    let runtime_selection = ProducerValueSelection::new(runtime_digest, runtime_framed_bytes);
+    let subject_selection = producer_selection::subject(&activation_subject, 500_000)
+        .expect("fixture subject selection is bounded");
+    assert!(
+        producer_selection::runtime(context.runtime(), runtime_selection.framed_bytes() - 1,)
+            .is_err()
+    );
+    assert!(
+        producer_selection::subject(&activation_subject, subject_selection.framed_bytes() - 1,)
+            .is_err()
+    );
+    let producer_request = ProducerResolutionRequest::for_activated_assessment(
+        package.digest(),
+        definition.selection().digest,
+        &[Claim::Conformance],
+        runtime_selection,
+        mappings.digest(),
+        subject_selection,
+        temporal_subject.document().digest(),
+        request.document().digest(),
+        result_document.digest(),
     )
-    .into_result()
-    .expect("strict temporal result reads");
-    let activated = Engine::start_activated(
-        context,
-        vec![Claim::Conformance],
-        &mappings,
-        &activation_subject,
-        &temporal_subject,
-        &request,
-        &result,
+    .expect("the closed claim selection is representable");
+    let loader_calls = Cell::new(0usize);
+    let mut unresolved_entries = producer_manifest().entries().to_vec();
+    unresolved_entries[0] = ManifestEntry::unresolved_interface(
+        ProducerContract::ALL[0].key(),
+        b"owner acceptance withdrawn",
     );
-    let OperationOutcome::Completed(activated) = activated else {
-        panic!("strict QSL request and QObs subject must activate this linked engine")
-    };
+    let unresolved = with_activated_after_resolving(
+        &producer_request,
+        &VersionLockManifest::new(unresolved_entries),
+        producer_budget(),
+        SystemMonotonicClock,
+        |permit| {
+            loader_calls.set(loader_calls.get() + 1);
+            let result = result_cell.get_or_init(|| {
+                temporal_v2::read_result(
+                    result_document.bytes(),
+                    &request,
+                    temporal_v2::Relation::Original,
+                    native_temporal::Limits::default(),
+                )
+                .into_result()
+                .expect("strict temporal result reads only after resolution")
+            });
+            ActivatedAssessmentInputs::new(
+                permit,
+                context,
+                vec![Claim::Conformance],
+                &mappings,
+                &activation_subject,
+                &temporal_subject,
+                &request,
+                result,
+            )
+        },
+        |_| (),
+    );
+    assert!(matches!(unresolved, ProducerReadiness::Unexecutable(_)));
+    assert_eq!(loader_calls.get(), 0, "the producer loader is not invoked");
+    assert!(
+        result_cell.get().is_none(),
+        "the strict QSL result reader is not invoked before resolution"
+    );
+
+    let selection_bytes = runtime_selection
+        .framed_bytes()
+        .checked_add(subject_selection.framed_bytes())
+        .expect("fixture selection bytes fit usize");
+    let one_short_reads = Cell::new(0usize);
+    let one_short = with_activated_after_resolving(
+        &producer_request,
+        &producer_manifest(),
+        ResolutionBudget::new(
+            ProducerContract::ALL.len(),
+            selection_bytes - 1,
+            Duration::from_secs(1),
+        )
+        .expect("positive one-short selection budget"),
+        SystemMonotonicClock,
+        |permit| {
+            one_short_reads.set(one_short_reads.get() + 1);
+            let result = result_cell.get_or_init(|| {
+                temporal_v2::read_result(
+                    result_document.bytes(),
+                    &request,
+                    temporal_v2::Relation::Original,
+                    native_temporal::Limits::default(),
+                )
+                .into_result()
+                .expect("strict temporal result reads only after resolution")
+            });
+            ActivatedAssessmentInputs::new(
+                permit,
+                context,
+                vec![Claim::Conformance],
+                &mappings,
+                &activation_subject,
+                &temporal_subject,
+                &request,
+                result,
+            )
+        },
+        |_| (),
+    );
+    assert!(matches!(
+        one_short,
+        ProducerReadiness::ResourceIncomplete(incomplete)
+            if incomplete.dimension() == BudgetDimension::ResolutionBytesDigested
+    ));
     assert_eq!(
-        activated
-            .activation()
-            .expect("event-triggered engine retains its activation binding")
-            .subject(),
-        &activation_subject
+        one_short_reads.get(),
+        0,
+        "selection bytes are charged before the producer loader opens"
+    );
+
+    let exact_reads = Cell::new(0usize);
+    let exact = with_activated_after_resolving(
+        &producer_request,
+        &producer_manifest(),
+        ResolutionBudget::new(
+            ProducerContract::ALL.len(),
+            selection_bytes,
+            Duration::from_secs(1),
+        )
+        .expect("exact selection budget"),
+        SystemMonotonicClock,
+        |permit| {
+            exact_reads.set(exact_reads.get() + 1);
+            let result = result_cell.get_or_init(|| {
+                temporal_v2::read_result(
+                    result_document.bytes(),
+                    &request,
+                    temporal_v2::Relation::Original,
+                    native_temporal::Limits::default(),
+                )
+                .into_result()
+                .expect("strict temporal result reads only after resolution")
+            });
+            ActivatedAssessmentInputs::new(
+                permit,
+                context,
+                vec![Claim::Conformance],
+                &mappings,
+                &activation_subject,
+                &temporal_subject,
+                &request,
+                result,
+            )
+        },
+        |activated| {
+            activated
+                .producer_resolution()
+                .usage()
+                .consumed(BudgetDimension::ResolutionBytesDigested)
+        },
+    );
+    assert!(matches!(
+        exact,
+        ProducerReadiness::Executable(OperationOutcome::Completed(consumed))
+            if consumed == selection_bytes
+    ));
+    assert_eq!(exact_reads.get(), 1);
+
+    let deadline_before_reads = Cell::new(0usize);
+    let mut deadline_before = vec![0; 47];
+    deadline_before.push(2);
+    let stopped_before_verification = with_activated_after_resolving(
+        &producer_request,
+        &producer_manifest(),
+        ResolutionBudget::new(
+            ProducerContract::ALL.len(),
+            selection_bytes,
+            Duration::from_nanos(1),
+        )
+        .expect("positive resolution deadline"),
+        ScriptedClock::new(&deadline_before),
+        |permit| {
+            deadline_before_reads.set(deadline_before_reads.get() + 1);
+            let result = result_cell
+                .get()
+                .expect("the prior exact-budget run retained the strict result");
+            ActivatedAssessmentInputs::new(
+                permit,
+                context,
+                vec![Claim::Conformance],
+                &mappings,
+                &activation_subject,
+                &temporal_subject,
+                &request,
+                result,
+            )
+        },
+        |_| (),
+    );
+    assert!(matches!(
+        stopped_before_verification,
+        ProducerReadiness::ResourceIncomplete(incomplete)
+            if incomplete.dimension() == BudgetDimension::ResolutionDeadline
+    ));
+    assert_eq!(deadline_before_reads.get(), 0);
+
+    let deadline_after_reads = Cell::new(0usize);
+    let deadline_after_assessments = Cell::new(0usize);
+    let mut deadline_after = vec![0; 48];
+    deadline_after.push(2);
+    let measured_verification_overshoot = with_activated_after_resolving(
+        &producer_request,
+        &producer_manifest(),
+        ResolutionBudget::new(
+            ProducerContract::ALL.len(),
+            selection_bytes,
+            Duration::from_nanos(1),
+        )
+        .expect("positive resolution deadline"),
+        ScriptedClock::new(&deadline_after),
+        |permit| {
+            deadline_after_reads.set(deadline_after_reads.get() + 1);
+            let result = result_cell
+                .get()
+                .expect("the prior exact-budget run retained the strict result");
+            ActivatedAssessmentInputs::new(
+                permit,
+                context,
+                vec![Claim::Conformance],
+                &mappings,
+                &activation_subject,
+                &temporal_subject,
+                &request,
+                result,
+            )
+        },
+        |_| deadline_after_assessments.set(deadline_after_assessments.get() + 1),
+    );
+    assert!(matches!(
+        measured_verification_overshoot,
+        ProducerReadiness::ResourceIncomplete(incomplete)
+            if incomplete.dimension() == BudgetDimension::ResolutionDeadline
+    ));
+    assert_eq!(
+        deadline_after_reads.get(),
+        1,
+        "the indivisible selector is measured at its exit boundary"
     );
     assert_eq!(
-        activated
-            .activation()
-            .expect("event-triggered engine retains its activation binding")
-            .semantic_trigger(),
-        activation_subject.identity().as_bytes()
+        deadline_after_assessments.get(),
+        0,
+        "a measured selection-verification overshoot starts no assessment"
     );
-    let foreign_temporal_mappings = admitted_v3_with_foreign_temporal_table(&package);
+
     assert_eq!(
+        ProducerResolutionRequest::for_activated_assessment(
+            package.digest(),
+            definition.selection().digest,
+            &[Claim::Conformance],
+            ProducerValueSelection::new(runtime_digest, usize::MAX),
+            mappings.digest(),
+            ProducerValueSelection::new([0x71; 32], 1),
+            temporal_subject.document().digest(),
+            request.document().digest(),
+            result_document.digest(),
+        ),
+        Err(ProducerRequestError::SelectionBytesOverflow),
+        "runtime plus subject framed-byte overflow refuses before loaded-value traversal"
+    );
+
+    let framed_count_loads = Cell::new(0usize);
+    let one_short_runtime_bytes = runtime_framed_bytes
+        .checked_sub(1)
+        .expect("fixture runtime selection is nonempty");
+    let one_over_runtime_bytes = runtime_framed_bytes
+        .checked_add(1)
+        .expect("fixture runtime selection has one unit of headroom");
+    for (case, forged_runtime_bytes) in [
+        ("one-short", one_short_runtime_bytes),
+        ("one-over", one_over_runtime_bytes),
+    ] {
+        let forged_count_request = ProducerResolutionRequest::for_activated_assessment(
+            package.digest(),
+            definition.selection().digest,
+            &[Claim::Conformance],
+            ProducerValueSelection::new(runtime_digest, forged_runtime_bytes),
+            mappings.digest(),
+            subject_selection,
+            temporal_subject.document().digest(),
+            request.document().digest(),
+            result_document.digest(),
+        )
+        .expect("the forged framed count remains representable");
+        let outcome = with_activated_after_resolving(
+            &forged_count_request,
+            &producer_manifest(),
+            producer_budget(),
+            SystemMonotonicClock,
+            |permit| {
+                framed_count_loads.set(framed_count_loads.get() + 1);
+                let result = result_cell
+                    .get()
+                    .expect("the prior exact-budget run retained the strict result");
+                ActivatedAssessmentInputs::new(
+                    permit,
+                    context,
+                    vec![Claim::Conformance],
+                    &mappings,
+                    &activation_subject,
+                    &temporal_subject,
+                    &request,
+                    result,
+                )
+            },
+            |_| (),
+        );
+        assert!(
+            matches!(
+                outcome,
+                ProducerReadiness::Executable(OperationOutcome::Refused(refusal))
+                    if refusal.code().as_str() == "version-lock.capability.request-mismatch"
+            ),
+            "forged {case} framed count cannot authorize the loaded value"
+        );
+    }
+    assert_eq!(
+        framed_count_loads.get(),
+        2,
+        "both forged count controls reach post-resolution verification"
+    );
+
+    let mismatched_request = ProducerResolutionRequest::for_activated_assessment(
+        package.digest(),
+        definition.selection().digest,
+        &[Claim::Conformance],
+        runtime_selection,
+        mappings.digest(),
+        subject_selection,
+        temporal_subject.document().digest(),
+        ByteDigest::of(b"another temporal request"),
+        result_document.digest(),
+    )
+    .expect("the closed claim selection is representable");
+    let mismatched_resolution = with_activated_after_resolving(
+        &mismatched_request,
+        &producer_manifest(),
+        producer_budget(),
+        SystemMonotonicClock,
+        |permit| {
+            loader_calls.set(loader_calls.get() + 1);
+            let result = result_cell.get_or_init(|| {
+                temporal_v2::read_result(
+                    result_document.bytes(),
+                    &request,
+                    temporal_v2::Relation::Original,
+                    native_temporal::Limits::default(),
+                )
+                .into_result()
+                .expect("strict temporal result reads only after resolution")
+            });
+            ActivatedAssessmentInputs::new(
+                permit,
+                context,
+                vec![Claim::Conformance],
+                &mappings,
+                &activation_subject,
+                &temporal_subject,
+                &request,
+                result,
+            )
+        },
+        |_| (),
+    );
+    assert!(matches!(
+        mismatched_resolution,
+        ProducerReadiness::Executable(OperationOutcome::Refused(refusal))
+            if refusal.code().as_str() == "version-lock.capability.request-mismatch"
+    ));
+    assert_eq!(
+        loader_calls.get(),
+        1,
+        "one resolved owner load was attempted"
+    );
+
+    let completed = with_activated_after_resolving(
+        &producer_request,
+        &producer_manifest(),
+        producer_budget(),
+        SystemMonotonicClock,
+        |permit| {
+            loader_calls.set(loader_calls.get() + 1);
+            let result = result_cell.get_or_init(|| {
+                temporal_v2::read_result(
+                    result_document.bytes(),
+                    &request,
+                    temporal_v2::Relation::Original,
+                    native_temporal::Limits::default(),
+                )
+                .into_result()
+                .expect("strict temporal result reads only after resolution")
+            });
+            ActivatedAssessmentInputs::new(
+                permit,
+                context,
+                vec![Claim::Conformance],
+                &mappings,
+                &activation_subject,
+                &temporal_subject,
+                &request,
+                result,
+            )
+        },
+        |activated| {
+            let result = result_cell
+                .get()
+                .expect("one post-resolution strict read retains the validated result");
+            assert_eq!(loader_calls.get(), 2, "resolved inputs load exactly once");
+            assert_eq!(
+                activated.producer_resolution().request().as_bytes(),
+                producer_request.as_bytes(),
+            );
+            let retargeted_requests = [
+                (
+                    "claim selection",
+                    ProducerResolutionRequest::for_activated_assessment(
+                        package.digest(),
+                        definition.selection().digest,
+                        &[Claim::Monitorability],
+                        runtime_selection,
+                        mappings.digest(),
+                        subject_selection,
+                        temporal_subject.document().digest(),
+                        request.document().digest(),
+                        result.document().digest(),
+                    )
+                    .expect("the closed claim selection is representable"),
+                ),
+                (
+                    "activation mapping",
+                    ProducerResolutionRequest::for_activated_assessment(
+                        package.digest(),
+                        definition.selection().digest,
+                        &[Claim::Conformance],
+                        runtime_selection,
+                        ByteDigest::of(b"another activation mapping"),
+                        subject_selection,
+                        temporal_subject.document().digest(),
+                        request.document().digest(),
+                        result.document().digest(),
+                    )
+                    .expect("the closed claim selection is representable"),
+                ),
+                (
+                    "QObs subject",
+                    ProducerResolutionRequest::for_activated_assessment(
+                        package.digest(),
+                        definition.selection().digest,
+                        &[Claim::Conformance],
+                        runtime_selection,
+                        mappings.digest(),
+                        ProducerValueSelection::new([0x51; 32], subject_selection.framed_bytes()),
+                        temporal_subject.document().digest(),
+                        request.document().digest(),
+                        result.document().digest(),
+                    )
+                    .expect("the closed claim selection is representable"),
+                ),
+                (
+                    "temporal subject",
+                    ProducerResolutionRequest::for_activated_assessment(
+                        package.digest(),
+                        definition.selection().digest,
+                        &[Claim::Conformance],
+                        runtime_selection,
+                        mappings.digest(),
+                        subject_selection,
+                        ByteDigest::of(b"another temporal subject"),
+                        request.document().digest(),
+                        result.document().digest(),
+                    )
+                    .expect("the closed claim selection is representable"),
+                ),
+                (
+                    "temporal result",
+                    ProducerResolutionRequest::for_activated_assessment(
+                        package.digest(),
+                        definition.selection().digest,
+                        &[Claim::Conformance],
+                        runtime_selection,
+                        mappings.digest(),
+                        subject_selection,
+                        temporal_subject.document().digest(),
+                        request.document().digest(),
+                        ByteDigest::of(b"another temporal result"),
+                    )
+                    .expect("the closed claim selection is representable"),
+                ),
+            ];
+            for (axis, retargeted) in retargeted_requests {
+                let outcome = with_activated_after_resolving(
+                    &retargeted,
+                    &producer_manifest(),
+                    producer_budget(),
+                    SystemMonotonicClock,
+                    |permit| {
+                        loader_calls.set(loader_calls.get() + 1);
+                        ActivatedAssessmentInputs::new(
+                            permit,
+                            context,
+                            vec![Claim::Conformance],
+                            &mappings,
+                            &activation_subject,
+                            &temporal_subject,
+                            &request,
+                            result,
+                        )
+                    },
+                    |_| (),
+                );
+                assert!(
+                    matches!(
+                        outcome,
+                        ProducerReadiness::Executable(OperationOutcome::Refused(refusal))
+                            if refusal.code().as_str() == "version-lock.capability.request-mismatch"
+                    ),
+                    "a resolved capability cannot be retargeted on its {axis} axis",
+                );
+            }
+            assert_eq!(
+                activated
+                    .activation()
+                    .expect("event-triggered engine retains its activation binding")
+                    .subject(),
+                &activation_subject
+            );
+            assert_eq!(
+                activated
+                    .activation()
+                    .expect("event-triggered engine retains its activation binding")
+                    .semantic_trigger(),
+                activation_subject.identity().as_bytes()
+            );
+            let foreign_temporal_mappings = admitted_v3_with_foreign_temporal_table(&package);
+            assert_eq!(
         activated
             .conformance()
             .bind_activation(
@@ -1482,44 +2053,44 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
                 &activation_subject,
                 &temporal_subject,
                 &request,
-                &result,
+                result,
             )
             .expect_err(
                 "a separately admitted v3 temporal table cannot extend this exact v2 package",
             ),
         quire_protocol::conformance::KernelRefusal::ForeignActivationPackage
     );
-    let foreign_temporal_package = admitted_v2_with_foreign_temporal_table();
-    let foreign_temporal_subject = activated_temporal_subject(&foreign_temporal_package);
-    let foreign_temporal_request = activated_request(
-        &foreign_temporal_package,
-        activation_subject.identity().as_bytes(),
-    );
-    let foreign_temporal_result_document = temporal_v2::evaluate(
-        &foreign_temporal_request,
-        temporal_v2::Relation::Original,
-        native_temporal::Limits::default(),
-    )
-    .into_result()
-    .expect("foreign strict temporal result evaluates");
-    let foreign_temporal_result = temporal_v2::read_result(
-        foreign_temporal_result_document.bytes(),
-        &foreign_temporal_request,
-        temporal_v2::Relation::Original,
-        native_temporal::Limits::default(),
-    )
-    .into_result()
-    .expect("foreign strict temporal result reads");
-    assert_ne!(foreign_temporal_package.digest(), package.digest());
-    assert_eq!(
-        foreign_temporal_request.declaration(),
-        request.declaration()
-    );
-    assert_eq!(
-        foreign_temporal_request.semantic_trigger(),
-        request.semantic_trigger()
-    );
-    assert_eq!(
+            let foreign_temporal_package = admitted_v2_with_foreign_temporal_table();
+            let foreign_temporal_subject = activated_temporal_subject(&foreign_temporal_package);
+            let foreign_temporal_request = activated_request(
+                &foreign_temporal_package,
+                activation_subject.identity().as_bytes(),
+            );
+            let foreign_temporal_result_document = temporal_v2::evaluate(
+                &foreign_temporal_request,
+                temporal_v2::Relation::Original,
+                native_temporal::Limits::default(),
+            )
+            .into_result()
+            .expect("foreign strict temporal result evaluates");
+            let foreign_temporal_result = temporal_v2::read_result(
+                foreign_temporal_result_document.bytes(),
+                &foreign_temporal_request,
+                temporal_v2::Relation::Original,
+                native_temporal::Limits::default(),
+            )
+            .into_result()
+            .expect("foreign strict temporal result reads");
+            assert_ne!(foreign_temporal_package.digest(), package.digest());
+            assert_eq!(
+                foreign_temporal_request.declaration(),
+                request.declaration()
+            );
+            assert_eq!(
+                foreign_temporal_request.semantic_trigger(),
+                request.semantic_trigger()
+            );
+            assert_eq!(
         activated
             .conformance()
             .bind_activation(
@@ -1535,137 +2106,175 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
             ),
         quire_protocol::conformance::KernelRefusal::InvalidActivationTemporal
     );
-    let mismatched_subject = QualifiedSubject::new(
-        &producer,
-        SubjectKind::new(ORDER_KIND.to_vec()).expect("non-empty kind"),
-        SubjectIdentity::new(b"order:43".to_vec()).expect("non-empty identity"),
-    );
-    let OperationOutcome::Refused(refusal) = Engine::start_activated(
-        context,
-        vec![Claim::Conformance],
-        &mappings,
-        &mismatched_subject,
-        &temporal_subject,
-        &request,
-        &result,
-    ) else {
-        panic!("different QObs subject cannot reuse a strict temporal request")
-    };
-    assert_eq!(
-        refusal.code().as_str(),
-        "assessment-activation.runtime-binding-mismatch"
-    );
+            let mismatched_subject = QualifiedSubject::new(
+                &producer,
+                SubjectKind::new(ORDER_KIND.to_vec()).expect("non-empty kind"),
+                SubjectIdentity::new(b"order:43".to_vec()).expect("non-empty identity"),
+            );
+            let retargeted_runtime = RuntimeBindingSet::new(
+                RUNTIME_BINDING_CONTRACT,
+                definition.selection(),
+                &definition,
+                &producer,
+                runtime
+                    .bindings()
+                    .iter()
+                    .map(|binding| {
+                        if binding.slot() == SlotHandle::new(subject_slot) {
+                            RuntimeBinding::subject(binding.slot(), mismatched_subject.clone())
+                        } else {
+                            binding.clone()
+                        }
+                    })
+                    .collect(),
+            )
+            .expect("one same-shape QObs runtime substitution remains independently valid");
+            let retargeted_context =
+                LinkedAssessment::new(&package, &definition, &retargeted_runtime)
+                    .expect("the substituted runtime still links to the same static selection");
+            assert!(matches!(
+                with_activated_after_resolving(
+                    &producer_request,
+                    &producer_manifest(),
+                    producer_budget(),
+                    SystemMonotonicClock,
+                    |permit| ActivatedAssessmentInputs::new(
+                        permit,
+                        retargeted_context,
+                        vec![Claim::Conformance],
+                        &mappings,
+                        &activation_subject,
+                        &temporal_subject,
+                        &request,
+                        result,
+                    ),
+                    |_| (),
+                ),
+                ProducerReadiness::Executable(OperationOutcome::Refused(refusal))
+                    if refusal.code().as_str() == "version-lock.capability.request-mismatch"
+            ));
+            let ProducerReadiness::Executable(OperationOutcome::Refused(refusal)) =
+                with_activated_after_resolving(
+                    &producer_request,
+                    &producer_manifest(),
+                    producer_budget(),
+                    SystemMonotonicClock,
+                    |permit| {
+                        ActivatedAssessmentInputs::new(
+                            permit,
+                            context,
+                            vec![Claim::Conformance],
+                            &mappings,
+                            &mismatched_subject,
+                            &temporal_subject,
+                            &request,
+                            result,
+                        )
+                    },
+                    |_| (),
+                )
+            else {
+                panic!("different QObs subject cannot reuse a strict temporal request")
+            };
+            assert_eq!(
+                refusal.code().as_str(),
+                "version-lock.capability.request-mismatch"
+            );
 
-    let engine = activated;
-    assert_eq!(engine.linked().identity(), &identity);
-    assert_eq!(engine.conformance().definition(), &identity);
-    match engine.conformance().bind_activation(
-        engine.linked(),
-        &mappings,
-        &mismatched_subject,
-        &temporal_subject,
-        &request,
-        &result,
-    ) {
-        Err(refusal) => assert_eq!(
-            refusal,
-            quire_protocol::conformance::KernelRefusal::ActivationSubjectMismatch
-        ),
-        Ok(_) => panic!("a strict request cannot be substituted onto another QObs subject"),
-    }
-    let activation = engine
-        .conformance()
-        .bind_activation(
-            engine.linked(),
-            &mappings,
-            &activation_subject,
-            &temporal_subject,
-            &request,
-            &result,
-        )
-        .expect("only the strict /3 mapping joins the selected event activation");
-    assert_eq!(activation.definition(), &identity);
-    assert_eq!(activation.subject(), &activation_subject);
-    assert_eq!(
-        activation.semantic_trigger(),
-        activation_subject.identity().as_bytes()
-    );
-    assert_eq!(activation.evaluation_anchor(), "origin");
-    assert_eq!(activation.control().declaration, declaration_handle);
-    assert!(matches!(
-        activation.activation(),
-        native_temporal::result::ActivationState::Active
-    ));
-    let mut activations = quire_protocol::conformance::ActivationRegistry::default();
-    activations
-        .admit(activation.clone())
-        .expect("first strict activation retains");
-    activations
-        .admit(activation.clone())
-        .expect("an exact strict activation replay is idempotent");
-    assert_eq!(activations.bindings().len(), 1);
-    let conflicting_request = activated_request_at(
-        &package,
-        activation_subject.identity().as_bytes(),
-        "other-origin",
-    );
-    let conflicting_result_document = temporal_v2::evaluate(
-        &conflicting_request,
-        temporal_v2::Relation::Original,
-        native_temporal::Limits::default(),
-    )
-    .into_result()
-    .expect("changed strict temporal request evaluates");
-    let conflicting_result = temporal_v2::read_result(
-        conflicting_result_document.bytes(),
-        &conflicting_request,
-        temporal_v2::Relation::Original,
-        native_temporal::Limits::default(),
-    )
-    .into_result()
-    .expect("changed strict temporal result reads");
-    assert!(
-        temporal_v2::evaluate(
-            &request,
-            temporal_v2::Relation::Superseding(&result),
-            native_temporal::Limits::default(),
-        )
-        .into_result()
-        .is_err(),
-        "QSL refuses a second relation for the same request identity"
-    );
-    let correction_document = temporal_v2::evaluate(
-        &conflicting_request,
-        temporal_v2::Relation::Superseding(&result),
-        native_temporal::Limits::default(),
-    )
-    .into_result()
-    .expect("same-trigger changed request admits a superseding result");
-    let correction_result = temporal_v2::read_result(
-        correction_document.bytes(),
-        &conflicting_request,
-        temporal_v2::Relation::Superseding(&result),
-        native_temporal::Limits::default(),
-    )
-    .into_result()
-    .expect("strict superseding result reads against its changed request");
-    assert_eq!(
-        engine
-            .conformance()
-            .bind_activation(
+            let engine = activated;
+            assert_eq!(engine.linked().identity(), &identity);
+            assert_eq!(engine.conformance().definition(), &identity);
+            match engine.conformance().bind_activation(
                 engine.linked(),
                 &mappings,
-                &activation_subject,
+                &mismatched_subject,
                 &temporal_subject,
                 &request,
-                &conflicting_result,
+                result,
+            ) {
+                Err(refusal) => assert_eq!(
+                    refusal,
+                    quire_protocol::conformance::KernelRefusal::ActivationSubjectMismatch
+                ),
+                Ok(_) => panic!("a strict request cannot be substituted onto another QObs subject"),
+            }
+            let activation = engine
+                .conformance()
+                .bind_activation(
+                    engine.linked(),
+                    &mappings,
+                    &activation_subject,
+                    &temporal_subject,
+                    &request,
+                    result,
+                )
+                .expect("only the strict /3 mapping joins the selected event activation");
+            assert_eq!(activation.definition(), &identity);
+            assert_eq!(activation.subject(), &activation_subject);
+            assert_eq!(
+                activation.semantic_trigger(),
+                activation_subject.identity().as_bytes()
+            );
+            assert_eq!(activation.evaluation_anchor(), "origin");
+            assert_eq!(activation.control().declaration, declaration_handle);
+            assert!(matches!(
+                activation.activation(),
+                native_temporal::result::ActivationState::Active
+            ));
+            let mut activations = quire_protocol::conformance::ActivationRegistry::default();
+            activations
+                .admit(activation.clone())
+                .expect("first strict activation retains");
+            activations
+                .admit(activation.clone())
+                .expect("an exact strict activation replay is idempotent");
+            assert_eq!(activations.bindings().len(), 1);
+            let conflicting_request = activated_request_at(
+                &package,
+                activation_subject.identity().as_bytes(),
+                "other-origin",
+            );
+            let conflicting_result_document = temporal_v2::evaluate(
+                &conflicting_request,
+                temporal_v2::Relation::Original,
+                native_temporal::Limits::default(),
             )
-            .expect_err("a temporal result cannot be substituted for another strict request"),
-        quire_protocol::conformance::KernelRefusal::ActivationResultMismatch
-    );
-    assert_eq!(
-        activations
-            .admit(
+            .into_result()
+            .expect("changed strict temporal request evaluates");
+            let conflicting_result = temporal_v2::read_result(
+                conflicting_result_document.bytes(),
+                &conflicting_request,
+                temporal_v2::Relation::Original,
+                native_temporal::Limits::default(),
+            )
+            .into_result()
+            .expect("changed strict temporal result reads");
+            assert!(
+                temporal_v2::evaluate(
+                    &request,
+                    temporal_v2::Relation::Superseding(result),
+                    native_temporal::Limits::default(),
+                )
+                .into_result()
+                .is_err(),
+                "QSL refuses a second relation for the same request identity"
+            );
+            let correction_document = temporal_v2::evaluate(
+                &conflicting_request,
+                temporal_v2::Relation::Superseding(result),
+                native_temporal::Limits::default(),
+            )
+            .into_result()
+            .expect("same-trigger changed request admits a superseding result");
+            let correction_result = temporal_v2::read_result(
+                correction_document.bytes(),
+                &conflicting_request,
+                temporal_v2::Relation::Superseding(result),
+                native_temporal::Limits::default(),
+            )
+            .into_result()
+            .expect("strict superseding result reads against its changed request");
+            assert_eq!(
                 engine
                     .conformance()
                     .bind_activation(
@@ -1673,602 +2282,633 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
                         &mappings,
                         &activation_subject,
                         &temporal_subject,
-                        &conflicting_request,
+                        &request,
                         &conflicting_result,
                     )
-                    .expect("changed checked anchor still forms an owner-valid binding"),
+                    .expect_err(
+                        "a temporal result cannot be substituted for another strict request"
+                    ),
+                quire_protocol::conformance::KernelRefusal::ActivationResultMismatch
+            );
+            assert_eq!(
+                activations
+                    .admit(
+                        engine
+                            .conformance()
+                            .bind_activation(
+                                engine.linked(),
+                                &mappings,
+                                &activation_subject,
+                                &temporal_subject,
+                                &conflicting_request,
+                                &conflicting_result,
+                            )
+                            .expect("changed checked anchor still forms an owner-valid binding"),
+                    )
+                    .expect_err("a changed checked anchor cannot overwrite the same FR-300 key"),
+                quire_protocol::conformance::KernelRefusal::ConflictingActivation
+            );
+            assert_eq!(activations.bindings().len(), 1);
+            let occurrence_schema = occurrence_key_schema(
+                &package,
+                declaration_handle,
+                quire_spec_language::protocol_artifact::Limits::default(),
             )
-            .expect_err("a changed checked anchor cannot overwrite the same FR-300 key"),
-        quire_protocol::conformance::KernelRefusal::ConflictingActivation
-    );
-    assert_eq!(activations.bindings().len(), 1);
-    let occurrence_schema = occurrence_key_schema(
-        &package,
-        declaration_handle,
-        quire_spec_language::protocol_artifact::Limits::default(),
-    )
-    .into_result()
-    .expect("selected protocol produces a strict occurrence-key schema");
-    let node = occurrence_schema
-        .nodes()
-        .get(usize::try_from(activation.control().index).expect("control index fits"))
-        .expect("selected activation control has an occurrence schema");
-    assert!(
-        node.repeats().is_empty(),
-        "published selected activation control has no repeat dimensions"
-    );
-    let occurrence = occurrence_schema
-        .bind(
-            WorkflowInstanceIdentity::new("workflow:one").expect("nonempty workflow identity"),
-            activation.control(),
-            node.role().clone(),
-            &[],
-        )
-        .expect("QSL validates the selected event occurrence");
-    activation
-        .require_occurrence(&occurrence)
-        .expect("the activation cannot be retargeted away from its mapped control");
-    let derived_occurrence = engine
-        .conformance()
-        .activate_occurrence(&activation, occurrence.clone())
-        .expect("a mapped activation and QSL occurrence form one derived obligation");
-    let decision = observation_owner::scope_views("42");
-    let surrounding = observation_owner::scope_views("activation-derived-surrounding");
-    let global = closed_global_conformance();
-    let fact = engine
-        .conformance()
-        .activation_fact(derived_occurrence.clone(), Some(&decision.observation));
-    let corrected_activation = engine
-        .conformance()
-        .bind_activation(
-            engine.linked(),
-            &mappings,
-            &activation_subject,
-            &temporal_subject,
-            &conflicting_request,
-            &correction_result,
-        )
-        .expect("the owner admits a same-trigger superseding activation");
-    let corrected_occurrence = occurrence_schema
-        .bind(
-            WorkflowInstanceIdentity::new("workflow:corrected")
-                .expect("nonempty corrected workflow identity"),
-            corrected_activation.control(),
-            node.role().clone(),
-            &[],
-        )
-        .expect("the corrected activation occurrence admits");
-    let corrected_occurrence = engine
-        .conformance()
-        .activate_occurrence(&corrected_activation, corrected_occurrence)
-        .expect("the corrected activation produces an occurrence");
-    let corrected_fact = engine
-        .conformance()
-        .activation_fact(corrected_occurrence, Some(&decision.observation));
-    let batch = engine
-        .conformance()
-        .assess_activated(
-            std::slice::from_ref(&fact),
-            closed_axes(&decision, &surrounding),
-            &decision.completeness_complete,
-            &global,
-            AssessmentExecution::Completed,
-            ConformanceLimits::default(),
-        )
-        .expect("the activation-derived batch frontend has no caller-built model");
-    let mut incremental = ActivatedIncremental::new(
-        engine.conformance(),
-        std::slice::from_ref(&derived_occurrence),
-    )
-    .expect("the activation-derived incremental frontend uses the same derived model");
-    let pushed = incremental
-        .push(
-            &fact,
-            closed_axes(&decision, &surrounding),
-            &decision.completeness_complete,
-            &global,
-            AssessmentExecution::Completed,
-            ConformanceLimits::default(),
-        )
-        .expect("the activation-derived incremental frontend admits the same QObs fact")
-        .clone();
-    let incremental = incremental
-        .finish(
-            closed_axes(&decision, &surrounding),
-            &decision.completeness_complete,
-            &global,
-            AssessmentExecution::Completed,
-            ConformanceLimits::default(),
-        )
-        .expect("the activation-derived path finishes with the admitted QObs fact")
-        .clone();
-    assert_eq!(
-        batch, incremental,
-        "activation-derived batch and incremental reports agree exactly"
-    );
-    assert_eq!(
-        pushed, incremental,
-        "a closed admitted prefix stays settled"
-    );
-    assert_eq!(batch.global, GlobalDisposition::Conforms);
-    assert_eq!(
-        batch.obligations[0].disposition,
-        ObligationDisposition::Conforms,
-        "the QObs view is correlated only through its admitted activation occurrence"
-    );
-    let component = |identity: &[u8]| Component::retained(identity.to_vec(), identity.to_vec());
-    let dispatch_request = ClaimRequest {
-        identity: Box::from(*b"claim:conformance"),
-        claim: Claim::Conformance,
-        strength: Box::from(*b"strength:finite"),
-        premises: PremiseSet {
-            admitted_fragment: component(b"fragment:admitted"),
-            backend: BackendSelection::retained(b"qprotocol:conformance".to_vec(), b"v1".to_vec()),
-            assumptions: vec![Assumption {
-                component: component(b"assumption:one"),
-                state: Some(AssumptionState::Met),
-                dependencies: vec![],
-            }],
-            communication: vec![component(b"communication:one")],
-            visibility: vec![component(b"visibility:one")],
-            environment: vec![component(b"environment:one")],
-            sources: vec![component(b"source:one")],
-            derived_artifact: None,
-        },
-        correspondence: None,
-    };
-    let OperationOutcome::Completed(dispatched) = engine.dispatch_activated(
-        std::slice::from_ref(&dispatch_request),
-        std::slice::from_ref(&fact),
-        closed_axes(&decision, &surrounding),
-        &decision.completeness_complete,
-        &global,
-        AssessmentExecution::Completed,
-        ConformanceLimits::default(),
-        DispatchLimits::default(),
-        Budget::nothing_granted(),
-    ) else {
-        panic!("dispatch consumes only the engine's activation-derived report")
-    };
-    assert_eq!(dispatched.dispositions().len(), 1);
-    assert_eq!(
-        dispatched.dispositions()[0].decision,
-        Some(Decision::Established),
-        "the claim result comes from the actual activation-derived conformance report"
-    );
-    assert!(matches!(
-        engine.dispatch_activated(
-            std::slice::from_ref(&dispatch_request),
-            std::slice::from_ref(&corrected_fact),
-            closed_axes(&decision, &surrounding),
-            &decision.completeness_complete,
-            &global,
-            AssessmentExecution::Completed,
-            ConformanceLimits::default(),
-            DispatchLimits::default(),
-            Budget::nothing_granted(),
-        ),
-        OperationOutcome::Refused(refusal)
-            if refusal.code().as_str() == "assessment-activation.fact-mismatch"
-    ));
-    let unexpected_fact = engine
-        .conformance()
-        .activation_fact(derived_occurrence.clone(), Some(&surrounding.observation));
-    let unexpected = engine
-        .conformance()
-        .assess_activated(
-            std::slice::from_ref(&unexpected_fact),
-            closed_axes(&decision, &surrounding),
-            &decision.completeness_complete,
-            &global,
-            AssessmentExecution::Completed,
-            ConformanceLimits::default(),
-        )
-        .expect("a mismatched admitted QObs view is reported, not repaired");
-    assert_eq!(unexpected.global, GlobalDisposition::Violates);
-    assert_eq!(
-        unexpected.obligations[0].disposition,
-        ObligationDisposition::Violates
-    );
-    assert_eq!(unexpected.adverse.len(), 1);
-    assert_eq!(unexpected.adverse[0].kind, AdverseKind::Unexpected);
-    for (state, expected) in [
-        (GlobalConformanceClosure::Open, GlobalDisposition::Pending),
-        (
-            GlobalConformanceClosure::Incomplete,
-            GlobalDisposition::Pending,
-        ),
-        (
-            GlobalConformanceClosure::Contradicted,
-            GlobalDisposition::Violates,
-        ),
-    ] {
-        let report = engine
-            .conformance()
-            .assess_activated(
-                std::slice::from_ref(&fact),
-                closed_axes(&decision, &surrounding),
-                &decision.completeness_complete,
-                &global_conformance(state),
-                AssessmentExecution::Completed,
-                ConformanceLimits::default(),
+            .into_result()
+            .expect("selected protocol produces a strict occurrence-key schema");
+            let node = occurrence_schema
+                .nodes()
+                .get(usize::try_from(activation.control().index).expect("control index fits"))
+                .expect("selected activation control has an occurrence schema");
+            assert!(
+                node.repeats().is_empty(),
+                "published selected activation control has no repeat dimensions"
+            );
+            let occurrence = occurrence_schema
+                .bind(
+                    WorkflowInstanceIdentity::new("workflow:one")
+                        .expect("nonempty workflow identity"),
+                    activation.control(),
+                    node.role().clone(),
+                    &[],
+                )
+                .expect("QSL validates the selected event occurrence");
+            activation
+                .require_occurrence(&occurrence)
+                .expect("the activation cannot be retargeted away from its mapped control");
+            let derived_occurrence = engine
+                .conformance()
+                .activate_occurrence(&activation, occurrence.clone())
+                .expect("a mapped activation and QSL occurrence form one derived obligation");
+            let decision = observation_owner::scope_views("42");
+            let surrounding = observation_owner::scope_views("activation-derived-surrounding");
+            let global = closed_global_conformance();
+            let fact = engine
+                .conformance()
+                .activation_fact(derived_occurrence.clone(), Some(&decision.observation));
+            let corrected_activation = engine
+                .conformance()
+                .bind_activation(
+                    engine.linked(),
+                    &mappings,
+                    &activation_subject,
+                    &temporal_subject,
+                    &conflicting_request,
+                    &correction_result,
+                )
+                .expect("the owner admits a same-trigger superseding activation");
+            let corrected_occurrence = occurrence_schema
+                .bind(
+                    WorkflowInstanceIdentity::new("workflow:corrected")
+                        .expect("nonempty corrected workflow identity"),
+                    corrected_activation.control(),
+                    node.role().clone(),
+                    &[],
+                )
+                .expect("the corrected activation occurrence admits");
+            let corrected_occurrence = engine
+                .conformance()
+                .activate_occurrence(&corrected_activation, corrected_occurrence)
+                .expect("the corrected activation produces an occurrence");
+            let corrected_fact = engine
+                .conformance()
+                .activation_fact(corrected_occurrence, Some(&decision.observation));
+            let batch = engine
+                .conformance()
+                .assess_activated(
+                    std::slice::from_ref(&fact),
+                    closed_axes(&decision, &surrounding),
+                    &decision.completeness_complete,
+                    &global,
+                    AssessmentExecution::Completed,
+                    ConformanceLimits::default(),
+                )
+                .expect("the activation-derived batch frontend has no caller-built model");
+            let mut incremental = ActivatedIncremental::new(
+                engine.conformance(),
+                std::slice::from_ref(&derived_occurrence),
             )
-            .expect("each required global-closure state remains independently observable");
-        assert_eq!(report.global, expected);
-    }
-    assert!(matches!(
-        engine.conformance().assess_activated(
-            std::slice::from_ref(&fact),
-            closed_axes(&decision, &surrounding),
-            &decision.completeness_complete,
-            &global_conformance(GlobalConformanceClosure::NotRequired),
-            AssessmentExecution::Completed,
-            ConformanceLimits::default(),
-        ),
-        Err(ActivatedAssessmentError::Conformance(refusal))
-            if refusal.code() == ErrorCode::InvalidPremises
-    ));
-    for axes in [
-        AxisInputs {
-            decision_scope_progress: &decision.progress_open,
-            decision_scope_closure: &decision.closure_closed,
-            surrounding_execution_progress: &surrounding.progress_closed,
-            surrounding_execution_closure: &surrounding.closure_closed,
-        },
-        AxisInputs {
-            decision_scope_progress: &decision.progress_closed,
-            decision_scope_closure: &decision.closure_open,
-            surrounding_execution_progress: &surrounding.progress_closed,
-            surrounding_execution_closure: &surrounding.closure_closed,
-        },
-        AxisInputs {
-            decision_scope_progress: &decision.progress_closed,
-            decision_scope_closure: &decision.closure_closed,
-            surrounding_execution_progress: &surrounding.progress_open,
-            surrounding_execution_closure: &surrounding.closure_closed,
-        },
-        AxisInputs {
-            decision_scope_progress: &decision.progress_closed,
-            decision_scope_closure: &decision.closure_closed,
-            surrounding_execution_progress: &surrounding.progress_closed,
-            surrounding_execution_closure: &surrounding.closure_open,
-        },
-    ] {
-        let report = engine
-            .conformance()
-            .assess_activated(
-                std::slice::from_ref(&fact),
-                axes,
-                &decision.completeness_complete,
-                &global,
-                AssessmentExecution::Completed,
-                ConformanceLimits::default(),
-            )
-            .expect("each open scope axis remains independently observable");
-        assert_eq!(report.global, GlobalDisposition::Pending);
-    }
-    let incomplete = engine
-        .conformance()
-        .assess_activated(
-            std::slice::from_ref(&fact),
-            closed_axes(&decision, &surrounding),
-            &decision.completeness_incomplete,
-            &global,
-            AssessmentExecution::Completed,
-            ConformanceLimits::default(),
-        )
-        .expect("incomplete QObs authority remains independently observable");
-    assert_eq!(incomplete.global, GlobalDisposition::Unavailable);
-    for execution in [
-        AssessmentExecution::Refused,
-        AssessmentExecution::Unsupported,
-        AssessmentExecution::ResourceIncomplete,
-        AssessmentExecution::Failed,
-    ] {
-        let report = engine
-            .conformance()
-            .assess_activated(
+            .expect("the activation-derived incremental frontend uses the same derived model");
+            let pushed = incremental
+                .push(
+                    &fact,
+                    closed_axes(&decision, &surrounding),
+                    &decision.completeness_complete,
+                    &global,
+                    AssessmentExecution::Completed,
+                    ConformanceLimits::default(),
+                )
+                .expect("the activation-derived incremental frontend admits the same QObs fact")
+                .clone();
+            let incremental = incremental
+                .finish(
+                    closed_axes(&decision, &surrounding),
+                    &decision.completeness_complete,
+                    &global,
+                    AssessmentExecution::Completed,
+                    ConformanceLimits::default(),
+                )
+                .expect("the activation-derived path finishes with the admitted QObs fact")
+                .clone();
+            assert_eq!(
+                batch, incremental,
+                "activation-derived batch and incremental reports agree exactly"
+            );
+            assert_eq!(
+                pushed, incremental,
+                "a closed admitted prefix stays settled"
+            );
+            assert_eq!(batch.global, GlobalDisposition::Conforms);
+            assert_eq!(
+                batch.obligations[0].disposition,
+                ObligationDisposition::Conforms,
+                "the QObs view is correlated only through its admitted activation occurrence"
+            );
+            let component =
+                |identity: &[u8]| Component::retained(identity.to_vec(), identity.to_vec());
+            let dispatch_request = ClaimRequest {
+                identity: Box::from(*b"claim:conformance"),
+                claim: Claim::Conformance,
+                strength: Box::from(*b"strength:finite"),
+                premises: PremiseSet {
+                    admitted_fragment: component(b"fragment:admitted"),
+                    backend: BackendSelection::retained(
+                        b"qprotocol:conformance".to_vec(),
+                        b"v1".to_vec(),
+                    ),
+                    assumptions: vec![Assumption {
+                        component: component(b"assumption:one"),
+                        state: Some(AssumptionState::Met),
+                        dependencies: vec![],
+                    }],
+                    communication: vec![component(b"communication:one")],
+                    visibility: vec![component(b"visibility:one")],
+                    environment: vec![component(b"environment:one")],
+                    sources: vec![component(b"source:one")],
+                    derived_artifact: None,
+                },
+                correspondence: None,
+            };
+            let OperationOutcome::Completed(dispatched) = engine.dispatch_activated(
+                std::slice::from_ref(&dispatch_request),
                 std::slice::from_ref(&fact),
                 closed_axes(&decision, &surrounding),
                 &decision.completeness_complete,
                 &global,
-                execution,
+                AssessmentExecution::Completed,
                 ConformanceLimits::default(),
-            )
-            .expect("each non-completed execution remains independently observable");
-        assert_eq!(report.global, GlobalDisposition::Unavailable);
-        assert_eq!(
-            report.obligations[0].disposition,
-            ObligationDisposition::Unavailable
-        );
-    }
-    let other = occurrence_schema
-        .nodes()
-        .iter()
-        .find(|candidate| {
-            candidate.node() != activation.control() && candidate.repeats().is_empty()
-        })
-        .expect("published protocol has another non-repeating control occurrence");
-    let other_occurrence = occurrence_schema
-        .bind(
-            WorkflowInstanceIdentity::new("workflow:one").expect("nonempty workflow identity"),
-            other.node(),
-            other.role().clone(),
-            &[],
-        )
-        .expect("QSL validates a distinct control occurrence");
-    assert_eq!(
-        activation.require_occurrence(&other_occurrence),
-        Err(quire_protocol::conformance::KernelRefusal::ActivationOccurrenceMismatch)
-    );
+                DispatchLimits::default(),
+                Budget::nothing_granted(),
+            ) else {
+                panic!("dispatch consumes only the engine's activation-derived report")
+            };
+            assert_eq!(dispatched.dispositions().len(), 1);
+            assert_eq!(
+                dispatched.dispositions()[0].decision,
+                Some(Decision::Established),
+                "the claim result comes from the actual activation-derived conformance report"
+            );
+            assert!(matches!(
+                engine.dispatch_activated(
+                    std::slice::from_ref(&dispatch_request),
+                    std::slice::from_ref(&corrected_fact),
+                    closed_axes(&decision, &surrounding),
+                    &decision.completeness_complete,
+                    &global,
+                    AssessmentExecution::Completed,
+                    ConformanceLimits::default(),
+                    DispatchLimits::default(),
+                    Budget::nothing_granted(),
+                ),
+                OperationOutcome::Refused(refusal)
+                    if refusal.code().as_str() == "assessment-activation.fact-mismatch"
+            ));
+            let unexpected_fact = engine
+                .conformance()
+                .activation_fact(derived_occurrence.clone(), Some(&surrounding.observation));
+            let unexpected = engine
+                .conformance()
+                .assess_activated(
+                    std::slice::from_ref(&unexpected_fact),
+                    closed_axes(&decision, &surrounding),
+                    &decision.completeness_complete,
+                    &global,
+                    AssessmentExecution::Completed,
+                    ConformanceLimits::default(),
+                )
+                .expect("a mismatched admitted QObs view is reported, not repaired");
+            assert_eq!(unexpected.global, GlobalDisposition::Violates);
+            assert_eq!(
+                unexpected.obligations[0].disposition,
+                ObligationDisposition::Violates
+            );
+            assert_eq!(unexpected.adverse.len(), 1);
+            assert_eq!(unexpected.adverse[0].kind, AdverseKind::Unexpected);
+            for (state, expected) in [
+                (GlobalConformanceClosure::Open, GlobalDisposition::Pending),
+                (
+                    GlobalConformanceClosure::Incomplete,
+                    GlobalDisposition::Pending,
+                ),
+                (
+                    GlobalConformanceClosure::Contradicted,
+                    GlobalDisposition::Violates,
+                ),
+            ] {
+                let report = engine
+                    .conformance()
+                    .assess_activated(
+                        std::slice::from_ref(&fact),
+                        closed_axes(&decision, &surrounding),
+                        &decision.completeness_complete,
+                        &global_conformance(state),
+                        AssessmentExecution::Completed,
+                        ConformanceLimits::default(),
+                    )
+                    .expect("each required global-closure state remains independently observable");
+                assert_eq!(report.global, expected);
+            }
+            assert!(matches!(
+                engine.conformance().assess_activated(
+                    std::slice::from_ref(&fact),
+                    closed_axes(&decision, &surrounding),
+                    &decision.completeness_complete,
+                    &global_conformance(GlobalConformanceClosure::NotRequired),
+                    AssessmentExecution::Completed,
+                    ConformanceLimits::default(),
+                ),
+                Err(ActivatedAssessmentError::Conformance(refusal))
+                    if refusal.code() == ErrorCode::InvalidPremises
+            ));
+            for axes in [
+                AxisInputs {
+                    decision_scope_progress: &decision.progress_open,
+                    decision_scope_closure: &decision.closure_closed,
+                    surrounding_execution_progress: &surrounding.progress_closed,
+                    surrounding_execution_closure: &surrounding.closure_closed,
+                },
+                AxisInputs {
+                    decision_scope_progress: &decision.progress_closed,
+                    decision_scope_closure: &decision.closure_open,
+                    surrounding_execution_progress: &surrounding.progress_closed,
+                    surrounding_execution_closure: &surrounding.closure_closed,
+                },
+                AxisInputs {
+                    decision_scope_progress: &decision.progress_closed,
+                    decision_scope_closure: &decision.closure_closed,
+                    surrounding_execution_progress: &surrounding.progress_open,
+                    surrounding_execution_closure: &surrounding.closure_closed,
+                },
+                AxisInputs {
+                    decision_scope_progress: &decision.progress_closed,
+                    decision_scope_closure: &decision.closure_closed,
+                    surrounding_execution_progress: &surrounding.progress_closed,
+                    surrounding_execution_closure: &surrounding.closure_open,
+                },
+            ] {
+                let report = engine
+                    .conformance()
+                    .assess_activated(
+                        std::slice::from_ref(&fact),
+                        axes,
+                        &decision.completeness_complete,
+                        &global,
+                        AssessmentExecution::Completed,
+                        ConformanceLimits::default(),
+                    )
+                    .expect("each open scope axis remains independently observable");
+                assert_eq!(report.global, GlobalDisposition::Pending);
+            }
+            let incomplete = engine
+                .conformance()
+                .assess_activated(
+                    std::slice::from_ref(&fact),
+                    closed_axes(&decision, &surrounding),
+                    &decision.completeness_incomplete,
+                    &global,
+                    AssessmentExecution::Completed,
+                    ConformanceLimits::default(),
+                )
+                .expect("incomplete QObs authority remains independently observable");
+            assert_eq!(incomplete.global, GlobalDisposition::Unavailable);
+            for execution in [
+                AssessmentExecution::Refused,
+                AssessmentExecution::Unsupported,
+                AssessmentExecution::ResourceIncomplete,
+                AssessmentExecution::Failed,
+            ] {
+                let report = engine
+                    .conformance()
+                    .assess_activated(
+                        std::slice::from_ref(&fact),
+                        closed_axes(&decision, &surrounding),
+                        &decision.completeness_complete,
+                        &global,
+                        execution,
+                        ConformanceLimits::default(),
+                    )
+                    .expect("each non-completed execution remains independently observable");
+                assert_eq!(report.global, GlobalDisposition::Unavailable);
+                assert_eq!(
+                    report.obligations[0].disposition,
+                    ObligationDisposition::Unavailable
+                );
+            }
+            let other = occurrence_schema
+                .nodes()
+                .iter()
+                .find(|candidate| {
+                    candidate.node() != activation.control() && candidate.repeats().is_empty()
+                })
+                .expect("published protocol has another non-repeating control occurrence");
+            let other_occurrence = occurrence_schema
+                .bind(
+                    WorkflowInstanceIdentity::new("workflow:one")
+                        .expect("nonempty workflow identity"),
+                    other.node(),
+                    other.role().clone(),
+                    &[],
+                )
+                .expect("QSL validates a distinct control occurrence");
+            assert_eq!(
+                activation.require_occurrence(&other_occurrence),
+                Err(quire_protocol::conformance::KernelRefusal::ActivationOccurrenceMismatch)
+            );
 
-    let different_runtime = RuntimeBindingSet::new(
-        RUNTIME_BINDING_CONTRACT,
-        definition.selection(),
-        &definition,
-        &producer,
-        vec![RuntimeBinding::subject(
-            SlotHandle::new(subject_slot),
-            QualifiedSubject::new(
+            let different_runtime = RuntimeBindingSet::new(
+                RUNTIME_BINDING_CONTRACT,
+                definition.selection(),
+                &definition,
                 &producer,
-                SubjectKind::new(ORDER_KIND.to_vec()).expect("non-empty kind"),
-                SubjectIdentity::new(b"order:43".to_vec()).expect("non-empty identity"),
-            ),
-        )],
-    )
-    .expect("another selected runtime subject admits");
-    let different_runtime_context =
-        LinkedAssessment::new(&package, &definition, &different_runtime)
-            .expect("a changed runtime subject cannot retarget the static context");
-    assert_eq!(
-        different_runtime_context
-            .definition_identity()
-            .expect("runtime values are outside the FR-288 identity"),
-        identity,
-        "concrete runtime subjects do not independently change FR-288"
-    );
+                vec![RuntimeBinding::subject(
+                    SlotHandle::new(subject_slot),
+                    QualifiedSubject::new(
+                        &producer,
+                        SubjectKind::new(ORDER_KIND.to_vec()).expect("non-empty kind"),
+                        SubjectIdentity::new(b"order:43".to_vec()).expect("non-empty identity"),
+                    ),
+                )],
+            )
+            .expect("another selected runtime subject admits");
+            let different_runtime_context =
+                LinkedAssessment::new(&package, &definition, &different_runtime)
+                    .expect("a changed runtime subject cannot retarget the static context");
+            assert_eq!(
+                different_runtime_context
+                    .definition_identity()
+                    .expect("runtime values are outside the FR-288 identity"),
+                identity,
+                "concrete runtime subjects do not independently change FR-288"
+            );
 
-    let mut registry = DefinitionRegistry::default();
-    registry
-        .register(&context)
-        .expect("first static definition registers");
-    registry
-        .register(&context)
-        .expect("exact static definition replay is idempotent");
-    registry
-        .register(&different_runtime_context)
-        .expect("a changed concrete runtime subject is the same static definition");
-    assert_eq!(registry.len(), 1);
-    let linked = link_v2(context, &mut registry)
-        .expect("validated context links through the static definition registry");
-    assert_eq!(linked.identity().declaration_handle(), declaration_handle);
-    assert!(matches!(linked.declaration().body, Body::Protocol { .. }));
-    let Body::Protocol {
-        temporal_requirements,
-        ..
-    } = &linked.declaration().body
-    else {
-        unreachable!("the linked declaration was checked as a protocol");
-    };
-    assert_eq!(
-        linked.identity().temporal_bindings().len(),
-        temporal_requirements.len(),
-        "every protocol-selected temporal declaration remains in FR-288"
-    );
-    let closure = linked.identity().closure();
-    assert!(
+            let mut registry = DefinitionRegistry::default();
+            registry
+                .register(&context)
+                .expect("first static definition registers");
+            registry
+                .register(&context)
+                .expect("exact static definition replay is idempotent");
+            registry
+                .register(&different_runtime_context)
+                .expect("a changed concrete runtime subject is the same static definition");
+            assert_eq!(registry.len(), 1);
+            let linked = link_v2(context, &mut registry)
+                .expect("validated context links through the static definition registry");
+            assert_eq!(linked.identity().declaration_handle(), declaration_handle);
+            assert!(matches!(linked.declaration().body, Body::Protocol { .. }));
+            let Body::Protocol {
+                temporal_requirements,
+                ..
+            } = &linked.declaration().body
+            else {
+                unreachable!("the linked declaration was checked as a protocol");
+            };
+            assert_eq!(
+                linked.identity().temporal_bindings().len(),
+                temporal_requirements.len(),
+                "every protocol-selected temporal declaration remains in FR-288"
+            );
+            let closure = linked.identity().closure();
+            assert!(
         !closure.definitions().is_empty()
             && !closure.dependencies().is_empty()
             && !closure.models().is_empty()
             && !closure.types().is_empty(),
         "FR-288 retains the declaration's typed definition, dependency, model, and type closure"
     );
-    assert_eq!(
-        closure.profile().index(),
-        linked.declaration().profile,
-        "the selected profile remains source-qualified rather than name-derived"
-    );
-    assert_eq!(
-        linked.compensations().len(),
-        2,
-        "the linked graph retains every admitted compensation definition"
-    );
-    assert_eq!(
-        linked.compensations()[0].handle(),
-        0,
-        "compensation table coordinates remain distinct from runtime registrations"
-    );
-    assert_eq!(
-        linked.compensations()[0].identity().definition(),
-        linked.identity(),
-        "a compensation key retains its full FR-288 definition selection"
-    );
-    assert_ne!(
-        linked.compensations()[0].identity(),
-        linked.compensations()[1].identity(),
-        "declaration-local compensation handles remain distinct within one definition"
-    );
-    let Body::Protocol { channels, .. } = &linked.declaration().body else {
-        unreachable!("the linked declaration was checked as a protocol");
-    };
-    assert_eq!(
-        linked.channels()[0].definition(),
-        &channels[0],
-        "the linked channel retains every owner-declared channel premise"
-    );
-    let Body::Protocol { causal_edges, .. } = &linked.declaration().body else {
-        unreachable!("the linked declaration was checked as a protocol");
-    };
-    assert_eq!(
-        linked.causal_edges(),
-        causal_edges,
-        "the linked graph retains QSL's exact causal edges without deriving arrival order"
-    );
-    let Body::Protocol { controls, .. } = &linked.declaration().body else {
-        unreachable!("the linked declaration was checked as a protocol");
-    };
-    let (parallel_index, parallel_children) = controls
-        .iter()
-        .enumerate()
-        .find_map(|(index, control)| match &control.operation {
-            ControlOperation::Parallel { branches, .. } => Some((
-                u32::try_from(index).expect("published control index fits"),
-                branches
-                    .iter()
-                    .map(|branch| branch.body.index)
-                    .collect::<BTreeSet<_>>(),
-            )),
-            ControlOperation::Sequence { .. }
-            | ControlOperation::Choice { .. }
-            | ControlOperation::Repeat { .. }
-            | ControlOperation::Await { .. }
-            | ControlOperation::Event { .. }
-            | ControlOperation::Check { .. }
-            | ControlOperation::Commit { .. } => None,
-        })
-        .expect("published handoff has a parallel control");
-    let parallel_nodes = parallel_children
-        .iter()
-        .copied()
-        .chain([parallel_index])
-        .collect::<BTreeSet<_>>();
-    let parallel_edges = linked
-        .causal_edges()
-        .iter()
-        .filter(|edge| {
-            edge.from.node.declaration == declaration_handle
-                && edge.to.node.declaration == declaration_handle
-                && parallel_nodes.contains(&edge.from.node.index)
-                && parallel_nodes.contains(&edge.to.node.index)
-        })
-        .collect::<Vec<_>>();
-    let orders = parallel_orders(&parallel_edges);
-    assert!(
-        orders.len() > 1,
-        "the owner-declared parallel subgraph admits more than one legal interleaving"
-    );
-    for order in &orders {
-        for edge in &parallel_edges {
-            let from = causal_endpoint(edge, true);
-            let to = causal_endpoint(edge, false);
-            let from_index = order
-                .iter()
-                .position(|endpoint| *endpoint == from)
-                .expect("every retained edge source is ordered");
-            let to_index = order
-                .iter()
-                .position(|endpoint| *endpoint == to)
-                .expect("every retained edge target is ordered");
-            assert!(
-                from_index < to_index,
-                "every legal interleaving preserves the owner-declared edge"
+            assert_eq!(
+                closure.profile().index(),
+                linked.declaration().profile,
+                "the selected profile remains source-qualified rather than name-derived"
             );
-        }
-    }
-    assert!(
+            assert_eq!(
+                linked.compensations().len(),
+                2,
+                "the linked graph retains every admitted compensation definition"
+            );
+            assert_eq!(
+                linked.compensations()[0].handle(),
+                0,
+                "compensation table coordinates remain distinct from runtime registrations"
+            );
+            assert_eq!(
+                linked.compensations()[0].identity().definition(),
+                linked.identity(),
+                "a compensation key retains its full FR-288 definition selection"
+            );
+            assert_ne!(
+                linked.compensations()[0].identity(),
+                linked.compensations()[1].identity(),
+                "declaration-local compensation handles remain distinct within one definition"
+            );
+            let Body::Protocol { channels, .. } = &linked.declaration().body else {
+                unreachable!("the linked declaration was checked as a protocol");
+            };
+            assert_eq!(
+                linked.channels()[0].definition(),
+                &channels[0],
+                "the linked channel retains every owner-declared channel premise"
+            );
+            let Body::Protocol { causal_edges, .. } = &linked.declaration().body else {
+                unreachable!("the linked declaration was checked as a protocol");
+            };
+            assert_eq!(
+                linked.causal_edges(),
+                causal_edges,
+                "the linked graph retains QSL's exact causal edges without deriving arrival order"
+            );
+            let Body::Protocol { controls, .. } = &linked.declaration().body else {
+                unreachable!("the linked declaration was checked as a protocol");
+            };
+            let (parallel_index, parallel_children) = controls
+                .iter()
+                .enumerate()
+                .find_map(|(index, control)| match &control.operation {
+                    ControlOperation::Parallel { branches, .. } => Some((
+                        u32::try_from(index).expect("published control index fits"),
+                        branches
+                            .iter()
+                            .map(|branch| branch.body.index)
+                            .collect::<BTreeSet<_>>(),
+                    )),
+                    ControlOperation::Sequence { .. }
+                    | ControlOperation::Choice { .. }
+                    | ControlOperation::Repeat { .. }
+                    | ControlOperation::Await { .. }
+                    | ControlOperation::Event { .. }
+                    | ControlOperation::Check { .. }
+                    | ControlOperation::Commit { .. } => None,
+                })
+                .expect("published handoff has a parallel control");
+            let parallel_nodes = parallel_children
+                .iter()
+                .copied()
+                .chain([parallel_index])
+                .collect::<BTreeSet<_>>();
+            let parallel_edges = linked
+                .causal_edges()
+                .iter()
+                .filter(|edge| {
+                    edge.from.node.declaration == declaration_handle
+                        && edge.to.node.declaration == declaration_handle
+                        && parallel_nodes.contains(&edge.from.node.index)
+                        && parallel_nodes.contains(&edge.to.node.index)
+                })
+                .collect::<Vec<_>>();
+            let orders = parallel_orders(&parallel_edges);
+            assert!(
+                orders.len() > 1,
+                "the owner-declared parallel subgraph admits more than one legal interleaving"
+            );
+            for order in &orders {
+                for edge in &parallel_edges {
+                    let from = causal_endpoint(edge, true);
+                    let to = causal_endpoint(edge, false);
+                    let from_index = order
+                        .iter()
+                        .position(|endpoint| *endpoint == from)
+                        .expect("every retained edge source is ordered");
+                    let to_index = order
+                        .iter()
+                        .position(|endpoint| *endpoint == to)
+                        .expect("every retained edge target is ordered");
+                    assert!(
+                        from_index < to_index,
+                        "every legal interleaving preserves the owner-declared edge"
+                    );
+                }
+            }
+            assert!(
         controls.iter().any(|control| matches!(
             control.operation,
             ControlOperation::Choice { .. }
         )),
         "a choice remains an owner-declared alternative and is never passed to the parallel enumerator"
     );
-    assert_eq!(
-        linked.fifo_partition(ChannelHandle::new(0), b"owner-evaluated-key"),
-        Err(FifoPartitionRefusal::NotFifo(ChannelHandle::new(0))),
-        "an admitted unordered channel cannot be silently partitioned as FIFO"
-    );
-    assert_eq!(
-        linked.fifo_partition(ChannelHandle::new(u32::MAX), b"owner-evaluated-key"),
-        Err(FifoPartitionRefusal::UnknownChannel(ChannelHandle::new(
-            u32::MAX
-        ))),
-        "an unselected channel coordinate cannot be repaired into an admitted FIFO channel"
-    );
+            assert_eq!(
+                linked.fifo_partition(ChannelHandle::new(0), b"owner-evaluated-key"),
+                Err(FifoPartitionRefusal::NotFifo(ChannelHandle::new(0))),
+                "an admitted unordered channel cannot be silently partitioned as FIFO"
+            );
+            assert_eq!(
+                linked.fifo_partition(ChannelHandle::new(u32::MAX), b"owner-evaluated-key"),
+                Err(FifoPartitionRefusal::UnknownChannel(ChannelHandle::new(
+                    u32::MAX
+                ))),
+                "an unselected channel coordinate cannot be repaired into an admitted FIFO channel"
+            );
 
-    let mut contradictory_roles = roles
-        .iter()
-        .enumerate()
-        .map(|(index, _)| RoleClassification {
-            role_handle: u32::try_from(index).expect("published role index fits"),
-            internality: Internality::Internal,
-        })
-        .collect::<Vec<_>>();
-    contradictory_roles[0].internality = Internality::External;
-    let contradictory_definition = StaticBindingDefinition::new(
-        STATIC_BINDING_CONTRACT,
-        selection(),
-        producer.key().clone(),
-        declaration_handle,
-        contradictory_roles.clone(),
-        vec![StaticSlot {
-            handle: SlotHandle::new(subject_slot),
-            compatibility: SlotCompatibility::Subject {
-                kind: SubjectKind::new(ORDER_KIND.to_vec()).expect("non-empty kind"),
-            },
-        }],
-    )
-    .expect("different static content remains an individually valid selection");
-    let contradictory_runtime = RuntimeBindingSet::new(
-        RUNTIME_BINDING_CONTRACT,
-        contradictory_definition.selection(),
-        &contradictory_definition,
-        &producer,
-        vec![RuntimeBinding::subject(
-            SlotHandle::new(subject_slot),
-            subject(&producer),
-        )],
-    )
-    .expect("same runtime value satisfies the changed static selection");
-    let contradictory_context =
-        LinkedAssessment::new(&package, &contradictory_definition, &contradictory_runtime)
-            .expect("same identity with different content reaches the registry");
-    assert_eq!(
-        registry.register(&contradictory_context),
-        Err(RegistryRefusal::ContentContradiction)
-    );
+            let mut contradictory_roles = roles
+                .iter()
+                .enumerate()
+                .map(|(index, _)| RoleClassification {
+                    role_handle: u32::try_from(index).expect("published role index fits"),
+                    internality: Internality::Internal,
+                })
+                .collect::<Vec<_>>();
+            contradictory_roles[0].internality = Internality::External;
+            let contradictory_definition = StaticBindingDefinition::new(
+                STATIC_BINDING_CONTRACT,
+                selection(),
+                producer.key().clone(),
+                declaration_handle,
+                contradictory_roles.clone(),
+                vec![StaticSlot {
+                    handle: SlotHandle::new(subject_slot),
+                    compatibility: SlotCompatibility::Subject {
+                        kind: SubjectKind::new(ORDER_KIND.to_vec()).expect("non-empty kind"),
+                    },
+                }],
+            )
+            .expect("different static content remains an individually valid selection");
+            let contradictory_runtime = RuntimeBindingSet::new(
+                RUNTIME_BINDING_CONTRACT,
+                contradictory_definition.selection(),
+                &contradictory_definition,
+                &producer,
+                vec![RuntimeBinding::subject(
+                    SlotHandle::new(subject_slot),
+                    subject(&producer),
+                )],
+            )
+            .expect("same runtime value satisfies the changed static selection");
+            let contradictory_context =
+                LinkedAssessment::new(&package, &contradictory_definition, &contradictory_runtime)
+                    .expect("same identity with different content reaches the registry");
+            assert_eq!(
+                registry.register(&contradictory_context),
+                Err(RegistryRefusal::ContentContradiction)
+            );
 
-    let revised_definition = StaticBindingDefinition::new(
-        STATIC_BINDING_CONTRACT,
-        StaticSelection {
-            identity: selection().identity,
-            revision: "2".into(),
-            digest: [2; 32],
+            let revised_definition = StaticBindingDefinition::new(
+                STATIC_BINDING_CONTRACT,
+                StaticSelection {
+                    identity: selection().identity,
+                    revision: "2".into(),
+                    digest: [2; 32],
+                },
+                producer.key().clone(),
+                declaration_handle,
+                contradictory_roles,
+                vec![StaticSlot {
+                    handle: SlotHandle::new(subject_slot),
+                    compatibility: SlotCompatibility::Subject {
+                        kind: SubjectKind::new(ORDER_KIND.to_vec()).expect("non-empty kind"),
+                    },
+                }],
+            )
+            .expect("changed static content must arrive under a new selected definition");
+            let revised_runtime = RuntimeBindingSet::new(
+                RUNTIME_BINDING_CONTRACT,
+                revised_definition.selection(),
+                &revised_definition,
+                &producer,
+                vec![RuntimeBinding::subject(
+                    SlotHandle::new(subject_slot),
+                    subject(&producer),
+                )],
+            )
+            .expect("the new selected static definition accepts its runtime value");
+            let revised_context =
+                LinkedAssessment::new(&package, &revised_definition, &revised_runtime)
+                    .expect("the revised static definition still targets the admitted protocol");
+            assert_ne!(
+                revised_context
+                    .definition_identity()
+                    .expect("the revised static definition has an FR-288 identity"),
+                identity,
+                "a changed accepted static binding definition changes FR-288"
+            );
+            registry
+                .register(&revised_context)
+                .expect("a changed static definition is not a contradictory replay");
+            assert_eq!(registry.len(), 2);
         },
-        producer.key().clone(),
-        declaration_handle,
-        contradictory_roles,
-        vec![StaticSlot {
-            handle: SlotHandle::new(subject_slot),
-            compatibility: SlotCompatibility::Subject {
-                kind: SubjectKind::new(ORDER_KIND.to_vec()).expect("non-empty kind"),
-            },
-        }],
-    )
-    .expect("changed static content must arrive under a new selected definition");
-    let revised_runtime = RuntimeBindingSet::new(
-        RUNTIME_BINDING_CONTRACT,
-        revised_definition.selection(),
-        &revised_definition,
-        &producer,
-        vec![RuntimeBinding::subject(
-            SlotHandle::new(subject_slot),
-            subject(&producer),
-        )],
-    )
-    .expect("the new selected static definition accepts its runtime value");
-    let revised_context = LinkedAssessment::new(&package, &revised_definition, &revised_runtime)
-        .expect("the revised static definition still targets the admitted protocol");
-    assert_ne!(
-        revised_context
-            .definition_identity()
-            .expect("the revised static definition has an FR-288 identity"),
-        identity,
-        "a changed accepted static binding definition changes FR-288"
     );
-    registry
-        .register(&revised_context)
-        .expect("a changed static definition is not a contradictory replay");
-    assert_eq!(registry.len(), 2);
+    assert!(matches!(
+        completed,
+        ProducerReadiness::Executable(OperationOutcome::Completed(()))
+    ));
 }
 
 /// A compensation bridge receives only QObs's complete FR-287 subject at a
@@ -2374,67 +3014,128 @@ fn tc_002_effect_projection_requires_an_owner_effect_slot() {
     assert_eq!(context.compensation_attempt_inputs().len(), 1);
     assert_eq!(context.compensation_effect_inputs().len(), 1);
 
-    let OperationOutcome::Completed(engine) = Engine::start(context, vec![Claim::Conformance])
-    else {
-        panic!("the linked effect context must start a non-retargetable assessment")
-    };
-    let Body::Protocol { controls, .. } = &engine.linked().declaration().body else {
-        panic!("the linked assessment retains the selected protocol declaration")
-    };
-    assert_eq!(engine.compensation_inputs().len(), 2);
-    // Task-002 projects eligible exact inputs; Task-003 alone may turn them
-    // into state after the admitted activation guard completes true.
-    assert!(engine.compensation().registrations().is_empty());
-    assert!(engine.conformance().registrations().is_empty());
-    assert_eq!(
+    let producer_request = ProducerResolutionRequest::for_assessment(
+        package.digest(),
+        definition.selection().digest,
+        &[Claim::Conformance],
+        producer_selection::runtime(context.runtime(), 500_000)
+            .expect("fixture runtime selection is bounded"),
+    )
+    .expect("the closed claim selection is representable");
+    let retargeted_runtime = RuntimeBindingSet::new(
+        RUNTIME_BINDING_CONTRACT,
+        definition.selection(),
+        &definition,
+        &producer,
+        runtime
+            .bindings()
+            .iter()
+            .map(|binding| {
+                if binding.slot() == SlotHandle::new(first_compensation.attempt_instance) {
+                    RuntimeBinding::subject(
+                        binding.slot(),
+                        QualifiedSubject::new(
+                            &producer,
+                            SubjectKind::new(ORDER_KIND.to_vec()).expect("non-empty kind"),
+                            SubjectIdentity::new(b"compensation-attempt:2".to_vec())
+                                .expect("non-empty identity"),
+                        ),
+                    )
+                } else {
+                    binding.clone()
+                }
+            })
+            .collect(),
+    )
+    .expect("one non-activation QObs runtime substitution remains valid");
+    let retargeted_context = LinkedAssessment::new(&package, &definition, &retargeted_runtime)
+        .expect("the substituted compensation runtime still links");
+    assert!(matches!(
+        with_assessment_after_resolving(
+            &producer_request,
+            &producer_manifest(),
+            producer_budget(),
+            SystemMonotonicClock,
+            |permit| AssessmentInputs::new(
+                permit,
+                retargeted_context,
+                vec![Claim::Conformance],
+            ),
+            |_| (),
+        ),
+        ProducerReadiness::Executable(OperationOutcome::Refused(refusal))
+            if refusal.code().as_str() == "version-lock.capability.request-mismatch"
+    ));
+    let completed = with_assessment_after_resolving(
+        &producer_request,
+        &producer_manifest(),
+        producer_budget(),
+        SystemMonotonicClock,
+        |permit| AssessmentInputs::new(permit, context, vec![Claim::Conformance]),
+        |engine| {
+            let Body::Protocol { controls, .. } = &engine.linked().declaration().body else {
+                panic!("the linked assessment retains the selected protocol declaration")
+            };
+            assert_eq!(engine.compensation_inputs().len(), 2);
+            // Task-002 projects eligible exact inputs; Task-003 alone may turn them
+            // into state after the admitted activation guard completes true.
+            assert!(engine.compensation().registrations().is_empty());
+            assert!(engine.conformance().registrations().is_empty());
+            assert_eq!(
         engine.conformance().obligations().len(),
         controls.len(),
         "the conformance kernel retains every linked control without turning compensation inputs into registrations"
     );
-    assert_eq!(
-        engine.conformance().compensations(),
-        engine.linked().compensations()
+            assert_eq!(
+                engine.conformance().compensations(),
+                engine.linked().compensations()
+            );
+            assert_eq!(
+                engine
+                    .conformance()
+                    .compensation(0)
+                    .expect("the first linked compensation is retained")
+                    .definition(),
+                engine.linked().compensations()[0].definition()
+            );
+            assert!(engine.conformance().compensation(u32::MAX).is_none());
+            assert_eq!(
+                engine
+                    .conformance()
+                    .obligation(0)
+                    .expect("the first linked control is a conformance obligation")
+                    .operation(),
+                &controls[0].operation
+            );
+            assert!(engine.conformance().obligation(u32::MAX).is_none());
+            assert_eq!(
+                engine.conformance().causal_edges(),
+                engine.linked().causal_edges()
+            );
+            assert!(engine.conformance().attempts().is_empty());
+            assert!(engine.conformance().effects().is_empty());
+            assert_eq!(engine.compensation_inputs().len(), 2);
+            assert_eq!(
+                engine.compensation_inputs()[0].effect().subject(),
+                &observed
+            );
+            assert!(engine.compensation().registrations().is_empty());
+            assert!(engine.conformance().registrations().is_empty());
+            assert_eq!(engine.conformance().obligations().len(), controls.len());
+            assert_eq!(
+                engine.conformance().compensations(),
+                engine.linked().compensations()
+            );
+            assert_eq!(
+                engine.conformance().causal_edges(),
+                engine.linked().causal_edges()
+            );
+            assert!(engine.conformance().attempts().is_empty());
+            assert!(engine.conformance().effects().is_empty());
+        },
     );
-    assert_eq!(
-        engine
-            .conformance()
-            .compensation(0)
-            .expect("the first linked compensation is retained")
-            .definition(),
-        engine.linked().compensations()[0].definition()
-    );
-    assert!(engine.conformance().compensation(u32::MAX).is_none());
-    assert_eq!(
-        engine
-            .conformance()
-            .obligation(0)
-            .expect("the first linked control is a conformance obligation")
-            .operation(),
-        &controls[0].operation
-    );
-    assert!(engine.conformance().obligation(u32::MAX).is_none());
-    assert_eq!(
-        engine.conformance().causal_edges(),
-        engine.linked().causal_edges()
-    );
-    assert!(engine.conformance().attempts().is_empty());
-    assert!(engine.conformance().effects().is_empty());
-    assert_eq!(engine.compensation_inputs().len(), 2);
-    assert_eq!(
-        engine.compensation_inputs()[0].effect().subject(),
-        &observed
-    );
-    assert!(engine.compensation().registrations().is_empty());
-    assert!(engine.conformance().registrations().is_empty());
-    assert_eq!(engine.conformance().obligations().len(), controls.len());
-    assert_eq!(
-        engine.conformance().compensations(),
-        engine.linked().compensations()
-    );
-    assert_eq!(
-        engine.conformance().causal_edges(),
-        engine.linked().causal_edges()
-    );
-    assert!(engine.conformance().attempts().is_empty());
-    assert!(engine.conformance().effects().is_empty());
+    assert!(matches!(
+        completed,
+        ProducerReadiness::Executable(OperationOutcome::Completed(()))
+    ));
 }

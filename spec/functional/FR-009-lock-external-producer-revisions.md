@@ -53,7 +53,8 @@ because the indirect service it names is still real.
   the bytes consumed from it where the producer supplies bytes, and its
   resolution status.
 - The exact external contracts a scenario consumes: QSL compiled-protocol `/1`
-  and `/2`; QSL native-temporal request/result; QObs runtime facts and topology;
+  and `/2`; QSL native-temporal request/result; QObs runtime facts, partial and
+  activation authority, revisioned authority bundles and bounded lineage;
   Engineering Assurance `producer_execution`; qverify
   `quire-verification/e02-draft-2`; the Quoin Protocol scenario-record intake;
   and any future source-owner diagnostic catalog an adapter explicitly uses.
@@ -76,6 +77,12 @@ because the indirect service it names is still real.
 
 The library SHALL resolve every manifest entry an integration requires before it
 reads any producer value for that integration.
+The request SHALL carry independently authored fixed-size digest and exact
+framed-byte metadata for runtime bindings and qualified subjects; constructing
+that request metadata SHALL NOT read the producer values. After every required
+entry resolves, the library MAY open the producer loader, but it SHALL hash the
+loaded values and match them to that request under the same live resolution
+byte accountant and deadline before assessment begins.
 The library SHALL treat the immutability and publication of a revision as an
 assertion the owner records in the entry, not as a property this library checks.
 The library SHALL NOT read a version-control history, spawn a process, or access
@@ -138,18 +145,22 @@ adapter invocation.
 Resolution SHALL consume a caller-supplied budget covering the entry count, the
 total bytes digested, and a deadline.
 If resolution exceeds any of those, then the library SHALL return that
-dimension's typed resource-incomplete outcome and SHALL read no producer value.
+dimension's typed resource-incomplete outcome. Entry and byte increments SHALL
+be charged before the producer loader opens, so a statically insufficient grant
+reads no producer value. The deadline SHALL be observed immediately before and
+after the indivisible loaded-selection verification unit; an after-unit
+overshoot records the completed unit's measured work but starts no assessment.
 
 ## Acceptance Criteria
 
 | ID | Criteria | Verification |
 | --- | --- | --- |
 | FR-009-AC-1 | A manifest whose required entries are each `pinned`, carry the owner's immutability assertion, and whose recorded digest equals the digest recomputed over the exact delivered bytes, resolves with every key, revision, digest and status retained unchanged, and the consumer receives the same byte sequence that was verified. | Test (TC-013, IT-002, IT-003) |
-| FR-009-AC-2 | An absent, unpinned or digest-mismatched required entry returns a typed refusal naming that entry's (owner, contract version) key before any producer value for the dependent scenario is read, and the differing digest is not written back. | Test (TC-013, IT-002, IT-003) |
+| FR-009-AC-2 | An absent, unpinned or digest-mismatched required entry returns a typed refusal naming that entry's (owner, contract version) key before the producer loader is invoked, and the differing digest is not written back. Independently authored request-selection metadata is not derived by reading the producer value. | Test (TC-002, TC-013, IT-002, IT-003) |
 | FR-009-AC-3 | A scenario requiring an entry whose status is `unresolved` is reported unexecutable, is not reported as passing or failing, and cannot be satisfied by another contract version of the same owner. | Test (TC-013, IT-002, IT-003) |
 | FR-009-AC-4 | A producer-emitted sidecar, display name, path, or message text cannot supply, select, or repair an entry; removing the sidecar changes no resolution outcome; and the manifest cannot change which entries a scenario requires. | Test (TC-013, IT-002, IT-003) |
 | FR-009-AC-5 | Two entries sharing one (owner, contract version) key refuse every integration before resolution; otherwise adding, removing or repinning one entry changes the resolved owner, revision, digest and status of no other, and a manifest carrying two versions of one producer resolves each independently. | Test (TC-013, IT-002, IT-003) |
-| FR-009-AC-6 | Resolution at exactly the granted entry-count, byte and deadline budget completes; one unit short on any dimension returns that dimension's typed resource-incomplete outcome with no producer value read; and the same manifest under a fresh budget completes. | Test (TC-013, IT-002, IT-003) |
+| FR-009-AC-6 | Resolution at exactly the granted entry-count, byte and deadline budget completes; one unit short on entry or declared selection bytes, or a deadline expired before the selection unit, returns that dimension's typed resource-incomplete outcome without invoking the producer loader; an after-unit deadline overshoot reports the measured indivisible work and starts no assessment; and the same manifest under a fresh exact budget completes. | Test (TC-002, TC-013, IT-002, IT-003) |
 | FR-009-AC-7 | Neither resolution nor digest verification reads a version-control history, spawns a process, or accesses a network, and no entry's digest is computed over anything but the exact delivered bytes. | Test (TC-010, TC-013) |
 | FR-009-AC-8 | Every interface entry matches an adapter-compiled accepted owner, contract version and revision before a private capability is minted; changing only the manifest revision or reusing a capability for another request refuses. | Test (TC-013) |
 | FR-009-AC-9 | Permuting the offered manifest changes neither the resolved set nor the first refusal/partial state: required keys are validated in FR-012 lexicographic order solely for deterministic comparison and reporting. | Test (TC-013) |
@@ -196,7 +207,7 @@ revisions are valid pins. Status is per contract, not per repository:
 | QSL `quire.compiled-protocol/1` | `pinned` | Protocol main pins `f1700a9264d6d3bcdd07e0f77b70f3dae9ed4c07`; the typed reader and corpus are present. |
 | QSL `quire.compiled-protocol/2` | `pinned` | The same exact pin exposes the accepted `/2` reader, handoff and activation-guard selection. |
 | QSL native-temporal request/result | `pinned` | The typed owner contract is exposed at the same exact QSL revision; Task-010 records the concrete capability entry. |
-| QObs runtime and authority contracts | `pinned` | Protocol pins the accepted owner revision `93bc565072fb05d1ecf29f15725b75c0a77378fb`; Task-010 consumes its typed authority facts through the strict producer boundary. |
+| QObs runtime and authority contracts | `pinned` | Task-020 selects accepted owner PR #27 merge `924006300f45b38483be1cbdf99b68f899b7d368`, including partial, activation, authority-bundle v1/v2 and lineage contract/schema selections. Repair and aggregate-query remain typed unsupported consumer capabilities rather than fabricated contract entries. |
 | Engineering Assurance producer-execution request/result `/v1` | `pinned` as owner contracts | Issue 34 closed through PR 46, merge `d9d30232f9a5314d664d87a86346294325831c62`; Task-011 adds the dependency and scenario entries. |
 | qverify `quire-verification/e02-draft-2` | `pinned` | Issue #44 published exact compatible consumer revision `293e342c6f5e2c69738956ff5165f75761b0364a`, preserving the schema/reader contract accepted at `d2fc0d8` and selecting exact Engineering Assurance revision `9237ce50ce19c6d6c937705bfde4b64adcc9d16b`. |
 | Quoin Protocol scenario-record intake | `unresolved` | Quoin is a Rust workspace with an evidence store, but exposes no operation accepting FR-017's scenario record. `agent-ix/quoin#519` owns the intake; existing experiment/operational records are not substitutes. |

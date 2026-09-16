@@ -9,7 +9,7 @@ publish = false
 
 [dependencies]
 quire-spec-language = { git = "https://github.com/agent-ix/quire-spec-language", rev = "0c2f13e261c0ffeaf89f0638931b573ec038e99b" }
-quire-observation = { git = "https://github.com/agent-ix/quire-observation", rev = "93bc565072fb05d1ecf29f15725b75c0a77378fb" }
+quire-observation = { git = "https://github.com/agent-ix/quire-observation", rev = "924006300f45b38483be1cbdf99b68f899b7d368" }
 quire-verification = { git = "https://github.com/agent-ix/quire-verification", rev = "293e342c6f5e2c69738956ff5165f75761b0364a" }
 # Reading the offer's already-published members and serialising B's own
 # selections through A's `Serialize` impls. B adds no schema, grammar or wire
@@ -17,6 +17,9 @@ quire-verification = { git = "https://github.com/agent-ix/quire-verification", r
 serde_json = "=1.0.151"
 serde = { version = "=1.0.228", features = ["derive"] }
 jsonschema = { version = "=0.17.1", default-features = false, features = ["draft202012"] }
+# Streams bounded producer-value request identities without allocating a
+# caller-sized preimage. This is a digest carrier, not a semantic owner.
+sha2 = "=0.10.9"
 
 [dev-dependencies]
 agent-ix-baseline-producer = { version = "=0.0.0", git = "https://github.com/agent-ix/filament-core-data", rev = "404288282402d60de007295ccbafa960532b955e" }
