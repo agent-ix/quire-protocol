@@ -274,61 +274,13 @@ pub const EXECUTION_CODES: CodeModule = CodeModule {
     ],
 };
 
-/// The eight resource-bound codes `crate::bounds` emits, under the reserved
-/// root `bounds`. Owner chunk: **C-29**.
-///
-/// Two mechanisms share the root and nothing else: `bounds.precheck.*` is an
-/// arithmetic comparison that does not depend on when it runs, and
-/// `bounds.deadline.*` is a clock reading that is never reproducible. A caller
-/// that cannot tell them apart can act correctly on neither, which is why they
-/// are separate namespaces under one root rather than one namespace.
+/// The two deadline-observation codes `crate::bounds` emits, under the reserved
+/// root `bounds`. Owner chunk: **C-30**.
 pub const BOUNDS_CODES: CodeModule = CodeModule {
     root: "bounds",
-    owner: "C-29",
+    owner: "C-30",
     module_path: "quire_protocol::bounds",
     entries: &[
-        CodeEntry {
-            provenance: Provenance::Minted,
-            code: "bounds.precheck.count-exceeded",
-            domain: RefusalDomain::Assessment,
-            retry: RetryDecision::Never,
-            summary: "a counting site passed its inclusive ceiling",
-        },
-        CodeEntry {
-            provenance: Provenance::Minted,
-            code: "bounds.precheck.allocation-exceeded",
-            domain: RefusalDomain::Assessment,
-            retry: RetryDecision::Never,
-            summary: "an allocation site would have reserved past its inclusive ceiling",
-        },
-        CodeEntry {
-            provenance: Provenance::Minted,
-            code: "bounds.precheck.counter-overflow",
-            domain: RefusalDomain::Assessment,
-            retry: RetryDecision::Never,
-            summary: "charging the request would overflow the accumulator",
-        },
-        CodeEntry {
-            provenance: Provenance::Minted,
-            code: "bounds.precheck.allocation-unit-mismatch",
-            domain: RefusalDomain::Assessment,
-            retry: RetryDecision::Never,
-            summary: "a byte-counted grant would reserve elements wider than one byte",
-        },
-        CodeEntry {
-            provenance: Provenance::Minted,
-            code: "bounds.precheck.allocation-unavailable",
-            domain: RefusalDomain::Assessment,
-            retry: RetryDecision::AfterResourceRelease,
-            summary: "the allocator refused a reservation the ceiling admitted",
-        },
-        CodeEntry {
-            provenance: Provenance::Minted,
-            code: "bounds.precheck.unregistered-site",
-            domain: RefusalDomain::Assessment,
-            retry: RetryDecision::Never,
-            summary: "work was attempted at a site that is not in the inventory",
-        },
         CodeEntry {
             provenance: Provenance::Minted,
             code: "bounds.deadline.expired",
