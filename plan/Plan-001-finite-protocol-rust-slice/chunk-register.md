@@ -52,6 +52,7 @@ The standalone kernels above are real but disconnected. The reviewed DAG starts
 with Task-017's shared outcomes/refusals and Task-013's request-bound resolver,
 then connects the serial graph-to-result core. QSpec #57 resolved the FR-236
 partition at `478afa2`; its remaining Protocol bridge is implementation work,
-not an external block. The remaining external blocks are qverify E02 acceptance
-(`quire-verification#32`) and Quoin scenario intake (`quoin#519`); no local
+not an external block. qverify E02 acceptance and its dependency-compatible
+exact Cargo graph are delivered by issues #32/#44 and Engineering Assurance
+#102. Quoin scenario intake remains blocked by `quoin#519`; no local
 refusal path waits on a proposed diagnostic catalog.

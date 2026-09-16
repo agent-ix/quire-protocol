@@ -125,11 +125,11 @@ Assurance, E02, Quoin — the owner's assertion is the only thing standing behin
 the pin. Nothing local falsifies it.
 
 **Entry status is per contract.** FR-009's architecture-baseline table records
-the QSL and Engineering Assurance contracts as pinnable, the current QObs build
-entry as stale, and the qverify/Quoin entries as unresolved. Stage 1 — the
-Protocol-owned schema, two-status model, digest recomputation, per-key refusal,
-entry independence, sidecar non-authority and resolution budget — is unblocked.
-No resolver artifact exists in the tree yet.
+the QSL, QObs, Engineering Assurance and qverify contracts as pinned, and only
+the Quoin Protocol scenario-intake entry as unresolved. The Protocol-owned
+schema, two-status model, digest recomputation, per-key refusal, entry
+independence, sidecar non-authority and bounded resolver are implemented; each
+scenario still requires every entry it consumes to be pinned before execution.
 
 ## Alternatives considered
 

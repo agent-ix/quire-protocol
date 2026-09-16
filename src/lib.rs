@@ -53,6 +53,8 @@ pub mod link;
 pub mod model;
 /// Closed public operation and claim outcome algebras.
 pub mod outcome;
+/// Source-bound projection of canonical protocol results to qverify E02.
+pub mod projection;
 /// B-owned typed refusal envelope. Owner chunk: C-01 (submodules: C-02, C-03).
 pub mod refusal;
 /// Seed, toolchain and corpus reproduction record. Owner chunk: C-31.

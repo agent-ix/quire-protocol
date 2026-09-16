@@ -250,10 +250,12 @@ The current accepted compiler pin is QSL `0c2f13e`; the compiled-protocol `/1`,
 `/2`, and `/3` handoffs are owner-addressed and the `/1` Service/Provider
 authorities are distinct. The direct QObs pin is the accepted FR-287/FR-262
 revision `93bc565`.
-E02 has an implemented draft-2 reader whose owner acceptance prose is still
-contradictory, and Quoin has a Rust evidence implementation but no Protocol
-scenario-record intake. These are explicit gates, not permission to substitute
-local contracts.
+E02's draft-2 schema/reader contract is accepted at qverify revision `d2fc0d8`
+and its exact dependency-compatible consumer revision is
+`293e342c6f5e2c69738956ff5165f75761b0364a`, with Engineering Assurance
+`9237ce50ce19c6d6c937705bfde4b64adcc9d16b`. Quoin has a Rust evidence
+implementation but no Protocol scenario-record intake. That remaining gate is
+not permission to substitute a local contract.
 
 ## 15. Governance Notes
 
@@ -287,9 +289,9 @@ its entry-status table records why each is currently `unresolved`.
   are consumed at `93bc565`. Complete-global-conformance closure remains
   Protocol-owned and is not a QObs artifact.
 - `agent-ix/quire-verification` FR-007 and `quire-verification/e02-draft-2` —
-  the implemented E02 strict reader and its finding vocabulary. Its owner must
-  reconcile the stale provisional interface decision before cross-repository
-  acceptance.
+  the accepted E02 strict reader, generated types, JCS implementation and
+  finding vocabulary at exact compatible consumer revision
+  `293e342c6f5e2c69738956ff5165f75761b0364a`.
 - `agent-ix/engineering-assurance` issue 34 — the delivered typed Rust producer-
   execution request/result boundary, consumed at its exact accepted git pin.
 - The selected diagnostic catalog, whose identity, revision and byte digest

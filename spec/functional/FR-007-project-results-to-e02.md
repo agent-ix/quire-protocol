@@ -139,11 +139,11 @@ those rulings exactly.
   opaque value and declares no kind for it. Recorded by
   [FR-034](./FR-034-derive-e02-projection-identity.md). Owner:
   `quire-specification`.
-- **qverify acceptance.** The strict `quire-verification/e02-draft-2` reader and
-  finding vocabulary are implemented, but qverify's interface-decision document
-  still calls cross-repository use provisional. Task-007 remains blocked only on
-  the owner reconciling that acceptance, not on missing E02 code or source
-  vocabularies.
+- **qverify acceptance.** Issue #32 accepted the strict
+  `quire-verification/e02-draft-2` schema/reader contract at `d2fc0d8`; issue
+  #44 published dependency-compatible consumer revision
+  `293e342c6f5e2c69738956ff5165f75761b0364a`, which Protocol pins exactly with
+  its accepted Engineering Assurance edge.
 
 ## Dependencies
 
