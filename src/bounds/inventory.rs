@@ -1062,6 +1062,7 @@ pub struct ResourceAccountant<'inventory> {
     budget: Budget,
     usage: Usage,
     site_consumed: Box<[usize]>,
+    in_owner_unit: bool,
     inventory: &'inventory Inventory,
     request_deadline: Option<RequestDeadline>,
     resolution_deadline: Option<RequestDeadline>,
@@ -1123,6 +1124,7 @@ impl<'inventory> ResourceAccountant<'inventory> {
             budget,
             usage: Usage::ZERO,
             site_consumed: vec![0; inventory.entries.len()].into_boxed_slice(),
+            in_owner_unit: false,
             inventory,
             request_deadline,
             resolution_deadline,
@@ -1172,8 +1174,11 @@ impl<'inventory> ResourceAccountant<'inventory> {
     /// Charge one increment against both its authored and caller ceilings.
     ///
     /// A present caller ceiling applies to aggregate usage on the dimension;
-    /// `authored_limit` applies only to this source site's usage. This keeps two
-    /// sites on one dimension from consuming each other's authored allowance.
+    /// `authored_limit` applies only to this source site's usage in the current
+    /// outer owner unit. This keeps two sites on one dimension from consuming
+    /// each other's authored allowance and keeps repeated result rows from
+    /// consuming one another's per-document maxima. The caller ceiling remains
+    /// cumulative across every unit in the request.
     /// An absent caller grant remains absent and cannot weaken or replace the
     /// authored ceiling.
     ///
@@ -1371,6 +1376,19 @@ impl<'inventory> ResourceAccountant<'inventory> {
         )
     }
 
+    fn enter_owner_unit(&mut self) -> bool {
+        let was_in_owner_unit = self.in_owner_unit;
+        if !was_in_owner_unit {
+            self.site_consumed.fill(0);
+            self.in_owner_unit = true;
+        }
+        was_in_owner_unit
+    }
+
+    fn leave_owner_unit(&mut self, was_in_owner_unit: bool) {
+        self.in_owner_unit = was_in_owner_unit;
+    }
+
     /// Execute one declared indivisible owner unit under the request deadline.
     ///
     /// The before observation occurs before `operation`. A successful or
@@ -1387,7 +1405,9 @@ impl<'inventory> ResourceAccountant<'inventory> {
             Ok(token) => token,
             Err(error) => return OperationOutcome::from_charge(error),
         };
+        let was_in_owner_unit = self.enter_owner_unit();
         let outcome = operation(self);
+        self.leave_owner_unit(was_in_owner_unit);
         let stopped = matches!(
             &outcome,
             OperationOutcome::ResourceIncomplete(_) | OperationOutcome::AccountingFault(_)
@@ -1412,7 +1432,9 @@ impl<'inventory> ResourceAccountant<'inventory> {
             Ok(token) => token,
             Err(error) => return OperationOutcome::from_charge(error),
         };
+        let was_in_owner_unit = self.enter_owner_unit();
         let outcome = operation(self);
+        self.leave_owner_unit(was_in_owner_unit);
         let stopped = matches!(
             &outcome,
             OperationOutcome::ResourceIncomplete(_) | OperationOutcome::AccountingFault(_)

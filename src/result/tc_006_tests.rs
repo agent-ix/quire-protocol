@@ -2476,6 +2476,39 @@ fn tc_009_result_output_budget_precedes_canonical_allocation() {
         operation_total
     );
 
+    let exact_per_document = Limits {
+        max_input_bytes: Limits::owner_max().max_input_bytes,
+        max_output_bytes: required,
+        max_depth: structural.depth,
+        max_string_bytes: structural.string_bytes,
+        max_claims: structural.claims,
+        max_premises: structural.premises,
+        max_support_records: structural.support_records,
+        max_limitations: structural.limitations,
+        max_lineage_nodes: structural.lineage_nodes,
+        max_visited_fields: structural.visited_fields,
+    };
+    let mut repeated_resources = ResourceAccountant::new(Budget::nothing_granted(), &inventory);
+    for _ in 0..2 {
+        assert!(matches!(
+            result::produce_bounded(input.clone(), exact_per_document, &mut repeated_resources),
+            OperationOutcome::Completed(_)
+        ));
+    }
+    assert_eq!(
+        repeated_resources
+            .usage()
+            .consumed(BudgetDimension::OutputByte),
+        total_output * 2,
+        "caller usage remains cumulative while each result gets fresh authored maxima"
+    );
+    assert_eq!(
+        repeated_resources
+            .usage()
+            .consumed(BudgetDimension::Operation),
+        operation_total * 2
+    );
+
     let mut assumption_input = input.clone();
     assumption_input.assumptions.push(Assumption {
         identity: "x".repeat(128 * 1024),
