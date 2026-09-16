@@ -65,9 +65,9 @@ pub enum BudgetDimension {
     ElapsedTime,
     /// Manifest entries resolved before producer values are read.
     ResolutionEntryCount,
-    /// Manifest bytes digested before producer values are read.
+    /// Manifest bytes and request-selected loaded values digested by resolution.
     ResolutionBytesDigested,
-    /// Monotonic elapsed time for manifest resolution.
+    /// Monotonic elapsed time through contract and loaded-selection resolution.
     ResolutionDeadline,
 }
 
@@ -1946,6 +1946,12 @@ const RESOLUTION_BYTES: SourceSite = SourceSite::new(
     BudgetDimension::ResolutionBytesDigested,
     SiteKind::Iteration,
 );
+const PRODUCER_SELECTION_BYTES: SourceSite = SourceSite::new(
+    SiteId::new("producer-resolution/selection/bytes"),
+    "producer_contracts::resolve_then_verify_producer_selection",
+    BudgetDimension::ResolutionBytesDigested,
+    SiteKind::Iteration,
+);
 const RESOLUTION_DEADLINE: SourceSite = SourceSite::new(
     SiteId::new("resolution/unit/deadline"),
     "version_lock::resolve",
@@ -2023,6 +2029,7 @@ pub const PRODUCTION_SOURCES: &[SourceSite] = &[
     crate::delivery_index::ALLOCATION_SOURCE,
     crate::version_lock::RESOLUTION_ENTRY_SOURCE,
     crate::version_lock::RESOLUTION_BYTES_SOURCE,
+    crate::producer_contracts::PRODUCER_SELECTION_BYTES_SOURCE,
     crate::version_lock::RESOLUTION_DEADLINE_SOURCE,
     crate::inventory::map::ADMISSION_INPUT_SOURCE,
     crate::inventory::map::ADMISSION_ALLOCATION_SOURCE,
@@ -2136,6 +2143,12 @@ pub const PRODUCTION_ENTRIES: &[InventoryEntry] = &[
     ),
     entry(
         RESOLUTION_BYTES,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeIterate,
+        Termination::InputLength,
+    ),
+    entry(
+        PRODUCER_SELECTION_BYTES,
         LimitAuthority::ConsumerOwner,
         ChargePoint::BeforeIterate,
         Termination::InputLength,

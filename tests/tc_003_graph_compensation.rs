@@ -18,7 +18,7 @@ use quire_protocol::model::v2::{
 };
 use quire_protocol::outcome::OperationOutcome;
 use quire_protocol::producer_contracts::{
-    select_runtime_bindings, ProducerContract, ProducerReadiness, ProducerResolutionRequest,
+    ProducerContract, ProducerReadiness, ProducerResolutionRequest,
 };
 use quire_protocol::version_lock::{ResolutionBudget, VersionLockManifest};
 use quire_protocol::wire::{BindingKind, Body, ControlOperation};
@@ -37,6 +37,8 @@ mod handoff;
 #[allow(dead_code)]
 #[path = "support/observation_owner.rs"]
 mod observation_owner;
+#[path = "support/producer_selection.rs"]
+mod producer_selection;
 #[path = "support/v2_state.rs"]
 mod v2_state;
 
@@ -229,7 +231,7 @@ fn with_engine<'a, T>(
     fixture: &'a Fixture,
     run: impl for<'scope> FnOnce(ResolvedAssessmentScope<'scope, 'a>) -> T,
 ) -> T {
-    let runtime_selection = select_runtime_bindings(&fixture.runtime, 500_000)
+    let runtime_selection = producer_selection::runtime(&fixture.runtime, 500_000)
         .expect("fixture runtime selection is bounded");
     let request = ProducerResolutionRequest::for_assessment(
         fixture.package.digest(),

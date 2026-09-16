@@ -21,9 +21,8 @@ use quire_spec_language::protocol_artifact::{
 use quire_spec_language::ByteDigest;
 use sha2::{Digest as _, Sha256};
 
-use crate::bounds::inventory::ResourceIncomplete;
-use crate::bounds::inventory::Usage;
-use crate::bounds::Clock;
+use crate::bounds::inventory::{BudgetDimension, ResourceIncomplete, SourceSite, Usage};
+use crate::bounds::{Clock, SiteId, SiteKind};
 use crate::claims::Claim;
 use crate::model::v2::RuntimeBindingSet;
 use crate::outcome::OperationOutcome;
@@ -46,6 +45,13 @@ pub const QSL_OPAQUE_TRIGGER_REVISION: &str = "0c2f13e261c0ffeaf89f0638931b573ec
 const QOBS_OWNER: &str = "agent-ix/quire-observation";
 const QSL_OWNER: &str = "agent-ix/quire-spec-language";
 const IMMUTABILITY_ASSERTION: &[u8] = b"owner asserts immutable and published";
+
+pub(crate) const PRODUCER_SELECTION_BYTES_SOURCE: SourceSite = SourceSite::new(
+    SiteId::new("producer-resolution/selection/bytes"),
+    "producer_contracts::resolve_then_verify_producer_selection",
+    BudgetDimension::ResolutionBytesDigested,
+    SiteKind::Iteration,
+);
 
 /// Exact bounded digest and measured framed-byte count for one producer value.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -163,10 +169,10 @@ fn hash_subject(
     hasher.component(subject.identity().as_bytes())
 }
 
-/// Select one complete QObs authority-qualified subject under an explicit
-/// caller byte ceiling. Hashing streams the framed components and allocates no
-/// caller-sized preimage.
-pub fn select_subject(
+/// Verify one loaded QObs authority-qualified subject under the request's
+/// pre-charged byte ceiling. This stays crate-private so request construction
+/// cannot become a pre-resolution producer-value read.
+pub(crate) fn select_loaded_subject(
     subject: &QualifiedSubject,
     byte_limit: usize,
 ) -> Result<ProducerValueSelection, ProducerSelectionTooLarge> {
@@ -175,9 +181,10 @@ pub fn select_subject(
     Ok(hasher.finish())
 }
 
-/// Select one complete ordered runtime-binding set under an explicit caller
-/// byte ceiling. Every QObs subject and relationship component participates.
-pub fn select_runtime_bindings(
+/// Verify one loaded ordered runtime-binding set under the request's
+/// pre-charged byte ceiling. Every QObs subject and relationship component
+/// participates.
+pub(crate) fn select_loaded_runtime_bindings(
     runtime: &RuntimeBindingSet,
     byte_limit: usize,
 ) -> Result<ProducerValueSelection, ProducerSelectionTooLarge> {
@@ -535,10 +542,12 @@ impl UnsupportedObservationCapability {
 
 /// A fixed-size, independently selected assessment-resolution identity.
 ///
-/// The identity binds a resolution to the selected compiled package, static
-/// binding artifact, ordered claims and every selected QObs/QSL value used by
-/// that assessment. Callers cannot supply arbitrary or unbounded identity
-/// bytes.
+/// The identity binds a resolution to independently authored metadata for the
+/// selected compiled package, static binding artifact, ordered claims and
+/// QObs/QSL values used by that assessment. The runtime and subject metadata is
+/// supplied before those values are loaded, then verified against the loaded
+/// values inside the resolution accountant. Callers cannot supply arbitrary or
+/// unbounded identity bytes.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProducerResolutionRequest {
     identity: Box<[u8]>,
@@ -549,7 +558,8 @@ pub struct ProducerResolutionRequest {
 
 impl ProducerResolutionRequest {
     /// Select one non-temporal assessment request from fixed-size owner
-    /// digests known before producer values are loaded.
+    /// digests and independently authored runtime metadata known before
+    /// producer values are loaded.
     pub fn for_assessment(
         package: ByteDigest,
         static_binding: [u8; 32],
@@ -567,8 +577,9 @@ impl ProducerResolutionRequest {
         )
     }
 
-    /// Select one activated assessment from every fixed-size producer
-    /// selection known before producer values are loaded.
+    /// Select one activated assessment from fixed-size producer digests and
+    /// independently authored runtime/subject metadata known before producer
+    /// values are loaded.
     #[allow(
         clippy::too_many_arguments,
         reason = "each digest binds one independently owned producer value without accepting an aggregate derived from the offer"
@@ -600,8 +611,9 @@ impl ProducerResolutionRequest {
         )
     }
 
-    /// Select one canonical-result assessment from every fixed-size producer
-    /// selection known before producer values are loaded.
+    /// Select one canonical-result assessment from fixed-size producer digests
+    /// and independently authored runtime/subject metadata known before
+    /// producer values are loaded.
     #[allow(
         clippy::too_many_arguments,
         reason = "each digest binds one independently owned producer value without accepting an aggregate derived from the offer"
@@ -737,7 +749,7 @@ pub struct ProducerResolution {
 /// assessment result, and resource exhaustion remains independently typed.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ProducerReadiness<T> {
-    /// Every required producer contract resolved before producer access.
+    /// Every required producer contract resolved before the producer loader.
     Executable(T),
     /// Producer prerequisites did not resolve, so no assessment was run.
     Unexecutable(ProtocolRefusal),
@@ -805,6 +817,34 @@ impl ProducerResolution {
     }
 }
 
+fn interface_requirements() -> Vec<InterfaceRequirement> {
+    ProducerContract::ALL
+        .iter()
+        .copied()
+        .map(|contract| {
+            InterfaceRequirement::new(
+                contract.key(),
+                contract.expected_revision().as_bytes(),
+                IMMUTABILITY_ASSERTION,
+            )
+        })
+        .collect()
+}
+
+fn completed_resolution(
+    request: &ProducerResolutionRequest,
+    resolved: version_lock::ResolvedRequest,
+) -> ProducerResolution {
+    ProducerResolution {
+        request: request.clone(),
+        contracts: ProducerContract::ALL.map(|contract| ResolvedProducerContract {
+            contract,
+            revision: contract.expected_revision().as_bytes(),
+        }),
+        resolved,
+    }
+}
+
 /// Resolve the complete producer-contract inventory for one request.
 #[must_use]
 pub fn resolve_producer_contracts<C: Clock + 'static>(
@@ -815,67 +855,205 @@ pub fn resolve_producer_contracts<C: Clock + 'static>(
 ) -> OperationOutcome<ProducerResolution> {
     let private_request = ResolutionRequestIdentity::new(request.as_bytes())
         .expect("public request construction already rejected empty identity bytes");
-    let required = ProducerContract::ALL
-        .iter()
-        .copied()
-        .map(|contract| {
-            InterfaceRequirement::new(
-                contract.key(),
-                contract.expected_revision().as_bytes(),
-                IMMUTABILITY_ASSERTION,
-            )
-        })
-        .collect::<Vec<_>>();
-    let resolved = match version_lock::resolve_interfaces(
-        private_request,
-        manifest,
-        &required,
-        request.selection_bytes(),
-        budget,
-        clock,
-    ) {
-        OperationOutcome::Completed(resolved) => resolved,
-        OperationOutcome::Refused(refusal) => return OperationOutcome::Refused(refusal),
-        OperationOutcome::ResourceIncomplete(incomplete) => {
-            return OperationOutcome::ResourceIncomplete(incomplete)
-        }
-    };
+    let required = interface_requirements();
+    let resolved =
+        match version_lock::resolve_interfaces(private_request, manifest, &required, budget, clock)
+        {
+            OperationOutcome::Completed(resolved) => resolved,
+            OperationOutcome::Refused(refusal) => return OperationOutcome::Refused(refusal),
+            OperationOutcome::ResourceIncomplete(incomplete) => {
+                return OperationOutcome::ResourceIncomplete(incomplete)
+            }
+        };
 
-    let contracts = ProducerContract::ALL.map(|contract| ResolvedProducerContract {
-        contract,
-        revision: contract.expected_revision().as_bytes(),
-    });
-    OperationOutcome::Completed(ProducerResolution {
-        request: request.clone(),
-        contracts,
-        resolved,
-    })
+    OperationOutcome::Completed(completed_resolution(request, resolved))
 }
 
-/// Resolve the complete producer inventory before permitting producer access.
+/// Resolve the complete producer inventory, then verify the loaded selection
+/// while the resolver's byte accountant and deadline remain live.
 ///
-/// `on_resolved` is never invoked for an absent, unresolved, unpinned, or
-/// repointed manifest. This is the staging primitive used by the public
-/// assessment boundary, so assessment cannot reinterpret prerequisite failure
-/// as a claim result.
+/// `verify` is never invoked for an absent, unresolved, unpinned, repointed, or
+/// under-budget manifest. Its declared selection bytes are charged before it
+/// can load a producer value. A completed verification must return the actual
+/// request identity and its loaded value; neither can escape authorization.
 #[must_use]
-pub(crate) fn resolve_before_producer_read<C, T>(
+pub(crate) fn resolve_then_verify_producer_selection<C, T, U>(
     request: &ProducerResolutionRequest,
     manifest: &VersionLockManifest,
     budget: ResolutionBudget,
     clock: C,
-    on_resolved: impl FnOnce(ProducerResolution) -> T,
-) -> ProducerReadiness<T>
+    verify: impl FnOnce() -> Option<(ProducerResolutionRequest, T)>,
+    on_verified: impl FnOnce(ProducerResolution, T) -> OperationOutcome<U>,
+) -> ProducerReadiness<OperationOutcome<U>>
 where
     C: Clock + 'static,
 {
-    match resolve_producer_contracts(request, manifest, budget, clock) {
-        OperationOutcome::Completed(resolution) => {
-            ProducerReadiness::Executable(on_resolved(resolution))
-        }
-        OperationOutcome::Refused(refusal) => ProducerReadiness::Unexecutable(refusal),
+    let private_request = ResolutionRequestIdentity::new(request.as_bytes())
+        .expect("public request construction already rejected empty identity bytes");
+    let required = interface_requirements();
+    let (resolved, verified) = match version_lock::resolve_interfaces_then(
+        private_request,
+        manifest,
+        &required,
+        budget,
+        clock,
+        version_lock::InterfaceVerification {
+            bytes: request.selection_bytes(),
+            source: PRODUCER_SELECTION_BYTES_SOURCE.id(),
+            run: verify,
+        },
+    ) {
+        OperationOutcome::Completed(completed) => completed,
+        OperationOutcome::Refused(refusal) => return ProducerReadiness::Unexecutable(refusal),
         OperationOutcome::ResourceIncomplete(incomplete) => {
-            ProducerReadiness::ResourceIncomplete(incomplete)
+            return ProducerReadiness::ResourceIncomplete(incomplete)
         }
+    };
+
+    let resolution = completed_resolution(request, resolved);
+    let Some((actual, loaded)) = verified else {
+        return ProducerReadiness::Executable(resolution.refuse_unrepresentable_selection());
+    };
+    match resolution.authorize(&actual) {
+        OperationOutcome::Completed(()) => {
+            ProducerReadiness::Executable(on_verified(resolution, loaded))
+        }
+        OperationOutcome::Refused(refusal) => {
+            ProducerReadiness::Executable(OperationOutcome::Refused(refusal))
+        }
+        OperationOutcome::ResourceIncomplete(incomplete) => {
+            ProducerReadiness::Executable(OperationOutcome::ResourceIncomplete(incomplete))
+        }
+    }
+}
+
+#[cfg(test)]
+mod selection_tests {
+    use super::select_loaded_runtime_bindings;
+    use crate::model::v2::{
+        RuntimeBinding, RuntimeBindingSet, SlotCompatibility, SlotHandle, StaticBindingDefinition,
+        StaticSelection, StaticSlot, RUNTIME_BINDING_CONTRACT, STATIC_BINDING_CONTRACT,
+    };
+    use agent_ix_baseline_producer::StaticProducerBundle;
+    use ix_trace_rs::trace;
+    use quire_observation::{
+        QualifiedSubject, Relationship, RelationshipIdentity, SubjectIdentity, SubjectKind,
+    };
+
+    const ORDER_KIND: &[u8] = b"ix://agent-ix/commerce/type/Order";
+    const SHIPMENT_KIND: &[u8] = b"ix://agent-ix/commerce/type/Shipment";
+    const ORDER_SHIPMENT: &str = "ix://agent-ix/commerce/relationship/Order-shipment";
+
+    fn producer() -> quire_observation::AdmittedStaticBundle {
+        StaticProducerBundle::admit_json(include_bytes!(
+            "../tests/fixtures/fcd-static-bundle-1.2.json"
+        ))
+        .expect("shared FCD static bundle is admitted")
+    }
+
+    fn relationship(
+        producer: &quire_observation::AdmittedStaticBundle,
+        identity: &[u8],
+        target: &[u8],
+    ) -> Relationship {
+        Relationship::new(
+            producer,
+            ORDER_SHIPMENT,
+            RelationshipIdentity::new(identity.to_vec()).expect("non-empty relationship identity"),
+            QualifiedSubject::new(
+                producer,
+                SubjectKind::new(ORDER_KIND.to_vec()).expect("non-empty source kind"),
+                SubjectIdentity::new(b"order:42".to_vec()).expect("non-empty source identity"),
+            ),
+            QualifiedSubject::new(
+                producer,
+                SubjectKind::new(SHIPMENT_KIND.to_vec()).expect("non-empty target kind"),
+                SubjectIdentity::new(target.to_vec()).expect("non-empty target identity"),
+            ),
+        )
+        .expect("fixture relationship is owner-admitted")
+    }
+
+    fn runtime(
+        producer: &quire_observation::AdmittedStaticBundle,
+        relationship: Relationship,
+    ) -> RuntimeBindingSet {
+        let selection = StaticSelection {
+            identity: "selection:relationship".into(),
+            revision: "1".into(),
+            digest: [0x51; 32],
+        };
+        let definition = StaticBindingDefinition::new(
+            STATIC_BINDING_CONTRACT,
+            selection,
+            producer.key().clone(),
+            0,
+            vec![],
+            vec![StaticSlot {
+                handle: SlotHandle::new(0),
+                compatibility: SlotCompatibility::Relationship {
+                    declaration_identity: ORDER_SHIPMENT.into(),
+                    source_kind: SubjectKind::new(ORDER_KIND.to_vec())
+                        .expect("non-empty source kind"),
+                    target_kind: SubjectKind::new(SHIPMENT_KIND.to_vec())
+                        .expect("non-empty target kind"),
+                },
+            }],
+        )
+        .expect("relationship definition admits");
+        RuntimeBindingSet::new(
+            RUNTIME_BINDING_CONTRACT,
+            definition.selection(),
+            &definition,
+            producer,
+            vec![RuntimeBinding::relationship(
+                SlotHandle::new(0),
+                relationship,
+            )],
+        )
+        .expect("relationship runtime admits")
+    }
+
+    #[test]
+    #[trace("TC-002", "FR-009-AC-2", "FR-009-AC-6", "FR-009-AC-8")]
+    fn tc_002_loaded_runtime_selection_binds_every_relationship_component() {
+        let producer = producer();
+        let baseline = runtime(
+            &producer,
+            relationship(&producer, b"order:42->shipment:99", b"shipment:99"),
+        );
+        let selected = select_loaded_runtime_bindings(&baseline, 500_000)
+            .expect("baseline relationship selection is bounded");
+        assert_eq!(
+            selected.digest(),
+            [
+                173, 2, 101, 84, 158, 94, 76, 69, 124, 166, 230, 109, 62, 189, 6, 154, 139, 212,
+                180, 134, 80, 144, 180, 111, 126, 197, 82, 36, 122, 245, 241, 3,
+            ]
+        );
+        let exact_framed_bytes = selected.framed_bytes();
+        assert_eq!(
+            select_loaded_runtime_bindings(&baseline, exact_framed_bytes)
+                .expect("the exact production selector ceiling admits"),
+            selected,
+        );
+        let one_short = exact_framed_bytes
+            .checked_sub(1)
+            .expect("the runtime selection is nonempty");
+        assert_eq!(
+            select_loaded_runtime_bindings(&baseline, one_short),
+            Err(super::ProducerSelectionTooLarge { limit: one_short }),
+            "the production selector refuses before exceeding its ceiling",
+        );
+
+        let retargeted = runtime(
+            &producer,
+            relationship(&producer, b"order:42->shipment:100", b"shipment:100"),
+        );
+        assert_ne!(
+            select_loaded_runtime_bindings(&retargeted, 500_000)
+                .expect("retargeted relationship selection is bounded"),
+            selected,
+        );
     }
 }

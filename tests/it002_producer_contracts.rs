@@ -114,7 +114,8 @@ fn same_entry_state(left: &ManifestEntry, right: &ManifestEntry) -> bool {
     "FR-009-AC-2",
     "FR-009-AC-3",
     "FR-009-AC-4",
-    "FR-009-AC-5"
+    "FR-009-AC-5",
+    "FR-009-AC-6"
 )]
 fn it_002_sc_08_resolves_only_the_exact_scenario_contract_inventory() {
     const EXPECTED: [(&str, &str, &str); 21] = [
@@ -271,6 +272,13 @@ fn it_002_sc_08_resolves_only_the_exact_scenario_contract_inventory() {
             .usage()
             .consumed(BudgetDimension::ResolutionEntryCount),
         ProducerContract::ALL.len()
+    );
+    assert_eq!(
+        resolved
+            .usage()
+            .consumed(BudgetDimension::ResolutionBytesDigested),
+        0,
+        "standalone interface resolution performs no producer-value hashing"
     );
     assert_eq!(
         resolved

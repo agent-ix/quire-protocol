@@ -33,7 +33,7 @@ use quire_protocol::model::v2::{
     RUNTIME_BINDING_CONTRACT, STATIC_BINDING_CONTRACT,
 };
 use quire_protocol::producer_contracts::{
-    select_runtime_bindings, select_subject, ProducerContract, ProducerReadiness,
+    select_loaded_runtime_bindings, select_loaded_subject, ProducerContract, ProducerReadiness,
     ProducerResolutionRequest,
 };
 use quire_protocol::projection::{
@@ -114,10 +114,10 @@ fn with_activated<'a, T>(
         context.package().digest(),
         context.definition().selection().digest,
         &requested,
-        select_runtime_bindings(context.runtime(), 500_000)
+        select_loaded_runtime_bindings(context.runtime(), 500_000)
             .expect("fixture runtime selection is bounded"),
         mappings.digest(),
-        select_subject(subject, 500_000).expect("fixture subject selection is bounded"),
+        select_loaded_subject(subject, 500_000).expect("fixture subject selection is bounded"),
         temporal_subject.document().digest(),
         request.document().digest(),
         result.document().digest(),
@@ -171,10 +171,10 @@ fn with_result_assessment<'a, T>(
         context.package().digest(),
         context.definition().selection().digest,
         &requested,
-        select_runtime_bindings(context.runtime(), 500_000)
+        select_loaded_runtime_bindings(context.runtime(), 500_000)
             .expect("fixture runtime selection is bounded"),
         mappings.digest(),
-        select_subject(subject, 500_000).expect("fixture subject selection is bounded"),
+        select_loaded_subject(subject, 500_000).expect("fixture subject selection is bounded"),
         temporal_subject.document().digest(),
         request.document().digest(),
         result.document().digest(),
@@ -1146,10 +1146,10 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
                     package.digest(),
                     definition.selection().digest,
                     &requested,
-                    select_runtime_bindings(context.runtime(), 500_000)
+                    select_loaded_runtime_bindings(context.runtime(), 500_000)
                         .expect("fixture runtime selection is bounded"),
                     mapping.digest(),
-                    select_subject(&subject, 500_000)
+                    select_loaded_subject(&subject, 500_000)
                         .expect("fixture subject selection is bounded"),
                     fixture.temporal.document().digest(),
                     temporal_request.document().digest(),
@@ -1184,10 +1184,11 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
                 package.digest(),
                 definition.selection().digest,
                 &requested,
-                select_runtime_bindings(context.runtime(), 500_000)
+                select_loaded_runtime_bindings(context.runtime(), 500_000)
                     .expect("fixture runtime selection is bounded"),
                 mapping.digest(),
-                select_subject(&subject, 500_000).expect("fixture subject selection is bounded"),
+                select_loaded_subject(&subject, 500_000)
+                    .expect("fixture subject selection is bounded"),
                 fixture.temporal.document().digest(),
                 temporal_request.document().digest(),
                 temporal_result.document().digest(),

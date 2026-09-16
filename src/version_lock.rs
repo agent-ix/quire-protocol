@@ -36,6 +36,7 @@ mod tests;
 const MANIFEST_UNIT: UnitLabel = UnitLabel::new("version-lock-manifest-validation");
 const DELIVERY_UNIT: UnitLabel = UnitLabel::new("version-lock-delivery-validation");
 const DIGEST_UNIT: UnitLabel = UnitLabel::new("version-lock-digest");
+const REQUEST_SELECTION_UNIT: UnitLabel = UnitLabel::new("producer-request-selection-verification");
 
 pub(crate) const RESOLUTION_ENTRY_SOURCE: SourceSite = SourceSite::new(
     SiteId::new("resolution/entry/validate"),
@@ -1312,11 +1313,12 @@ pub(crate) fn resolve<C: Clock + 'static>(
         SelectedResolution {
             deliveries,
             interfaces: &[],
-            request_selection_bytes: 0,
         },
         budget,
         clock,
+        None::<(usize, SiteId, fn() -> ())>,
     )
+    .map(|(resolved, _)| resolved)
 }
 
 /// Resolve and validate a closed interface inventory under the same entry,
@@ -1326,7 +1328,6 @@ pub(crate) fn resolve_interfaces<C: Clock + 'static>(
     request: ResolutionRequestIdentity,
     manifest: &VersionLockManifest,
     required: &[InterfaceRequirement],
-    request_selection_bytes: usize,
     budget: ResolutionBudget,
     clock: C,
 ) -> OperationOutcome<ResolvedRequest> {
@@ -1341,27 +1342,80 @@ pub(crate) fn resolve_interfaces<C: Clock + 'static>(
         SelectedResolution {
             deliveries: &[],
             interfaces: required,
-            request_selection_bytes,
         },
         budget,
         clock,
+        None::<(usize, SiteId, fn() -> ())>,
     )
+    .map(|(resolved, _)| resolved)
+}
+
+/// Resolve a closed interface inventory, then verify request-selected producer
+/// values while the same byte accountant and monotonic deadline remain live.
+/// The declared byte count is charged before `verify` can read those values.
+pub(crate) struct InterfaceVerification<F> {
+    /// Exact bytes charged before verification begins.
+    pub(crate) bytes: usize,
+    /// Independently inventoried source of that work.
+    pub(crate) source: SiteId,
+    /// Loaded-selection verification to run inside the deadline unit.
+    pub(crate) run: F,
+}
+
+/// Resolve interfaces and run the supplied loaded-selection verification.
+#[must_use]
+pub(crate) fn resolve_interfaces_then<C, T>(
+    request: ResolutionRequestIdentity,
+    manifest: &VersionLockManifest,
+    required: &[InterfaceRequirement],
+    budget: ResolutionBudget,
+    clock: C,
+    verification: InterfaceVerification<impl FnOnce() -> T>,
+) -> OperationOutcome<(ResolvedRequest, T)>
+where
+    C: Clock + 'static,
+{
+    let keys = required
+        .iter()
+        .map(|selection| selection.key.clone())
+        .collect::<Vec<_>>();
+    resolve_selected(
+        request,
+        manifest,
+        &keys,
+        SelectedResolution {
+            deliveries: &[],
+            interfaces: required,
+        },
+        budget,
+        clock,
+        Some((verification.bytes, verification.source, verification.run)),
+    )
+    .map(|(resolved, verified)| {
+        (
+            resolved,
+            verified.expect("the selected verification callback always runs on completion"),
+        )
+    })
 }
 
 struct SelectedResolution<'a> {
     deliveries: &'a [ArtifactDelivery],
     interfaces: &'a [InterfaceRequirement],
-    request_selection_bytes: usize,
 }
 
-fn resolve_selected<C: Clock + 'static>(
+fn resolve_selected<C, T>(
     request: ResolutionRequestIdentity,
     manifest: &VersionLockManifest,
     required: &[EntryKey],
     selected: SelectedResolution<'_>,
     budget: ResolutionBudget,
     clock: C,
-) -> OperationOutcome<ResolvedRequest> {
+    verification: Option<(usize, SiteId, impl FnOnce() -> T)>,
+) -> OperationOutcome<(ResolvedRequest, Option<T>)>
+where
+    C: Clock + 'static,
+{
     let production_inventory = inventory::production_inventory()
         .expect("the compile-time Protocol resource inventory must reconcile");
     let mut resources = ResourceAccountant::with_resolution_clock(
@@ -1425,13 +1479,6 @@ fn resolve_selected<C: Clock + 'static>(
             return OperationOutcome::ResourceIncomplete(incomplete)
         }
     };
-
-    if let Err(error) = resources.charge(
-        RESOLUTION_BYTES_SOURCE.id(),
-        selected.request_selection_bytes,
-    ) {
-        return charge_outcome(error);
-    }
 
     let delivery_outcome = resources.run_resolution_unit(DELIVERY_UNIT, |_| {
         inventory::OperationOutcome::from_domain(prevalidate_delivery(
@@ -1504,10 +1551,31 @@ fn resolve_selected<C: Clock + 'static>(
         entries.push(resolved_entry);
     }
 
-    OperationOutcome::Completed(ResolvedRequest {
-        request,
-        entries,
-        artifacts,
-        usage: resources.usage(),
-    })
+    let verified = if let Some((selection_bytes, selection_source, verify)) = verification {
+        if let Err(error) = resources.charge(selection_source, selection_bytes) {
+            return charge_outcome(error);
+        }
+        let outcome = resources.run_resolution_unit(REQUEST_SELECTION_UNIT, |_| {
+            inventory::OperationOutcome::from_domain(Ok::<T, ProtocolRefusal>(verify()))
+        });
+        match bounded_outcome(outcome) {
+            OperationOutcome::Completed(value) => Some(value),
+            OperationOutcome::Refused(refusal) => return OperationOutcome::Refused(refusal),
+            OperationOutcome::ResourceIncomplete(incomplete) => {
+                return OperationOutcome::ResourceIncomplete(incomplete)
+            }
+        }
+    } else {
+        None
+    };
+
+    OperationOutcome::Completed((
+        ResolvedRequest {
+            request,
+            entries,
+            artifacts,
+            usage: resources.usage(),
+        },
+        verified,
+    ))
 }

@@ -3,15 +3,15 @@
 
 use std::cell::{Cell, OnceCell};
 use std::collections::{BTreeMap, BTreeSet};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use agent_ix_baseline_producer::StaticProducerBundle;
 use ix_trace_rs::trace;
 use quire_observation::{
     QualifiedSubject, Relationship, RelationshipIdentity, SubjectIdentity, SubjectKind,
 };
-use quire_protocol::bounds::inventory::Budget;
-use quire_protocol::bounds::SystemMonotonicClock;
+use quire_protocol::bounds::inventory::{Budget, BudgetDimension};
+use quire_protocol::bounds::{Clock, SystemMonotonicClock};
 use quire_protocol::model::v2::{
     link as link_v2, ChannelHandle, DefinitionRegistry, FifoPartitionRefusal, Internality,
     LinkedAssessment, RegistryRefusal, RoleClassification, RuntimeBinding, RuntimeBindingSet,
@@ -36,8 +36,8 @@ use quire_protocol::{
     },
     outcome::OperationOutcome,
     producer_contracts::{
-        select_runtime_bindings, select_subject, ProducerContract, ProducerReadiness,
-        ProducerResolutionRequest, ProducerValueSelection,
+        ProducerContract, ProducerReadiness, ProducerRequestError, ProducerResolutionRequest,
+        ProducerValueSelection,
     },
     version_lock::{ManifestEntry, ResolutionBudget, VersionLockManifest},
 };
@@ -59,9 +59,37 @@ mod handoff;
 #[allow(dead_code)]
 mod observation_owner;
 
+#[path = "support/producer_selection.rs"]
+mod producer_selection;
+
 const ORDER_KIND: &[u8] = b"ix://agent-ix/commerce/type/Order";
 const SHIPMENT_KIND: &[u8] = b"ix://agent-ix/commerce/type/Shipment";
 const ORDER_SHIPMENT: &str = "ix://agent-ix/commerce/relationship/Order-shipment";
+
+#[derive(Debug)]
+struct ScriptedClock {
+    origin: Instant,
+    nanos: Vec<u64>,
+    next: Cell<usize>,
+}
+
+impl ScriptedClock {
+    fn new(nanos: &[u64]) -> Self {
+        Self {
+            origin: Instant::now(),
+            nanos: nanos.to_vec(),
+            next: Cell::new(0),
+        }
+    }
+}
+
+impl Clock for ScriptedClock {
+    fn monotonic(&self) -> Instant {
+        let index = self.next.get();
+        self.next.set(index.saturating_add(1));
+        self.origin + Duration::from_nanos(*self.nanos.get(index).unwrap_or(&0))
+    }
+}
 
 fn producer_manifest() -> VersionLockManifest {
     VersionLockManifest::new(
@@ -1406,7 +1434,9 @@ fn tc_002_linked_assessment_refuses_every_context_coordinate_mutation() {
     "FR-005-AC-1",
     "FR-029-AC-1",
     "FR-009-AC-2",
-    "FR-009-AC-8"
+    "FR-009-AC-6",
+    "FR-009-AC-8",
+    "FR-016-AC-8"
 )]
 fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
     let package = admitted_published_v2();
@@ -1471,14 +1501,20 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
     .into_result()
     .expect("strict temporal result evaluates");
     let result_cell = OnceCell::new();
-    let runtime_selection = select_runtime_bindings(context.runtime(), 500_000)
-        .expect("fixture runtime selection is bounded");
-    let subject_selection =
-        select_subject(&activation_subject, 500_000).expect("fixture subject selection is bounded");
+    let (runtime_digest, runtime_framed_bytes) =
+        producer_selection::runtime_parts(context.runtime(), 500_000)
+            .expect("fixture runtime selection is bounded");
+    let runtime_selection = ProducerValueSelection::new(runtime_digest, runtime_framed_bytes);
+    let subject_selection = producer_selection::subject(&activation_subject, 500_000)
+        .expect("fixture subject selection is bounded");
     assert!(
-        select_runtime_bindings(context.runtime(), runtime_selection.framed_bytes() - 1,).is_err()
+        producer_selection::runtime(context.runtime(), runtime_selection.framed_bytes() - 1,)
+            .is_err()
     );
-    assert!(select_subject(&activation_subject, subject_selection.framed_bytes() - 1,).is_err());
+    assert!(
+        producer_selection::subject(&activation_subject, subject_selection.framed_bytes() - 1,)
+            .is_err()
+    );
     let producer_request = ProducerResolutionRequest::for_activated_assessment(
         package.digest(),
         definition.selection().digest,
@@ -1491,7 +1527,7 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
         result_document.digest(),
     )
     .expect("the closed claim selection is representable");
-    let producer_reads = Cell::new(0usize);
+    let loader_calls = Cell::new(0usize);
     let mut unresolved_entries = producer_manifest().entries().to_vec();
     unresolved_entries[0] = ManifestEntry::unresolved_interface(
         ProducerContract::ALL[0].key(),
@@ -1503,7 +1539,7 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
         producer_budget(),
         SystemMonotonicClock,
         |permit| {
-            producer_reads.set(producer_reads.get() + 1);
+            loader_calls.set(loader_calls.get() + 1);
             let result = result_cell.get_or_init(|| {
                 temporal_v2::read_result(
                     result_document.bytes(),
@@ -1528,10 +1564,272 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
         |_| (),
     );
     assert!(matches!(unresolved, ProducerReadiness::Unexecutable(_)));
-    assert_eq!(producer_reads.get(), 0, "owner inputs are not read");
+    assert_eq!(loader_calls.get(), 0, "the producer loader is not invoked");
     assert!(
         result_cell.get().is_none(),
         "the strict QSL result reader is not invoked before resolution"
+    );
+
+    let selection_bytes = runtime_selection
+        .framed_bytes()
+        .checked_add(subject_selection.framed_bytes())
+        .expect("fixture selection bytes fit usize");
+    let one_short_reads = Cell::new(0usize);
+    let one_short = with_activated_after_resolving(
+        &producer_request,
+        &producer_manifest(),
+        ResolutionBudget::new(
+            ProducerContract::ALL.len(),
+            selection_bytes - 1,
+            Duration::from_secs(1),
+        )
+        .expect("positive one-short selection budget"),
+        SystemMonotonicClock,
+        |permit| {
+            one_short_reads.set(one_short_reads.get() + 1);
+            let result = result_cell.get_or_init(|| {
+                temporal_v2::read_result(
+                    result_document.bytes(),
+                    &request,
+                    temporal_v2::Relation::Original,
+                    native_temporal::Limits::default(),
+                )
+                .into_result()
+                .expect("strict temporal result reads only after resolution")
+            });
+            ActivatedAssessmentInputs::new(
+                permit,
+                context,
+                vec![Claim::Conformance],
+                &mappings,
+                &activation_subject,
+                &temporal_subject,
+                &request,
+                result,
+            )
+        },
+        |_| (),
+    );
+    assert!(matches!(
+        one_short,
+        ProducerReadiness::ResourceIncomplete(incomplete)
+            if incomplete.dimension() == BudgetDimension::ResolutionBytesDigested
+    ));
+    assert_eq!(
+        one_short_reads.get(),
+        0,
+        "selection bytes are charged before the producer loader opens"
+    );
+
+    let exact_reads = Cell::new(0usize);
+    let exact = with_activated_after_resolving(
+        &producer_request,
+        &producer_manifest(),
+        ResolutionBudget::new(
+            ProducerContract::ALL.len(),
+            selection_bytes,
+            Duration::from_secs(1),
+        )
+        .expect("exact selection budget"),
+        SystemMonotonicClock,
+        |permit| {
+            exact_reads.set(exact_reads.get() + 1);
+            let result = result_cell.get_or_init(|| {
+                temporal_v2::read_result(
+                    result_document.bytes(),
+                    &request,
+                    temporal_v2::Relation::Original,
+                    native_temporal::Limits::default(),
+                )
+                .into_result()
+                .expect("strict temporal result reads only after resolution")
+            });
+            ActivatedAssessmentInputs::new(
+                permit,
+                context,
+                vec![Claim::Conformance],
+                &mappings,
+                &activation_subject,
+                &temporal_subject,
+                &request,
+                result,
+            )
+        },
+        |activated| {
+            activated
+                .producer_resolution()
+                .usage()
+                .consumed(BudgetDimension::ResolutionBytesDigested)
+        },
+    );
+    assert!(matches!(
+        exact,
+        ProducerReadiness::Executable(OperationOutcome::Completed(consumed))
+            if consumed == selection_bytes
+    ));
+    assert_eq!(exact_reads.get(), 1);
+
+    let deadline_before_reads = Cell::new(0usize);
+    let mut deadline_before = vec![0; 47];
+    deadline_before.push(2);
+    let stopped_before_verification = with_activated_after_resolving(
+        &producer_request,
+        &producer_manifest(),
+        ResolutionBudget::new(
+            ProducerContract::ALL.len(),
+            selection_bytes,
+            Duration::from_nanos(1),
+        )
+        .expect("positive resolution deadline"),
+        ScriptedClock::new(&deadline_before),
+        |permit| {
+            deadline_before_reads.set(deadline_before_reads.get() + 1);
+            let result = result_cell
+                .get()
+                .expect("the prior exact-budget run retained the strict result");
+            ActivatedAssessmentInputs::new(
+                permit,
+                context,
+                vec![Claim::Conformance],
+                &mappings,
+                &activation_subject,
+                &temporal_subject,
+                &request,
+                result,
+            )
+        },
+        |_| (),
+    );
+    assert!(matches!(
+        stopped_before_verification,
+        ProducerReadiness::ResourceIncomplete(incomplete)
+            if incomplete.dimension() == BudgetDimension::ResolutionDeadline
+    ));
+    assert_eq!(deadline_before_reads.get(), 0);
+
+    let deadline_after_reads = Cell::new(0usize);
+    let deadline_after_assessments = Cell::new(0usize);
+    let mut deadline_after = vec![0; 48];
+    deadline_after.push(2);
+    let measured_verification_overshoot = with_activated_after_resolving(
+        &producer_request,
+        &producer_manifest(),
+        ResolutionBudget::new(
+            ProducerContract::ALL.len(),
+            selection_bytes,
+            Duration::from_nanos(1),
+        )
+        .expect("positive resolution deadline"),
+        ScriptedClock::new(&deadline_after),
+        |permit| {
+            deadline_after_reads.set(deadline_after_reads.get() + 1);
+            let result = result_cell
+                .get()
+                .expect("the prior exact-budget run retained the strict result");
+            ActivatedAssessmentInputs::new(
+                permit,
+                context,
+                vec![Claim::Conformance],
+                &mappings,
+                &activation_subject,
+                &temporal_subject,
+                &request,
+                result,
+            )
+        },
+        |_| deadline_after_assessments.set(deadline_after_assessments.get() + 1),
+    );
+    assert!(matches!(
+        measured_verification_overshoot,
+        ProducerReadiness::ResourceIncomplete(incomplete)
+            if incomplete.dimension() == BudgetDimension::ResolutionDeadline
+    ));
+    assert_eq!(
+        deadline_after_reads.get(),
+        1,
+        "the indivisible selector is measured at its exit boundary"
+    );
+    assert_eq!(
+        deadline_after_assessments.get(),
+        0,
+        "a measured selection-verification overshoot starts no assessment"
+    );
+
+    assert_eq!(
+        ProducerResolutionRequest::for_activated_assessment(
+            package.digest(),
+            definition.selection().digest,
+            &[Claim::Conformance],
+            ProducerValueSelection::new(runtime_digest, usize::MAX),
+            mappings.digest(),
+            ProducerValueSelection::new([0x71; 32], 1),
+            temporal_subject.document().digest(),
+            request.document().digest(),
+            result_document.digest(),
+        ),
+        Err(ProducerRequestError::SelectionBytesOverflow),
+        "runtime plus subject framed-byte overflow refuses before loaded-value traversal"
+    );
+
+    let framed_count_loads = Cell::new(0usize);
+    let one_short_runtime_bytes = runtime_framed_bytes
+        .checked_sub(1)
+        .expect("fixture runtime selection is nonempty");
+    let one_over_runtime_bytes = runtime_framed_bytes
+        .checked_add(1)
+        .expect("fixture runtime selection has one unit of headroom");
+    for (case, forged_runtime_bytes) in [
+        ("one-short", one_short_runtime_bytes),
+        ("one-over", one_over_runtime_bytes),
+    ] {
+        let forged_count_request = ProducerResolutionRequest::for_activated_assessment(
+            package.digest(),
+            definition.selection().digest,
+            &[Claim::Conformance],
+            ProducerValueSelection::new(runtime_digest, forged_runtime_bytes),
+            mappings.digest(),
+            subject_selection,
+            temporal_subject.document().digest(),
+            request.document().digest(),
+            result_document.digest(),
+        )
+        .expect("the forged framed count remains representable");
+        let outcome = with_activated_after_resolving(
+            &forged_count_request,
+            &producer_manifest(),
+            producer_budget(),
+            SystemMonotonicClock,
+            |permit| {
+                framed_count_loads.set(framed_count_loads.get() + 1);
+                let result = result_cell
+                    .get()
+                    .expect("the prior exact-budget run retained the strict result");
+                ActivatedAssessmentInputs::new(
+                    permit,
+                    context,
+                    vec![Claim::Conformance],
+                    &mappings,
+                    &activation_subject,
+                    &temporal_subject,
+                    &request,
+                    result,
+                )
+            },
+            |_| (),
+        );
+        assert!(
+            matches!(
+                outcome,
+                ProducerReadiness::Executable(OperationOutcome::Refused(refusal))
+                    if refusal.code().as_str() == "version-lock.capability.request-mismatch"
+            ),
+            "forged {case} framed count cannot authorize the loaded value"
+        );
+    }
+    assert_eq!(
+        framed_count_loads.get(),
+        2,
+        "both forged count controls reach post-resolution verification"
     );
 
     let mismatched_request = ProducerResolutionRequest::for_activated_assessment(
@@ -1552,7 +1850,7 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
         producer_budget(),
         SystemMonotonicClock,
         |permit| {
-            producer_reads.set(producer_reads.get() + 1);
+            loader_calls.set(loader_calls.get() + 1);
             let result = result_cell.get_or_init(|| {
                 temporal_v2::read_result(
                     result_document.bytes(),
@@ -1582,7 +1880,7 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
             if refusal.code().as_str() == "version-lock.capability.request-mismatch"
     ));
     assert_eq!(
-        producer_reads.get(),
+        loader_calls.get(),
         1,
         "one resolved owner load was attempted"
     );
@@ -1593,7 +1891,7 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
         producer_budget(),
         SystemMonotonicClock,
         |permit| {
-            producer_reads.set(producer_reads.get() + 1);
+            loader_calls.set(loader_calls.get() + 1);
             let result = result_cell.get_or_init(|| {
                 temporal_v2::read_result(
                     result_document.bytes(),
@@ -1619,7 +1917,7 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
             let result = result_cell
                 .get()
                 .expect("one post-resolution strict read retains the validated result");
-            assert_eq!(producer_reads.get(), 2, "resolved inputs load exactly once");
+            assert_eq!(loader_calls.get(), 2, "resolved inputs load exactly once");
             assert_eq!(
                 activated.producer_resolution().request().as_bytes(),
                 producer_request.as_bytes(),
@@ -1708,7 +2006,7 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
                     producer_budget(),
                     SystemMonotonicClock,
                     |permit| {
-                        producer_reads.set(producer_reads.get() + 1);
+                        loader_calls.set(loader_calls.get() + 1);
                         ActivatedAssessmentInputs::new(
                             permit,
                             context,
@@ -2720,7 +3018,7 @@ fn tc_002_effect_projection_requires_an_owner_effect_slot() {
         package.digest(),
         definition.selection().digest,
         &[Claim::Conformance],
-        select_runtime_bindings(context.runtime(), 500_000)
+        producer_selection::runtime(context.runtime(), 500_000)
             .expect("fixture runtime selection is bounded"),
     )
     .expect("the closed claim selection is representable");
