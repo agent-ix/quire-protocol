@@ -1,197 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Count, allocation and deadline guards. Owner chunk: **C-29**.
+//! Monotonic deadline observations and resource-site identities.
 //!
-//! # Two mechanisms, never one code
-//!
-//! NFR-002 names two obligations that look alike and are not:
-//!
-//! 1. **Prechecked counts and accounted allocations.** A ceiling is compared
-//!    *before* the next unit is decoded, inserted or allocated. The maximum is
-//!    inclusive: the exact boundary is admitted and the smallest representable
-//!    excess unit is refused before any memory is reserved. Cause: the caller
-//!    asked for more than the budget allows. Remediation: ask for less, or raise
-//!    the limit. Truth condition: an arithmetic comparison that does not depend
-//!    on when it is evaluated.
-//! 2. **Monotonic deadline observation.** Elapsed time is read before and after
-//!    each declared indivisible unit. No later unit starts after expiry, and the
-//!    observed elapsed time and the indivisible-unit overshoot are reported as
-//!    measured. Cause: the work already under way took longer than the budget.
-//!    Remediation: retry with a longer budget, or a faster host. Truth
-//!    condition: a reading of a clock, which is never reproducible.
-//!
-//! A caller that cannot tell "you asked for too much" from "it took too long"
-//! can act correctly on neither. So the two are not variants of one enum here.
-//! They are separate types — [`PrecheckRefusal`] and [`DeadlineRefusal`] — with
-//! separate closed code enums — [`PrecheckCode`] and [`DeadlineCode`] — whose
-//! stable strings live in disjoint namespaces (`bounds.precheck.*` against
-//! `bounds.deadline.*`). No function in this module can return both, and
-//! [`RunStop`] — the single place they compose — keeps each on its own arm.
-//!
-//! # The clock is monotonic by type, not by promise
-//!
-//! [`Clock`] exposes exactly one reading, [`Clock::monotonic`], of type
-//! [`std::time::Instant`]. `std::time::SystemTime` — the wall clock, which
-//! jumps when an operator or NTP adjusts it — is not accepted anywhere in this
-//! module's signatures, so a wall-clock jump in either direction can neither
-//! manufacture nor mask a deadline refusal. A reading that still moves backwards
-//! (a `Clock` implementation that lies) is refused as
-//! [`DeadlineRefusal::ClockRegressed`], which is *not* the expiry code: a broken
-//! clock and an exhausted budget are different facts.
-//!
-//! # One grant is one allocation
-//!
-//! [`CountGuard::precheck`] answers "would this fit?" and returns an
-//! [`Admission`], which carries no permission to allocate. Only
-//! [`CountGuard::charge`] debits the budget, and only a charge yields a
-//! [`Reservation`]. A reservation is neither `Copy` nor `Clone` and
-//! [`Reservation::with_capacity`] consumes it.
-//!
-//! All three properties are load-bearing and none held before review. The token
-//! was `Copy` with `with_capacity(&self)`, so one charge of four units backed a
-//! thousand allocations of four; and `precheck` charged nothing yet returned the
-//! same fully powered token, so a loop over it reserved memory the budget never
-//! saw. `granted` also counts the dimension's own unit, so a byte-counted site
-//! refuses an element wider than a byte rather than letting
-//! `Vec::<T>::with_capacity` multiply past the ceiling just enforced.
-//!
-//! # Integer conversions
-//!
-//! Count accounting stays in A's own `usize` domain end to end, so there is no
-//! narrowing conversion in it to get wrong; the one addition that can overflow
-//! is `checked_add`, reported as [`PrecheckCode::CounterOverflow`]. The one
-//! conversion that does cross a persistence boundary — an observed
-//! [`std::time::Duration`] rendered as whole nanoseconds for a wire or result
-//! record — is checked by [`DeadlineRefusal::observed_nanos`] and refuses with
-//! [`DurationOverflow`] rather than truncating. A truncated duration is a limit
-//! that silently stops limiting.
-//!
-//! # Public enums are closed, deliberately
-//!
-//! Every enum this module exports is closed — none carries
-//! `#[non_exhaustive]`. The reasoning follows C-07 (PR #37) rather than copying
-//! it: a `#[non_exhaustive]` enum forces every downstream `match` to carry a
-//! wildcard arm, and a wildcard arm silently absorbs a variant added later.
-//! That is precisely the failure this chunk exists to remove — a refusal that is
-//! not independently assertable because some `_ =>` already caught it. Keeping
-//! these enums closed means a new bound, a new site kind or a new clock fault
-//! breaks every consumer's `match` at compile time, which is the intended cost
-//! of changing what the protocol can refuse. The crate's own matches over these
-//! types are exhaustive and carry no catch-all arm.
-//!
-//! # Reconciliation with A
-//!
-//! A owns the accounting for work A performs: `Limits`, `Usage`, `Dimension`,
-//! `Exhaustion` and `ACCOUNTING_VERSION`. This module does not re-implement it
-//! and does not invent a parallel limits type — [`CountGuard`] is built from A's
-//! `Limits` (already `bounded()`), charges A's `Usage` fields, names A's
-//! `Dimension`, and uses A's published [`Accumulation`] discipline so that B's
-//! pre-work refusal and A's in-work `Exhaustion` cannot disagree about which
-//! dimension is a peak and which is cumulative. What is B's own is the
-//! *site* layer: the guard refuses work at a site that is not in the inventory,
-//! which is the hook C-30 reconciles against.
-//! The pinned QSL contract publishes that discipline through
-//! [`Dimension::accumulation`]; Protocol does not maintain a second table.
+//! inventory::ResourceAccountant is the sole supported Protocol request
+//! accountant. It owns caller-budget charging, inventory reconciliation, and
+//! the translation of a deadline observation into a Protocol outcome. This
+//! module deliberately contains only the reusable monotonic deadline kernel;
+//! it does not offer a second count or allocation guard.
 
-/// Resource-site inventory and mutant-kill assignment. Owner chunk: **C-30**.
-///
-/// Will own the bidirectional reconciliation between caller-controlled
-/// allocation, retention, queue, iteration and traversal sites and their
-/// inventory entries.
+/// Resource-site inventory and request accounting. Owner chunk: C-30.
 pub mod inventory;
 
 use std::fmt;
 use std::time::{Duration, Instant};
 
-pub use quire_spec_language::protocol_artifact::Accumulation;
-use quire_spec_language::protocol_artifact::{Dimension, Limits, Usage};
-
-// ---------------------------------------------------------------------------
-// Dimension reconciliation with A
-// ---------------------------------------------------------------------------
-
-/// The accounting discipline published by the selected QSL contract.
-///
-/// This narrow forwarding function remains for callers of the prior Protocol
-/// surface; its result is the owner's type and comes directly from the same
-/// accessor QSL's work accounting uses.
-#[must_use]
-pub const fn accumulation(dimension: Dimension) -> Accumulation {
-    dimension.accumulation()
-}
-
-/// Every dimension declared by the selected QSL accounting contract.
-///
-/// This is the owner's declaration-order inventory, not a Protocol-maintained
-/// mirror. A new owner dimension therefore reaches every caller that consumes
-/// this constant without a second table to update.
-pub const ALL_DIMENSIONS: [Dimension; 13] = Dimension::ALL;
-
-/// The caller's effective ceiling for `dimension`.
-#[must_use]
-pub const fn limit_for(limits: &Limits, dimension: Dimension) -> usize {
-    match dimension {
-        Dimension::PayloadBytes => limits.payload_bytes,
-        Dimension::OutputBytes => limits.output_bytes,
-        Dimension::SourceBytes => limits.source_bytes,
-        Dimension::ContentBytes => limits.content_bytes,
-        Dimension::Sources => limits.sources,
-        Dimension::Dependencies => limits.dependencies,
-        Dimension::Definitions => limits.definitions,
-        Dimension::Models => limits.models,
-        Dimension::Declarations => limits.declarations,
-        Dimension::Entries => limits.entries,
-        Dimension::References => limits.references,
-        Dimension::ByteWork => limits.byte_work,
-        Dimension::Depth => limits.depth,
-    }
-}
-
-/// Usage charged so far against `dimension`.
-#[must_use]
-pub const fn usage_for(usage: &Usage, dimension: Dimension) -> usize {
-    match dimension {
-        Dimension::PayloadBytes => usage.payload_bytes,
-        Dimension::OutputBytes => usage.output_bytes,
-        Dimension::SourceBytes => usage.source_bytes,
-        Dimension::ContentBytes => usage.content_bytes,
-        Dimension::Sources => usage.sources,
-        Dimension::Dependencies => usage.dependencies,
-        Dimension::Definitions => usage.definitions,
-        Dimension::Models => usage.models,
-        Dimension::Declarations => usage.declarations,
-        Dimension::Entries => usage.entries,
-        Dimension::References => usage.references,
-        Dimension::ByteWork => usage.byte_work,
-        Dimension::Depth => usage.depth,
-    }
-}
-
-fn usage_slot(usage: &mut Usage, dimension: Dimension) -> &mut usize {
-    match dimension {
-        Dimension::PayloadBytes => &mut usage.payload_bytes,
-        Dimension::OutputBytes => &mut usage.output_bytes,
-        Dimension::SourceBytes => &mut usage.source_bytes,
-        Dimension::ContentBytes => &mut usage.content_bytes,
-        Dimension::Sources => &mut usage.sources,
-        Dimension::Dependencies => &mut usage.dependencies,
-        Dimension::Definitions => &mut usage.definitions,
-        Dimension::Models => &mut usage.models,
-        Dimension::Declarations => &mut usage.declarations,
-        Dimension::Entries => &mut usage.entries,
-        Dimension::References => &mut usage.references,
-        Dimension::ByteWork => &mut usage.byte_work,
-        Dimension::Depth => &mut usage.depth,
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Sites — the inventory hook C-30 reconciles against
-// ---------------------------------------------------------------------------
-
 /// The stable name of one caller-controlled resource site.
-///
-/// A site name is a compile-time constant, not caller text: an inventory keyed
-/// on runtime strings could not be reconciled against the source at all.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct SiteId(&'static str);
 
@@ -201,24 +23,19 @@ impl SiteId {
     pub const fn new(name: &'static str) -> Self {
         Self(name)
     }
-
     /// The site's stable name.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         self.0
     }
 }
-
 impl fmt::Display for SiteId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.0)
     }
 }
 
-/// What a site does with caller-controlled data.
-///
-/// NFR-002's Verification clause enumerates exactly these five; C-30 inventories
-/// every source site under one of them.
+/// What a source site does with caller-controlled data.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum SiteKind {
     /// Reserves memory sized by caller-controlled data.
@@ -233,606 +50,7 @@ pub enum SiteKind {
     Traversal,
 }
 
-/// Every site kind, for reconciliation coverage.
-pub const ALL_SITE_KINDS: [SiteKind; 5] = [
-    SiteKind::Allocation,
-    SiteKind::Retention,
-    SiteKind::Queue,
-    SiteKind::Iteration,
-    SiteKind::Traversal,
-];
-
-/// One registered resource site: a name, the dimension that bounds it, and what
-/// it does.
-///
-/// A site is *declared* here rather than checked ad hoc at each call, so that
-/// C-30 can reconcile code sites against inventory entries in both directions
-/// without every call site inventing its own comparison.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct BoundedSite {
-    id: SiteId,
-    dimension: Dimension,
-    kind: SiteKind,
-}
-
-impl BoundedSite {
-    /// Declare a site bounded by `dimension`.
-    #[must_use]
-    pub const fn new(id: SiteId, dimension: Dimension, kind: SiteKind) -> Self {
-        Self {
-            id,
-            dimension,
-            kind,
-        }
-    }
-
-    /// The site's name.
-    #[must_use]
-    pub const fn id(&self) -> SiteId {
-        self.id
-    }
-
-    /// The dimension whose ceiling bounds this site.
-    #[must_use]
-    pub const fn dimension(&self) -> Dimension {
-        self.dimension
-    }
-
-    /// What this site does with caller-controlled data.
-    #[must_use]
-    pub const fn kind(&self) -> SiteKind {
-        self.kind
-    }
-}
-
-/// Registration faults. Kept out of both refusal enums: failing to *declare* a
-/// site is a programming fault in this crate, not a refusal of a caller's
-/// request, and collapsing the two would put a B-internal defect on the same
-/// code as a caller's over-large input.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum RegistryError {
-    /// A second entry claimed a name already registered.
-    DuplicateSite {
-        /// The name registered twice.
-        site: SiteId,
-    },
-}
-
-impl fmt::Display for RegistryError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::DuplicateSite { site } => {
-                write!(f, "resource site {site} is registered twice")
-            }
-        }
-    }
-}
-
-impl std::error::Error for RegistryError {}
-
-/// The declared set of caller-controlled resource sites.
-///
-/// C-30 consumes this: `sites()` is the inventory read out of the code, so a
-/// deleted, duplicated or unlisted entry is decidable rather than a matter of
-/// grepping.
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub struct SiteRegistry {
-    sites: Vec<BoundedSite>,
-}
-
-impl SiteRegistry {
-    /// An empty registry.
-    #[must_use]
-    pub const fn new() -> Self {
-        Self { sites: Vec::new() }
-    }
-
-    /// Declare `site`, refusing a duplicate name.
-    ///
-    /// # Errors
-    ///
-    /// [`RegistryError::DuplicateSite`] when the name is already registered.
-    pub fn register(&mut self, site: BoundedSite) -> Result<(), RegistryError> {
-        if self.sites.iter().any(|known| known.id == site.id) {
-            return Err(RegistryError::DuplicateSite { site: site.id });
-        }
-        self.sites.push(site);
-        Ok(())
-    }
-
-    /// The registered site named `id`, if any.
-    #[must_use]
-    pub fn get(&self, id: SiteId) -> Option<&BoundedSite> {
-        self.sites.iter().find(|site| site.id == id)
-    }
-
-    /// Every registered site, in registration order.
-    #[must_use]
-    pub fn sites(&self) -> &[BoundedSite] {
-        &self.sites
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Mechanism 1 — prechecked counts and accounted allocations
-// ---------------------------------------------------------------------------
-
-/// The stable code of a prechecked count or allocation refusal.
-///
-/// Every string is in the `bounds.precheck.` namespace; no deadline code is.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub enum PrecheckCode {
-    /// A counting, retention, queue, iteration or traversal site exceeded its
-    /// inclusive ceiling.
-    CountExceeded,
-    /// An allocation site would have reserved memory beyond its inclusive
-    /// ceiling.
-    AllocationExceeded,
-    /// Charging the request would overflow the accumulator itself.
-    CounterOverflow,
-    /// A granted unit is narrower than the element the caller would reserve.
-    AllocationUnitMismatch,
-    /// The allocator refused a reservation the ceiling admitted.
-    AllocationUnavailable,
-    /// Work was attempted at a site that is not in the inventory.
-    UnregisteredSite,
-}
-
-impl PrecheckCode {
-    /// The shared namespace prefix of every precheck code.
-    pub const NAMESPACE: &'static str = "bounds.precheck.";
-
-    /// Every precheck code.
-    pub const ALL: [Self; 6] = [
-        Self::CountExceeded,
-        Self::AllocationExceeded,
-        Self::CounterOverflow,
-        Self::AllocationUnitMismatch,
-        Self::AllocationUnavailable,
-        Self::UnregisteredSite,
-    ];
-
-    /// The code's stable string.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::CountExceeded => "bounds.precheck.count-exceeded",
-            Self::AllocationExceeded => "bounds.precheck.allocation-exceeded",
-            Self::AllocationUnitMismatch => "bounds.precheck.allocation-unit-mismatch",
-            Self::AllocationUnavailable => "bounds.precheck.allocation-unavailable",
-            Self::CounterOverflow => "bounds.precheck.counter-overflow",
-            Self::UnregisteredSite => "bounds.precheck.unregistered-site",
-        }
-    }
-}
-
-impl fmt::Display for PrecheckCode {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
-    }
-}
-
-/// A bound refused *before* the work was started.
-///
-/// Nothing was decoded, inserted or allocated for the refused unit, and usage
-/// is unchanged: the fields report what would have happened, not what did.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum PrecheckRefusal {
-    /// A counting site would have passed its inclusive ceiling.
-    CountExceeded {
-        /// The site that was refused.
-        site: SiteId,
-        /// The dimension that bounds it.
-        dimension: Dimension,
-        /// Usage successfully charged before this request.
-        used: usize,
-        /// The refused increment.
-        requested: usize,
-        /// The effective ceiling.
-        limit: usize,
-    },
-    /// An allocation site would have reserved beyond its inclusive ceiling.
-    AllocationExceeded {
-        /// The site that was refused.
-        site: SiteId,
-        /// The dimension that bounds it.
-        dimension: Dimension,
-        /// Usage successfully charged before this request.
-        used: usize,
-        /// The refused reservation.
-        requested: usize,
-        /// The effective ceiling.
-        limit: usize,
-    },
-    /// `used + requested` does not fit the accumulator.
-    CounterOverflow {
-        /// The site that was refused.
-        site: SiteId,
-        /// The dimension that bounds it.
-        dimension: Dimension,
-        /// Usage successfully charged before this request.
-        used: usize,
-        /// The refused increment.
-        requested: usize,
-    },
-    /// A byte-counted dimension granted units that an element wider than one
-    /// byte would multiply past the ceiling just enforced.
-    AllocationUnitMismatch {
-        /// The site that was refused.
-        site: SiteId,
-        /// The dimension that bounds it.
-        dimension: Dimension,
-        /// The units granted, in that dimension's own unit.
-        granted: usize,
-        /// The width of the element the caller asked to reserve.
-        element_bytes: usize,
-    },
-    /// The allocator could not satisfy a reservation the ceiling admitted.
-    AllocationUnavailable {
-        /// The site that was refused.
-        site: SiteId,
-        /// The dimension that bounds it.
-        dimension: Dimension,
-        /// The units granted.
-        granted: usize,
-    },
-    /// The site is not in the inventory, so nothing bounds it.
-    UnregisteredSite {
-        /// The undeclared name.
-        site: SiteId,
-    },
-}
-
-impl PrecheckRefusal {
-    /// This refusal's stable code.
-    ///
-    /// The match is exhaustive and carries no catch-all arm, so a new bound
-    /// cannot be introduced without giving it a code of its own.
-    #[must_use]
-    pub const fn code(&self) -> PrecheckCode {
-        match self {
-            Self::CountExceeded { .. } => PrecheckCode::CountExceeded,
-            Self::AllocationExceeded { .. } => PrecheckCode::AllocationExceeded,
-            Self::CounterOverflow { .. } => PrecheckCode::CounterOverflow,
-            Self::AllocationUnitMismatch { .. } => PrecheckCode::AllocationUnitMismatch,
-            Self::AllocationUnavailable { .. } => PrecheckCode::AllocationUnavailable,
-            Self::UnregisteredSite { .. } => PrecheckCode::UnregisteredSite,
-        }
-    }
-
-    /// The refused site.
-    #[must_use]
-    pub const fn site(&self) -> SiteId {
-        match self {
-            Self::CountExceeded { site, .. }
-            | Self::AllocationExceeded { site, .. }
-            | Self::CounterOverflow { site, .. }
-            | Self::AllocationUnitMismatch { site, .. }
-            | Self::AllocationUnavailable { site, .. }
-            | Self::UnregisteredSite { site } => *site,
-        }
-    }
-}
-
-impl fmt::Display for PrecheckRefusal {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::CountExceeded {
-                site,
-                dimension,
-                used,
-                requested,
-                limit,
-            }
-            | Self::AllocationExceeded {
-                site,
-                dimension,
-                used,
-                requested,
-                limit,
-            } => write!(
-                f,
-                "{}: site {site} dimension {dimension:?} limit {limit}: requested {requested} after {used}",
-                self.code()
-            ),
-            Self::CounterOverflow {
-                site,
-                dimension,
-                used,
-                requested,
-            } => write!(
-                f,
-                "{}: site {site} dimension {dimension:?}: {used} + {requested} overflows",
-                self.code()
-            ),
-            Self::AllocationUnitMismatch {
-                site,
-                dimension,
-                granted,
-                element_bytes,
-            } => write!(
-                f,
-                "{}: site {site} dimension {dimension:?} granted {granted} one-byte units, \
-                 but the caller would reserve elements of {element_bytes} bytes",
-                self.code()
-            ),
-            Self::AllocationUnavailable {
-                site,
-                dimension,
-                granted,
-            } => write!(
-                f,
-                "{}: site {site} dimension {dimension:?}: the allocator refused {granted} units",
-                self.code()
-            ),
-            Self::UnregisteredSite { site } => {
-                write!(f, "{}: site {site} is not in the inventory", self.code())
-            }
-        }
-    }
-}
-
-impl std::error::Error for PrecheckRefusal {}
-
-/// The decision a precheck reaches. Carries no permission to allocate.
-///
-/// A precheck asks "would this fit?". It charges nothing, so it must not hand
-/// back an allocation token: it used to, and `precheck` then `with_capacity`
-/// reserved memory against a budget that was never debited, any number of
-/// times.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-#[must_use = "a precheck whose answer is discarded checked nothing"]
-pub struct Admission {
-    site: SiteId,
-    dimension: Dimension,
-    requested: usize,
-    next: usize,
-}
-
-impl Admission {
-    /// The site this decision is about.
-    #[must_use]
-    pub const fn site(&self) -> SiteId {
-        self.site
-    }
-
-    /// The dimension that bounds it.
-    #[must_use]
-    pub const fn dimension(&self) -> Dimension {
-        self.dimension
-    }
-
-    /// The units that would fit.
-    #[must_use]
-    pub const fn admissible(&self) -> usize {
-        self.requested
-    }
-}
-
-/// Permission to reserve `granted` units at a site, issued only by a charge.
-///
-/// Memory is reserved through [`Reservation::with_capacity`], which exists only
-/// on this token, so "charge then allocate" is the only representable order:
-/// there is no way to allocate first and check afterwards.
-///
-/// Deliberately **not** `Copy` and **not** `Clone`, and `with_capacity` takes
-/// `self`. One grant is one allocation. While the token was `Copy` and
-/// `with_capacity` took `&self`, a single charge of four units backed a thousand
-/// allocations of four — the ceiling was enforced once and then ignored, in the
-/// chunk whose whole purpose is that ceiling.
-#[derive(Debug, Eq, PartialEq)]
-#[must_use = "a reservation that is never used charged the budget for nothing"]
-pub struct Reservation {
-    site: SiteId,
-    dimension: Dimension,
-    granted: usize,
-    next: usize,
-}
-
-impl Reservation {
-    /// The site this reservation was granted for.
-    #[must_use]
-    pub const fn site(&self) -> SiteId {
-        self.site
-    }
-
-    /// The dimension that bounds the granted site.
-    #[must_use]
-    pub const fn dimension(&self) -> Dimension {
-        self.dimension
-    }
-
-    /// The units granted.
-    #[must_use]
-    pub const fn granted(&self) -> usize {
-        self.granted
-    }
-
-    /// Reserve exactly the granted capacity, consuming the grant.
-    ///
-    /// `granted` counts units in the dimension's own unit, and for a
-    /// byte-counted dimension that unit is the byte. `Vec::<T>::with_capacity`
-    /// multiplies by `size_of::<T>()`, so a site bounded by `byte_work` — 64 MiB
-    /// at A's effective ceiling — reserving `Vec<u64>` would reserve 512 MiB
-    /// against the budget just enforced. An element wider than its dimension's
-    /// unit is refused rather than silently multiplied.
-    ///
-    /// The reservation itself goes through `try_reserve_exact`, so an allocator
-    /// that cannot satisfy it returns a refusal instead of aborting the process.
-    pub fn with_capacity<T>(self) -> Result<Vec<T>, PrecheckRefusal> {
-        let width = core::mem::size_of::<T>();
-        if counts_bytes(self.dimension) && width > 1 {
-            return Err(PrecheckRefusal::AllocationUnitMismatch {
-                site: self.site,
-                dimension: self.dimension,
-                granted: self.granted,
-                element_bytes: width,
-            });
-        }
-        let mut reserved = Vec::new();
-        reserved.try_reserve_exact(self.granted).map_err(|_| {
-            PrecheckRefusal::AllocationUnavailable {
-                site: self.site,
-                dimension: self.dimension,
-                granted: self.granted,
-            }
-        })?;
-        Ok(reserved)
-    }
-}
-
-/// Whether a dimension counts bytes rather than records.
-///
-/// Mirrors nothing of A's: these are the dimensions whose own names say bytes.
-#[must_use]
-pub const fn counts_bytes(dimension: Dimension) -> bool {
-    matches!(
-        dimension,
-        Dimension::PayloadBytes
-            | Dimension::OutputBytes
-            | Dimension::SourceBytes
-            | Dimension::ContentBytes
-            | Dimension::ByteWork
-    )
-}
-
-/// Prechecked count and allocation accounting over A's `Limits` and `Usage`.
-///
-/// This is mechanism 1. It reads no clock, holds no deadline and cannot return
-/// a [`DeadlineRefusal`].
-#[derive(Clone, Debug)]
-pub struct CountGuard {
-    limits: Limits,
-    usage: Usage,
-    registry: SiteRegistry,
-}
-
-impl CountGuard {
-    /// A guard over the caller's effective ceilings and the declared sites.
-    ///
-    /// `limits` is passed through A's own `bounded()` so B's precheck and A's
-    /// in-work accounting share one effective ceiling.
-    #[must_use]
-    pub fn new(limits: Limits, registry: SiteRegistry) -> Self {
-        Self {
-            limits: limits.bounded(),
-            usage: Usage::default(),
-            registry,
-        }
-    }
-
-    /// The effective ceilings.
-    #[must_use]
-    pub const fn limits(&self) -> &Limits {
-        &self.limits
-    }
-
-    /// Usage charged so far. A refused request leaves this unchanged.
-    #[must_use]
-    pub const fn usage(&self) -> &Usage {
-        &self.usage
-    }
-
-    /// The declared sites.
-    #[must_use]
-    pub const fn registry(&self) -> &SiteRegistry {
-        &self.registry
-    }
-
-    /// Decide `requested` units at `site` without charging anything.
-    ///
-    /// The maximum is inclusive: a request landing exactly on the ceiling is
-    /// admitted, and the smallest representable excess — one more unit — is
-    /// refused.
-    ///
-    /// # Errors
-    ///
-    /// [`PrecheckRefusal::UnregisteredSite`] when the site is not declared,
-    /// [`PrecheckRefusal::CounterOverflow`] when the charge would not fit the
-    /// accumulator, and [`PrecheckRefusal::AllocationExceeded`] or
-    /// [`PrecheckRefusal::CountExceeded`] when the ceiling would be passed —
-    /// the former for [`SiteKind::Allocation`], the latter for every other kind.
-    pub fn precheck(&self, site: SiteId, requested: usize) -> Result<Admission, PrecheckRefusal> {
-        let Some(declared) = self.registry.get(site) else {
-            return Err(PrecheckRefusal::UnregisteredSite { site });
-        };
-        let dimension = declared.dimension();
-        let used = usage_for(&self.usage, dimension);
-        let limit = limit_for(&self.limits, dimension);
-
-        let next = match accumulation(dimension) {
-            Accumulation::Peak => used.max(requested),
-            Accumulation::Cumulative => {
-                used.checked_add(requested)
-                    .ok_or(PrecheckRefusal::CounterOverflow {
-                        site,
-                        dimension,
-                        used,
-                        requested,
-                    })?
-            }
-        };
-
-        if next > limit {
-            return Err(match declared.kind() {
-                SiteKind::Allocation => PrecheckRefusal::AllocationExceeded {
-                    site,
-                    dimension,
-                    used,
-                    requested,
-                    limit,
-                },
-                SiteKind::Retention
-                | SiteKind::Queue
-                | SiteKind::Iteration
-                | SiteKind::Traversal => PrecheckRefusal::CountExceeded {
-                    site,
-                    dimension,
-                    used,
-                    requested,
-                    limit,
-                },
-            });
-        }
-
-        Ok(Admission {
-            site,
-            dimension,
-            requested,
-            next,
-        })
-    }
-
-    /// Precheck and, only on success, charge the request.
-    ///
-    /// # Errors
-    ///
-    /// As [`CountGuard::precheck`]. On refusal nothing is charged: the
-    /// post-charge value is computed by the precheck itself, so there is no
-    /// second, unchecked arithmetic path here that could disagree with it.
-    pub fn charge(
-        &mut self,
-        site: SiteId,
-        requested: usize,
-    ) -> Result<Reservation, PrecheckRefusal> {
-        let admission = self.precheck(site, requested)?;
-        *usage_slot(&mut self.usage, admission.dimension) = admission.next;
-        Ok(Reservation {
-            site: admission.site,
-            dimension: admission.dimension,
-            granted: admission.requested,
-            next: admission.next,
-        })
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Mechanism 2 — monotonic deadline observation
-// ---------------------------------------------------------------------------
-
 /// The stable code of a deadline observation refusal.
-///
-/// Every string is in the `bounds.deadline.` namespace; no precheck code is.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum DeadlineCode {
     /// The elapsed budget ran out.
@@ -840,14 +58,9 @@ pub enum DeadlineCode {
     /// The clock read backwards. Not an expiry — a fault.
     ClockRegressed,
 }
-
 impl DeadlineCode {
-    /// The shared namespace prefix of every deadline code.
-    pub const NAMESPACE: &'static str = "bounds.deadline.";
-
     /// Every deadline code.
     pub const ALL: [Self; 2] = [Self::Expired, Self::ClockRegressed];
-
     /// The code's stable string.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
@@ -857,7 +70,6 @@ impl DeadlineCode {
         }
     }
 }
-
 impl fmt::Display for DeadlineCode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.as_str())
@@ -867,37 +79,32 @@ impl fmt::Display for DeadlineCode {
 /// The name of one declared indivisible unit of work.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct UnitLabel(&'static str);
-
 impl UnitLabel {
     /// Name an indivisible unit.
     #[must_use]
     pub const fn new(name: &'static str) -> Self {
         Self(name)
     }
-
     /// The unit's stable name.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         self.0
     }
 }
-
 impl fmt::Display for UnitLabel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.0)
     }
 }
 
-/// Which of the two mandatory observations around an indivisible unit refused.
+/// Which mandatory observation around an indivisible unit refused.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum Phase {
     /// Observed before the unit started; no later unit was started.
     BeforeUnit,
-    /// Observed after the unit finished; the unit itself was indivisible and
-    /// ran to completion, so its overshoot is reported as measured.
+    /// Observed after the unit finished; overshoot is measured.
     AfterUnit,
 }
-
 /// Every phase, for coverage reconciliation.
 pub const ALL_PHASES: [Phase; 2] = [Phase::BeforeUnit, Phase::AfterUnit];
 
@@ -908,16 +115,12 @@ pub(crate) const REQUEST_DEADLINE_SOURCE: inventory::SourceSite = inventory::Sou
     SiteKind::Iteration,
 );
 
-/// Rendering an observed duration as whole nanoseconds did not fit `u64`.
-///
-/// Reported rather than truncated: a truncated elapsed time is a deadline that
-/// silently stops being a deadline.
+/// Rendering an observed duration as whole nanoseconds did not fit u64.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct DurationOverflow {
     /// The duration that does not fit.
     pub observed: Duration,
 }
-
 impl fmt::Display for DurationOverflow {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
@@ -927,7 +130,6 @@ impl fmt::Display for DurationOverflow {
         )
     }
 }
-
 impl std::error::Error for DurationOverflow {}
 
 /// A monotonic deadline observation refused the run.
@@ -943,7 +145,7 @@ pub enum DeadlineRefusal {
         budget: Duration,
         /// Elapsed time as measured, never clamped to the budget.
         observed: Duration,
-        /// `observed - budget`, always strictly positive.
+        /// observed minus budget, always strictly positive.
         overshoot: Duration,
     },
     /// The clock read earlier than a previous reading in the same run.
@@ -956,11 +158,8 @@ pub enum DeadlineRefusal {
         previous: Duration,
     },
 }
-
 impl DeadlineRefusal {
     /// This refusal's stable code.
-    ///
-    /// Exhaustive, no catch-all arm.
     #[must_use]
     pub const fn code(&self) -> DeadlineCode {
         match self {
@@ -968,7 +167,6 @@ impl DeadlineRefusal {
             Self::ClockRegressed { .. } => DeadlineCode::ClockRegressed,
         }
     }
-
     /// The unit this refusal surrounds.
     #[must_use]
     pub const fn unit(&self) -> UnitLabel {
@@ -976,7 +174,6 @@ impl DeadlineRefusal {
             Self::Expired { unit, .. } | Self::ClockRegressed { unit, .. } => *unit,
         }
     }
-
     /// Which mandatory observation refused.
     #[must_use]
     pub const fn phase(&self) -> Phase {
@@ -984,13 +181,11 @@ impl DeadlineRefusal {
             Self::Expired { phase, .. } | Self::ClockRegressed { phase, .. } => *phase,
         }
     }
-
-    /// The observed elapsed time rendered for a wire or persistence record.
+    /// The observed elapsed time rendered for a wire or result record.
     ///
     /// # Errors
     ///
-    /// [`DurationOverflow`] when the observation does not fit `u64`
-    /// nanoseconds. The conversion is checked; it never truncates.
+    /// DurationOverflow when the observation does not fit u64 nanoseconds.
     pub fn observed_nanos(&self) -> Result<u64, DurationOverflow> {
         let observed = match self {
             Self::Expired { observed, .. } => *observed,
@@ -999,26 +194,15 @@ impl DeadlineRefusal {
         u64::try_from(observed.as_nanos()).map_err(|_| DurationOverflow { observed })
     }
 }
-
 impl fmt::Display for DeadlineRefusal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Expired {
-                unit,
-                phase,
-                budget,
-                observed,
-                overshoot,
-            } => write!(
+            Self::Expired { unit, phase, budget, observed, overshoot } => write!(
                 f,
                 "{}: unit {unit} {phase:?} budget {budget:?}: observed {observed:?}, overshoot {overshoot:?}",
                 self.code()
             ),
-            Self::ClockRegressed {
-                unit,
-                phase,
-                previous,
-            } => write!(
+            Self::ClockRegressed { unit, phase, previous } => write!(
                 f,
                 "{}: unit {unit} {phase:?}: clock read earlier than {previous:?}",
                 self.code()
@@ -1026,27 +210,9 @@ impl fmt::Display for DeadlineRefusal {
         }
     }
 }
-
 impl std::error::Error for DeadlineRefusal {}
 
-/// The one clock reading this module accepts.
-///
-/// There is deliberately no `wall_clock` method and no signature anywhere in
-/// this module that takes a `std::time::SystemTime`: an operator or NTP step of
-/// the wall clock must be unable to manufacture or mask a deadline refusal, and
-/// the cheapest way to guarantee that is to make wall-clock time unrepresentable
-/// in the guard rather than to promise it is ignored.
-///
-/// ```compile_fail
-/// use std::time::{Duration, SystemTime};
-/// use quire_protocol::bounds::DeadlineGuard;
-/// struct WallClock;
-/// impl quire_protocol::bounds::Clock for WallClock {
-///     // SystemTime is not an Instant; this trait cannot carry wall-clock time.
-///     fn monotonic(&self) -> SystemTime { SystemTime::now() }
-/// }
-/// let _ = DeadlineGuard::start(&WallClock, Duration::from_secs(1));
-/// ```
+/// The one clock reading deadline accounting accepts.
 pub trait Clock: Send {
     /// A reading that never moves backwards.
     fn monotonic(&self) -> Instant;
@@ -1055,7 +221,6 @@ pub trait Clock: Send {
 /// The host monotonic clock.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct SystemMonotonicClock;
-
 impl Clock for SystemMonotonicClock {
     fn monotonic(&self) -> Instant {
         Instant::now()
@@ -1063,23 +228,14 @@ impl Clock for SystemMonotonicClock {
 }
 
 /// Monotonic deadline observation around declared indivisible units.
-///
-/// This is mechanism 2. It holds no ceiling, charges no dimension and cannot
-/// return a [`PrecheckRefusal`].
-///
-/// The budget is an **inclusive** allowance, matching the inclusive count
-/// maxima: elapsed time exactly equal to the budget has not expired, and expiry
-/// begins strictly beyond it. One boundary convention for the whole module, and
-/// it makes an `Expired` with a zero overshoot unrepresentable.
 #[derive(Clone, Copy, Debug)]
 pub struct DeadlineGuard {
     start: Instant,
     budget: Duration,
     observed: Duration,
 }
-
 impl DeadlineGuard {
-    /// Begin observing, reading `clock` once for the origin.
+    /// Begin observing, reading clock once for the origin.
     pub fn start<C: Clock + ?Sized>(clock: &C, budget: Duration) -> Self {
         Self {
             start: clock.monotonic(),
@@ -1087,19 +243,16 @@ impl DeadlineGuard {
             observed: Duration::ZERO,
         }
     }
-
     /// The caller's budget.
     #[must_use]
     pub const fn budget(&self) -> Duration {
         self.budget
     }
-
-    /// The greatest elapsed time observed so far, as measured.
+    /// The greatest elapsed time observed so far.
     #[must_use]
     pub const fn observed(&self) -> Duration {
         self.observed
     }
-
     fn observe<C: Clock + ?Sized>(
         &mut self,
         clock: &C,
@@ -1130,15 +283,12 @@ impl DeadlineGuard {
         }
         Ok(elapsed)
     }
-
-    /// Observe before starting `unit`.
-    ///
-    /// No later unit starts once the budget has been passed.
+    /// Observe before starting a unit.
     ///
     /// # Errors
     ///
-    /// [`DeadlineRefusal::Expired`] when the budget is already gone, or
-    /// [`DeadlineRefusal::ClockRegressed`] when the reading moved backwards.
+    /// DeadlineRefusal::Expired when the budget is gone, or ClockRegressed
+    /// when the reading moved backwards.
     pub fn begin_unit<C: Clock + ?Sized>(
         &mut self,
         clock: &C,
@@ -1147,16 +297,11 @@ impl DeadlineGuard {
         self.observe(clock, unit, Phase::BeforeUnit)?;
         Ok(UnitToken { unit })
     }
-
-    /// Observe after `token`'s unit finished.
-    ///
-    /// The unit was indivisible, so it ran to completion; any overshoot is
-    /// reported exactly as measured rather than clamped to the budget.
+    /// Observe after a unit finished.
     ///
     /// # Errors
     ///
-    /// [`DeadlineRefusal::Expired`] with the measured overshoot, or
-    /// [`DeadlineRefusal::ClockRegressed`] when the reading moved backwards.
+    /// DeadlineRefusal::Expired carries the measured overshoot.
     pub fn end_unit<C: Clock + ?Sized>(
         &mut self,
         clock: &C,
@@ -1166,149 +311,16 @@ impl DeadlineGuard {
     }
 }
 
-/// Proof that an indivisible unit was entered through [`DeadlineGuard::begin_unit`].
-///
-/// Not `Copy` and not constructible elsewhere, so the "before" observation
-/// cannot be skipped and the "after" observation cannot name a unit that was
-/// never entered.
+/// Proof that an indivisible unit was entered through DeadlineGuard::begin_unit.
 #[derive(Debug, Eq, PartialEq)]
 #[must_use = "an entered unit must be closed by end_unit so its overshoot is observed"]
 pub struct UnitToken {
     unit: UnitLabel,
 }
-
 impl UnitToken {
     /// The unit this token was issued for.
     #[must_use]
     pub const fn unit(&self) -> UnitLabel {
         self.unit
-    }
-}
-
-// ---------------------------------------------------------------------------
-// The one place the two mechanisms compose
-// ---------------------------------------------------------------------------
-
-/// Why a bounded run stopped.
-///
-/// The two mechanisms meet here and nowhere else, and they meet on separate
-/// arms carrying separate types. There is no constructor that can put a
-/// [`DeadlineCode`] on the [`RunStop::Count`] arm or the reverse.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum RunStop {
-    /// A bound was exceeded and the unit was refused before it started.
-    Count(PrecheckRefusal),
-    /// Time ran out around work already under way.
-    Deadline(DeadlineRefusal),
-}
-
-impl RunStop {
-    /// The stable code string of whichever refusal stopped the run.
-    ///
-    /// Exhaustive, no catch-all arm.
-    #[must_use]
-    pub const fn code_str(&self) -> &'static str {
-        match self {
-            Self::Count(refusal) => refusal.code().as_str(),
-            Self::Deadline(refusal) => refusal.code().as_str(),
-        }
-    }
-}
-
-impl fmt::Display for RunStop {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Count(refusal) => write!(f, "{refusal}"),
-            Self::Deadline(refusal) => write!(f, "{refusal}"),
-        }
-    }
-}
-
-impl std::error::Error for RunStop {}
-
-/// A run bounded by both mechanisms at once.
-///
-/// The deadline is observed before the count is prechecked, so a run that is
-/// out of time neither charges the budget nor manufactures a count refusal from
-/// the fact that it stopped.
-#[derive(Clone, Debug)]
-pub struct BoundedRun {
-    counts: CountGuard,
-    deadline: DeadlineGuard,
-}
-
-impl BoundedRun {
-    /// Compose a count guard and a deadline guard.
-    #[must_use]
-    pub const fn new(counts: CountGuard, deadline: DeadlineGuard) -> Self {
-        Self { counts, deadline }
-    }
-
-    /// The count accounting.
-    #[must_use]
-    pub const fn counts(&self) -> &CountGuard {
-        &self.counts
-    }
-
-    /// The deadline observation.
-    #[must_use]
-    pub const fn deadline(&self) -> &DeadlineGuard {
-        &self.deadline
-    }
-
-    /// Admit one indivisible unit: observe the deadline, then precheck and
-    /// charge `requested` units at `site`.
-    ///
-    /// # Errors
-    ///
-    /// [`RunStop::Deadline`] when time ran out, [`RunStop::Count`] when a bound
-    /// was exceeded. On either, nothing was allocated for the refused unit.
-    pub fn admit_unit<C: Clock + ?Sized>(
-        &mut self,
-        clock: &C,
-        unit: UnitLabel,
-        site: SiteId,
-        requested: usize,
-    ) -> Result<(Reservation, UnitToken), RunStop> {
-        // The deadline is observed first on purpose: when both are exhausted,
-        // the stop reports the fact that is actually true of the run.
-        let token = self
-            .deadline
-            .begin_unit(clock, unit)
-            .map_err(RunStop::Deadline)?;
-
-        // If the count then refuses, the opened unit is closed before returning.
-        //
-        // Dropping the token instead left `end_unit` unrun, so the unit's
-        // overshoot was never observed — the invariant `UnitToken` exists to
-        // enforce, broken at the one point that composes the two mechanisms.
-        // `#[must_use]` does not catch a token dropped inside this module.
-        //
-        // The close's own outcome is deliberately not reported: the caller asked
-        // whether the work was admissible, and the answer is the count refusal.
-        // Closing keeps the guard's observation consistent; it does not turn one
-        // refusal into two.
-        match self.counts.charge(site, requested) {
-            Ok(reservation) => Ok((reservation, token)),
-            Err(refusal) => {
-                let _ = self.deadline.end_unit(clock, token);
-                Err(RunStop::Count(refusal))
-            }
-        }
-    }
-
-    /// Close the unit opened by [`BoundedRun::admit_unit`].
-    ///
-    /// # Errors
-    ///
-    /// [`RunStop::Deadline`] with the measured overshoot.
-    pub fn finish_unit<C: Clock + ?Sized>(
-        &mut self,
-        clock: &C,
-        token: UnitToken,
-    ) -> Result<Duration, RunStop> {
-        self.deadline
-            .end_unit(clock, token)
-            .map_err(RunStop::Deadline)
     }
 }

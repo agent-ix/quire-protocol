@@ -34,7 +34,7 @@ projection path.
 - [x] Prove with action-capable doubles that assessment executes no business action or compensation.
 - [x] Record deterministic seeds, toolchain identities, and corpus identities needed for local reproduction.
 - [ ] Reconcile the completed test symbols against NFR-001-AC-1..AC-3 and NFR-002-AC-1..AC-4 with bare `ix-trace-rs` bindings.
-- [ ] Internalize the unused parallel `CountGuard`/`RunGuard` public surface so
+- [x] Internalize the unused parallel `CountGuard`/`RunGuard` public surface so
   `ResourceAccountant` is the one supported Protocol request accountant.
 - [x] Retain external-owner usage under its exact accounting version. For QSL
   at `f1700a9`, consume `protocol_artifact::work::Dimension::accumulation()`
