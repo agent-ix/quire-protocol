@@ -538,6 +538,9 @@ fn tc_012_every_conditional_site_is_selected_and_phantom_features_refuse() {
                 path: "src/claims/mod.rs".to_owned(),
             },
             Condition::Test {
+                path: "src/conformance/kernel.rs".to_owned(),
+            },
+            Condition::Test {
                 path: "src/conformance/mod.rs".to_owned(),
             },
             Condition::Test {

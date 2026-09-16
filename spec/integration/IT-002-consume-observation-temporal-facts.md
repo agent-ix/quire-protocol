@@ -32,9 +32,9 @@ QObs publishes the accepted typed Rust runtime facts, authority bundles and
 bounded lineage at revision
 `924006300f45b38483be1cbdf99b68f899b7d368`. Protocol consumes the owner crate's
 contract constants and immutable schema bytes directly; it does not restate an
-owner payload shape or validation rule. QSL publishes the native-temporal request/result and
-checked activation-guard selection at Protocol's current exact revision
-`f1700a9264d6d3bcdd07e0f77b70f3dae9ed4c07`. QSL `0c2f13e` publishes the
+owner payload shape or validation rule. QSL first published the native-temporal
+request/result and checked activation-guard selection at `f1700a9`; Protocol's
+current exact QSL pin `2736b62b2f741496590d099d71478b3044d638d6` also publishes the
 native-temporal v2 opaque-trigger and activation-fact interface, plus the
 source-authorized strict `/3` activation-mapping producer and reader Protocol
 uses to validate FR-300 bindings. Protocol invokes no temporal
@@ -88,9 +88,9 @@ QObs, QSL, QCI or a research artifact.
 ## Preconditions
 
 Every external contract consumed by this integration resolves through FR-009
-before any fact is read. QSL native-temporal v1 interface entries are pinned at
-`f1700a9`; the compiled `/2` dependency and opaque-trigger v2 entries are pinned
-at `0c2f13e`. QObs runtime and authority interfaces are pinned at
+before any fact is read. QSL's native-temporal v1 interface originated at
+`f1700a9`; Protocol consumes it, the compiled `/2` dependency and the
+opaque-trigger v2 entries from current exact pin `2736b62`. QObs runtime and authority interfaces are pinned at
 `924006300f45b38483be1cbdf99b68f899b7d368`. Every scenario resolves the exact
 interface set it consumes before it receives an owner value.
 
@@ -201,8 +201,9 @@ producer revision, and a scenario whose evidence is incomplete claims nothing.
 
 ## Dependencies
 
-QSL native-temporal v1 interface entries at `f1700a9`, the compiled-protocol
-`/2` dependency and FR-053 opaque-trigger v2 interface at `0c2f13e`, and QObs
+QSL native-temporal v1 interface originating at `f1700a9`, the compiled-protocol
+`/2` dependency and FR-053 opaque-trigger v2 interface at current exact pin
+`2736b62`, and QObs
 runtime/authority interfaces at `9240063`. Protocol owns global closure and
 result assembly. QCI issue 71 is a downstream consumer and is not a prerequisite.
 
@@ -210,12 +211,14 @@ result assembly. QCI issue 71 is a downstream consumer and is not a prerequisite
 
 The owner contracts and Task-010's SC-01 through SC-04 composition path are
 delivered. Task-020 separately delivers SC-08's exact contract/schema
-inventory and negative resolution controls. SC-05 through SC-07 remain replay,
-resource and retained-evidence extensions and are not silently credited by
-either completed task.
+inventory and negative resolution controls. Task-021 delivers SC-05 and SC-06
+with replay, evidence-correlation and resource-boundary coverage. SC-07 remains
+the retained-evidence extension owned by Task-018 / issue #63.
 
 ## Traceability
 
-Verifies FR-003, FR-004 and FR-006. SC-05a through SC-05d additionally verify
-FR-004-AC-4; SC-06 verifies NFR-002; SC-07a and SC-07b verify NFR-005; SC-08
-verifies FR-009.
+Verifies FR-003, FR-004 and FR-006. SC-05a, SC-05b and SC-05d exercise
+FR-041-AC-1 through FR-041-AC-4; SC-05c verifies FR-026-AC-2; together they
+exercise FR-004-AC-4. SC-07b completes FR-041-AC-4's integration-wide
+refusal-axis comparison. SC-06 verifies NFR-002; SC-07a and SC-07b verify
+NFR-005; SC-08 verifies FR-009.

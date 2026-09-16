@@ -40,7 +40,7 @@ pub const QOBS_REVISION: &str = "924006300f45b38483be1cbdf99b68f899b7d368";
 /// Accepted QSL revision that first supplies the native-temporal v1 contracts.
 pub const QSL_NATIVE_TEMPORAL_REVISION: &str = "f1700a9264d6d3bcdd07e0f77b70f3dae9ed4c07";
 /// Accepted QSL revision compiled for the opaque-trigger v2 contracts.
-pub const QSL_OPAQUE_TRIGGER_REVISION: &str = "0c2f13e261c0ffeaf89f0638931b573ec038e99b";
+pub const QSL_OPAQUE_TRIGGER_REVISION: &str = "2736b62b2f741496590d099d71478b3044d638d6";
 
 const QOBS_OWNER: &str = "agent-ix/quire-observation";
 const QSL_OWNER: &str = "agent-ix/quire-spec-language";

@@ -246,7 +246,7 @@ complete under Task-019/#66. Task status and executable coverage are stated
 only by TM-001 and Plan-001; module presence does not close an aggregate
 requirement.
 
-The current accepted compiler pin is QSL `0c2f13e`; the compiled-protocol `/1`,
+The current accepted compiler pin is QSL `2736b62`; the compiled-protocol `/1`,
 `/2`, and `/3` handoffs are owner-addressed and the `/1` Service/Provider
 authorities are distinct. The direct QObs pin is accepted C00
 runtime/authority revision `924006300f45b38483be1cbdf99b68f899b7d368`,

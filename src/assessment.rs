@@ -6,6 +6,7 @@
 //! repair owner bytes, and callers cannot restate the semantic result facts.
 
 use std::{
+    fmt,
     marker::PhantomData,
     ops::{Deref, DerefMut},
 };
@@ -138,10 +139,22 @@ struct ResultSelection<'a> {
     temporal_subject: &'a ValidatedTemporalSubject,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 struct SelectedActivation<'a> {
     owner: ConformanceActivationBinding<'a>,
     subject: &'a QualifiedSubject,
+    request: &'a temporal_v2::ValidatedRequest,
+}
+
+impl fmt::Debug for SelectedActivation<'_> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("SelectedActivation")
+            .field("owner", &self.owner)
+            .field("subject", &self.subject)
+            .field("request_identity", &self.request.document().identity())
+            .finish()
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -209,6 +222,8 @@ pub(crate) enum BundleRefusal {
     ActivationRuntimeBindingMismatch,
     /// An activation fact belongs to another Engine-selected activation.
     ActivationFactMismatch,
+    /// QObs axes do not match the exact owner evidence retained by QSL.
+    TemporalEvidenceMismatch,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -405,6 +420,11 @@ bundle_code!(
     "assessment-activation.fact-mismatch",
     RefusalDomain::Assessment
 );
+bundle_code!(
+    BUNDLE_TEMPORAL_EVIDENCE,
+    "assessment-activation.temporal-evidence-mismatch",
+    RefusalDomain::Assessment
+);
 /// Refusal codes minted by the assessment-bundle orchestration boundary.
 pub const CODES: CodeModule = CodeModule {
     root: "assessment-input",
@@ -482,6 +502,7 @@ pub const ACTIVATION_CODES: CodeModule = CodeModule {
         BUNDLE_MISSING_ACTIVATION_SELECTION,
         BUNDLE_ACTIVATION_RUNTIME_BINDING,
         BUNDLE_ACTIVATION_FACT,
+        BUNDLE_TEMPORAL_EVIDENCE,
     ],
 };
 
@@ -557,6 +578,9 @@ fn outcome_refusal(error: BundleRefusal) -> ProtocolRefusal {
         ),
         BundleRefusal::ActivationFactMismatch => {
             (&BUNDLE_ACTIVATION_FACT, ProtocolStage::Conformance)
+        }
+        BundleRefusal::TemporalEvidenceMismatch => {
+            (&BUNDLE_TEMPORAL_EVIDENCE, ProtocolStage::Conformance)
         }
     };
     let code = RefusalCode::of(entry);
@@ -718,7 +742,8 @@ fn bundle_cause(error: BundleRefusal, code: RefusalCode) -> crate::refusal::Refu
         | BundleRefusal::AmbiguousResultModel
         | BundleRefusal::MissingActivationSelection
         | BundleRefusal::ActivationRuntimeBindingMismatch
-        | BundleRefusal::ActivationFactMismatch => ProtocolCause::IdentityMismatch {
+        | BundleRefusal::ActivationFactMismatch
+        | BundleRefusal::TemporalEvidenceMismatch => ProtocolCause::IdentityMismatch {
             expected: RetainedBytes::new(b"engine-bound-assessment-value"),
             observed: code,
         },
@@ -1064,7 +1089,11 @@ impl<'a> Engine<'a> {
             request,
             result,
         )?;
-        engine.activation = Some(SelectedActivation { owner, subject });
+        engine.activation = Some(SelectedActivation {
+            owner,
+            subject,
+            request,
+        });
         Ok(engine)
     }
 
@@ -1249,6 +1278,18 @@ impl<'a> Engine<'a> {
         if let Err(error) = self.validate_activation_facts(facts) {
             return BoundedOutcome::DomainError(outcome_refusal(error));
         }
+        match self.validate_temporal_evidence_bounded(axes, completeness, execution, resources) {
+            BoundedOutcome::Completed(()) => {}
+            BoundedOutcome::DomainError(error) => {
+                return BoundedOutcome::DomainError(outcome_refusal(error));
+            }
+            BoundedOutcome::ResourceIncomplete(incomplete) => {
+                return BoundedOutcome::ResourceIncomplete(incomplete);
+            }
+            BoundedOutcome::AccountingFault(fault) => {
+                return BoundedOutcome::AccountingFault(fault);
+            }
+        }
         let report = match self.conformance.assess_activated_bounded(
             facts,
             axes,
@@ -1298,6 +1339,37 @@ impl<'a> Engine<'a> {
             }
         }
         Ok(())
+    }
+
+    fn validate_temporal_evidence_bounded(
+        &self,
+        axes: AxisInputs<'_>,
+        completeness: &completeness::View,
+        execution: crate::closure::AssessmentExecution,
+        resources: &mut ResourceAccountant<'_>,
+    ) -> BoundedOutcome<(), BundleRefusal> {
+        let Some(selected) = &self.activation else {
+            return BoundedOutcome::DomainError(BundleRefusal::MissingActivationSelection);
+        };
+        match crate::conformance::kernel::validate_temporal_evidence_bounded(
+            selected.request,
+            axes,
+            completeness,
+            execution,
+            resources,
+        ) {
+            BoundedOutcome::Completed(()) => BoundedOutcome::Completed(()),
+            BoundedOutcome::DomainError(ConformanceKernelRefusal::TemporalEvidenceMismatch) => {
+                BoundedOutcome::DomainError(BundleRefusal::TemporalEvidenceMismatch)
+            }
+            BoundedOutcome::DomainError(_) => {
+                BoundedOutcome::DomainError(BundleRefusal::TemporalEvidenceMismatch)
+            }
+            BoundedOutcome::ResourceIncomplete(incomplete) => {
+                BoundedOutcome::ResourceIncomplete(incomplete)
+            }
+            BoundedOutcome::AccountingFault(fault) => BoundedOutcome::AccountingFault(fault),
+        }
     }
 
     /// Evaluate the exact admitted guard and transactionally create every
@@ -2656,6 +2728,9 @@ fn validate_dispatch_request(
 
 fn activated_assessment_refusal(error: ActivatedAssessmentError) -> ProtocolRefusal {
     match error {
+        ActivatedAssessmentError::Kernel(ConformanceKernelRefusal::TemporalEvidenceMismatch) => {
+            outcome_refusal(BundleRefusal::TemporalEvidenceMismatch)
+        }
         ActivatedAssessmentError::Kernel(error) => kernel_refusal(error),
         ActivatedAssessmentError::Conformance(refusal) => refusal.envelope().clone(),
     }
@@ -2699,6 +2774,9 @@ fn kernel_refusal(error: ConformanceKernelRefusal) -> ProtocolRefusal {
         ConformanceKernelRefusal::UnexpectedActivatedOccurrence => {
             b"unexpected-activated-occurrence".as_slice()
         }
+        ConformanceKernelRefusal::TemporalEvidenceMismatch => {
+            b"temporal-evidence-mismatch".as_slice()
+        }
     };
     let code = RefusalCode::of(&BUNDLE_INVALID_CONFORMANCE_KERNEL);
     let cause = match error {
@@ -2720,12 +2798,11 @@ fn kernel_refusal(error: ConformanceKernelRefusal) -> ProtocolRefusal {
         | ConformanceKernelRefusal::ActivationResultMismatch
         | ConformanceKernelRefusal::ActivationOccurrenceMismatch
         | ConformanceKernelRefusal::ForeignActivatedOccurrence
-        | ConformanceKernelRefusal::UnexpectedActivatedOccurrence => {
-            ProtocolCause::IdentityMismatch {
-                expected: RetainedBytes::new(b"engine-bound-activation"),
-                observed: RetainedBytes::new(tag),
-            }
-        }
+        | ConformanceKernelRefusal::UnexpectedActivatedOccurrence
+        | ConformanceKernelRefusal::TemporalEvidenceMismatch => ProtocolCause::IdentityMismatch {
+            expected: RetainedBytes::new(b"engine-bound-activation"),
+            observed: RetainedBytes::new(tag),
+        },
         ConformanceKernelRefusal::UnrepresentableControl
         | ConformanceKernelRefusal::InvalidActivationControl
         | ConformanceKernelRefusal::InvalidActivationTemporal
@@ -3698,6 +3775,11 @@ mod tests {
                 RefusalDomain::Assessment,
                 ProtocolStage::Conformance,
             ),
+            (
+                BundleRefusal::TemporalEvidenceMismatch,
+                RefusalDomain::Assessment,
+                ProtocolStage::Conformance,
+            ),
         ];
         let mut codes = BTreeSet::new();
         let mut axes = BTreeSet::new();
@@ -3886,6 +3968,7 @@ mod tests {
             KernelRefusal::DuplicateActivatedObligation,
             KernelRefusal::InvalidDerivedModel,
             KernelRefusal::UnexpectedActivatedOccurrence,
+            KernelRefusal::TemporalEvidenceMismatch,
         ];
         let mut axes = BTreeSet::new();
         for failure in failures {

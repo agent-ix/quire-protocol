@@ -7,6 +7,20 @@ description: "Chronological log of changes to the Plan-001 bundle."
 
 ## History
 
+* **2026-09-16** — Completed Task-021's IT-002 SC-05/SC-06 replay and resource
+  extension after QSL PR #127 merged as
+  `2736b62b2f741496590d099d71478b3044d638d6`. Protocol now checks the admitted
+  QSL decision/surrounding progress and closure, completeness and execution
+  evidence against the exact QObs owner views before composed assessment; each
+  independently cross-wired axis returns its own typed refusal. Evidence
+  document hashing and activation-model node, identity, operation and allocation
+  work are inventoried and charged before traversal or allocation. The integration proves
+  early settlement, batch/incremental semantic identity, both equal-time
+  permutations, matching authored-premise mutation, and exact/one-short/fresh
+  behavior for all seven resource dimensions charged by the composed path.
+  Resolution still runs first under its separate three-dimensional budget.
+  IT-002 SC-07, decisive owner support, Task-018/#63 and issue #12 remain open.
+
 * **2026-09-16** — Closed Task-020's promotion prerequisite after QObs PR #27
   merged as `924006300f45b38483be1cbdf99b68f899b7d368`. Protocol repins Cargo,
   lockfile, public provenance, SC-08, dependencies, specification, matrix and

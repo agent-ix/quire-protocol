@@ -1616,6 +1616,36 @@ const LINK_GRAPH_ALLOCATION: SourceSite = SourceSite::new(
     BudgetDimension::AccountedAllocation,
     SiteKind::Allocation,
 );
+const TEMPORAL_EVIDENCE_INPUT: SourceSite = SourceSite::new(
+    SiteId::new("conformance/temporal-evidence/hash"),
+    "conformance::kernel::validate_temporal_evidence_bounded",
+    BudgetDimension::InputByte,
+    SiteKind::Iteration,
+);
+const ACTIVATION_MODEL_NODE: SourceSite = SourceSite::new(
+    SiteId::new("conformance/activation-model/node"),
+    "conformance::kernel::assess_activated_bounded",
+    BudgetDimension::Node,
+    SiteKind::Retention,
+);
+const ACTIVATION_MODEL_IDENTITY: SourceSite = SourceSite::new(
+    SiteId::new("conformance/activation-model/identity"),
+    "conformance::kernel::assess_activated_bounded",
+    BudgetDimension::InputByte,
+    SiteKind::Iteration,
+);
+const ACTIVATION_MODEL_OPERATION: SourceSite = SourceSite::new(
+    SiteId::new("conformance/activation-model/operation"),
+    "conformance::kernel::assess_activated_bounded",
+    BudgetDimension::Operation,
+    SiteKind::Traversal,
+);
+const ACTIVATION_MODEL_ALLOCATION: SourceSite = SourceSite::new(
+    SiteId::new("conformance/activation-model/allocate"),
+    "conformance::kernel::assess_activated_bounded",
+    BudgetDimension::AccountedAllocation,
+    SiteKind::Allocation,
+);
 const CONFORMANCE_OBSERVATION: SourceSite = SourceSite::new(
     SiteId::new("conformance/observation/consume"),
     "conformance::batch::assess",
@@ -2042,6 +2072,11 @@ pub const PRODUCTION_SOURCES: &[SourceSite] = &[
     crate::link::ITERATION_SOURCE,
     crate::link::ACTIVE_INSTANCE_SOURCE,
     crate::link::GRAPH_ALLOCATION_SOURCE,
+    crate::conformance::kernel::TEMPORAL_EVIDENCE_SOURCE,
+    crate::conformance::kernel::ACTIVATION_NODE_SOURCE,
+    crate::conformance::kernel::ACTIVATION_IDENTITY_SOURCE,
+    crate::conformance::kernel::ACTIVATION_OPERATION_SOURCE,
+    crate::conformance::kernel::ACTIVATION_ALLOCATION_SOURCE,
     crate::conformance::batch::OBSERVATION_SOURCE,
     crate::conformance::batch::PREDECESSOR_SOURCE,
     crate::conformance::batch::RETAINED_BYTE_SOURCE,
@@ -2224,6 +2259,36 @@ pub const PRODUCTION_ENTRIES: &[InventoryEntry] = &[
         LimitAuthority::ConsumerOwner,
         ChargePoint::BeforeAllocate,
         Termination::SingleUnit,
+    ),
+    entry(
+        TEMPORAL_EVIDENCE_INPUT,
+        LimitAuthority::ProducerOwner,
+        ChargePoint::BeforeIterate,
+        Termination::InputLength,
+    ),
+    entry(
+        ACTIVATION_MODEL_NODE,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeRetain,
+        Termination::CollectionLength,
+    ),
+    entry(
+        ACTIVATION_MODEL_IDENTITY,
+        LimitAuthority::ProducerOwner,
+        ChargePoint::BeforeIterate,
+        Termination::InputLength,
+    ),
+    entry(
+        ACTIVATION_MODEL_OPERATION,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeTraverse,
+        Termination::CollectionLength,
+    ),
+    entry(
+        ACTIVATION_MODEL_ALLOCATION,
+        LimitAuthority::ConsumerOwner,
+        ChargePoint::BeforeAllocate,
+        Termination::CollectionLength,
     ),
     entry(
         CONFORMANCE_OBSERVATION,
