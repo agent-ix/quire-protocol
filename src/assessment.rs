@@ -51,6 +51,7 @@ use crate::model::v2::{
     LinkedAssessment, LinkedProtocol, RuntimeBinding, SlotCompatibility, SlotHandle,
 };
 use crate::outcome::ClaimOutcome;
+use crate::producer_contracts::ProducerResolution;
 use crate::refusal::catalog::{
     CatalogSelection, CodeEntry, CodeModule, Provenance, RefusalCode, RetainedBytes,
 };
@@ -870,6 +871,34 @@ pub struct Engine<'a> {
     requested: Vec<Claim>,
 }
 
+/// An assessment engine whose complete producer inventory resolved first.
+///
+/// Construction is private to [`ProducerResolution::start_activated`] and
+/// [`ProducerResolution::start_result_assessment`]. Consequently the public
+/// producer-dependent assessment path cannot consume QObs/QSL values with an
+/// absent, unresolved, unpinned, or repointed manifest.
+#[derive(Debug)]
+pub struct ResolvedAssessmentEngine<'a> {
+    engine: Engine<'a>,
+    resolution: ProducerResolution,
+}
+
+impl ResolvedAssessmentEngine<'_> {
+    /// Immutable evidence that authorized this producer-dependent assessment.
+    #[must_use]
+    pub const fn producer_resolution(&self) -> &ProducerResolution {
+        &self.resolution
+    }
+}
+
+impl<'a> core::ops::Deref for ResolvedAssessmentEngine<'a> {
+    type Target = Engine<'a>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.engine
+    }
+}
+
 impl<'a> Engine<'a> {
     /// Start one assessment using the shared public operation outcome algebra.
     pub fn start(
@@ -884,7 +913,7 @@ impl<'a> Engine<'a> {
 
     /// Start one activated assessment through the shared public operation
     /// outcome algebra.
-    pub fn start_activated(
+    fn start_activated(
         context: LinkedAssessment<'a>,
         requested: Vec<Claim>,
         mappings: &v3::AdmittedPackage,
@@ -915,7 +944,7 @@ impl<'a> Engine<'a> {
     /// Start canonical result orchestration bound to exact strict QSL owner
     /// views for this activated request.
     #[allow(clippy::too_many_arguments)]
-    pub fn start_result_assessment(
+    fn start_result_assessment(
         context: LinkedAssessment<'a>,
         requested: Vec<Claim>,
         mappings: &v3::AdmittedPackage,
@@ -1735,8 +1764,9 @@ impl<'a> Engine<'a> {
     /// Retain one independent outcome for every selected claim.
     ///
     /// Generic assembly is internal support for the typed result stage. The
-    /// public path is [`Self::assess_activated`], which owns production and
-    /// strict reading from the Engine's exact linked assessment.
+    /// public path is [`ResolvedAssessmentEngine::assess_activated`], which
+    /// owns production and strict reading from the Engine's exact linked
+    /// assessment after producer resolution.
     pub(crate) fn assemble<Row>(
         self,
         rows: Vec<ClaimRow<Row>>,
@@ -1939,7 +1969,7 @@ impl<'a> Engine<'a> {
     /// }
     /// ```
     #[allow(clippy::too_many_arguments)]
-    pub fn assess_activated(
+    fn assess_activated_after_resolution(
         self,
         requests: &[ClaimRequest<'_>],
         facts: &[ActivationFact<'a>],
@@ -1990,6 +2020,98 @@ impl<'a> Engine<'a> {
             facts,
             controls,
             &mut resources,
+        )
+    }
+}
+
+impl ProducerResolution {
+    /// Start one activated assessment only after this complete producer
+    /// resolution exists.
+    #[allow(clippy::too_many_arguments)]
+    pub fn start_activated<'a>(
+        self,
+        context: LinkedAssessment<'a>,
+        requested: Vec<Claim>,
+        mappings: &v3::AdmittedPackage,
+        subject: &'a QualifiedSubject,
+        temporal_subject: &'a ValidatedTemporalSubject,
+        request: &'a temporal_v2::ValidatedRequest,
+        result: &'a temporal_v2::ValidatedResult,
+    ) -> crate::outcome::OperationOutcome<ResolvedAssessmentEngine<'a>> {
+        Engine::start_activated(
+            context,
+            requested,
+            mappings,
+            subject,
+            temporal_subject,
+            request,
+            result,
+        )
+        .map(|engine| ResolvedAssessmentEngine {
+            engine,
+            resolution: self,
+        })
+    }
+
+    /// Start canonical result orchestration only after this complete producer
+    /// resolution exists.
+    #[allow(clippy::too_many_arguments)]
+    pub fn start_result_assessment<'a>(
+        self,
+        context: LinkedAssessment<'a>,
+        requested: Vec<Claim>,
+        mappings: &v3::AdmittedPackage,
+        subject: &'a QualifiedSubject,
+        request: &'a temporal_v2::ValidatedRequest,
+        result: &'a temporal_v2::ValidatedResult,
+        checked_predicate: &'a ValidatedCheckedPredicate,
+        temporal_subject: &'a ValidatedTemporalSubject,
+    ) -> crate::outcome::OperationOutcome<ResolvedAssessmentEngine<'a>> {
+        Engine::start_result_assessment(
+            context,
+            requested,
+            mappings,
+            subject,
+            request,
+            result,
+            checked_predicate,
+            temporal_subject,
+        )
+        .map(|engine| ResolvedAssessmentEngine {
+            engine,
+            resolution: self,
+        })
+    }
+}
+
+impl<'a> ResolvedAssessmentEngine<'a> {
+    /// Run conformance, claim dispatch, canonical result production, and
+    /// strict reading after exact producer resolution.
+    #[allow(clippy::too_many_arguments)]
+    pub fn assess_activated(
+        self,
+        requests: &[ClaimRequest<'_>],
+        facts: &[ActivationFact<'a>],
+        axes: AxisInputs<'a>,
+        completeness: &'a completeness::View,
+        global_conformance: &GlobalConformanceInput,
+        execution: crate::closure::AssessmentExecution,
+        conformance_limits: ConformanceLimits,
+        dispatch_limits: DispatchLimits,
+        controls: Vec<Option<CanonicalRowControls>>,
+        budget: Budget,
+    ) -> crate::outcome::OperationOutcome<AssessmentBundle<'a, result::ValidatedResult>> {
+        self.engine.assess_activated_after_resolution(
+            requests,
+            facts,
+            axes,
+            completeness,
+            global_conformance,
+            execution,
+            conformance_limits,
+            dispatch_limits,
+            controls,
+            budget,
         )
     }
 }

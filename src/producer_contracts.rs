@@ -15,15 +15,22 @@ use quire_observation::authority::{
 };
 use quire_spec_language::protocol_artifact::native_temporal::{request, result, v2};
 
+use crate::bounds::inventory::ResourceIncomplete;
 use crate::bounds::inventory::Usage;
 use crate::bounds::Clock;
 use crate::outcome::OperationOutcome;
+use crate::refusal::ProtocolRefusal;
 use crate::version_lock::{
     self, EntryKey, InterfaceSelection, ManifestEntry, ResolutionBudget, ResolutionRequestIdentity,
     VersionLockManifest,
 };
 
-/// Accepted QObs revision that supplies every observation contract below.
+/// Candidate QObs revision that supplies every observation contract below.
+///
+/// This exact commit is published from QObs pull request 27 but is not yet an
+/// accepted upstream revision. Protocol promotion remains blocked until the
+/// owner merges that change without replacing this commit (or Protocol repins
+/// to the accepted replacement).
 pub const QOBS_REVISION: &str = "581d98f1ac9f1467cc5355785d67b242f8d5d150";
 /// Accepted QSL revision that first supplies the native-temporal v1 contracts.
 pub const QSL_NATIVE_TEMPORAL_REVISION: &str = "f1700a9264d6d3bcdd07e0f77b70f3dae9ed4c07";
@@ -356,6 +363,21 @@ pub struct ProducerResolution {
     usage: Usage,
 }
 
+/// Whether a producer-dependent operation may execute.
+///
+/// The executable value is constructed only after the complete manifest has
+/// resolved. A producer refusal is reported as unexecutable rather than as an
+/// assessment result, and resource exhaustion remains independently typed.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ProducerReadiness<T> {
+    /// Every required producer contract resolved before producer access.
+    Executable(T),
+    /// Producer prerequisites did not resolve, so no assessment was run.
+    Unexecutable(ProtocolRefusal),
+    /// Resolution stopped at a caller-declared resource boundary.
+    ResourceIncomplete(ResourceIncomplete),
+}
+
 impl fmt::Debug for ProducerResolution {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
@@ -455,4 +477,32 @@ pub fn resolve_producer_contracts<C: Clock + 'static>(
         contracts,
         usage,
     })
+}
+
+/// Resolve the complete producer inventory before permitting producer access.
+///
+/// `on_resolved` is never invoked for an absent, unresolved, unpinned, or
+/// repointed manifest. This is the staging primitive used by the public
+/// assessment boundary, so assessment cannot reinterpret prerequisite failure
+/// as a claim result.
+#[must_use]
+pub fn resolve_before_producer_read<C, T>(
+    request: &ProducerResolutionRequest,
+    manifest: &VersionLockManifest,
+    budget: ResolutionBudget,
+    clock: C,
+    on_resolved: impl FnOnce(ProducerResolution) -> T,
+) -> ProducerReadiness<T>
+where
+    C: Clock + 'static,
+{
+    match resolve_producer_contracts(request, manifest, budget, clock) {
+        OperationOutcome::Completed(resolution) => {
+            ProducerReadiness::Executable(on_resolved(resolution))
+        }
+        OperationOutcome::Refused(refusal) => ProducerReadiness::Unexecutable(refusal),
+        OperationOutcome::ResourceIncomplete(incomplete) => {
+            ProducerReadiness::ResourceIncomplete(incomplete)
+        }
+    }
 }

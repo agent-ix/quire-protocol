@@ -9,11 +9,13 @@ use quire_protocol::bounds::inventory::BudgetDimension;
 use quire_protocol::bounds::Clock;
 use quire_protocol::outcome::OperationOutcome;
 use quire_protocol::producer_contracts::{
-    resolve_producer_contracts, ProducerContract, ProducerResolution, ProducerResolutionRequest,
-    UnsupportedObservationCapability, QOBS_REVISION,
+    resolve_before_producer_read, resolve_producer_contracts, ProducerContract, ProducerReadiness,
+    ProducerResolution, ProducerResolutionRequest, UnsupportedObservationCapability, QOBS_REVISION,
 };
+use quire_protocol::refusal::{AffectedIdentity, ProtocolRefusal};
 use quire_protocol::version_lock::{
-    EntryStatus, ManifestEntry, ResolutionBudget, ResolutionRefusalCode, VersionLockManifest,
+    EntryKey, EntryStatus, ManifestEntry, ResolutionBudget, ResolutionRefusalCode,
+    VersionLockManifest,
 };
 use quire_protocol::ByteDigest;
 
@@ -66,11 +68,41 @@ fn manifest() -> VersionLockManifest {
     )
 }
 
-fn refusal_code(outcome: OperationOutcome<ProducerResolution>) -> String {
+fn refusal(outcome: OperationOutcome<ProducerResolution>) -> ProtocolRefusal {
     let OperationOutcome::Refused(refusal) = outcome else {
         panic!("mutated producer-contract resolution must refuse")
     };
-    refusal.code().as_str().to_owned()
+    refusal
+}
+
+fn key_identity(key: &EntryKey) -> AffectedIdentity {
+    let mut identity = Vec::new();
+    identity.extend_from_slice(&(key.owner().as_bytes().len() as u128).to_be_bytes());
+    identity.extend_from_slice(key.owner().as_bytes());
+    identity.extend_from_slice(&(key.contract_version().as_bytes().len() as u128).to_be_bytes());
+    identity.extend_from_slice(key.contract_version().as_bytes());
+    AffectedIdentity::retained(&identity)
+}
+
+fn assert_refusal(
+    outcome: OperationOutcome<ProducerResolution>,
+    code: ResolutionRefusalCode,
+    affected: &EntryKey,
+) {
+    let refusal = refusal(outcome);
+    assert_eq!(refusal.code().as_str(), code.as_str());
+    assert_eq!(refusal.identity(), &key_identity(affected));
+}
+
+fn same_entry_state(left: &ManifestEntry, right: &ManifestEntry) -> bool {
+    left.key() == right.key()
+        && left.status() == right.status()
+        && left.revision() == right.revision()
+        && left.immutability_assertion() == right.immutability_assertion()
+        && left.unresolved_reason() == right.unresolved_reason()
+        && left.kind() == right.kind()
+        && left.member() == right.member()
+        && left.digest() == right.digest()
 }
 
 #[test]
@@ -192,14 +224,10 @@ fn it_002_sc_08_resolves_only_the_exact_scenario_contract_inventory() {
             .map(ProducerContract::manifest_entry)
             .collect(),
     );
-    assert_eq!(
-        refusal_code(resolve_producer_contracts(
-            &request,
-            &absent,
-            generous_budget(),
-            generous_clock(),
-        )),
-        ResolutionRefusalCode::EntryAbsent.as_str()
+    assert_refusal(
+        resolve_producer_contracts(&request, &absent, generous_budget(), generous_clock()),
+        ResolutionRefusalCode::EntryAbsent,
+        &ProducerContract::ObservationRecord.key(),
     );
 
     let mut unpinned_entries = manifest().entries().to_vec();
@@ -209,26 +237,28 @@ fn it_002_sc_08_resolves_only_the_exact_scenario_contract_inventory() {
         Some(b"owner asserts immutable and published"),
         None,
     );
-    assert_eq!(
-        refusal_code(resolve_producer_contracts(
+    assert_refusal(
+        resolve_producer_contracts(
             &request,
             &VersionLockManifest::new(unpinned_entries),
             generous_budget(),
             generous_clock(),
-        )),
-        ResolutionRefusalCode::RevisionAbsent.as_str()
+        ),
+        ResolutionRefusalCode::RevisionAbsent,
+        &ProducerContract::ALL[0].key(),
     );
 
     let mut duplicate_entries = manifest().entries().to_vec();
     duplicate_entries.push(ProducerContract::ObservationRecord.manifest_entry());
-    assert_eq!(
-        refusal_code(resolve_producer_contracts(
+    assert_refusal(
+        resolve_producer_contracts(
             &request,
             &VersionLockManifest::new(duplicate_entries),
             generous_budget(),
             generous_clock(),
-        )),
-        ResolutionRefusalCode::DuplicateEntryKey.as_str()
+        ),
+        ResolutionRefusalCode::DuplicateEntryKey,
+        &ProducerContract::ObservationRecord.key(),
     );
 
     let mut unresolved_entries = manifest().entries().to_vec();
@@ -236,17 +266,19 @@ fn it_002_sc_08_resolves_only_the_exact_scenario_contract_inventory() {
         ProducerContract::ALL[0].key(),
         b"owner acceptance withdrawn",
     );
-    assert_eq!(
-        refusal_code(resolve_producer_contracts(
+    assert_refusal(
+        resolve_producer_contracts(
             &request,
             &VersionLockManifest::new(unresolved_entries),
             generous_budget(),
             generous_clock(),
-        )),
-        ResolutionRefusalCode::EntryUnresolved.as_str()
+        ),
+        ResolutionRefusalCode::EntryUnresolved,
+        &ProducerContract::ALL[0].key(),
     );
 
-    let mut repointed_entries = manifest().entries().to_vec();
+    let baseline_entries = manifest().entries().to_vec();
+    let mut repointed_entries = baseline_entries.clone();
     let selected = ProducerContract::NativeTemporalRequestV2;
     let selected_index = ProducerContract::ALL
         .iter()
@@ -259,13 +291,163 @@ fn it_002_sc_08_resolves_only_the_exact_scenario_contract_inventory() {
         None,
     );
     assert_eq!(
-        refusal_code(resolve_producer_contracts(
+        repointed_entries
+            .iter()
+            .zip(&baseline_entries)
+            .filter(|(left, right)| !same_entry_state(left, right))
+            .count(),
+        1,
+        "repinning one contract must not alter a sibling manifest entry",
+    );
+    assert_refusal(
+        resolve_producer_contracts(
             &request,
             &VersionLockManifest::new(repointed_entries),
             generous_budget(),
             generous_clock(),
-        )),
-        ResolutionRefusalCode::InterfaceSelectionMismatch.as_str()
+        ),
+        ResolutionRefusalCode::InterfaceSelectionMismatch,
+        &selected.key(),
+    );
+
+    for (changed, sibling) in [
+        (
+            ProducerContract::ObservationAuthorityBundleV1,
+            ProducerContract::ObservationAuthorityBundleV2,
+        ),
+        (
+            ProducerContract::ObservationAuthorityBundleV2,
+            ProducerContract::ObservationAuthorityBundleV1,
+        ),
+    ] {
+        let changed_index = ProducerContract::ALL
+            .iter()
+            .position(|contract| *contract == changed)
+            .expect("changed contract belongs to the inventory");
+        let sibling_index = ProducerContract::ALL
+            .iter()
+            .position(|contract| *contract == sibling)
+            .expect("sibling contract belongs to the inventory");
+        let mut entries = baseline_entries.clone();
+        entries[changed_index] = ManifestEntry::pinned_interface(
+            changed.key(),
+            Some(b"foreign-revision"),
+            Some(b"owner asserts immutable and published"),
+            None,
+        );
+        assert!(same_entry_state(
+            &entries[sibling_index],
+            &baseline_entries[sibling_index],
+        ));
+        assert_refusal(
+            resolve_producer_contracts(
+                &request,
+                &VersionLockManifest::new(entries),
+                generous_budget(),
+                generous_clock(),
+            ),
+            ResolutionRefusalCode::InterfaceSelectionMismatch,
+            &changed.key(),
+        );
+    }
+
+    let sidecar_key = EntryKey::new(b"local/diagnostics", b"sidecar/v1")
+        .expect("nonempty sidecar key components");
+    let resolve_with_sidecar = |revision: &'static [u8]| {
+        let mut entries = manifest().entries().to_vec();
+        entries.push(ManifestEntry::pinned_interface(
+            sidecar_key.clone(),
+            Some(revision),
+            Some(b"local immutable sidecar"),
+            None,
+        ));
+        resolve_producer_contracts(
+            &request,
+            &VersionLockManifest::new(entries),
+            generous_budget(),
+            generous_clock(),
+        )
+    };
+    let OperationOutcome::Completed(first_sidecar) = resolve_with_sidecar(b"sidecar-revision:one")
+    else {
+        panic!("a non-authoritative sidecar must not affect producer resolution")
+    };
+    let OperationOutcome::Completed(second_sidecar) = resolve_with_sidecar(b"sidecar-revision:two")
+    else {
+        panic!("repinning a non-authoritative sidecar must remain irrelevant")
+    };
+    assert_eq!(first_sidecar.contracts(), second_sidecar.contracts());
+    assert_eq!(
+        first_sidecar.manifest_entries(),
+        second_sidecar.manifest_entries()
+    );
+    assert!(first_sidecar
+        .manifest_entries()
+        .iter()
+        .all(|entry| entry.key() != &sidecar_key));
+
+    let producer_reads = Cell::new(0usize);
+    let mut unresolved_entries = manifest().entries().to_vec();
+    unresolved_entries[0] = ManifestEntry::unresolved_interface(
+        ProducerContract::ALL[0].key(),
+        b"owner acceptance withdrawn",
+    );
+    let staged = resolve_before_producer_read(
+        &request,
+        &VersionLockManifest::new(unresolved_entries),
+        generous_budget(),
+        generous_clock(),
+        |_| producer_reads.set(producer_reads.get() + 1),
+    );
+    assert!(matches!(
+        staged,
+        ProducerReadiness::Unexecutable(refusal)
+            if refusal.code().as_str() == ResolutionRefusalCode::EntryUnresolved.as_str()
+                && refusal.identity() == &key_identity(&ProducerContract::ALL[0].key())
+    ));
+    assert_eq!(producer_reads.get(), 0, "unresolved input is never read");
+
+    let mut repointed_entries = manifest().entries().to_vec();
+    repointed_entries[selected_index] = ManifestEntry::pinned_interface(
+        selected.key(),
+        Some(b"foreign-revision"),
+        Some(b"owner asserts immutable and published"),
+        None,
+    );
+    let staged = resolve_before_producer_read(
+        &request,
+        &VersionLockManifest::new(repointed_entries),
+        generous_budget(),
+        generous_clock(),
+        |_| producer_reads.set(producer_reads.get() + 1),
+    );
+    assert!(matches!(
+        staged,
+        ProducerReadiness::Unexecutable(refusal)
+            if refusal.code().as_str()
+                == ResolutionRefusalCode::InterfaceSelectionMismatch.as_str()
+                && refusal.identity() == &key_identity(&selected.key())
+    ));
+    assert_eq!(producer_reads.get(), 0, "repointed input is never read");
+
+    let staged = resolve_before_producer_read(
+        &request,
+        &manifest(),
+        exact_budget(),
+        generous_clock(),
+        |_| {
+            producer_reads.set(producer_reads.get() + 1);
+            "assessment-enabled"
+        },
+    );
+    assert!(matches!(
+        staged,
+        ProducerReadiness::Executable("assessment-enabled")
+    ));
+    assert_eq!(
+        producer_reads.get(),
+        1,
+        "exact resolution precedes one read"
     );
 
     let one_short =

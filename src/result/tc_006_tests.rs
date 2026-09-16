@@ -28,6 +28,9 @@ use quire_protocol::model::v2::{
     SlotCompatibility, SlotHandle, StaticBindingDefinition, StaticSelection, StaticSlot,
     RUNTIME_BINDING_CONTRACT, STATIC_BINDING_CONTRACT,
 };
+use quire_protocol::producer_contracts::{
+    resolve_producer_contracts, ProducerContract, ProducerResolution, ProducerResolutionRequest,
+};
 use quire_protocol::projection::{
     resolve_e02_contract, DecisionSupportBinding, E02Contract, E02Resolution,
     ProjectedTechniqueResult, ProjectionContext, ProjectionRequestId,
@@ -68,6 +71,29 @@ mod handoff;
 mod observation_owner;
 
 const ORDER_KIND: &str = "ix://agent-ix/commerce/type/Order";
+
+fn producer_resolution(identity: &[u8]) -> ProducerResolution {
+    let request = ProducerResolutionRequest::new(identity)
+        .expect("the test assessment resolution identity is nonempty");
+    let manifest = VersionLockManifest::new(
+        ProducerContract::ALL
+            .iter()
+            .copied()
+            .map(ProducerContract::manifest_entry)
+            .collect(),
+    );
+    let budget = ResolutionBudget::new(ProducerContract::ALL.len(), 1, Duration::from_secs(1))
+        .expect("the exact producer-resolution budget is valid");
+    match resolve_producer_contracts(&request, &manifest, budget, SystemMonotonicClock) {
+        quire_protocol::outcome::OperationOutcome::Completed(resolution) => resolution,
+        quire_protocol::outcome::OperationOutcome::Refused(refusal) => {
+            panic!("exact producer manifest must resolve: {}", refusal.code())
+        }
+        quire_protocol::outcome::OperationOutcome::ResourceIncomplete(incomplete) => {
+            panic!("exact producer manifest must fit: {incomplete:?}")
+        }
+    }
+}
 
 struct Fixture {
     predicate: checked_predicate::ValidatedCheckedPredicate,
@@ -871,7 +897,8 @@ fn dispatch_inputs_with_claim_refusal() -> Vec<ClaimRequest<'static>> {
     "FR-006-AC-1",
     "FR-006-AC-2",
     "FR-006-AC-9",
-    "FR-008-AC-1"
+    "FR-008-AC-1",
+    "FR-009-AC-1"
 )]
 fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
     let loaded = handoff::Handoff::load().expect("published v2 handoff");
@@ -988,17 +1015,23 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
     let temporal_request =
         activated_request(&package, &fixture.temporal, subject.identity().as_bytes());
     let temporal_result = activated_result(&temporal_request);
-    let quire_protocol::outcome::OperationOutcome::Completed(engine) = Engine::start_activated(
-        context,
-        requested.to_vec(),
-        &mapping,
-        &subject,
-        &fixture.temporal,
-        &temporal_request,
-        &temporal_result,
-    ) else {
+    let quire_protocol::outcome::OperationOutcome::Completed(engine) =
+        producer_resolution(b"tc006:activated-engine").start_activated(
+            context,
+            requested.to_vec(),
+            &mapping,
+            &subject,
+            &fixture.temporal,
+            &temporal_request,
+            &temporal_result,
+        )
+    else {
         panic!("linked assessment starts one activation-bound engine")
     };
+    assert_eq!(
+        engine.producer_resolution().request().as_bytes(),
+        b"tc006:activated-engine",
+    );
     let (foreign_declaration, foreign_root) = first_checked_leaf(&package);
     assert!(!fixture
         .temporal
@@ -1023,7 +1056,7 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
     .into_result()
     .expect("same-package foreign checked predicate strict-reads");
     assert!(matches!(
-        Engine::start_result_assessment(
+        producer_resolution(b"tc006:foreign-result-engine").start_result_assessment(
             context,
             requested.to_vec(),
             &mapping,
@@ -1193,7 +1226,7 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
         .conformance()
         .activation_fact(foreign_activated, None);
     let quire_protocol::outcome::OperationOutcome::Completed(fact_bound_engine) =
-        Engine::start_result_assessment(
+        producer_resolution(b"tc006:result-engine").start_result_assessment(
             context,
             requested.to_vec(),
             &mapping,
@@ -1270,16 +1303,17 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
         quire_protocol::outcome::OperationOutcome::ResourceIncomplete(incomplete)
             if incomplete.dimension() == BudgetDimension::InputByte
     ));
-    let short_result_engine = match Engine::start_result_assessment(
-        context,
-        requested.to_vec(),
-        &mapping,
-        &subject,
-        &temporal_request,
-        &temporal_result,
-        &fixture.predicate,
-        &fixture.temporal,
-    ) {
+    let short_result_engine = match producer_resolution(b"tc006:short-output-assessment")
+        .start_result_assessment(
+            context,
+            requested.to_vec(),
+            &mapping,
+            &subject,
+            &temporal_request,
+            &temporal_result,
+            &fixture.predicate,
+            &fixture.temporal,
+        ) {
         quire_protocol::outcome::OperationOutcome::Completed(engine) => engine,
         quire_protocol::outcome::OperationOutcome::Refused(refusal) => {
             panic!("strict owner views refused: {}", refusal.code().as_str())
@@ -1315,7 +1349,7 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
         "expected output exhaustion"
     );
     let quire_protocol::outcome::OperationOutcome::Completed(cumulative_engine) =
-        Engine::start_result_assessment(
+        producer_resolution(b"tc006:cumulative-assessment").start_result_assessment(
             context,
             requested.to_vec(),
             &mapping,
@@ -1353,7 +1387,7 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
                 && incomplete.requested() == 1
     ));
     let quire_protocol::outcome::OperationOutcome::Completed(owner_limited_engine) =
-        Engine::start_result_assessment(
+        producer_resolution(b"tc006:owner-limited-assessment").start_result_assessment(
             context,
             requested.to_vec(),
             &mapping,
@@ -1386,7 +1420,7 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
                 && incomplete.site().as_str() == "result/output/string/retain"
     ));
     let quire_protocol::outcome::OperationOutcome::Completed(result_engine) =
-        Engine::start_result_assessment(
+        producer_resolution(b"tc006:completed-assessment").start_result_assessment(
             context,
             requested.to_vec(),
             &mapping,

@@ -2,6 +2,7 @@
 //! TC-002: versioned static/runtime binding capability admission.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::time::Duration;
 
 use agent_ix_baseline_producer::StaticProducerBundle;
 use ix_trace_rs::trace;
@@ -9,6 +10,7 @@ use quire_observation::{
     QualifiedSubject, Relationship, RelationshipIdentity, SubjectIdentity, SubjectKind,
 };
 use quire_protocol::bounds::inventory::Budget;
+use quire_protocol::bounds::SystemMonotonicClock;
 use quire_protocol::model::v2::{
     link as link_v2, ChannelHandle, DefinitionRegistry, FifoPartitionRefusal, Internality,
     LinkedAssessment, RegistryRefusal, RoleClassification, RuntimeBinding, RuntimeBindingSet,
@@ -29,6 +31,10 @@ use quire_protocol::{
         Limits as ConformanceLimits, ObligationDisposition,
     },
     outcome::OperationOutcome,
+    producer_contracts::{
+        resolve_producer_contracts, ProducerContract, ProducerResolution, ProducerResolutionRequest,
+    },
+    version_lock::{ResolutionBudget, VersionLockManifest},
 };
 use quire_spec_language::protocol_artifact::{
     native_temporal::{self, request, v2 as temporal_v2},
@@ -51,6 +57,29 @@ mod observation_owner;
 const ORDER_KIND: &[u8] = b"ix://agent-ix/commerce/type/Order";
 const SHIPMENT_KIND: &[u8] = b"ix://agent-ix/commerce/type/Shipment";
 const ORDER_SHIPMENT: &str = "ix://agent-ix/commerce/relationship/Order-shipment";
+
+fn producer_resolution(identity: &[u8]) -> ProducerResolution {
+    let request = ProducerResolutionRequest::new(identity)
+        .expect("the test assessment resolution identity is nonempty");
+    let manifest = VersionLockManifest::new(
+        ProducerContract::ALL
+            .iter()
+            .copied()
+            .map(ProducerContract::manifest_entry)
+            .collect(),
+    );
+    let budget = ResolutionBudget::new(ProducerContract::ALL.len(), 1, Duration::from_secs(1))
+        .expect("the exact producer-resolution budget is valid");
+    match resolve_producer_contracts(&request, &manifest, budget, SystemMonotonicClock) {
+        OperationOutcome::Completed(resolution) => resolution,
+        OperationOutcome::Refused(refusal) => {
+            panic!("exact producer manifest must resolve: {}", refusal.code())
+        }
+        OperationOutcome::ResourceIncomplete(incomplete) => {
+            panic!("exact producer manifest must fit: {incomplete:?}")
+        }
+    }
+}
 
 fn global_conformance(state: GlobalConformanceClosure) -> GlobalConformanceInput {
     let premises = vec![
@@ -1446,7 +1475,7 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
     )
     .into_result()
     .expect("strict temporal result reads");
-    let activated = Engine::start_activated(
+    let activated = producer_resolution(b"tc002:activated-engine").start_activated(
         context,
         vec![Claim::Conformance],
         &mappings,
@@ -1458,6 +1487,10 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
     let OperationOutcome::Completed(activated) = activated else {
         panic!("strict QSL request and QObs subject must activate this linked engine")
     };
+    assert_eq!(
+        activated.producer_resolution().request().as_bytes(),
+        b"tc002:activated-engine",
+    );
     assert_eq!(
         activated
             .activation()
@@ -1540,15 +1573,17 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
         SubjectKind::new(ORDER_KIND.to_vec()).expect("non-empty kind"),
         SubjectIdentity::new(b"order:43".to_vec()).expect("non-empty identity"),
     );
-    let OperationOutcome::Refused(refusal) = Engine::start_activated(
-        context,
-        vec![Claim::Conformance],
-        &mappings,
-        &mismatched_subject,
-        &temporal_subject,
-        &request,
-        &result,
-    ) else {
+    let OperationOutcome::Refused(refusal) = producer_resolution(b"tc002:mismatched-engine")
+        .start_activated(
+            context,
+            vec![Claim::Conformance],
+            &mappings,
+            &mismatched_subject,
+            &temporal_subject,
+            &request,
+            &result,
+        )
+    else {
         panic!("different QObs subject cannot reuse a strict temporal request")
     };
     assert_eq!(
