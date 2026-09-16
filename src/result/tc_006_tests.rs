@@ -854,10 +854,25 @@ fn dispatch_inputs_with_claim_refusal() -> Vec<ClaimRequest<'static>> {
     ]
 }
 
-/// The public Engine boundary constructs and strict-reads owner rows against
-/// its one linked `/2` package; it has no caller-provided result document seam.
+/// IT-002 SC-01 through SC-04's canonical-result half: the public Engine
+/// constructs and strict-reads owner rows against its one linked `/2` package;
+/// it has no caller-provided result document seam.
+///
+/// This consumes the QObs-qualified activation fact and QSL strict temporal
+/// request/result only through the FR-300 binding, then retains the owned
+/// decision/surrounding scope axes and complete global closure in the canonical
+/// result. The paired IT-002 binding in `tc_002_binding_model` exercises the
+/// same bridge's batch and incremental conformance paths and adverse joins.
 #[test]
-#[trace("TC-006", "FR-006-AC-1", "FR-006-AC-2", "FR-006-AC-9", "FR-008-AC-1")]
+#[trace(
+    "TC-006",
+    "IT-002",
+    "Task-010",
+    "FR-006-AC-1",
+    "FR-006-AC-2",
+    "FR-006-AC-9",
+    "FR-008-AC-1"
+)]
 fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
     let loaded = handoff::Handoff::load().expect("published v2 handoff");
     let declarations = loaded.declarations();

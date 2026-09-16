@@ -1353,13 +1353,23 @@ fn tc_002_linked_assessment_refuses_every_context_coordinate_mutation() {
     );
 }
 
-/// The full-assessment boundary accepts only an admitted `/2` protocol and
-/// retains its static and runtime capabilities without retargeting either one.
+/// IT-002 SC-01 through SC-04's conformance half: the full-assessment boundary
+/// accepts only an admitted `/2` protocol and retains its static and runtime
+/// capabilities without retargeting either one.
+///
+/// The test crosses QObs's qualified subject and authority facts with QSL's
+/// strict v2 request/result and `/3` mapping. It then proves the exact FR-300
+/// binding, batch/incremental agreement, independently retained scope/global
+/// closure axes, and adverse identity, occurrence, completeness, and execution
+/// paths. Canonical-result assembly over that same bridge is exercised by the
+/// paired IT-002 binding in `tc_006_engine_constructs_and_strict_reads_canonical_rows`.
 #[test]
 #[trace(
     "TC-002",
     "TC-004",
     "TC-005",
+    "IT-002",
+    "Task-010",
     "FR-002-AC-1",
     "FR-002-AC-3",
     "FR-004-AC-1",

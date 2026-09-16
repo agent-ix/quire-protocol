@@ -179,10 +179,10 @@ assembly. QCI issue 71 is a downstream consumer and is not a prerequisite.
 
 ## Notes
 
-The owner contracts are delivered except QSL FR-053's implementation. The
-remaining enablement is that opaque-trigger v2 interface, the Protocol QObs
-repin and the typed composition path from linked graph through assessment to
-canonical result. This integration remains planned until Task-010 closes.
+The owner contracts and Task-010's SC-01 through SC-04 composition path are
+delivered. SC-05 through SC-08 are retained-evidence and replay extensions;
+they remain planned work and are not silently credited by Task-010's completed
+scope.
 
 ## Traceability
 
