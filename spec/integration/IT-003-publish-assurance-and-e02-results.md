@@ -53,19 +53,23 @@ handoff (NFR-005), never where it is kept afterwards or whether it suffices.
 
 Every external contract consumed by this integration resolves through the
 FR-009 version-lock manifest before any request is submitted. QSL `/1` and `/2`
-are both pinned at `f1700a9`; neither may substitute for the other.
+are both supplied by exact revision
+`0c2f13e261c0ffeaf89f0638931b573ec038e99b`; neither may substitute for the
+other.
 
-Engineering Assurance's typed boundary is delivered. Two cross-repository
-acceptances remain unresolved, so scenarios requiring either are unexecutable:
+Engineering Assurance's typed boundary and qverify's E02 boundary are delivered.
+One cross-repository acceptance remains unresolved, so scenarios requiring it
+are unexecutable:
 
 | Required acceptance | Actual state |
 | --- | --- |
-| Engineering Assurance #34 publishes an accepted Rust request/result interface | Delivered by PR 46, merge `d9d30232f9a5314d664d87a86346294325831c62`; exact Git pinning is valid despite `publish = false` |
-| The exact E02 revision is accepted | `quire-verification/e02-draft-2` is implemented on qverify main, but `docs/interface-decision.md` still calls the cross-repository interface provisional; the owner must reconcile that contradiction |
+| Engineering Assurance #34/#102 publish an accepted, dependency-compatible Rust request/result interface | Delivered initially by PR 46 at `d9d30232f9a5314d664d87a86346294325831c62`; exact compatible revision `9237ce50ce19c6d6c937705bfde4b64adcc9d16b` is selected by qverify and remains valid despite `publish = false` |
+| The exact E02 revision is accepted | qverify issue #44 published exact compatible consumer revision `293e342c6f5e2c69738956ff5165f75761b0364a`, preserving the accepted `quire-verification/e02-draft-2` schema and strict-reader contract |
 | Quoin Protocol scenario-record intake is accepted | Quoin is a Rust workspace with an evidence store, but its existing experiment and operational record operations do not accept FR-017; a typed intake operation is missing |
 
-Stating these as satisfied preconditions would make the integration look ready
-when it is not. They are gates, and FR-009's entry-status table is their record.
+Stating the remaining Quoin precondition as satisfied would make the integration
+look ready when it is not. It is a gate, and FR-009's entry-status table is its
+record.
 
 ## Inputs
 
@@ -141,19 +145,19 @@ claims nothing.
 
 - Priority: P0
 - Target Integration: protocol library, Engineering Assurance, E02, and Quoin
-- Automation: Automated after qverify accepts its E02 boundary and Quoin accepts the Protocol scenario-record intake
+- Automation: Automated after Quoin accepts the Protocol scenario-record intake
 
 ## Dependencies
 
-Engineering Assurance `producer_execution` is delivered and must be pinned at
-its exact accepted revision. qverify FR-007/E02 acceptance and the Quoin Protocol
-scenario-record intake must be accepted at exact revisions. QSL `/1` and `/2`
-are already pinnable; FR-009's gate order and entry-status table are normative.
+Engineering Assurance `producer_execution` and qverify FR-007/E02 are delivered
+at the exact compatible revisions above. The Quoin Protocol scenario-record
+intake must still be accepted at an exact revision. QSL `/1` and `/2` are
+already pinnable; FR-009's gate order and entry-status table are normative.
 
 ## Notes
 
-The unresolved qverify acceptance and absent Quoin scenario intake do not
-authorize a repository-local reader, runner or evidence store.
+The absent Quoin scenario intake does not authorize a repository-local evidence
+store or an alternate reader or runner.
 
 This integration is the last in the chain and depends on IT-001 and IT-002
 completing. It therefore inherits their unresolved entries. Closing IT-003

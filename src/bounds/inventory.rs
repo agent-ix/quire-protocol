@@ -1064,13 +1064,6 @@ pub struct ResourceAccountant<'inventory> {
     site_consumed: Box<[usize]>,
     inventory: &'inventory Inventory,
     request_deadline: Option<RequestDeadline>,
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "Task-013's private resolver is consumed by Tasks 009-011"
-        )
-    )]
     resolution_deadline: Option<RequestDeadline>,
 }
 
@@ -1102,13 +1095,6 @@ impl<'inventory> ResourceAccountant<'inventory> {
 
     /// Begin a fresh resolution request with an injected resolution clock.
     #[must_use]
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "Task-013's private resolver is consumed by Tasks 009-011"
-        )
-    )]
     pub(crate) fn with_resolution_clock<C>(
         budget: Budget,
         inventory: &'inventory Inventory,
@@ -1365,13 +1351,6 @@ impl<'inventory> ResourceAccountant<'inventory> {
         )
     }
 
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "Task-013's private resolver is consumed by Tasks 009-011"
-        )
-    )]
     fn observe_resolution_deadline(
         &mut self,
         unit: UnitLabel,
@@ -1424,13 +1403,6 @@ impl<'inventory> ResourceAccountant<'inventory> {
     }
 
     /// Execute one resolution unit under the distinct FR-009 deadline.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "Task-013's private resolver is consumed by Tasks 009-011"
-        )
-    )]
     pub(crate) fn run_resolution_unit<T, E>(
         &mut self,
         unit: UnitLabel,

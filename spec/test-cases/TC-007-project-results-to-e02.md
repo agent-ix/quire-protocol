@@ -5,6 +5,10 @@ type: TC
 relationships:
   - target: ix://agent-ix/quire-protocol/FR-007
     type: verifies
+  - target: ix://agent-ix/quire-protocol/FR-034
+    type: verifies
+  - target: ix://agent-ix/quire-protocol/FR-035
+    type: verifies
 ---
 # TC-007: Project canonical protocol results to E02
 
@@ -25,4 +29,3 @@ relation, native artifact reference, and each condition in the refusal set.
 Every source row maps exactly and preserves all findings. Every semantic mutation
 changes the derived identity or refuses. Protocol adequacy never becomes E02
 adequacy or sufficiency. Refusal emits no `TechniqueResult`.
-

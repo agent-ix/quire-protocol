@@ -12,12 +12,14 @@ record discharges.
 | --- | --- | --- | --- |
 | `quire-spec-language` | `0c2f13e261c0ffeaf89f0638931b573ec038e99b` | `AGPL-3.0-or-later` | Supplies the accepted `quire.compiled-protocol/1`, `/2`, and strict `/3` control-to-temporal mapping readers, committed owner-addressed handoffs, owner-exported constants, the FR-051 checked temporal activation-guard selection, the FR-052 temporal owner authority, FR-053 opaque native-temporal v2 trigger identity, and the shared exact bounded `state::evaluate_v2` compensation-expression evaluator, including immutable authored-initializer resolution and exact compensation forward-effect admission for capture sources. The `/1` handoff retains distinct Service/Provider model authorities. Release `v0.2.0` is its ancestor at `6eccb05`. |
 | `quire-observation` | `93bc565072fb05d1ecf29f15725b75c0a77378fb` | `AGPL-3.0-or-later` | Direct observation authority dependency used by the current compensation, conformance and result kernels. This accepted revision publishes the FR-287/FR-262 authority-qualified runtime-reference and finite-topology contracts Task-002 consumes; Protocol imports those types rather than mirroring their wire vocabulary. |
+| `quire-verification` | `293e342c6f5e2c69738956ff5165f75761b0364a` | `AGPL-3.0-or-later` | Direct E02 owner dependency. This exact accepted consumer revision supplies the generated `quire-verification/e02-draft-2` types, strict reader and RFC 8785/JCS operations used by Task-007 without a local target-contract mirror. |
+| `engineering-assurance` | `9237ce50ce19c6d6c937705bfde4b64adcc9d16b` | `AGPL-3.0-or-later` | Exact transitive producer-execution dependency selected by `quire-verification`; its normal Cargo requirements are compatible with Protocol's exact `serde` 1.0.228 graph. |
 | `agent-ix-baseline-producer` | `404288282402d60de007295ccbafa960532b955e` | `AGPL-3.0-only` | Transitive baseline producer reached through `quire-spec-language`; sourced from `agent-ix/filament-core-data`. |
 | `quire-contract-ir` | `53cc03c639e2e26528132d34d96dc56449df78e8` | `MIT OR Apache-2.0` | Direct test type and the exact transitive contract-IR revision selected by `quire-spec-language` `0c2f13e`; one identity type is present in the resolved graph. |
 | `ix-trace-rs` | `2ce4ebf47f726b9d76388220545cd0abda8a5cfb` | `AGPL-3.0-or-later` | Test-only trace attributes binding tests to acceptance criteria. |
 
-All five are compatible with this repository's `AGPL-3.0-or-later` decision:
-four are AGPL, and the permissive `MIT OR Apache-2.0` grant may be consumed
+All seven are compatible with this repository's `AGPL-3.0-or-later` decision:
+six are AGPL, and the permissive `MIT OR Apache-2.0` grant may be consumed
 under it. `publish = false` on the QObs crate is the required delivery policy,
 not a compatibility or availability failure for an exact git dependency.
 
@@ -40,8 +42,8 @@ entirely. That is the closure gap `NFR-006` names: `FR-009` pins the producers
 and nothing pinned this repository's own consumed set.
 
 `quire-observation` was also a direct `Cargo.toml`/lockfile dependency while
-absent from this record. The row above records the revision the build actually
-consumes; it does not prematurely claim the later accepted FR-287/FR-262 pin.
+absent from this record. The row above now records the accepted FR-287/FR-262
+revision the build actually consumes.
 
 ## Correction: the record trailed the version 2 pin, and omitted a transitive
 

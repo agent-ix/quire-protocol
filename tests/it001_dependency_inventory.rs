@@ -3,8 +3,8 @@
 //!
 //! This lane reads B's own manifest, lockfile and library source as data. It
 //! proves, without running the producers, that the protocol path uses exactly
-//! the selected native/formal frontend plus the promoted observation owner and
-//! B's explicitly admitted serialization/schema carriers.
+//! the selected native/formal frontend, promoted observation owner, accepted
+//! E02 owner, and B's explicitly admitted serialization/schema carriers.
 
 use std::{collections::BTreeSet, fs, path::Path};
 
@@ -12,6 +12,7 @@ use ix_trace_rs::trace;
 
 const MANIFEST: &str = include_str!("../Cargo.toml");
 const LOCKFILE: &str = include_str!("../Cargo.lock");
+const RIGHTS_RECORD: &str = include_str!("../DEPENDENCIES.md");
 const LIBRARY: &str = include_str!("../src/lib.rs");
 const INTAKE_V1: &str = include_str!("../src/intake/v1.rs");
 const INTAKE_V2: &str = include_str!("../src/intake/v2.rs");
@@ -24,6 +25,13 @@ const FRONTEND_REVISION: &str = "0c2f13e261c0ffeaf89f0638931b573ec038e99b";
 /// F's promoted observation owner supplies typed progress, closure and
 /// completeness views. B consumes those views and does not mirror them.
 const OBSERVATION_OWNER: &str = "quire-observation";
+
+/// E02's accepted owner crate supplies the target types, JCS implementation,
+/// and strict reader. B maps into that interface and does not mirror it.
+const E02_OWNER: &str = "quire-verification";
+const E02_REVISION: &str = "293e342c6f5e2c69738956ff5165f75761b0364a";
+const ASSURANCE_OWNER: &str = "engineering-assurance";
+const ASSURANCE_REVISION: &str = "9237ce50ce19c6d6c937705bfde4b64adcc9d16b";
 
 /// The only non-frontend crate the published library links. It reads members A
 /// has already published and serialises B's own selections through A's
@@ -55,6 +63,7 @@ const LIBRARY_MODULES: &[&str] = &[
     "link",
     "model",
     "outcome.rs",
+    "projection.rs",
     "refusal",
     "repro.rs",
     "result",
@@ -78,6 +87,7 @@ const INVENTORY: &[&str] = &[
     "agent-ix-baseline-producer",
     "ahash",
     "aho-corasick",
+    "allocator-api2",
     "anyhow",
     "ar_archive_writer",
     "autocfg",
@@ -86,18 +96,29 @@ const INVENTORY: &[&str] = &[
     "bit-vec",
     "bitflags",
     "block-buffer",
+    "borrow-or-share",
     "bumpalo",
     "bytecount",
     "cc",
     "cfg-if",
+    "chrono",
     "cpufeatures",
     "crypto-common",
+    "data-encoding",
     "deranged",
     "digest",
     "displaydoc",
+    "dyn-clone",
+    "email_address",
+    "engineering-assurance",
+    "equivalent",
+    "errno",
     "fancy-regex",
+    "fastrand",
     "find-msvc-tools",
     "fnv",
+    "fluent-uri",
+    "foldhash",
     "form_urlencoded",
     "fraction",
     "futures-core",
@@ -105,6 +126,9 @@ const INVENTORY: &[&str] = &[
     "futures-util",
     "generic-array",
     "getrandom",
+    "hashbrown",
+    "heck",
+    "hybrid-array",
     "icu_collections",
     "icu_locale_core",
     "icu_normalizer",
@@ -114,19 +138,25 @@ const INVENTORY: &[&str] = &[
     "icu_provider",
     "idna",
     "idna_adapter",
+    "indexmap",
     "iso8601",
     "itoa",
     "ix-trace-rs",
     "js-sys",
     "jsonschema",
+    "jsonschema-regex",
+    "jsonschema-value",
     "lazy_static",
     "libc",
+    "linux-raw-sys",
     "litemap",
+    "log",
     "lock_api",
     "logos",
     "logos-codegen",
     "logos-derive",
     "memchr",
+    "micromap",
     "nom",
     "num",
     "num-bigint",
@@ -139,6 +169,7 @@ const INVENTORY: &[&str] = &[
     "num-traits",
     "object",
     "once_cell",
+    "outref",
     "parking_lot",
     "parking_lot_core",
     "percent-encoding",
@@ -150,39 +181,66 @@ const INVENTORY: &[&str] = &[
     "quire-contract-model",
     "quire-observation",
     "quire-spec-language",
+    "quire-verification",
     "quote",
     "r-efi",
     "redox_syscall",
+    "ref-cast",
+    "ref-cast-impl",
+    "referencing",
+    "regress",
     "regex",
     "regex-automata",
     "regex-syntax",
     "rustversion",
+    "rustix",
+    "ryu-js",
+    "schemars",
+    "schemars_derive",
     "scopeguard",
+    "semver",
     "serde",
     "serde_core",
     "serde_derive",
+    "serde_derive_internals",
     "serde_json",
+    "serde_json_canonicalizer",
     "serde_stacker",
+    "serde_spanned",
+    "serde_tokenstream",
     "sha2",
     "shlex",
     "slab",
     "smallvec",
     "stable_deref_trait",
     "stacker",
+    "strum",
+    "strum_macros",
     "syn",
     "synstructure",
+    "tempfile",
     "thiserror",
     "thiserror-impl",
     "time",
     "time-core",
     "time-macros",
     "tinystr",
+    "toml",
+    "toml_datetime",
+    "toml_parser",
+    "toml_writer",
+    "typify",
+    "typify-impl",
+    "typify-macro",
     "typenum",
     "unicode-ident",
+    "unicode-general-category",
     "url",
     "utf8_iter",
     "uuid",
+    "uuid-simd",
     "version_check",
+    "vsimd",
     "wasi",
     "wasip2",
     "wasm-bindgen",
@@ -193,6 +251,8 @@ const INVENTORY: &[&str] = &[
     "winapi-i686-pc-windows-gnu",
     "winapi-x86_64-pc-windows-gnu",
     "windows-link",
+    "windows-sys",
+    "winnow",
     "wit-bindgen",
     "writeable",
     "yoke",
@@ -229,14 +289,15 @@ fn declared_packages(section: &str) -> BTreeSet<&str> {
 #[trace("IT-001", "Task-009")]
 fn it_001_declares_only_selected_owner_dependencies() {
     // The library links exactly one protocol frontend, the promoted observation
-    // owner, and the three carriers required to emit and strictly validate B's
-    // own closed documents. No alternate parser, evaluator or runtime can enter
-    // the protocol path unannounced.
+    // owner, the accepted E02 owner, and the three carriers required to emit and
+    // strictly validate B's own closed documents. No alternate parser,
+    // evaluator or runtime can enter the protocol path unannounced.
     assert_eq!(
         declared_packages(manifest_section("[dependencies]")),
         BTreeSet::from([
             FRONTEND,
             OBSERVATION_OWNER,
+            E02_OWNER,
             SERIALISATION,
             SERIALISATION_DERIVE,
             SCHEMA_VALIDATOR,
@@ -301,6 +362,33 @@ fn it_001_resolves_one_frontend_in_the_whole_graph() {
         .collect::<Vec<_>>();
     assert_eq!(from_a.len(), 1, "got {from_a:?}");
     assert!(from_a[0].contains(FRONTEND_REVISION), "got {from_a:?}");
+}
+
+/// Tracing: TC-013 and NFR-006-AC-4.
+#[test]
+#[trace("TC-013", "NFR-006-AC-4")]
+fn tc_013_records_the_exact_e02_git_closure_in_all_three_sources() {
+    assert!(
+        manifest_section("[dependencies]").contains(E02_REVISION),
+        "the direct E02 dependency must select the accepted compatible revision"
+    );
+
+    for (owner, revision) in [
+        (E02_OWNER, E02_REVISION),
+        (ASSURANCE_OWNER, ASSURANCE_REVISION),
+    ] {
+        let locked_sources = LOCKFILE
+            .lines()
+            .filter(|line| {
+                line.starts_with("source = ") && line.contains(owner) && line.contains(revision)
+            })
+            .count();
+        assert_eq!(locked_sources, 1, "lock source drift for {owner}");
+        assert!(
+            RIGHTS_RECORD.contains(&format!("| `{owner}` | `{revision}` |")),
+            "rights record drift for {owner}"
+        );
+    }
 }
 
 /// Tracing: IT-001, Task-009.
