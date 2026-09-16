@@ -8,6 +8,7 @@ use ix_trace_rs::trace;
 use quire_observation::{
     QualifiedSubject, Relationship, RelationshipIdentity, SubjectIdentity, SubjectKind,
 };
+use quire_protocol::bounds::inventory::Budget;
 use quire_protocol::model::v2::{
     link as link_v2, ChannelHandle, DefinitionRegistry, FifoPartitionRefusal, Internality,
     LinkedAssessment, RegistryRefusal, RoleClassification, RuntimeBinding, RuntimeBindingSet,
@@ -17,8 +18,7 @@ use quire_protocol::model::v2::{
 use quire_protocol::wire::{BindingKind, Body, CausalEdge, ControlOperation, EdgeKind, Port};
 use quire_protocol::{
     assessment::{
-        AxisInputs, BundleRefusal, ClaimRow, Engine, GlobalConformanceInput, GlobalPremise,
-        PremiseKind,
+        AxisInputs, BundleRefusal, Engine, GlobalConformanceInput, GlobalPremise, PremiseKind,
     },
     claims::{
         dispatch::{ClaimRequest, Decision, Limits as DispatchLimits},
@@ -30,7 +30,7 @@ use quire_protocol::{
         ActivatedAssessmentError, ActivatedIncremental, AdverseKind, ErrorCode, GlobalDisposition,
         Limits as ConformanceLimits, ObligationDisposition,
     },
-    outcome::{ClaimOutcome, OperationOutcome},
+    outcome::OperationOutcome,
 };
 use quire_spec_language::protocol_artifact::{
     native_temporal::{self, request, v2 as temporal_v2},
@@ -374,7 +374,6 @@ fn subject(producer: &quire_observation::AdmittedStaticBundle) -> QualifiedSubje
 fn digest(label: &str) -> String {
     format!("{:x}", ByteDigest::of(label.as_bytes()))
 }
-
 fn evidence(scope: &str, identity: &str) -> native_temporal::EvidenceRef {
     native_temporal::EvidenceRef::new(
         "quire.owner-evidence/v1",
@@ -388,7 +387,6 @@ fn evidence(scope: &str, identity: &str) -> native_temporal::EvidenceRef {
         1,
     )
 }
-
 fn activated_request(
     package: &quire_spec_language::protocol_artifact::v2::AdmittedPackage,
     trigger: &[u8],
@@ -493,7 +491,6 @@ fn activated_request_at(
     .into_result()
     .expect("strict-read opaque temporal request")
 }
-
 fn order_shipment(producer: &quire_observation::AdmittedStaticBundle) -> Relationship {
     order_shipment_with_identity(
         producer,
@@ -1338,7 +1335,6 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
     };
     assert_eq!(engine.linked().identity(), &identity);
     assert_eq!(engine.conformance().definition(), &identity);
-
     let mappings = admitted_published_v3(&package);
     let result_document = temporal_v2::evaluate(
         &request,
@@ -1567,21 +1563,22 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
         },
         correspondence: None,
     };
-    let dispatched = engine
-        .dispatch_activated(
-            std::slice::from_ref(&dispatch_request),
-            std::slice::from_ref(&fact),
-            closed_axes(&decision, &surrounding),
-            &decision.completeness_complete,
-            &global,
-            AssessmentExecution::Completed,
-            ConformanceLimits::default(),
-            DispatchLimits::default(),
-        )
-        .expect("dispatch consumes only the engine's activation-derived report");
-    assert_eq!(dispatched.dispositions.len(), 1);
+    let OperationOutcome::Completed(dispatched) = engine.dispatch_activated(
+        std::slice::from_ref(&dispatch_request),
+        std::slice::from_ref(&fact),
+        closed_axes(&decision, &surrounding),
+        &decision.completeness_complete,
+        &global,
+        AssessmentExecution::Completed,
+        ConformanceLimits::default(),
+        DispatchLimits::default(),
+        Budget::nothing_granted(),
+    ) else {
+        panic!("dispatch consumes only the engine's activation-derived report")
+    };
+    assert_eq!(dispatched.dispositions().len(), 1);
     assert_eq!(
-        dispatched.dispositions[0].decision,
+        dispatched.dispositions()[0].decision,
         Some(Decision::Established),
         "the claim result comes from the actual activation-derived conformance report"
     );
@@ -1735,27 +1732,6 @@ fn tc_002_linked_assessment_borrows_one_admitted_v2_protocol_context() {
         activation.require_occurrence(&other_occurrence),
         Err(quire_protocol::conformance::KernelRefusal::ActivationOccurrenceMismatch)
     );
-
-    let bundle = match engine.assemble_outcome(vec![ClaimRow {
-        claim: Claim::Conformance,
-        outcome: ClaimOutcome::Canonical(()),
-    }]) {
-        OperationOutcome::Completed(bundle) => bundle,
-        OperationOutcome::Refused(refusal) => {
-            panic!("complete claim population must assemble: {refusal}")
-        }
-        OperationOutcome::ResourceIncomplete(incomplete) => {
-            panic!("bundle assembly has no resource work: {incomplete:?}")
-        }
-    };
-    assert_eq!(bundle.identity(), &identity);
-    assert_eq!(
-        bundle.context().definition().selection(),
-        definition.selection()
-    );
-    assert_eq!(bundle.rows().len(), 1);
-    assert_eq!(bundle.linked().identity(), &identity);
-    assert_eq!(bundle.conformance().definition(), &identity);
 
     let different_runtime = RuntimeBindingSet::new(
         RUNTIME_BINDING_CONTRACT,
@@ -2037,7 +2013,6 @@ fn tc_002_effect_projection_requires_an_owner_effect_slot() {
     let Body::Protocol {
         roles,
         compensations,
-        controls,
         ..
     } = &package.inherited().declarations
         [usize::try_from(declaration_handle).expect("published index fits")]
@@ -2132,12 +2107,19 @@ fn tc_002_effect_projection_requires_an_owner_effect_slot() {
 
     let engine = Engine::new(context, vec![Claim::Conformance])
         .expect("the linked effect context starts a non-retargetable assessment");
+    let Body::Protocol { controls, .. } = &engine.linked().declaration().body else {
+        panic!("the linked assessment retains the selected protocol declaration")
+    };
     assert_eq!(engine.compensation_inputs().len(), 2);
     // Task-002 projects eligible exact inputs; Task-003 alone may turn them
     // into state after the admitted activation guard completes true.
     assert!(engine.compensation().registrations().is_empty());
     assert!(engine.conformance().registrations().is_empty());
-    assert_eq!(engine.conformance().obligations().len(), controls.len());
+    assert_eq!(
+        engine.conformance().obligations().len(),
+        controls.len(),
+        "the conformance kernel retains every linked control without turning compensation inputs into registrations"
+    );
     assert_eq!(
         engine.conformance().compensations(),
         engine.linked().compensations()
@@ -2155,7 +2137,7 @@ fn tc_002_effect_projection_requires_an_owner_effect_slot() {
         engine
             .conformance()
             .obligation(0)
-            .expect("the first published control handle is retained")
+            .expect("the first linked control is a conformance obligation")
             .operation(),
         &controls[0].operation
     );
@@ -2166,28 +2148,22 @@ fn tc_002_effect_projection_requires_an_owner_effect_slot() {
     );
     assert!(engine.conformance().attempts().is_empty());
     assert!(engine.conformance().effects().is_empty());
-    let bundle = engine
-        .assemble(vec![ClaimRow {
-            claim: Claim::Conformance,
-            outcome: ClaimOutcome::Canonical(()),
-        }])
-        .expect("the exact compensation inputs survive complete bundle assembly");
-    assert_eq!(bundle.compensation_inputs().len(), 2);
+    assert_eq!(engine.compensation_inputs().len(), 2);
     assert_eq!(
-        bundle.compensation_inputs()[0].effect().subject(),
+        engine.compensation_inputs()[0].effect().subject(),
         &observed
     );
-    assert!(bundle.compensation().registrations().is_empty());
-    assert!(bundle.conformance().registrations().is_empty());
-    assert_eq!(bundle.conformance().obligations().len(), controls.len());
+    assert!(engine.compensation().registrations().is_empty());
+    assert!(engine.conformance().registrations().is_empty());
+    assert_eq!(engine.conformance().obligations().len(), controls.len());
     assert_eq!(
-        bundle.conformance().compensations(),
-        bundle.linked().compensations()
+        engine.conformance().compensations(),
+        engine.linked().compensations()
     );
     assert_eq!(
-        bundle.conformance().causal_edges(),
-        bundle.linked().causal_edges()
+        engine.conformance().causal_edges(),
+        engine.linked().causal_edges()
     );
-    assert!(bundle.conformance().attempts().is_empty());
-    assert!(bundle.conformance().effects().is_empty());
+    assert!(engine.conformance().attempts().is_empty());
+    assert!(engine.conformance().effects().is_empty());
 }

@@ -378,13 +378,6 @@ impl RefusalAxis {
     /// # Errors
     ///
     /// Returns [`EmptyRefusalAxis`] when no axis was supplied.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "Task-013 and Tasks 002-006 construct exact composed scenario axes"
-        )
-    )]
     pub(crate) fn new(axis: &[u8]) -> Result<Self, EmptyRefusalAxis> {
         if axis.is_empty() {
             Err(EmptyRefusalAxis)
@@ -605,13 +598,6 @@ impl CauseChain {
     }
 
     /// Append a cause at the end of the declared order.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "Task-013 and Tasks 002-006 consume the private typed-cause constructor"
-        )
-    )]
     pub(crate) fn push(&mut self, cause: RefusalCause) {
         self.causes.push(cause);
     }
@@ -654,6 +640,104 @@ pub enum PartialOutput {
     /// Independent assessment results that FR-005 expressly authorises to
     /// survive another claim's failure were retained.
     IndependentResultsRetained,
+}
+
+// ---------------------------------------------------------------------------
+// Resource usage
+// ---------------------------------------------------------------------------
+
+/// One exact resource dimension and the amount consumed before refusal.
+///
+/// Dimension names remain under the selected accounting contract. Protocol
+/// does not merge similarly named dimensions owned by different producers.
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub struct ResourceMeasure {
+    dimension: RetainedBytes,
+    consumed: usize,
+}
+
+impl ResourceMeasure {
+    /// Exact owner-defined dimension name.
+    #[must_use]
+    pub const fn dimension(&self) -> &RetainedBytes {
+        &self.dimension
+    }
+
+    /// Work consumed on that dimension before the refusal.
+    #[must_use]
+    pub const fn consumed(&self) -> usize {
+        self.consumed
+    }
+}
+
+/// Usage retained under one exact owner and accounting contract.
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub struct AccountingRecord {
+    owner: RetainedBytes,
+    contract: RetainedBytes,
+    measures: Box<[ResourceMeasure]>,
+}
+
+impl AccountingRecord {
+    /// Exact accounting owner identity.
+    #[must_use]
+    pub const fn owner(&self) -> &RetainedBytes {
+        &self.owner
+    }
+
+    /// Exact selected accounting contract or version.
+    #[must_use]
+    pub const fn contract(&self) -> &RetainedBytes {
+        &self.contract
+    }
+
+    /// Owner-declared dimensions in their semantic order.
+    #[must_use]
+    pub const fn measures(&self) -> &[ResourceMeasure] {
+        &self.measures
+    }
+}
+
+/// Complete resource usage carried by one refusal envelope.
+///
+/// Protocol usage is mandatory. External-owner usage is a separate ordered
+/// population so no adapter can sum or reinterpret another owner's accounting
+/// dimensions into Protocol's record.
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub struct ResourceUsage {
+    protocol: AccountingRecord,
+    external: Box<[AccountingRecord]>,
+}
+
+impl ResourceUsage {
+    pub(crate) fn protocol(contract: &'static str, measures: &[(&'static str, usize)]) -> Self {
+        Self {
+            protocol: AccountingRecord {
+                owner: RetainedBytes::new(b"agent-ix/quire-protocol"),
+                contract: RetainedBytes::new(contract.as_bytes()),
+                measures: measures
+                    .iter()
+                    .map(|(dimension, consumed)| ResourceMeasure {
+                        dimension: RetainedBytes::new(dimension.as_bytes()),
+                        consumed: *consumed,
+                    })
+                    .collect(),
+            },
+            external: Box::new([]),
+        }
+    }
+
+    /// Exact Protocol-owned usage record.
+    #[must_use]
+    pub const fn protocol_record(&self) -> &AccountingRecord {
+        &self.protocol
+    }
+
+    /// Exact external-owner records, never merged into Protocol usage.
+    #[must_use]
+    pub const fn external_records(&self) -> &[AccountingRecord] {
+        &self.external
+    }
 }
 
 /// A refusal that retained independent results FR-005 authorises to survive.
@@ -735,6 +819,7 @@ struct ProtocolRefusalInner {
     identity: AffectedIdentity,
     location: Location,
     causes: CauseChain,
+    resource_usage: ResourceUsage,
     partial_output: PartialOutput,
     rendering: Rendering,
 }
@@ -745,19 +830,13 @@ impl ProtocolRefusal {
     /// The arguments make code/catalog selection, local stage, refusal axis,
     /// and first typed cause mandatory. The stage/domain pair is validated
     /// before a builder is returned.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "Task-013 and Tasks 002-006 consume this constructor-private foundation"
-        )
-    )]
     pub(crate) fn builder(
         code: RefusalCode,
         catalog: CatalogSelection,
         stage: ProtocolStage,
         axis: RefusalAxis,
         first_cause: RefusalCause,
+        resource_usage: ResourceUsage,
     ) -> Result<RefusalBuilder, StageDomainMismatch> {
         stage.validate_domain(code.domain())?;
         let mut causes = CauseChain::new();
@@ -771,32 +850,7 @@ impl ProtocolRefusal {
             identity: AffectedIdentity::NotApplicable,
             location: Location::Unavailable(Unavailability::NotReportedBySource),
             causes,
-            rendering: Rendering::default(),
-        })
-    }
-
-    /// Build an envelope for an existing subsystem route that has not yet
-    /// completed its Task-006 cause mapping.
-    ///
-    /// Crate-private on purpose: new public callers must use [`Self::builder`]
-    /// and supply a typed cause. Keeping this temporary adapter empty avoids
-    /// approximating a subsystem-specific cause before its owning ticket.
-    pub(crate) fn legacy_builder(
-        code: RefusalCode,
-        catalog: CatalogSelection,
-        stage: ProtocolStage,
-        axis: RefusalAxis,
-    ) -> Result<RefusalBuilder, StageDomainMismatch> {
-        stage.validate_domain(code.domain())?;
-        Ok(RefusalBuilder {
-            code,
-            catalog,
-            stage,
-            axis,
-            prerequisites: Vec::new(),
-            identity: AffectedIdentity::NotApplicable,
-            location: Location::Unavailable(Unavailability::NotReportedBySource),
-            causes: CauseChain::new(),
+            resource_usage,
             rendering: Rendering::default(),
         })
     }
@@ -855,6 +909,12 @@ impl ProtocolRefusal {
         &self.0.causes
     }
 
+    /// Exact Protocol usage and separately retained external-owner usage.
+    #[must_use]
+    pub const fn resource_usage(&self) -> &ResourceUsage {
+        &self.0.resource_usage
+    }
+
     /// What, if anything, survived the refusal.
     #[must_use]
     pub fn partial_output(&self) -> PartialOutput {
@@ -885,6 +945,18 @@ impl ProtocolRefusal {
         rendered
     }
 
+    /// Retain this exact refusal while recording that an enclosing assessment
+    /// kept independently authorized sibling results.
+    ///
+    /// Only the enclosing assessment may make this transition: it does not
+    /// mint a cause, change the originating stage, or make a failed operation
+    /// appear completed.
+    #[must_use]
+    pub(crate) fn with_independent_results_retained(mut self) -> Self {
+        self.0.partial_output = PartialOutput::IndependentResultsRetained;
+        self
+    }
+
     /// Whether two refusals carry the same producer-supplied interior.
     ///
     /// The refusal axis and rendering are deliberately excluded. Integrations
@@ -900,6 +972,7 @@ impl ProtocolRefusal {
             &self.0.identity,
             &self.0.location,
             &self.0.causes,
+            &self.0.resource_usage,
             self.0.partial_output,
         ) == (
             other.0.code,
@@ -909,6 +982,7 @@ impl ProtocolRefusal {
             &other.0.identity,
             &other.0.location,
             &other.0.causes,
+            &other.0.resource_usage,
             other.0.partial_output,
         )
     }
@@ -928,6 +1002,7 @@ impl ProtocolRefusal {
         &AffectedIdentity,
         &Location,
         &CauseChain,
+        &ResourceUsage,
         PartialOutput,
     ) {
         (
@@ -939,6 +1014,7 @@ impl ProtocolRefusal {
             &self.0.identity,
             &self.0.location,
             &self.0.causes,
+            &self.0.resource_usage,
             self.0.partial_output,
         )
     }
@@ -993,19 +1069,13 @@ pub(crate) struct RefusalBuilder {
     identity: AffectedIdentity,
     location: Location,
     causes: CauseChain,
+    resource_usage: ResourceUsage,
     rendering: Rendering,
 }
 
 impl RefusalBuilder {
     /// Record a prerequisite of the originating stage.
     #[must_use]
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "Task-013 and Tasks 002-006 populate prerequisites through this private builder"
-        )
-    )]
     pub(crate) fn prerequisite(mut self, prerequisite: Prerequisite) -> Self {
         self.prerequisites.push(prerequisite);
         self
@@ -1044,13 +1114,6 @@ impl RefusalBuilder {
 
     /// Append a cause at the end of the declared order.
     #[must_use]
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "Task-013 and Tasks 002-006 populate typed causes through this private builder"
-        )
-    )]
     pub(crate) fn cause(mut self, cause: impl Into<RefusalCause>) -> Self {
         self.causes.push(cause.into());
         self
@@ -1105,6 +1168,7 @@ impl RefusalBuilder {
             identity: self.identity,
             location: self.location,
             causes: self.causes,
+            resource_usage: self.resource_usage,
             partial_output,
             rendering: self.rendering,
         }))

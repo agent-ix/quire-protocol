@@ -6,6 +6,13 @@
 //! [`lineage`] validates support and correction edges, and [`contract_ir`]
 //! owns the selected read-only mapping. No module evaluates a predicate or
 //! parses Quire source.
+//!
+//! Canonical production is an Engine-owned transition, not an external
+//! wire-shaped input seam:
+//!
+//! ```compile_fail,E0603
+//! use quire_protocol::result::record::produce;
+//! ```
 
 pub mod contract_ir;
 pub mod global;
@@ -15,20 +22,31 @@ pub mod record;
 /// Reversible opaque runtime-reference carrier for string-only result fields.
 pub mod runtime_reference;
 
-use crate::refusal::catalog::{CatalogSelection, CodeEntry, CodeModule, Provenance, RefusalCode};
+#[cfg(test)]
+#[path = "tc_006_tests.rs"]
+mod tc_006_tests;
+
+use crate::refusal::catalog::{
+    CatalogSelection, CodeEntry, CodeModule, Provenance, RefusalCode, RetainedBytes,
+};
 use crate::refusal::{
-    AffectedIdentity, ProtocolRefusal, ProtocolStage, RefusalAxis, RefusalDomain, RetryDecision,
-    Unavailability,
+    AffectedIdentity, Prerequisite, PrerequisiteState, ProtocolCause, ProtocolRefusal,
+    ProtocolStage, RefusalAxis, RefusalDomain, ResourceUsage, RetryDecision, Unavailability,
 };
 
 pub use crate::assessment::{AxisInputs, GlobalConformanceInput, GlobalPremise, PremiseKind};
 pub use reader::{read, read_bounded, Expected};
+#[allow(
+    unused_imports,
+    reason = "the unbounded producer is consumed only by the in-crate semantic corpus; production orchestration uses the bounded producer"
+)]
+pub(crate) use record::{produce, produce_bounded};
 pub use record::{
-    produce, produce_bounded, Activation, Adequacy, Assumption, AssumptionState, AxisView, Claim,
-    ClaimKind, ClaimStrength, CompletenessView, CorrectionInput, CorrectionRelation,
-    CorrectionView, DecisionSupport, DependenceRelation, Document, Input, Limitation, Limits,
-    Participation, ProtocolAdequacy, ProvenanceRecord, Settlement, SettlementBasis, SupportRef,
-    Truth, Usage, ValidatedResult, CONTRACT, SCHEMA_BYTES, SCHEMA_SHA256,
+    Activation, Adequacy, Assumption, AssumptionState, AxisView, Claim, ClaimKind, ClaimStrength,
+    CompletenessView, CorrectionInput, CorrectionRelation, CorrectionView, DecisionSupport,
+    DependenceRelation, Document, Input, Limitation, Limits, Participation, ProtocolAdequacy,
+    ProvenanceRecord, Settlement, SettlementBasis, SupportRef, Truth, Usage, ValidatedResult,
+    CONTRACT, SCHEMA_BYTES, SCHEMA_SHA256,
 };
 
 /// Stable result-owner or mapping refusal cause.
@@ -121,14 +139,37 @@ impl Refusal {
         stage: ProtocolStage,
     ) -> Self {
         let refusal_code = RefusalCode::of(code.entry());
-        let mut builder = ProtocolRefusal::legacy_builder(
+        let mut builder = ProtocolRefusal::builder(
             refusal_code,
             CatalogSelection::local(),
             stage,
             RefusalAxis::from_registered_code(refusal_code),
+            result_cause(code, identity).into(),
+            refusal_usage(usage),
         )
         .expect("result codes belong to a result stage")
         .unavailable_location(Unavailability::NotApplicableToStage);
+        builder = match stage {
+            ProtocolStage::ResultAssembly => builder.prerequisite(Prerequisite::new(
+                ProtocolStage::ClaimDispatch,
+                PrerequisiteState::Established,
+            )),
+            ProtocolStage::ResultRead => builder.prerequisite(Prerequisite::new(
+                ProtocolStage::ResultAssembly,
+                PrerequisiteState::Unavailable,
+            )),
+            ProtocolStage::Projection => builder.prerequisite(Prerequisite::new(
+                ProtocolStage::ResultRead,
+                PrerequisiteState::Established,
+            )),
+            ProtocolStage::ContractResolution
+            | ProtocolStage::Admission
+            | ProtocolStage::Representation
+            | ProtocolStage::Compensation
+            | ProtocolStage::Conformance
+            | ProtocolStage::ClaimDispatch
+            | ProtocolStage::EvidenceHandoff => builder,
+        };
         if let Some(identity) = identity {
             builder = builder.identity(AffectedIdentity::retained(identity.as_bytes()));
         }
@@ -162,6 +203,54 @@ impl Refusal {
     #[must_use]
     pub fn envelope(&self) -> &ProtocolRefusal {
         &self.envelope
+    }
+}
+
+fn refusal_usage(usage: Usage) -> ResourceUsage {
+    ResourceUsage::protocol(
+        "quire.protocol/result-usage/1",
+        &[
+            ("wire-bytes", usage.wire_bytes),
+            ("depth", usage.depth),
+            ("string-bytes", usage.string_bytes),
+            ("claims", usage.claims),
+            ("premises", usage.premises),
+            ("support-records", usage.support_records),
+            ("limitations", usage.limitations),
+            ("lineage-nodes", usage.lineage_nodes),
+            ("visited-fields", usage.visited_fields),
+        ],
+    )
+}
+
+fn result_cause(code: ErrorCode, identity: Option<&str>) -> ProtocolCause {
+    let code_bytes = RetainedBytes::new(code.as_str().as_bytes());
+    let affected = identity
+        .map(|identity| RetainedBytes::new(identity.as_bytes()))
+        .unwrap_or_else(|| RetainedBytes::new(b"result-input"));
+    match code {
+        ErrorCode::InvalidSelection
+        | ErrorCode::ResourceIncomplete
+        | ErrorCode::InvalidJson
+        | ErrorCode::NonCanonical
+        | ErrorCode::ContractMismatch => ProtocolCause::IncompleteEvidence {
+            evidence: code_bytes,
+        },
+        ErrorCode::IdentityMismatch
+        | ErrorCode::DigestMismatch
+        | ErrorCode::AxisMismatch
+        | ErrorCode::GlobalPremiseMismatch
+        | ErrorCode::MappingMismatch => ProtocolCause::IdentityMismatch {
+            expected: code_bytes,
+            observed: affected,
+        },
+        ErrorCode::InvalidCombination => ProtocolCause::LogicalViolation {
+            obligation: affected,
+        },
+        ErrorCode::LineageInvalid => ProtocolCause::ConflictingDefinition {
+            definition: affected,
+            conflicting_definition: code_bytes,
+        },
     }
 }
 

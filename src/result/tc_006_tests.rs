@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! TC-006/TC-015: complete canonical result owner and Contract-IR mapping.
+//! TC-006/TC-015: in-crate canonical result owner and Contract-IR mapping.
 
 use agent_ix_baseline_producer::StaticProducerBundle;
 use ix_trace_rs::trace;
@@ -13,10 +13,20 @@ use quire_observation::{
     ResourceLimits, ScopeKind, ScopeSelection, SubjectIdentity, SubjectKind, ValueState,
     Visibility, NATIVE_LINKED_PACKAGE_FORMAT,
 };
+use quire_protocol::assessment::{CanonicalRowFacts, Engine};
 use quire_protocol::bounds::inventory::{
     production_inventory, Budget, BudgetDimension, OperationOutcome, ResourceAccountant,
 };
+use quire_protocol::claims::dispatch::{ClaimRequest, Limits as DispatchLimits};
+use quire_protocol::claims::premises::{BackendSelection, Component, PremiseSet};
+use quire_protocol::claims::Claim as DispatchClaim;
 use quire_protocol::closure::{AssessmentExecution, GlobalConformanceClosure, ScopeState};
+use quire_protocol::conformance::Limits as ConformanceLimits;
+use quire_protocol::model::v2::{
+    Internality, LinkedAssessment, RoleClassification, RuntimeBinding, RuntimeBindingSet,
+    SlotCompatibility, SlotHandle, StaticBindingDefinition, StaticSelection, StaticSlot,
+    RUNTIME_BINDING_CONTRACT, STATIC_BINDING_CONTRACT,
+};
 use quire_protocol::refusal::ProtocolStage;
 use quire_protocol::repro::{CorpusIdentity, ReproductionInputs, Seed, ToolchainIdentity};
 use quire_protocol::result::{
@@ -27,12 +37,24 @@ use quire_protocol::result::{
     SettlementBasis, SupportRef, Truth,
 };
 use quire_protocol::{v2, wire as w, ByteDigest};
-use quire_spec_language::protocol_artifact::{checked_predicate, temporal_subject};
+use quire_spec_language::protocol_artifact::{
+    checked_predicate,
+    native_temporal::{self, request as temporal_request, v2 as temporal_v2},
+    occurrence_key_schema, temporal_subject, v3, WorkflowInstanceIdentity,
+};
 use serde_json::Value;
 
-#[path = "support/v2_handoff/mod.rs"]
+#[path = "../../tests/support/v2_handoff/mod.rs"]
 #[allow(dead_code, unused_imports)]
 mod handoff;
+
+#[path = "../../tests/support/observation_owner.rs"]
+#[allow(
+    clippy::duplicate_mod,
+    dead_code,
+    reason = "the result semantic corpus deliberately owns an independent QObs fixture instance from the conformance corpus"
+)]
+mod observation_owner;
 
 const ORDER_KIND: &str = "ix://agent-ix/commerce/type/Order";
 
@@ -61,8 +83,10 @@ fn digest(value: u8) -> Digest {
 }
 
 fn producer() -> quire_observation::AdmittedStaticBundle {
-    StaticProducerBundle::admit_json(include_bytes!("fixtures/fcd-static-bundle-1.2.json"))
-        .expect("shared FCD static bundle is admitted")
+    StaticProducerBundle::admit_json(include_bytes!(
+        "../../tests/fixtures/fcd-static-bundle-1.2.json"
+    ))
+    .expect("shared FCD static bundle is admitted")
 }
 
 fn runtime_subject(
@@ -564,6 +588,754 @@ fn base_input<'a>(fixture: &'a Fixture) -> Input<'a> {
     }
 }
 
+fn canonical_row_facts<'a>(
+    input: Input<'a>,
+    limits: Limits,
+    model_artifact: &'a w::ArtifactRef,
+    runtime_input: &'a QualifiedSubject,
+) -> CanonicalRowFacts<'a> {
+    CanonicalRowFacts {
+        checked_predicate: input.checked_predicate,
+        temporal_subject: input.temporal_subject,
+        settlement: input.settlement,
+        activation: input.activation,
+        participation: input.participation,
+        observation_adequacy: input.observation_adequacy,
+        protocol_adequacy: input.protocol_adequacy,
+        decision_support: input.decision_support,
+        limitations: input.limitations,
+        model_artifact,
+        runtime_input,
+        reproduction: input.provenance.reproduction,
+        correction: input.correction,
+        limits,
+    }
+}
+
+fn temporal_digest(label: &str) -> String {
+    format!(
+        "{:x}",
+        quire_spec_language::ByteDigest::of(label.as_bytes())
+    )
+}
+
+fn temporal_evidence(scope: &str, identity: &str) -> native_temporal::EvidenceRef {
+    native_temporal::EvidenceRef::new(
+        "quire.owner-evidence/v1",
+        temporal_digest(&format!("schema:{scope}")),
+        identity,
+        temporal_digest(&format!("document:{identity}")),
+        format!("authority:{scope}"),
+        "1",
+        temporal_digest(&format!("authority:{scope}")),
+        scope,
+        1,
+    )
+}
+
+fn activated_request(
+    package: &v2::AdmittedPackage,
+    subject: &temporal_subject::ValidatedTemporalSubject,
+    trigger: &[u8],
+) -> temporal_v2::ValidatedRequest {
+    let declaration = subject.declaration();
+    let leaf = package.inherited().declarations[usize::try_from(declaration).unwrap()]
+        .temporal
+        .iter()
+        .enumerate()
+        .find_map(|(index, node)| {
+            matches!(node.operation, w::TemporalOperation::Holds { .. })
+                .then(|| u32::try_from(index).expect("fixture temporal node fits"))
+        })
+        .expect("temporal fixture has a holds leaf");
+    let input = temporal_v2::Input {
+        trigger: temporal_v2::SemanticTriggerIdentity::new(trigger.to_vec())
+            .expect("QObs subject identity is nonempty"),
+        correspondence: temporal_evidence("correspondence", "correspondence:canonical-engine"),
+        positions: vec![temporal_request::ObservedPosition {
+            observation: temporal_evidence("observation", "observation:canonical-engine"),
+            position: quire_spec_language::temporal::Position {
+                coordinate: 0,
+                order: Some(quire_spec_language::temporal::OrderKey {
+                    authority: "events".into(),
+                    key: 0,
+                }),
+                valuations: std::collections::BTreeMap::from([(leaf, true)]),
+            },
+        }],
+        anchor: "origin".into(),
+        triggers: vec![temporal_v2::TriggerInput {
+            receipt: "receipt:canonical-engine".into(),
+            anchor: "origin".into(),
+            payload: String::new(),
+            guard: None,
+            captures: Vec::new(),
+        }],
+        trigger_evidence: quire_spec_language::temporal::Evidence::Admitted,
+        trigger_scope: quire_spec_language::temporal::Closure::Closed,
+        decision_progress: temporal_request::ProgressInput {
+            reference: temporal_evidence("decision-progress", "decision-progress:canonical-engine"),
+            watermark: 0,
+        },
+        decision_closure: temporal_request::ClosureInput {
+            reference: temporal_evidence("decision-closure", "decision-closure:canonical-engine"),
+            state: quire_spec_language::temporal::Closure::Closed,
+        },
+        surrounding_progress: temporal_request::ProgressInput {
+            reference: temporal_evidence(
+                "surrounding-progress",
+                "surrounding-progress:canonical-engine",
+            ),
+            watermark: 0,
+        },
+        surrounding_closure: temporal_request::ClosureInput {
+            reference: temporal_evidence(
+                "surrounding-closure",
+                "surrounding-closure:canonical-engine",
+            ),
+            state: quire_spec_language::temporal::Closure::Open,
+        },
+        execution: quire_spec_language::temporal::Execution::Completed,
+        completeness: temporal_request::CompletenessInput {
+            reference: temporal_evidence("completeness", "completeness:canonical-engine"),
+            state: quire_spec_language::temporal::Completeness::Complete,
+            facts: vec![temporal_evidence(
+                "completeness-fact",
+                "fact:canonical-engine",
+            )],
+        },
+        authoritative_origin: true,
+        evicted: Vec::new(),
+    };
+    let document = temporal_v2::produce(subject, input, native_temporal::Limits::default())
+        .into_result()
+        .expect("produce activation temporal request");
+    temporal_v2::read(
+        document.bytes(),
+        subject,
+        native_temporal::Limits::default(),
+    )
+    .into_result()
+    .expect("strict-read activation temporal request")
+}
+
+fn activated_result(request: &temporal_v2::ValidatedRequest) -> temporal_v2::ValidatedResult {
+    let document = temporal_v2::evaluate(
+        request,
+        temporal_v2::Relation::Original,
+        native_temporal::Limits::default(),
+    )
+    .into_result()
+    .expect("evaluate activation temporal result");
+    temporal_v2::read_result(
+        document.bytes(),
+        request,
+        temporal_v2::Relation::Original,
+        native_temporal::Limits::default(),
+    )
+    .into_result()
+    .expect("strict-read activation temporal result")
+}
+
+fn admitted_activation_map(package: &v2::AdmittedPackage) -> v3::AdmittedPackage {
+    let loaded = handoff::Handoff::load().expect("published v2 handoff");
+    let declarations = loaded.declarations();
+    let inventories = loaded.inventories(&declarations);
+    let (declaration, control) = package
+        .inherited()
+        .declarations
+        .iter()
+        .enumerate()
+        .find_map(|(declaration, item)| {
+            let w::Body::Protocol { controls, .. } = &item.body else {
+                return None;
+            };
+            controls.iter().enumerate().find_map(|(control, item)| {
+                matches!(item.operation, w::ControlOperation::Event { .. }).then_some((
+                    u32::try_from(declaration).expect("published declaration index fits"),
+                    u32::try_from(control).expect("published control index fits"),
+                ))
+            })
+        })
+        .expect("published handoff has an event control");
+    let temporal_declaration = match &package.inherited().declarations
+        [usize::try_from(declaration).expect("published declaration index fits")]
+    .body
+    {
+        w::Body::Protocol {
+            temporal_requirements,
+            ..
+        } => *temporal_requirements
+            .first()
+            .expect("selected protocol requires one temporal declaration"),
+        _ => unreachable!("selected declaration is a protocol"),
+    };
+    let activation = v3::ExpectedActivation {
+        control: w::Handle {
+            declaration,
+            index: control,
+        },
+        temporal_declaration,
+    };
+    let mut inherited = package.inherited().clone();
+    inherited.wire = v3::WIRE.into();
+    inherited.media = v3::MEDIA.into();
+    inherited.schema = v3::SCHEMA.into();
+    let offer = v3::wire::Package {
+        inherited,
+        temporal_bindings: package.package().temporal_bindings.clone(),
+        activation_mappings: vec![v3::wire::ActivationMapping {
+            control: activation.control.clone(),
+            temporal_declaration,
+        }],
+    };
+    let candidate = v3::encode_candidate(
+        &offer,
+        quire_spec_language::protocol_artifact::Limits::default(),
+    )
+    .into_result()
+    .expect("canonical v3 mapping offer encodes");
+    let mut seal = package
+        .artifact()
+        .expect("strict v2 handoff retained its artifact seal")
+        .clone();
+    seal.wire.version = "3".into();
+    seal.digest = candidate.digest();
+    let inherited = loaded.expected_for(&inventories, &seal);
+    let expected = v3::Expected {
+        inherited,
+        activations: std::slice::from_ref(&activation),
+    };
+    v3::read(
+        candidate.bytes(),
+        &expected,
+        quire_spec_language::protocol_artifact::Limits::default(),
+    )
+    .into_result()
+    .expect("strict v3 mapping package admits")
+}
+
+/// The second request has no admitted fragment, so Task-005 returns a
+/// claim-local refusal while retaining the established conformance disposition
+/// beside it.
+fn dispatch_inputs_with_claim_refusal() -> Vec<ClaimRequest<'static>> {
+    let component = |identity: &[u8]| {
+        Component::retained(
+            identity.to_vec().into_boxed_slice(),
+            identity.to_vec().into_boxed_slice(),
+        )
+    };
+    let premises = |fragment: &[u8]| PremiseSet {
+        admitted_fragment: component(fragment),
+        backend: BackendSelection::retained(
+            b"qprotocol:conformance".to_vec().into_boxed_slice(),
+            b"v1".to_vec().into_boxed_slice(),
+        ),
+        assumptions: Vec::new(),
+        communication: vec![component(b"communication:canonical-engine")],
+        visibility: vec![component(b"visibility:canonical-engine")],
+        environment: vec![component(b"environment:canonical-engine")],
+        sources: vec![component(b"source:canonical-engine")],
+        derived_artifact: None,
+    };
+    let request = |identity: &[u8], claim, fragment: &[u8]| ClaimRequest {
+        identity: identity.to_vec().into_boxed_slice(),
+        claim,
+        strength: b"tested".to_vec().into_boxed_slice(),
+        premises: premises(fragment),
+        correspondence: None,
+    };
+    vec![
+        request(
+            b"request:conformance",
+            DispatchClaim::Conformance,
+            b"fragment:canonical-engine",
+        ),
+        request(
+            b"request:monitorability",
+            DispatchClaim::Monitorability,
+            b"",
+        ),
+    ]
+}
+
+/// The public Engine boundary constructs and strict-reads owner rows against
+/// its one linked `/2` package; it has no caller-provided result document seam.
+#[test]
+#[trace("TC-006", "FR-006-AC-1", "FR-006-AC-2", "FR-006-AC-9", "FR-008-AC-1")]
+fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
+    let loaded = handoff::Handoff::load().expect("published v2 handoff");
+    let declarations = loaded.declarations();
+    let inventories = loaded.inventories(&declarations);
+    let expected = loaded.expected(&inventories);
+    let package = quire_protocol::intake::v2::admit(loaded.offer(), &expected, loaded.limits())
+        .into_result()
+        .expect("strict v2 package");
+    let (declaration_handle, roles, subject_slot) = package
+        .inherited()
+        .declarations
+        .iter()
+        .enumerate()
+        .find_map(|(declaration, value)| {
+            let w::Body::Protocol { roles, .. } = &value.body else {
+                return None;
+            };
+            let subject_slot = value
+                .bindings
+                .iter()
+                .position(|binding| binding.kind != w::BindingKind::Relationship)?;
+            Some((
+                u32::try_from(declaration).ok()?,
+                roles,
+                u32::try_from(subject_slot).ok()?,
+            ))
+        })
+        .expect("published handoff has a protocol subject slot");
+    let producer = producer();
+    let subject = runtime_subject(&producer, "canonical-engine");
+    let definition = StaticBindingDefinition::new(
+        STATIC_BINDING_CONTRACT,
+        StaticSelection {
+            identity: "binding-definition:canonical-engine".into(),
+            revision: "1".into(),
+            digest: [0x61; 32],
+        },
+        producer.key().clone(),
+        declaration_handle,
+        roles
+            .iter()
+            .enumerate()
+            .map(|(index, _)| RoleClassification {
+                role_handle: u32::try_from(index).expect("published role index fits"),
+                internality: Internality::Internal,
+            })
+            .collect(),
+        vec![StaticSlot {
+            handle: SlotHandle::new(subject_slot),
+            compatibility: SlotCompatibility::Subject {
+                kind: SubjectKind::new(ORDER_KIND.as_bytes().to_vec()).expect("non-empty kind"),
+            },
+        }],
+    )
+    .expect("selected static binding definition admits");
+    let runtime = RuntimeBindingSet::new(
+        RUNTIME_BINDING_CONTRACT,
+        definition.selection(),
+        &definition,
+        &producer,
+        vec![RuntimeBinding::subject(
+            SlotHandle::new(subject_slot),
+            subject.clone(),
+        )],
+    )
+    .expect("selected runtime binding admits");
+    let context = LinkedAssessment::new(&package, &definition, &runtime)
+        .expect("one exact linked assessment");
+    let definition_identity = context
+        .definition_identity()
+        .expect("linked assessment has exact definition provenance");
+    let selected_model = definition_identity
+        .closure()
+        .models()
+        .first()
+        .expect("published protocol selects a model");
+    let model_artifact = &package.inherited().dependencies
+        [usize::try_from(selected_model.value().artifact).expect("model index fits")]
+    .artifact;
+
+    let fixture = fixture();
+    let mut input = base_input(&fixture);
+    assert_eq!(input.checked_predicate.package_digest(), package.digest());
+    assert_eq!(input.temporal_subject.package_digest(), package.digest());
+    let requested = [DispatchClaim::Conformance, DispatchClaim::Monitorability];
+    let engine =
+        Engine::new(context, requested.to_vec()).expect("linked assessment starts one engine");
+    let mapping = admitted_activation_map(&package);
+    let temporal_request =
+        activated_request(&package, &fixture.temporal, subject.identity().as_bytes());
+    let temporal_result = activated_result(&temporal_request);
+    let activation = engine
+        .conformance()
+        .bind_activation(
+            engine.linked(),
+            &mapping,
+            &subject,
+            &temporal_request,
+            &temporal_result,
+        )
+        .expect("the strict mapping binds the canonical assessment subject");
+    let occurrence_schema = occurrence_key_schema(
+        &package,
+        declaration_handle,
+        quire_spec_language::protocol_artifact::Limits::default(),
+    )
+    .into_result()
+    .expect("selected protocol produces an occurrence-key schema");
+    let occurrence_node = occurrence_schema
+        .nodes()
+        .get(usize::try_from(activation.control().index).expect("control index fits"))
+        .expect("activation control has an occurrence schema");
+    assert!(occurrence_node.repeats().is_empty());
+    let occurrence = occurrence_schema
+        .bind(
+            WorkflowInstanceIdentity::new("workflow:canonical-engine")
+                .expect("nonempty workflow identity"),
+            activation.control(),
+            occurrence_node.role().clone(),
+            &[],
+        )
+        .expect("activation occurrence admits");
+    let activated = engine
+        .conformance()
+        .activate_occurrence(&activation, occurrence)
+        .expect("mapped activation produces an obligation occurrence");
+    let decision = observation_owner::scope_views("canonical-engine");
+    let surrounding = observation_owner::scope_views("canonical-engine-surrounding");
+    let support_observation = decision
+        .completeness_complete
+        .payload()
+        .facts()
+        .next()
+        .and_then(|fact| fact.observation_identity)
+        .expect("the assessed completeness view retains its available fact")
+        .to_owned();
+    input.settlement.supporting_fact_identities = vec![support_observation.clone()];
+    input.settlement.supporting_progress_identities =
+        vec![decision.progress_closed.identity().as_str().to_owned()];
+    input.decision_support[0].observation_identity = support_observation;
+    let fact = engine
+        .conformance()
+        .activation_fact(activated, Some(&decision.observation));
+    let global_premises = vec![
+        quire_protocol::assessment::GlobalPremise {
+            kind: quire_protocol::assessment::PremiseKind::Execution,
+            identity: "premise:canonical-engine:execution".into(),
+            scope_identity: "scope:canonical-engine".into(),
+            authority_identity: "authority:canonical-engine".into(),
+        },
+        quire_protocol::assessment::GlobalPremise {
+            kind: quire_protocol::assessment::PremiseKind::Branch,
+            identity: "premise:canonical-engine:branch".into(),
+            scope_identity: "scope:canonical-engine".into(),
+            authority_identity: "authority:canonical-engine".into(),
+        },
+        quire_protocol::assessment::GlobalPremise {
+            kind: quire_protocol::assessment::PremiseKind::Workflow,
+            identity: "premise:canonical-engine:workflow".into(),
+            scope_identity: "scope:canonical-engine".into(),
+            authority_identity: "authority:canonical-engine".into(),
+        },
+    ];
+    let global = quire_protocol::assessment::GlobalConformanceInput {
+        state: GlobalConformanceClosure::Closed,
+        required_premises: global_premises.clone(),
+        premises: global_premises,
+    };
+    let axes = quire_protocol::assessment::AxisInputs {
+        decision_scope_progress: &decision.progress_closed,
+        decision_scope_closure: &decision.closure_closed,
+        surrounding_execution_progress: &surrounding.progress_closed,
+        surrounding_execution_closure: &surrounding.closure_closed,
+    };
+    let mut incomplete_requests = dispatch_inputs_with_claim_refusal();
+    incomplete_requests.pop();
+    assert!(matches!(
+        engine.dispatch_activated(
+            &incomplete_requests,
+            std::slice::from_ref(&fact),
+            axes,
+            &decision.completeness_complete,
+            &global,
+            AssessmentExecution::Completed,
+            ConformanceLimits::default(),
+            DispatchLimits::default(),
+            Budget::nothing_granted()
+        ),
+        quire_protocol::outcome::OperationOutcome::Refused(_)
+    ));
+    let dispatch_requests = dispatch_inputs_with_claim_refusal();
+    let quire_protocol::outcome::OperationOutcome::Completed(dispatch) = engine.dispatch_activated(
+        &dispatch_requests,
+        std::slice::from_ref(&fact),
+        axes,
+        &decision.completeness_complete,
+        &global,
+        AssessmentExecution::Completed,
+        ConformanceLimits::default(),
+        DispatchLimits::default(),
+        Budget::nothing_granted(),
+    ) else {
+        panic!("engine dispatches only its exact claim population")
+    };
+    assert_eq!(dispatch.dispositions()[0].claim, DispatchClaim::Conformance);
+    assert_eq!(
+        dispatch.dispositions()[0].execution,
+        AssessmentExecution::Completed
+    );
+    assert_eq!(
+        dispatch.dispositions()[0].decision,
+        Some(quire_protocol::claims::dispatch::Decision::Established)
+    );
+    assert_eq!(
+        dispatch.dispositions()[1].claim,
+        DispatchClaim::Monitorability
+    );
+    assert_eq!(
+        dispatch.dispositions()[1].execution,
+        AssessmentExecution::Refused
+    );
+    assert!(dispatch.dispositions()[1].failure.is_some());
+    let short_budget = Budget::nothing_granted()
+        .grant(BudgetDimension::InputByte, 1)
+        .expect("positive one-short input grant");
+    assert!(matches!(
+        engine.dispatch_activated(
+            &dispatch_requests,
+            std::slice::from_ref(&fact),
+            axes,
+            &decision.completeness_complete,
+            &global,
+            AssessmentExecution::Completed,
+            ConformanceLimits::default(),
+            DispatchLimits::default(),
+            short_budget,
+        ),
+        quire_protocol::outcome::OperationOutcome::ResourceIncomplete(incomplete)
+            if incomplete.dimension() == BudgetDimension::InputByte
+    ));
+    let short_result_engine = Engine::new(context, requested.to_vec())
+        .expect("the same linked assessment starts an independent result operation");
+    let short_output = Budget::nothing_granted()
+        .grant(BudgetDimension::OutputByte, 1)
+        .expect("positive one-short output grant");
+    let short_outcome = short_result_engine.assess_activated(
+        &dispatch_requests,
+        std::slice::from_ref(&fact),
+        axes,
+        &decision.completeness_complete,
+        &global,
+        AssessmentExecution::Completed,
+        ConformanceLimits::default(),
+        DispatchLimits::default(),
+        vec![
+            Some(canonical_row_facts(
+                input.clone(),
+                Limits::owner_max(),
+                model_artifact,
+                &subject,
+            )),
+            None,
+        ],
+        short_output,
+    );
+    assert!(
+        matches!(
+            short_outcome,
+            quire_protocol::outcome::OperationOutcome::ResourceIncomplete(ref incomplete)
+                if incomplete.dimension() == BudgetDimension::OutputByte
+        ),
+        "expected output exhaustion, got {short_outcome:?}"
+    );
+    let cumulative_engine = Engine::new(context, requested.to_vec())
+        .expect("the same linked assessment starts an accountant-span control");
+    let cumulative_limit = Budget::nothing_granted()
+        .grant(BudgetDimension::AccountedAllocation, 3)
+        .expect("three allocations reach into result construction");
+    assert!(matches!(
+        cumulative_engine.assess_activated(
+            &dispatch_requests,
+            std::slice::from_ref(&fact),
+            axes,
+            &decision.completeness_complete,
+            &global,
+            AssessmentExecution::Completed,
+            ConformanceLimits::default(),
+            DispatchLimits::default(),
+            vec![
+                Some(canonical_row_facts(
+                    input.clone(),
+                    Limits::owner_max(),
+                    model_artifact,
+                    &subject,
+                )),
+                None,
+            ],
+            cumulative_limit,
+        ),
+        quire_protocol::outcome::OperationOutcome::ResourceIncomplete(incomplete)
+            if incomplete.dimension() == BudgetDimension::AccountedAllocation
+                && incomplete.consumed() == 3
+                && incomplete.requested() == 1
+    ));
+    let mut foreign_model = model_artifact.clone();
+    foreign_model.identity.push_str(":foreign");
+    let foreign_model_engine = Engine::new(context, requested.to_vec())
+        .expect("the same linked assessment starts a model-substitution control");
+    let quire_protocol::outcome::OperationOutcome::Completed(foreign_model_bundle) =
+        foreign_model_engine.assess_activated(
+            &dispatch_requests,
+            std::slice::from_ref(&fact),
+            axes,
+            &decision.completeness_complete,
+            &global,
+            AssessmentExecution::Completed,
+            ConformanceLimits::default(),
+            DispatchLimits::default(),
+            vec![
+                Some(canonical_row_facts(
+                    input.clone(),
+                    Limits::owner_max(),
+                    &foreign_model,
+                    &subject,
+                )),
+                None,
+            ],
+            Budget::nothing_granted(),
+        )
+    else {
+        panic!("a foreign row model is a claim-local construction refusal")
+    };
+    assert!(matches!(
+        &foreign_model_bundle.rows()[0].outcome,
+        quire_protocol::outcome::ClaimOutcome::Refused(refusal)
+            if refusal.code().as_str() == "result.invalid-selection"
+    ));
+    let foreign_subject = runtime_subject(&producer, "canonical-engine-foreign");
+    let foreign_input_engine = Engine::new(context, requested.to_vec())
+        .expect("the same linked assessment starts an input-substitution control");
+    let quire_protocol::outcome::OperationOutcome::Completed(foreign_input_bundle) =
+        foreign_input_engine.assess_activated(
+            &dispatch_requests,
+            std::slice::from_ref(&fact),
+            axes,
+            &decision.completeness_complete,
+            &global,
+            AssessmentExecution::Completed,
+            ConformanceLimits::default(),
+            DispatchLimits::default(),
+            vec![
+                Some(canonical_row_facts(
+                    input.clone(),
+                    Limits::owner_max(),
+                    model_artifact,
+                    &foreign_subject,
+                )),
+                None,
+            ],
+            Budget::nothing_granted(),
+        )
+    else {
+        panic!("a foreign runtime input is a claim-local construction refusal")
+    };
+    assert!(matches!(
+        &foreign_input_bundle.rows()[0].outcome,
+        quire_protocol::outcome::ClaimOutcome::Refused(refusal)
+            if refusal.code().as_str() == "result.invalid-selection"
+    ));
+    let outcome = engine.assess_activated(
+        &dispatch_requests,
+        std::slice::from_ref(&fact),
+        axes,
+        &decision.completeness_complete,
+        &global,
+        AssessmentExecution::Completed,
+        ConformanceLimits::default(),
+        DispatchLimits::default(),
+        vec![
+            Some(canonical_row_facts(
+                input,
+                Limits::owner_max(),
+                model_artifact,
+                &subject,
+            )),
+            None,
+        ],
+        Budget::nothing_granted(),
+    );
+    let quire_protocol::outcome::OperationOutcome::Completed(bundle) = outcome else {
+        panic!("the complete assessment returns its bundle only in the completed outcome")
+    };
+    assert_eq!(bundle.rows().len(), 2);
+    let quire_protocol::outcome::ClaimOutcome::Canonical(canonical) = &bundle.rows()[0].outcome
+    else {
+        panic!("the completed conformance disposition must produce its canonical row")
+    };
+    assert_eq!(canonical.execution(), AssessmentExecution::Completed);
+    assert_eq!(canonical.truth(), Truth::Satisfied);
+    assert_eq!(
+        canonical.decision_scope_progress().document_identity(),
+        decision.progress_closed.identity().as_str()
+    );
+    assert_eq!(
+        canonical.completeness().document_identity(),
+        decision.completeness_complete.identity().as_str()
+    );
+    assert_eq!(
+        canonical.global_conformance_state(),
+        GlobalConformanceClosure::Closed
+    );
+    assert_eq!(canonical.claim().kind, ClaimKind::GlobalConformance);
+    assert_eq!(canonical.claim().strength, Some(ClaimStrength::Tested));
+    assert_eq!(
+        canonical.claim().admitted_fragment_identity.as_deref(),
+        Some("fragment:canonical-engine")
+    );
+    assert_eq!(
+        canonical.claim().backend_identity.as_deref(),
+        Some("qprotocol:conformance")
+    );
+    assert_eq!(
+        canonical.provenance().source_identity,
+        definition_identity.source_document().identity
+    );
+    assert_eq!(
+        canonical.provenance().profile_identity,
+        definition_identity.closure().profile().value().identity
+    );
+    assert_eq!(
+        canonical.provenance().model_identity,
+        model_artifact.identity
+    );
+    assert_eq!(
+        canonical.provenance().protocol_identity,
+        format!(
+            "{}:{}",
+            definition_identity.source_document().identity,
+            definition_identity.declaration_handle()
+        )
+    );
+    assert_eq!(
+        canonical.provenance().request_identity,
+        "request:conformance"
+    );
+    assert_eq!(
+        canonical.provenance().binding_identity,
+        definition_identity.static_binding().identity.as_ref()
+    );
+    runtime_reference::validate_subject(&canonical.provenance().input_identity, &subject)
+        .expect("Engine provenance retains the exact runtime subject carrier");
+    assert_eq!(
+        canonical.provenance().backend_identity,
+        "qprotocol:conformance"
+    );
+    assert_eq!(
+        canonical.provenance().producer_identity,
+        context.definition().producer().bundle_identity
+    );
+    assert!(canonical.assumptions().is_empty());
+    let quire_protocol::outcome::ClaimOutcome::Refused(refusal) = &bundle.rows()[1].outcome else {
+        panic!("only the constrained claim construction must refuse");
+    };
+    assert_eq!(
+        refusal.partial_output(),
+        quire_protocol::refusal::PartialOutput::IndependentResultsRetained
+    );
+    assert_eq!(
+        refusal.stage(),
+        quire_protocol::refusal::ProtocolStage::ClaimDispatch
+    );
+}
+
 fn validated<'a>(input: Input<'a>) -> result::ValidatedResult {
     let document = result::produce(input.clone(), Limits::owner_max()).expect("canonical result");
     result::read(
@@ -668,7 +1440,7 @@ fn tc_008_process_locale_does_not_change_canonical_result() {
         )
         .args([
             "--exact",
-            "tc_008_process_locale_does_not_change_canonical_result",
+            "result::tc_006_tests::tc_008_process_locale_does_not_change_canonical_result",
             "--nocapture",
         ])
         .env(child, "1")

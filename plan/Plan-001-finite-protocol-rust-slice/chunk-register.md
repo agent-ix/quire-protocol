@@ -24,10 +24,10 @@ Status meanings:
 | --- | --- | --- | --- | --- |
 | C-00 | Rust facade reservation | landed | PR #29 | #1, epic #14 |
 | C-01 | B-owned refusal envelope and local code registry | landed | PR #40 | #8, epic #14 |
-| C-02 | Selected source-contract validation | partial | Local refusal execution needs no external catalog. Task-017/006 retain a known source cause under its exact contract and keep an unknown contract opaque under `unsupported-source-contract`. | #8, epic #14 |
-| C-03 | Typed local/source cause taxonomy and ordering | partial | Protocol-local causes are closed; source causes retain their selected contract order or explicit source-wire order. Final common routing remains Task-006. | #8, epic #14 |
+| C-02 | Selected source-contract validation | partial | The Task-006 candidate retains known source causes under their exact selected contract and unknown contracts opaquely under `unsupported-source-contract`; status remains partial until the #8 candidate merges to `main`. | #8, epic #14 |
+| C-03 | Typed local/source cause taxonomy and ordering | partial | The closed local vocabulary, selected source order and final common routing execute in the Task-006 candidate; status remains partial until #8 merges to `main`. | #8, epic #14 |
 | C-04 | Independently selected inventory and selection-axis discriminator | partial | PR #36 landed the top-level inventory; per-source, per-dependency, and per-model selection inventory remains absent | #1, #34, epic #14 |
-| C-05 | Preserve A-owned admission errors through B's discriminating layer | partial | PR #36 landed the first mapper; the current increment retains every published A error family and stable code without text conversion. Task-017/006 add the shared envelope without an external catalog blocker. | #1, #8, #34, epic #14 |
+| C-05 | Preserve A-owned admission errors through B's discriminating layer | partial | PR #36 landed the first mapper; the #8 candidate retains every published A error family and stable code through the shared envelope without text conversion. Status remains partial until #8 merges. | #1, #8, #34, epic #14 |
 | C-06 | Repair IT-001 refusal-axis assertions | landed | PR #36 | #1, #34, epic #14 |
 | C-07 | Closed protocol identity newtypes | landed | PR #37 | #4, epic #14 |
 | C-10 | Opaque producer-domain digests and cross-domain guard | landed | PR #36 | #1, #8, #34, epic #14 |
@@ -37,10 +37,10 @@ Status meanings:
 | C-14 | Permitted-interleaving proof and FR-050..FR-054 mutation sweep | landed | PR #45 | #4, epic #14 |
 | C-15 | Five-axis closure and assessment-outcome lattice | landed | PR #33 | #6, #8, #12, epic #14 |
 | C-16..C-19 | Compensation algebra, purity, activation, and recovery | landed | Task-003 derives graph-owned state from the exact linked `/2` context, accepted QObs subjects/position views and QSL guard/retry/recovery evaluation at `c0deb7b`; the graph retains exact evaluator inputs/reports, attempt/effect relationships, full/partial outcomes, selected commit order and finite attempts. Exact replay compares owner evidence and adverse transitions are transactional. The former recovery callback is absent from production and the zero-action capability proof remains executable. | #5, epic #14 |
-| C-20..C-21 | Batch and incremental conformance | partial | Both kernels execute independently; Task-004 derives one production `ConformanceKernel` from graph/compensation values and proves frontend agreement. | #6, epic #14 |
+| C-20..C-21 | Batch and incremental conformance | landed | PR #76 derives one production `ConformanceKernel` from graph/compensation values and proves batch/incremental frontend agreement. | #6, epic #14 |
 | C-22 | Six independent claim dispositions | landed | PR #41 | #7, epic #14 |
-| C-23..C-24 | Claim premise retention and dispatch | partial | Premise validation/dispatch execute; Task-005 consumes only conformance output and removes the public arbitrary backend callback/fallback path. | #7, epic #14 |
-| C-26..C-28 | Canonical result, global premises, and lineage | partial | Canonical production, strict reading, lineage and mapped views execute; Task-006 owns Engine/bundle orchestration, shared domains and private result assembly. | #8, epic #14 |
+| C-23..C-24 | Claim premise retention and dispatch | landed | PR #77 consumes only activation-derived conformance output, retains exact claim premises and exposes no arbitrary backend callback or fallback path. | #7, epic #14 |
+| C-26..C-28 | Canonical result, global premises, and lineage | partial | Canonical production, strict reading, lineage, mapped views, atomic Engine orchestration and private result assembly execute in the #8 candidate; status remains partial until it merges to `main`. | #8, epic #14 |
 | C-29 | Count, allocation, and deadline guards | landed | PR #42 | #10, epic #14 |
 | C-30 | Source-bound resource-site inventory | partial | The current-site inventory/accountant exists. Task-008 covers all final sites, internalizes parallel guards and consumes QSL's published accumulation accessor. | #10, epic #14 |
 | C-31 | Reproduction record | landed | PR #38 | #10, epic #14 |

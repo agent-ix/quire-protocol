@@ -70,14 +70,12 @@ pub fn validate_subject(encoded: &str, subject: &QualifiedSubject) -> Result<(),
     if !complete_shape(&value) {
         return Err(Error::Shape);
     }
-    let object = value
-        .as_object()
-        .expect("complete_shape accepts only an object");
+    let object = value.as_object().ok_or(Error::Shape)?;
     for member in ["identityHex", "kindHex"] {
         let bytes = object
             .get(member)
             .and_then(Value::as_str)
-            .expect("complete_shape requires each opaque-byte member");
+            .ok_or(Error::Shape)?;
         unhex(bytes)?;
     }
     let canonical = canonicalize(&value).map_err(|_| Error::Canonicalization)?;

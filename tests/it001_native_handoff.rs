@@ -525,7 +525,10 @@ const A_READER_CALLS: [(&str, &str); 2] = [
         "quire_spec_language::protocol_artifact::read(",
         "src/intake/v1.rs",
     ),
-    ("v2::read(", "src/intake/v2.rs"),
+    (
+        "quire_spec_language::protocol_artifact::v2::read(",
+        "src/intake/v2.rs",
+    ),
 ];
 
 /// Tracing: IT-001, Task-009.

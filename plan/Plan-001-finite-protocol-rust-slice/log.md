@@ -7,6 +7,23 @@ description: "Chronological log of changes to the Plan-001 bundle."
 
 ## History
 
+* **2026-09-15** — Completed the Task-006 / issue #8 candidate as one atomic
+  activation-to-result Engine operation. Exact conformance axes, completeness
+  and global closure now flow through sealed dispatch into private canonical
+  production and strict readback; truth and provenance are derived, selected
+  model/runtime substitutions refuse, and opaque QObs subjects use the strict
+  `quire.protocol.runtime-reference/1` carrier. One accountant spans every
+  stage, with resource incompleteness kept separate and all seven accounting
+  fault interiors routed under their actual conformance, dispatch, assembly or
+  read stage. The raw result producer and foreign-report construction seam are
+  compile-fail inaccessible. TC-006/TC-011 include atomic, strict-reader,
+  provenance, cumulative-accounting, accounting-fault and FR-008 decomposition
+  controls. SR-116/SR-117 pass; `quire coverage` reports 154/342 repository rows
+  backed and 270/278 evidence symbols tagged, with no unbacked/status-lie/
+  untracked-Task-006 record. The exact unchanged-worktree NFR-004 gate passes
+  after repairing the two static-test oracle defects it exposed. Downstream
+  Tasks 007, 008 and 010 and the wider Plan-001/epic remain open.
+
 * **2026-09-15** — Completed Task-005 / issue #7 as the activation-derived
   independent-claim bridge. The public Engine now assesses strict FR-300 facts
   through its graph/compensation kernel before dispatch; the raw report

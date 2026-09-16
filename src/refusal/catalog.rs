@@ -488,6 +488,7 @@ pub const REGISTRY: &[CodeModule] = &[
     crate::assessment::CODES,
     crate::assessment::REPRESENTATION_CODES,
     crate::assessment::CONFORMANCE_CODES,
+    crate::assessment::ACCOUNTING_CODES,
     crate::assessment::RESULT_CODES,
     crate::assessment::ACTIVATION_CODES,
     crate::result::RESULT_CODES,

@@ -96,5 +96,4 @@ or synthesizes a missing field.
 
 ## Status
 
-Draft. Existing source errors are not yet all normalized through the common
-envelope; Task-006 completes the coverage and TC-011.
+Implemented by Task-006 and TC-011 across the Protocol's current public paths.

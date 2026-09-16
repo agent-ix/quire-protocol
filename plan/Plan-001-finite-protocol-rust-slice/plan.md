@@ -110,7 +110,7 @@ shared result-domain values. Each has one Protocol owner and no adapter-local co
   permutations, progress/closure and contradiction states.
 - [x] **TC-005**: conformance-derived ordered claim dispositions, exact retained
   premises and no callback fallback.
-- [ ] **TC-006**: subsystem-derived canonical rows, strict reads, exact settlement,
+- [x] **TC-006**: subsystem-derived canonical rows, strict reads, exact settlement,
   support topology and immutable corrections.
 - [ ] **TC-007**: total FR-062 E02 mapping, exact derived identity, strict target
   reading, finding preservation and no sufficiency promotion.
@@ -119,7 +119,7 @@ shared result-domain values. Each has one Protocol owner and no adapter-local co
   deadline checks, guard mutants and zero action calls.
 - [ ] **TC-010**: shared Rust assurance checker, trace binding, EA execution and
   Quoin containment.
-- [ ] **TC-011**: exact-stage refusal envelopes, local/source causes, unsupported
+- [x] **TC-011**: exact-stage refusal envelopes, local/source causes, unsupported
   catalogs, partial-output rules and simultaneous causes.
 - [x] **TC-012**: exact local gate policy and every independent gate defect.
 - [x] **TC-013**: the resolver slice executes bounded two-state manifest
@@ -217,7 +217,7 @@ track names are subsystems and are not agent assignments; Agent B remains on TL.
 | Task-003 | Core | FR-003 | TC-003 | done; graph-owned Engine bridge and exact QSL/QObs evidence |
 | Task-004 | Core | FR-004 | TC-004 | done; strict FR-300 activation-derived frontends share the graph/compensation kernel |
 | Task-005 | Core | FR-005 | TC-005 | done; activation-derived Engine dispatch and closed local conformance backend |
-| Task-006 | Core | FR-006, FR-008 | TC-006, TC-011 | in_progress; result/map slice landed |
+| Task-006 | Core | FR-006, FR-008 | TC-006, TC-011 | done; atomic Engine orchestration, private result assembly, shared accounting and SR-116/SR-117 pass |
 | Task-007 | Producer Integration | FR-007 | TC-007 | blocked on E02 owner acceptance reconciliation |
 | Task-008 | Cross-cutting Closure | NFR-001, NFR-002 | TC-008, TC-009 | in_progress; current-site inventory exists |
 | Task-009 | Producer Integration | FR-001, FR-002 | IT-001 | done; default `/1` admission/static link and SC-06a two-revision comparison pass |

@@ -54,7 +54,7 @@ this repository.
   optional dependency or `cfg(feature = ...)` condition, so
   `--no-default-features`, `--all-features` and the default selection resolve to
   the same unit graph; running all three covers no extra Cargo-feature
-  configuration. Separately, the current Unix host selects six tracked
+  configuration. Separately, the current Unix host selects ten tracked
   `#[cfg(test)]` sites through `clippy --all-targets` and `test`, and one tracked
   `#[cfg(unix)]` integration test through the admitted
   `x86_64-unknown-linux-gnu` target. This is not a claim about another target.

@@ -826,7 +826,7 @@ struct Prepared {
 }
 
 /// Produce one canonical FR-286 result or one typed refusal with no partial output.
-pub fn produce(input: Input<'_>, limits: Limits) -> Result<Document> {
+pub(crate) fn produce(input: Input<'_>, limits: Limits) -> Result<Document> {
     let effective = limits.effective();
     finish(prepare(input, effective)?, effective)
 }
@@ -835,7 +835,7 @@ pub fn produce(input: Input<'_>, limits: Limits) -> Result<Document> {
 ///
 /// The exact canonical byte length is computed without an output buffer, then
 /// checked against both owner and caller ceilings before canonical allocation.
-pub fn produce_bounded(
+pub(crate) fn produce_bounded(
     input: Input<'_>,
     limits: Limits,
     resources: &mut ResourceAccountant<'_>,

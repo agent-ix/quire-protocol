@@ -532,6 +532,9 @@ fn tc_012_every_conditional_site_is_selected_and_phantom_features_refuse() {
                 path: "src/assessment.rs".to_owned(),
             },
             Condition::Test {
+                path: "src/claims/dispatch.rs".to_owned(),
+            },
+            Condition::Test {
                 path: "src/claims/mod.rs".to_owned(),
             },
             Condition::Test {
@@ -548,6 +551,9 @@ fn tc_012_every_conditional_site_is_selected_and_phantom_features_refuse() {
             },
             Condition::Test {
                 path: "src/refusal/mod.rs".to_owned(),
+            },
+            Condition::Test {
+                path: "src/result/mod.rs".to_owned(),
             },
             Condition::Test {
                 path: "src/version_lock.rs".to_owned(),

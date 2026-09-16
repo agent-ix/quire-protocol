@@ -2,11 +2,12 @@
 //! One immutable conformance input assembled from linked static and compensation facts.
 
 use crate::assessment::{AxisInputs, GlobalConformanceInput};
+use crate::bounds::inventory::{OperationOutcome, ResourceAccountant};
 use crate::closure::AssessmentExecution;
 use crate::compensation::registration::{Registration, Snapshot as CompensationSnapshot};
 use crate::conformance::batch::{
-    assess as assess_batch, BoundObservation, Limits as ConformanceLimits, Model, ObligationId,
-    ObservationObligation, Report, Request,
+    assess as assess_batch, assess_bounded as assess_batch_bounded, BoundObservation,
+    Limits as ConformanceLimits, Model, ObligationId, ObservationObligation, Report, Request,
 };
 use crate::conformance::incremental::Incremental;
 use crate::model::v2::{
@@ -791,6 +792,64 @@ impl Kernel {
             limits,
         )
         .map_err(ActivatedAssessmentError::Conformance)
+    }
+
+    /// Assess activation-bound facts under the shared Protocol accountant.
+    /// Resource exhaustion remains a distinct operation outcome.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn assess_activated_bounded(
+        &self,
+        facts: &[ActivationFact<'_>],
+        axes: AxisInputs<'_>,
+        completeness: &completeness::View,
+        global_conformance: &GlobalConformanceInput,
+        execution: AssessmentExecution,
+        limits: ConformanceLimits,
+        resources: &mut ResourceAccountant<'_>,
+    ) -> OperationOutcome<Report, ActivatedAssessmentError> {
+        let activations = facts
+            .iter()
+            .map(|fact| fact.occurrence.clone())
+            .collect::<Vec<_>>();
+        let model = match self.derive_model(&activations) {
+            Ok(model) => model,
+            Err(error) => {
+                return OperationOutcome::DomainError(ActivatedAssessmentError::Kernel(error));
+            }
+        };
+        let observations = facts
+            .iter()
+            .zip(model.obligations())
+            .filter_map(|(fact, obligation)| {
+                fact.observation.map(|observation| BoundObservation {
+                    obligation: obligation.identity.clone(),
+                    observation,
+                    workflow_identity: fact.occurrence.occurrence.workflow().as_str().into(),
+                    effect_identity: obligation.effect_identity.clone(),
+                })
+            })
+            .collect::<Vec<_>>();
+        match assess_batch_bounded(
+            Request {
+                model: &model,
+                observations: &observations,
+                axes,
+                completeness,
+                global_conformance,
+                execution,
+            },
+            limits,
+            resources,
+        ) {
+            OperationOutcome::Completed(report) => OperationOutcome::Completed(report),
+            OperationOutcome::DomainError(error) => {
+                OperationOutcome::DomainError(ActivatedAssessmentError::Conformance(error))
+            }
+            OperationOutcome::ResourceIncomplete(incomplete) => {
+                OperationOutcome::ResourceIncomplete(incomplete)
+            }
+            OperationOutcome::AccountingFault(fault) => OperationOutcome::AccountingFault(fault),
+        }
     }
 }
 

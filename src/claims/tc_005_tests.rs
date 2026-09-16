@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! TC-005: exact premise-bound dispatch through QProtocol's closed capability.
 
+use std::collections::HashSet;
+
 use ix_trace_rs::trace;
 use quire_protocol::assessment::GlobalConformanceInput;
 use quire_protocol::bounds::inventory::{
@@ -18,7 +20,9 @@ use quire_protocol::closure::{AssessmentExecution, GlobalConformanceClosure};
 use quire_protocol::conformance::{
     GlobalDisposition, PremiseSnapshot, Report as ConformanceReport, RetainedDocument, Usage,
 };
-use quire_protocol::refusal::{PartialOutput, ProtocolStage};
+use quire_protocol::refusal::{
+    PartialOutput, PrerequisiteState, ProtocolCauseKind, ProtocolStage, RefusalCause,
+};
 
 fn component(identity: &str) -> Component {
     Component::retained(
@@ -169,7 +173,18 @@ fn tc_005_conformance_state_maps_without_callback_or_fallback() {
     assert_eq!(dispatch.dispositions[0].decision, None);
 }
 
-#[trace("TC-005", "FR-005-AC-2", "FR-030-AC-1", "FR-030-AC-2", "FR-030-AC-4")]
+#[trace(
+    "TC-005",
+    "TC-011",
+    "FR-005-AC-2",
+    "FR-008-AC-5",
+    "FR-008-AC-8",
+    "FR-030-AC-1",
+    "FR-030-AC-2",
+    "FR-030-AC-4",
+    "FR-039-AC-1",
+    "FR-039-AC-3"
+)]
 #[test]
 fn tc_005_invalid_premises_refuse_only_that_exact_claim() {
     let correspondence = ExactCorrespondence;
@@ -203,6 +218,29 @@ fn tc_005_invalid_premises_refuse_only_that_exact_claim() {
         PartialOutput::IndependentResultsRetained
     );
     assert_eq!(failure.envelope().stage(), ProtocolStage::ClaimDispatch);
+    assert_eq!(
+        failure.envelope().prerequisites()[0].state(),
+        PrerequisiteState::Established
+    );
+    assert_eq!(
+        failure.envelope().causes().len(),
+        failure.defects().len(),
+        "zero-detail handling must not erase simultaneous typed defects"
+    );
+    let kinds = failure
+        .envelope()
+        .causes()
+        .declared_order()
+        .iter()
+        .map(|cause| match cause {
+            RefusalCause::Protocol(cause) => cause.kind(),
+            RefusalCause::Source(_) | RefusalCause::UnsupportedSourceContract(_) => {
+                panic!("local claim defects must remain in the local cause vocabulary")
+            }
+        })
+        .collect::<Vec<_>>();
+    assert!(kinds.contains(&ProtocolCauseKind::MissingDefinition));
+    assert!(kinds.contains(&ProtocolCauseKind::ConflictingDefinition));
 }
 
 #[trace("TC-005", "FR-030-AC-1", "FR-030-AC-5", "FR-030-AC-6")]
@@ -293,6 +331,7 @@ fn tc_005_every_premise_axis_refuses_without_erasing_a_sibling() {
         (PremiseAxis::Source, remove_source),
         (PremiseAxis::DerivedArtifact, remove_derived_tuple),
     ];
+    let mut refusal_axes = HashSet::new();
     for (axis, mutate) in mutations {
         let correspondence = ExactCorrespondence;
         let good = request("request:good", Claim::Conformance, &correspondence);
@@ -314,7 +353,12 @@ fn tc_005_every_premise_axis_refuses_without_erasing_a_sibling() {
             .expect("claim refusal");
         assert_eq!(failure.code(), FailureCode::InvalidPremises);
         assert!(failure.defects().iter().any(|defect| defect.axis == axis));
+        assert!(
+            refusal_axes.insert(failure.envelope().axis().as_bytes().to_vec()),
+            "each independently failing premise axis needs a distinct refusal axis"
+        );
     }
+    assert_eq!(refusal_axes.len(), mutations.len());
 }
 
 /// The closed supported backend is not replaceable by an alternate caller
@@ -367,7 +411,14 @@ fn tc_005_selected_backend_has_no_alternate_or_fallback() {
     );
 }
 
-#[trace("TC-005", "FR-029-AC-5", "FR-029-AC-6")]
+#[trace(
+    "TC-005",
+    "TC-011",
+    "FR-008-AC-5",
+    "FR-029-AC-5",
+    "FR-029-AC-6",
+    "FR-039-AC-1"
+)]
 #[test]
 fn tc_005_duplicate_identity_refuses_each_claim_without_a_second_execution() {
     let correspondence = ExactCorrespondence;
@@ -381,10 +432,16 @@ fn tc_005_duplicate_identity_refuses_each_claim_without_a_second_execution() {
         Limits::default(),
     )
     .expect("closed dispatch");
-    assert!(dispatch.dispositions.iter().all(|disposition| disposition
-        .failure
-        .as_ref()
-        .is_some_and(|failure| failure.code() == FailureCode::DuplicateRequest)));
+    assert!(dispatch.dispositions.iter().all(|disposition| {
+        disposition.failure.as_ref().is_some_and(|failure| {
+            failure.code() == FailureCode::DuplicateRequest
+                && matches!(
+                    failure.envelope().causes().declared_order(),
+                    [RefusalCause::Protocol(cause)]
+                        if cause.kind() == ProtocolCauseKind::ConflictingDefinition
+                )
+        })
+    }));
 }
 
 #[trace("TC-005", "TC-009", "NFR-002-AC-1", "NFR-002-AC-4", "FR-016-AC-2")]

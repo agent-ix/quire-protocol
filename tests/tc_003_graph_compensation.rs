@@ -4,7 +4,7 @@
 use agent_ix_baseline_producer::StaticProducerBundle;
 use ix_trace_rs::trace;
 use quire_observation::{QualifiedSubject, SubjectIdentity, SubjectKind};
-use quire_protocol::assessment::{ClaimRow, Engine};
+use quire_protocol::assessment::Engine;
 use quire_protocol::claims::Claim;
 use quire_protocol::compensation::algebra::{AttemptOutcome, EffectDisposition, OrderingViolation};
 use quire_protocol::compensation::graph::{MissingEvidence, Outcome, Refusal, Transition};
@@ -13,7 +13,6 @@ use quire_protocol::model::v2::{
     SlotCompatibility, SlotHandle, StaticBindingDefinition, StaticSelection, StaticSlot,
     RUNTIME_BINDING_CONTRACT, STATIC_BINDING_CONTRACT,
 };
-use quire_protocol::outcome::ClaimOutcome;
 use quire_protocol::wire::{BindingKind, Body, ControlOperation};
 use quire_spec_language::state::{
     EvaluationOutcome, Limits as StateLimits, StateView, ValueKind as StateValueKind,
@@ -751,35 +750,29 @@ fn tc_003_engine_is_graph_owned_exact_and_transactional() {
             .accounting_version(),
         quire_spec_language::state::ACCOUNTING_VERSION
     );
-    let bundle = engine
-        .assemble(vec![ClaimRow {
-            claim: Claim::Conformance,
-            outcome: ClaimOutcome::Canonical(()),
-        }])
-        .expect("the complete graph state remains in the assessment bundle");
-    assert_eq!(bundle.compensation().registrations().len(), 2);
+    assert_eq!(engine.compensation().registrations().len(), 2);
     assert_eq!(
-        bundle.conformance().registrations().len(),
+        engine.conformance().registrations().len(),
         2,
-        "assembled conformance retains the exact committed compensation population"
+        "conformance retains the exact committed compensation population"
     );
-    assert_eq!(bundle.compensation_state().activations().len(), 2);
-    assert_eq!(bundle.compensation_state().activations()[0].view(), &guard);
-    assert_eq!(bundle.compensation_state().attempts().len(), 3);
-    assert!(bundle.compensation_state().attempts()[0]
+    assert_eq!(engine.compensation_state().activations().len(), 2);
+    assert_eq!(engine.compensation_state().activations()[0].view(), &guard);
+    assert_eq!(engine.compensation_state().attempts().len(), 3);
+    assert!(engine.compensation_state().attempts()[0]
         .established_effect()
         .is_none());
     assert_eq!(
-        bundle.compensation_state().attempts()[1].established_effect(),
+        engine.compensation_state().attempts()[1].established_effect(),
         fixture.first_effect.subject_value()
     );
     assert_eq!(
-        bundle.compensation_state().attempts()[1].retry_view(),
+        engine.compensation_state().attempts()[1].retry_view(),
         Some(&retry)
     );
-    assert_eq!(bundle.compensation_state().effects().len(), 2);
-    assert_eq!(bundle.compensation_state().commits().len(), 1);
-    assert_eq!(bundle.compensation_state().recoveries().len(), 2);
+    assert_eq!(engine.compensation_state().effects().len(), 2);
+    assert_eq!(engine.compensation_state().commits().len(), 1);
+    assert_eq!(engine.compensation_state().recoveries().len(), 2);
 }
 
 /// Commit ordering consumes only strict QObs observation and position views.
