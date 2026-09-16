@@ -7,7 +7,7 @@ description: "Chronological log of changes to the Plan-001 bundle."
 
 ## History
 
-* **2026-09-15** — Completed Task-020 after rebasing its QObs C00
+* **2026-09-15** — Implemented Task-020 after rebasing its QObs C00
   compatibility successor onto the merged Task-010 and Task-008 mainline.
   Protocol now pins QObs `581d98f`, resolves one declarative nineteen-contract
   QObs/QSL inventory, verifies the owner's fifteen exported QObs schema byte
@@ -15,7 +15,10 @@ description: "Chronological log of changes to the Plan-001 bundle."
   two typed unsupported capabilities that mint no contract entry. IT-002 SC-08
   executes separately from Task-010's SC-01 through SC-04 assessment scope;
   SC-05 through SC-07 remain planned. Subset spec reviews SR-124 through SR-126,
-  Rust review SR-127 and gap analysis SR-128 pass.
+  Rust review SR-127 passes the code subset. Gap analysis SR-128 keeps the P0
+  task blocked because exact pin `581d98f` is still the head of draft QObs PR
+  #27; Protocol PR #93 must not merge until the owner accepts that commit (or
+  Protocol repins and reruns the evidence).
 
 * **2026-09-15** — Completed Task-008's final resource/reproduction sweep over
   the combined Task-006, Task-007 and Task-010 paths. `ResourceAccountant` is

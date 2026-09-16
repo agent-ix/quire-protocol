@@ -185,9 +185,10 @@ shared result-domain values. Each has one Protocol owner and no adapter-local co
 - **Facts = Task-010 (done)** QObs/QSL native-temporal lane — SC-01 through
   SC-04 exact owner facts and adverse substitutions reach conformance, dispatch
   and canonical results unchanged.
-- **C00 compatibility = Task-020 (done)** QObs accepted-interface successor —
+- **C00 compatibility = Task-020 (blocked)** QObs candidate-interface successor —
   SC-08 resolves partial, activation, authority-bundle v1/v2 and lineage
-  contract/schema selections at `581d98f`; repair/query remain typed unsupported.
+  contract/schema selections locally at `581d98f`; draft owner PR #27 blocks
+  promotion, and repair/query remain typed unsupported.
 - **E02 = Task-007 (done)** Portable projection — every FR-062 row passes the
   exact accepted qverify strict reader.
 
@@ -241,7 +242,7 @@ track names are subsystems and are not agent assignments; Agent B remains on TL.
 | Task-017 | Cross-cutting Foundation | FR-008, FR-014, FR-016 | TC-011 | done; 30 focused tests and SR-101/SR-102 pass under #62 |
 | Task-018 | Qualification | FR-017, NFR-005 | TC-016 | planned |
 | Task-019 | Producer Integration | FR-018, NFR-006 | TC-017 | done; exact transactional bounded consumer index cannot affect version-lock resolution; SR-108/SR-109 pass |
-| Task-020 | Producer Integration | FR-009, NFR-006 | IT-002 | done; SC-08 exact QObs C00 contract/schema successor and typed unsupported repair/query; SR-127/SR-128 pass |
+| Task-020 | Producer Integration | FR-009, NFR-006 | IT-002 | blocked; SC-08 and the enforced pre-assessment resolver pass locally at exact candidate `581d98f`, but QObs PR #27 remains draft and blocks Protocol promotion |
 
 ## Coordination Rules
 
