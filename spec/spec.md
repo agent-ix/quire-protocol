@@ -248,11 +248,9 @@ requirement.
 
 The current accepted compiler pin is QSL `0c2f13e`; the compiled-protocol `/1`,
 `/2`, and `/3` handoffs are owner-addressed and the `/1` Service/Provider
-authorities are distinct. The direct QObs pin is C00 candidate
-runtime/authority revision `581d98f1ac9f1467cc5355785d67b242f8d5d150`,
-currently the head of draft QObs PR #27. Protocol promotion remains blocked
-until the owner accepts that exact commit or Protocol repins to the accepted
-replacement.
+authorities are distinct. The direct QObs pin is accepted C00
+runtime/authority revision `924006300f45b38483be1cbdf99b68f899b7d368`,
+from merged owner PR #27. Task-020's owner-acceptance prerequisite is satisfied.
 Protocol recognizes the owner's partial, activation, authority-bundle v1/v2
 and lineage interfaces without copying their schemas; QObs repair and
 aggregate-query remain explicit typed unsupported consumer capabilities until
@@ -292,10 +290,9 @@ its entry-status table records why each is currently `unresolved`.
   and 114 owned that delivery and have landed. This is the only native compiler
   reader in the admitted path, and this repository adds no second one.
 - `agent-ix/quire-observation` — the F-owned observation producer interface and
-  authority contracts. Candidate runtime references, partial/activation facts,
+  authority contracts. Accepted runtime references, partial/activation facts,
   revisioned authority bundles and bounded lineage are consumed locally at
-  draft-PR head `581d98f`; they are not a promotable dependency until PR #27
-  accepts that commit.
+  accepted PR #27 merge `9240063`.
   Complete-global-conformance closure remains Protocol-owned and is not a QObs
   artifact; repair and aggregate-query are not Protocol adapters at this pin.
 - `agent-ix/quire-verification` FR-007 and `quire-verification/e02-draft-2` —

@@ -7,18 +7,28 @@ description: "Chronological log of changes to the Plan-001 bundle."
 
 ## History
 
+* **2026-09-16** — Closed Task-020's promotion prerequisite after QObs PR #27
+  merged as `924006300f45b38483be1cbdf99b68f899b7d368`. Protocol repins Cargo,
+  lockfile, public provenance, SC-08, dependencies, specification, matrix and
+  plan to that accepted revision. The accepted owner changed the activation
+  authority and authority-bundle-v1 schemas; SC-08 failed on the old hashes,
+  then passed after production metadata, the independent literal oracle and
+  IT-002 were reconciled. The nineteen-contract inventory, fifteen owner-schema
+  digest controls and two typed unsupported capabilities remain unchanged in
+  scope; IT-002 SC-05 through SC-07 and Task-018/#63 remain open.
+
 * **2026-09-15** — Implemented Task-020 after rebasing its QObs C00
   compatibility successor onto the merged Task-010 and Task-008 mainline.
-  Protocol now pins QObs `581d98f`, resolves one declarative nineteen-contract
+  Protocol now pins QObs `9240063`, resolves one declarative nineteen-contract
   QObs/QSL inventory, verifies the owner's fifteen exported QObs schema byte
   arrays against independent digests, and exposes repair and aggregate-query as
   two typed unsupported capabilities that mint no contract entry. IT-002 SC-08
   executes separately from Task-010's SC-01 through SC-04 assessment scope;
   SC-05 through SC-07 remain planned. Subset spec reviews SR-124 through SR-126,
-  Rust review SR-127 passes the code subset. Gap analysis SR-128 keeps the P0
-  task blocked because exact pin `581d98f` is still the head of draft QObs PR
-  #27; Protocol PR #93 must not merge until the owner accepts that commit (or
-  Protocol repins and reruns the evidence).
+  Rust review SR-127 passed the code subset. At review time gap analysis SR-128
+  kept the P0 task blocked because exact candidate pin `581d98f` was still the
+  head of draft QObs PR #27; the 2026-09-16 accepted-revision reconciliation
+  above closes that historical prerequisite.
 
 * **2026-09-15** — Completed Task-008's final resource/reproduction sweep over
   the combined Task-006, Task-007 and Task-010 paths. `ResourceAccountant` is

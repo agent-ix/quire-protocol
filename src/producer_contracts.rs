@@ -25,13 +25,11 @@ use crate::version_lock::{
     VersionLockManifest,
 };
 
-/// Candidate QObs revision that supplies every observation contract below.
+/// Accepted QObs revision that supplies every observation contract below.
 ///
-/// This exact commit is published from QObs pull request 27 but is not yet an
-/// accepted upstream revision. Protocol promotion remains blocked until the
-/// owner merges that change without replacing this commit (or Protocol repins
-/// to the accepted replacement).
-pub const QOBS_REVISION: &str = "581d98f1ac9f1467cc5355785d67b242f8d5d150";
+/// This exact commit is the accepted merge of QObs pull request 27. A later
+/// owner revision requires an explicit repin and renewed compatibility review.
+pub const QOBS_REVISION: &str = "924006300f45b38483be1cbdf99b68f899b7d368";
 /// Accepted QSL revision that first supplies the native-temporal v1 contracts.
 pub const QSL_NATIVE_TEMPORAL_REVISION: &str = "f1700a9264d6d3bcdd07e0f77b70f3dae9ed4c07";
 /// Accepted QSL revision compiled for the opaque-trigger v2 contracts.
@@ -187,7 +185,7 @@ define_producer_contracts! {
         owner: QOBS_OWNER,
         contract: activation::CONTRACT,
         revision: QOBS_REVISION,
-        schema: Some(OwnerSchema { bytes: activation::SCHEMA_BYTES, sha256: "6d8b3b41a7fdc9b7d4dba085809b396bc41e41c89f9c512ff1580108d43663e8" }),
+        schema: Some(OwnerSchema { bytes: activation::SCHEMA_BYTES, sha256: "c17ad8b3ec10c48e535bc3a762738b979206c01af20c31775d8a9a9e0a97fab6" }),
     },
     /// Decision or surrounding closure assertion.
     ObservationClosureAssertion {
@@ -215,7 +213,7 @@ define_producer_contracts! {
         owner: QOBS_OWNER,
         contract: bundle::CONTRACT,
         revision: QOBS_REVISION,
-        schema: Some(OwnerSchema { bytes: bundle::SCHEMA_BYTES, sha256: "6b6f4e3b08a4b16476b55ae6cdfdff4440b8c053f056ffd7b9bdcde47e200296" }),
+        schema: Some(OwnerSchema { bytes: bundle::SCHEMA_BYTES, sha256: "9614d8077bd1e667507b2107eab08e0f7934337115ce3e10c8c55b5d5538cdab" }),
     },
     /// Canonical observation-authority bundle version 2.
     ObservationAuthorityBundleV2 {

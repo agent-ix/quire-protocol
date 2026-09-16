@@ -117,7 +117,7 @@ fn same_entry_state(left: &ManifestEntry, right: &ManifestEntry) -> bool {
 )]
 fn it_002_sc_08_resolves_only_the_exact_scenario_contract_inventory() {
     assert_eq!(ProducerContract::ALL.len(), 19);
-    assert_eq!(QOBS_REVISION, "581d98f1ac9f1467cc5355785d67b242f8d5d150");
+    assert_eq!(QOBS_REVISION, "924006300f45b38483be1cbdf99b68f899b7d368");
     let request = ProducerResolutionRequest::new(b"it002:scenario-resolution")
         .expect("nonempty scenario resolution identity");
     let outcome =
@@ -192,11 +192,11 @@ fn it_002_sc_08_resolves_only_the_exact_scenario_contract_inventory() {
             ),
             (
                 "quire.observation.activation-scope-authority/v1",
-                "6d8b3b41a7fdc9b7d4dba085809b396bc41e41c89f9c512ff1580108d43663e8",
+                "c17ad8b3ec10c48e535bc3a762738b979206c01af20c31775d8a9a9e0a97fab6",
             ),
             (
                 "quire.observation-authority/v1",
-                "6b6f4e3b08a4b16476b55ae6cdfdff4440b8c053f056ffd7b9bdcde47e200296",
+                "9614d8077bd1e667507b2107eab08e0f7934337115ce3e10c8c55b5d5538cdab",
             ),
             (
                 "quire.observation-authority/v2",

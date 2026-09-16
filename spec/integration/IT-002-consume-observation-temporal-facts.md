@@ -30,7 +30,7 @@ semantics.
 
 QObs publishes the accepted typed Rust runtime facts, authority bundles and
 bounded lineage at revision
-`581d98f1ac9f1467cc5355785d67b242f8d5d150`. Protocol consumes the owner crate's
+`924006300f45b38483be1cbdf99b68f899b7d368`. Protocol consumes the owner crate's
 contract constants and immutable schema bytes directly; it does not restate an
 owner payload shape or validation rule. QSL publishes the native-temporal request/result and
 checked activation-guard selection at Protocol's current exact revision
@@ -65,8 +65,8 @@ owner contracts and schema digests at the exact accepted revision:
 | Owner contract | Schema SHA-256 |
 | --- | --- |
 | `quire.observation.partial-fact/v1` | `9dc068376a7db5a7509810910c36e2efff6b9c3701d83c474701ec572f13f23c` |
-| `quire.observation.activation-scope-authority/v1` | `6d8b3b41a7fdc9b7d4dba085809b396bc41e41c89f9c512ff1580108d43663e8` |
-| `quire.observation-authority/v1` | `6b6f4e3b08a4b16476b55ae6cdfdff4440b8c053f056ffd7b9bdcde47e200296` |
+| `quire.observation.activation-scope-authority/v1` | `c17ad8b3ec10c48e535bc3a762738b979206c01af20c31775d8a9a9e0a97fab6` |
+| `quire.observation-authority/v1` | `9614d8077bd1e667507b2107eab08e0f7934337115ce3e10c8c55b5d5538cdab` |
 | `quire.observation-authority/v2` | `f92335c5e5e1e3434f1c2484557ca1f512c22b496eb97319c94fcac3491f116a` |
 | `quire.observation-authority-lineage/v1` | `d58c70516e53bde40ab2d276df143fffb05740348b98d09a71e89857a82a22ef` |
 
@@ -87,7 +87,7 @@ Every external contract consumed by this integration resolves through FR-009
 before any fact is read. QSL native-temporal v1 interface entries are pinned at
 `f1700a9`; the compiled `/2` dependency and opaque-trigger v2 entries are pinned
 at `0c2f13e`. QObs runtime and authority interfaces are pinned at
-`581d98f1ac9f1467cc5355785d67b242f8d5d150`. Every scenario resolves the exact
+`924006300f45b38483be1cbdf99b68f899b7d368`. Every scenario resolves the exact
 interface set it consumes before it receives an owner value.
 
 The QObs consumer preserves decision-scope and surrounding-execution
@@ -199,7 +199,7 @@ producer revision, and a scenario whose evidence is incomplete claims nothing.
 
 QSL native-temporal v1 interface entries at `f1700a9`, the compiled-protocol
 `/2` dependency and FR-053 opaque-trigger v2 interface at `0c2f13e`, and QObs
-runtime/authority interfaces at `581d98f`. Protocol owns global closure and
+runtime/authority interfaces at `9240063`. Protocol owns global closure and
 result assembly. QCI issue 71 is a downstream consumer and is not a prerequisite.
 
 ## Notes

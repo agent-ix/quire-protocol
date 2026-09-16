@@ -23,10 +23,10 @@ before this artifact was finalized.
 
 ## Verdict
 
-**PASS for the Task-020 code subset; promotion blocked.** No unresolved
+**PASS for the Task-020 code subset and promotion.** No unresolved
 correctness, idiom, owner-boundary, panic, unsafe, conversion, resource,
-determinism, trace or test-quality finding remains. QObs PR #27 is still draft,
-so this code verdict does not authorize merging Protocol PR #93.
+determinism, trace or test-quality finding remains. The exact accepted QObs PR
+#27 merge is pinned consistently, so the former external promotion hold is closed.
 
 ## Findings
 
@@ -35,13 +35,13 @@ so this code verdict does not authorize merging Protocol PR #93.
 | FND-001 | medium | Resolved: the initial change required a new producer contract to be repeated across the enum, `ALL` and several matches, so a future variant could compile while remaining absent from resolution. One declarative inventory now generates the enum, `ALL`, owner, contract, revision and schema selection; IT-002 keeps an independent literal table for the five C00 contract/digest selections. | `src/producer_contracts.rs::define_producer_contracts`; IT-002-SC-08 |
 | FND-002 | high | Resolved: producer resolution was exercised only as a standalone SC-08 API while the real Task-010 producer reads and atomic assessment remained callable without it. The producer-reading Engine constructors and `Engine::assess_activated_after_resolution` are now private; only an unforgeable `ProducerResolution` can start a public `ResolvedAssessmentEngine`, and only that wrapper exposes atomic assessment. `resolve_before_producer_read` reports prerequisite refusal as typed `Unexecutable`, with resource incompleteness separate. | `src/assessment.rs::ProducerResolution::start_result_assessment`; `src/assessment.rs::ResolvedAssessmentEngine`; `src/producer_contracts.rs::ProducerReadiness` |
 | FND-003 | medium | Resolved: SC-08's helper discarded affected identity and did not cover sidecar non-authority, sibling repin independence, unresolved-to-unexecutable staging, or read ordering. It now checks independently framed exact key identities for every mutation, two independently repinned non-authoritative sidecars, exactly one changed producer entry, and zero callback reads for unresolved/repointed manifests before one read after exact resolution. | `tests/it002_producer_contracts.rs::it_002_sc_08_resolves_only_the_exact_scenario_contract_inventory` |
-| FND-004 | low | External prerequisite, not a Rust defect: exact QObs pin `581d98f` is the head of open draft owner PR #27. The constant, dependency record and plan now call it a candidate, and Protocol PR #93 remains non-mergeable by project decision until owner acceptance. | `QOBS_REVISION`; `DEPENDENCIES.md`; Task-020; QObs PR #27 |
+| FND-004 | low | Resolved external prerequisite: exact QObs pin `9240063` is accepted owner PR #27's merge commit. The constant, dependency record, plan and tests select the same revision. | `QOBS_REVISION`; `DEPENDENCIES.md`; Task-020; QObs PR #27 |
 
 ## Rust Review
 
 | Check | Result |
 | --- | --- |
-| Owner and API boundaries | All contract labels and schema bytes come from QObs exports. Protocol retains only its exact candidate revision/digests and a closed consumer capability status; it adds no QObs payload, decoder, repair or query semantics. Atomic assessment is inaccessible until exact resolution returns its constructor-private wrapper. |
+| Owner and API boundaries | All contract labels and schema bytes come from QObs exports. Protocol retains only its exact accepted revision/digests and a closed consumer capability status; it adds no QObs payload, decoder, repair or query semantics. Atomic assessment is inaccessible until exact resolution returns its constructor-private wrapper. |
 | Inventory integrity | One macro invocation is the sole declaration-order and metadata source for all nineteen producer contracts. The resolver continues to derive its exact manifest from `ProducerContract::ALL`; the five new contract/digest pairs are independently asserted in IT-002. |
 | Errors and safety | Repair and aggregate query are separate typed unsupported values and mint no manifest entry. No caller-controlled panic, `unsafe`, unchecked conversion, lock, async bridge or background work was added. Existing `expect` sites remain limited to nonempty static keys and established resolver invariants. |
 | Bounds and allocation | The change adds only a fixed nineteen-element inventory and a fixed two-element unsupported inventory. Test-only collection is bounded by those arrays; no untrusted loop, recursion or retained payload was introduced. |

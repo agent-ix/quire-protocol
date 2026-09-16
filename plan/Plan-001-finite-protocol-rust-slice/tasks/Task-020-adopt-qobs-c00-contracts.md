@@ -2,7 +2,7 @@
 id: Task-020
 title: "Adopt the QObs C00 consumer contract successor"
 type: Task
-status: blocked
+status: done
 track: Producer-Integration
 priority: P0
 relationships:
@@ -15,8 +15,8 @@ relationships:
 
 ## Scope
 
-Prepare Protocol's exact QObs dependency and closed candidate-interface inventory
-at C00 revision `581d98f1ac9f1467cc5355785d67b242f8d5d150` without changing
+Prepare Protocol's exact QObs dependency and closed accepted-interface inventory
+at C00 revision `924006300f45b38483be1cbdf99b68f899b7d368` without changing
 Task-010's assessment semantics. Recognize the owner-published partial,
 activation, authority-bundle v1/v2 and lineage contracts and schema digests;
 report repair and aggregate-query as distinct typed unsupported Protocol
@@ -36,10 +36,9 @@ consumer capabilities because no adapters exist.
 - [x] Update IT-002 SC-08 assertions for the nineteen total QObs/QSL contracts,
   exact QObs revision, five new schema digests, and the two unsupported
   consumer capabilities.
-- [ ] Run the scoped Rust review, scoped gap analysis, exact local gate and
+- [x] Run the scoped Rust review, scoped gap analysis, exact local gate and
   mainline PR handoff without modifying the existing dirty Protocol worktree.
-  The implementation and local gates are complete, but mainline handoff is
-  blocked while owner PR `agent-ix/quire-observation#27` remains draft.
+  The accepted owner merge is repinned and the promotion evidence is complete.
 
 ## Deliverables
 
@@ -56,6 +55,6 @@ consumer capabilities because no adapters exist.
   not support evidence.
 - After Task-010 merged through PR #89, the pull request targets `main` and
   retains only Task-020's SC-08 successor delta.
-- The exact pin is the current head of draft QObs PR #27. Protocol PR #93 must
-  not merge until that owner PR accepts the same commit, or this task must repin
-  and rerun its evidence against the accepted replacement.
+- The exact pin is accepted QObs PR #27 merge
+  `924006300f45b38483be1cbdf99b68f899b7d368`. Any future owner revision requires
+  a repin and renewed compatibility review.
