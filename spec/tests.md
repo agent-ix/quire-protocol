@@ -61,17 +61,20 @@ paths and work that remains planned or blocked. The accepted frozen source basel
 Assurance producer, license, implementation plan, and retained corpus remain
 explicit gates.
 
-The repository carries 42 functional requirements, 8 non-functional
-requirements, 3 integration tests and 17 test cases, and 305 acceptance criteria
-across the 42 FRs and the 8 NFRs. The functional set divides into 9 aggregate or
+The repository carries 44 functional requirements, 8 non-functional
+requirements, 3 integration tests and 19 test cases, and 315 acceptance criteria
+across the 44 FRs and the 8 NFRs. The functional set divides into 9 aggregate or
 behavioural parents (FR-001..FR-009), 9 object requirements (FR-010..FR-018),
-and 24 atomic behavioural parts (FR-019..FR-042) that the parents aggregate
-through `contains`. FR-003 through FR-008 now state their obligations once each
-through those parts; the parent row and the part rows are therefore two views of
-one obligation and must not be added together as separate work.
+24 atomic behavioural parts (FR-019..FR-042) that the parents aggregate
+through `contains`, and 2 independent behavioural requirements (FR-301, FR-302)
+that extend FR-005 and FR-006's claim dispatch and result-wire obligations
+rather than being decomposed from them. FR-003 through FR-008 now state their
+obligations once each through those parts; the parent row and the part rows are
+therefore two views of one obligation and must not be added together as
+separate work.
 
-The 305 counts rows of a `## Acceptance Criteria` table on an FR or an NFR, and
-nothing else. `quire properties` reports 325 criteria over the same tree: the
+The 315 counts rows of a `## Acceptance Criteria` table on an FR or an NFR, and
+nothing else. `quire properties` reports 335 criteria over the same tree: the
 extra 20 are the `StR-0NN-VC-n` validation criteria of StR-001 through StR-005,
 which are stakeholder validation rather than FR/NFR acceptance and which this
 matrix carries no table for. NFR-005's five metrics are outside that figure;
@@ -82,11 +85,11 @@ its six acceptance criteria are included.
 The five words below are not interchangeable, and no total mixes them.
 
 - **Test-backed** — the criterion's `Verification` cell names at least one
-  authored test case (`TC-0NN`). 265 of 305 criteria.
+  authored test case (`TC-0NN`). 275 of 315 criteria.
 - **Integration-backed** — the cell names only an integration scenario
-  (`IT-0NN`) and no test case. 8 of 305 criteria.
+  (`IT-0NN`) and no test case. 8 of 315 criteria.
 - **Unbacked** — the cell names no test case and no integration scenario: it
-  verifies by `Inspection` or `Analysis` only. 32 of 305 criteria (28
+  verifies by `Inspection` or `Analysis` only. 32 of 315 criteria (28
   Inspection, 4 Analysis). An unbacked criterion is not covered by a test and
   this matrix writes `none` in its Test Cases cell rather than a test-case id
   that would imply otherwise. TC-017 is the highest authored test case; no row
@@ -97,11 +100,12 @@ The five words below are not interchangeable, and no total mixes them.
 
   ```
   $ quire coverage --scope .
-  Coverage: 153/342 rows backed (44%)
+  Coverage: 175/354 rows backed (49%)
   ```
 
-  At the 2026-09-15 Task-009 checkpoint, 153 rows are engine-backed.
-  NFR-001 is 3 of 3, NFR-002 is 4 of 4, NFR-004 is 10 of 10, and 13 of the 17
+  At the 2026-09-18 checkpoint, 175 rows are engine-backed; the denominator
+  includes FR-301 and FR-302's ten planned, still-unbound criteria.
+  NFR-001 is 3 of 3, NFR-002 is 4 of 4, NFR-004 is 10 of 10, and 13 of the 19
   test-case rows have at least one bound symbol. The remaining row-level gaps are enumerated by the
   same machine output and remain implementation work; this figure is not a
   qualification claim.
@@ -212,9 +216,9 @@ The five words below are not interchangeable, and no total mixes them.
   published version 2 handoff but remains engine-unbound at criterion level;
   the lane binds its owning `IT-001` scenario instead.
 
-  The 265 test-backed criteria and 149 engine-bound rows are not contradictory:
+  The 275 test-backed criteria and 149 engine-bound rows are not contradictory:
   the two words have different denominators, and the definitions above say so.
-  **Read 153/342 as the coverage figure.** "Test-backed" says a criterion has
+  **Read 175/354 as the coverage figure.** "Test-backed" says a criterion has
   somewhere to be tested; "engine-bound" says a trace reaches a repository row.
 
   The gap closes by tagging, never by editing this table. A trace attribute is
@@ -239,7 +243,7 @@ The five words below are not interchangeable, and no total mixes them.
     over 4 criteria.
 
 - **Unexecutable** — a backing exists but cannot be run, so the criterion is
-  neither passing nor failing. 1 of 305 criteria,
+  neither passing nor failing. 1 of 315 criteria,
   integration-backed. Under `FR-009-AC-3` such a scenario is reported
   unexecutable and counted as zero, never as passing and never omitted from a
   denominator. `NFR-007-AC-8` and `NFR-008-AC-8` restate that rule for their own
@@ -336,12 +340,14 @@ in Domain Object Coverage instead.
 | FR-040 | FR-040-AC-1..AC-4 | TC-011 (AC-1..AC-4); IT-003 (AC-3) | ✅ Implemented — fatal whole-operation paths emit no success and claim-local refusal preserves authorized siblings only. |
 | FR-041 | FR-041-AC-1..AC-4 | TC-004 (AC-1..AC-4) | 🚧 Planned — 4 of 4 criteria test-backed |
 | FR-042 | FR-042-AC-1..AC-6 | TC-015 (AC-1..AC-6) | ✅ Implemented — all six criteria carry direct traced tests; the current engine reports 3 of 6 criterion rows bound and no FR-042 unbacked or untracked record, so the direct trace inventory and engine rollup remain stated separately |
+| FR-301 | FR-301-AC-1..AC-5 | TC-147 (AC-1..AC-5) | 🚧 Planned — refinement is admitted in spec once `agent-ix/quire-protocol#81` lands FR-176/FR-177; TC-147 binds all 5 criteria and no implementation has landed yet. |
+| FR-302 | FR-302-AC-1..AC-5 | TC-148 (AC-1..AC-5) | 🚧 Planned — the witness carrier is admitted in spec pending `agent-ix/quire-specification#114`'s `native-run-result/2`; TC-148 binds all 5 criteria and no implementation has landed yet. |
 
-Behavioural totals across these 33 rows: 188 acceptance criteria, of which 183
+Behavioural totals across these 35 rows: 198 acceptance criteria, of which 193
 are backed by a test case, 2 are backed only by an integration scenario
 (FR-002-AC-5 and FR-001-AC-5 pass), and 3 are
 unbacked — 2 by Inspection and 1 by Analysis.
-183 + 2 + 3 = 188.
+193 + 2 + 3 = 198.
 
 ## Domain Object Coverage
 
@@ -387,8 +393,8 @@ are backed by a test case, 4 are backed only by an integration scenario
 12 by Inspection and 1 by Analysis. 36 + 4 + 13 = 53.
 
 Across all three coverage tables the three per-criterion figures reconcile to
-the owed total: 183 + 46 + 36 = 265 test-backed, 2 + 2 + 4 = 8
-integration-backed, and 3 + 16 + 13 = 32 unbacked, summing to the 305 authored
+the owed total: 193 + 46 + 36 = 275 test-backed, 2 + 2 + 4 = 8
+integration-backed, and 3 + 16 + 13 = 32 unbacked, summing to the 315 authored
 acceptance criteria. Of the integration-backed set, 4 pass, 3 remain planned,
 and 1 is unexecutable.
 
@@ -432,24 +438,26 @@ a coverage claim in this matrix.
 | TC-015 | Produce, read and map canonical protocol results | Integration | P0 | FR-042-AC-1..FR-042-AC-6 | ✅ Implemented — 12 executable tests cover canonical production/strict reading, complete typed views, all four independent axes, Boolean/non-value mapping, identity/lineage mutations, schema pins, reproduction and exact/one-short resource limits |
 | TC-016 | Compose complete scenario evidence without storing it | Property | P0 | FR-017, NFR-005 | 🚧 Planned — final outcome/resource types, deterministic partial resolution, per-axis distinctness and transient-value containment |
 | TC-017 | Validate the consumer-owned delivery index | Property | P0 | FR-018, NFR-006 | ✅ Implemented — five executable index tests cover exact identity/state, bytes, typed absence, temporal/input/mutation/limit controls, bounded retention and version-lock non-authority. |
+| TC-147 | Admit protocol refinement dispatch | Property | P0 | FR-301 | 🚧 Planned — binds all 5 FR-301 criteria; awaits `agent-ix/quire-protocol#81` landing FR-176/FR-177. |
+| TC-148 | Carry a trace-position witness on the protocol result wire | Property | P0 | FR-302 | 🚧 Planned — binds all 5 FR-302 criteria; awaits `agent-ix/quire-specification#114`'s `native-run-result/2`. |
 
 ## Test Execution Summary
 
 Row counts, recomputed from the tree. Every matrix row above is counted exactly
 once, and `Blocked` means unexecutable — neither passing nor failing.
 
-Engine-measured binding at the current implementation checkpoint is 153 of 342
-rows (42%) — see **Engine-bound** above. The table below counts matrix rows and
+Engine-measured binding at the current implementation checkpoint is 175 of 354
+rows (49%) — see **Engine-bound** above. The table below counts matrix rows and
 their planned state; it does not measure binding.
 
 | Category | Total | Passed | Failed | Blocked | Planned |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Functional requirement rows | 33 | 2 | 0 | 0 | 31 |
+| Functional requirement rows | 35 | 2 | 0 | 0 | 33 |
 | Domain object requirement rows | 9 | 1 | 0 | 0 | 8 |
 | Non-functional requirement rows | 8 | 3 | 0 | 0 | 5 |
 | Integration rows | 4 | 2 | 0 | 1 | 1 |
-| Test case rows | 17 | 5 | 0 | 0 | 12 |
-| Overall | 71 | 13 | 0 | 1 | 57 |
+| Test case rows | 19 | 5 | 0 | 0 | 14 |
+| Overall | 75 | 13 | 0 | 1 | 61 |
 
 The Integration count is four because IT-001 carries a separate version 1 and version 2
 row; the two contracts may not substitute for each other, so one row cannot
@@ -465,10 +473,10 @@ criterion is a zero inside it rather than a row removed from it.
 
 | Category | Total | Passed | Failed | Blocked | Planned |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Criteria backed by a test case | 265 | 35 | 0 | 0 | 230 |
+| Criteria backed by a test case | 275 | 35 | 0 | 0 | 240 |
 | Criteria backed only by an integration scenario | 8 | 4 | 0 | 1 | 3 |
 | Criteria with no test case and no integration scenario | 32 | 0 | 0 | 0 | 32 |
-| Overall owed criteria | 305 | 39 | 0 | 1 | 265 |
+| Overall owed criteria | 315 | 39 | 0 | 1 | 275 |
 
 Task-013 adds eleven completed criteria to this table: all eight FR-012 object
 criteria, FR-016-AC-8, and NFR-006-AC-6/AC-7. FR-009's nine resolver controls

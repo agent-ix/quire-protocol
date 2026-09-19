@@ -36,6 +36,10 @@ relationships:
     type: realizes
   - target: ix://agent-ix/quire-protocol/FR-009
     type: realizes
+  - target: ix://agent-ix/quire-protocol/FR-301
+    type: realizes
+  - target: ix://agent-ix/quire-protocol/FR-302
+    type: realizes
 ---
 # Complete Protocol implementation architecture
 
@@ -383,9 +387,18 @@ affected identity or refuses.
    No reverse edge or local substitute is allowed.
 6. Apply one transactional state model, one refusal envelope and one Protocol
    resource accountant across the path.
-7. Advanced projection, realizability, refinement and composition algorithms
-   remain unsupported until their accepted owner contracts exist; unsupported
-   never means false, satisfied or successful.
+7. Advanced projection, realizability and composition algorithms remain
+   unsupported until their accepted owner contracts exist; unsupported never
+   means false, satisfied or successful. Refinement is admitted: once
+   `agent-ix/quire-protocol#81` lands FR-176's assume-guarantee contract and
+   FR-177's refinement relation, [FR-301](../functional/FR-301-admit-protocol-refinement-dispatch.md)
+   checks it as one explicit-state product construction over the FR-002 linked
+   graph — paired correspondence between implementation and specification
+   states, the selected trace, failure or observation refinement relation, and
+   assumption discharge under FR-176 — using the same closed dispatch,
+   premise-binding and unsupported-absence discipline FR-005, FR-029 and FR-030
+   already apply to every claim kind. This decision names no solver or
+   satisfiability prerequisite for refinement.
 
 ## Conformance Rules
 
@@ -430,3 +443,11 @@ affected identity or refuses.
 - **Dependency owner — every consuming task:** accepted git pins, licenses and
   artifact rights must be recorded before use. `publish = false` and absence of
   a registry release are intentional and not blockers.
+- **Separating-witness owner — in progress:** `agent-ix/quire-specification#114`
+  mints the family-neutral `native-run-result/2` separating-witness record
+  (deciding element, index, value path, trace position).
+  [FR-302](../functional/FR-302-carry-trace-position-witness.md) defines this
+  repository's `quire.protocol.result/v1-draft.2` carrier for that record; the
+  physical schema and reader/producer code that emit it land in a follow-on
+  implementation task once #114 is accepted. Tracked by
+  `agent-ix/quire-specification#114` and `agent-ix/quire-protocol#80`.
