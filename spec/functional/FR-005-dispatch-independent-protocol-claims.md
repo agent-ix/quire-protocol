@@ -31,8 +31,10 @@ When either FR-029 or FR-030 is unsatisfied for a requested claim, the dispatche
 
 ## Inputs
 
-The exact conformance report produced by FR-004 plus ordered conformance,
-monitorability, projection, realizability, refinement, or composition requests
+The exact conformance report produced by FR-004 plus ordered requests naming one
+`ix://agent-ix/quire-specification/FR-290` claim kind each —
+`global-conformance`, `monitorability`, `local-projection`, `refinement`,
+`realizability` or `composition` —
 with admitted fragments, closed backend selections, assumptions, budgets, and
 source/derived-artifact identities. Production callers SHALL NOT supply an
 arbitrary backend implementation or callback.
@@ -103,6 +105,10 @@ results. The Outputs list is therefore a reference, not a local enumeration.
 
 ### Accepted owner rulings
 
+`ix://agent-ix/quire-specification/FR-290`'s **Vocabulary authority** section,
+landed by `agent-ix/quire-specification#116`, is the accepted authority for the
+six capability kinds this requirement dispatches; Protocol's advertised
+claim-kind vocabulary is exactly those six labels and it authors none of its own.
 QSpec #29/#31/#40 fixes FR-290 claim kinds, FR-281 strength/cardinality, FR-291
 admitted fragments, FR-292 analysis backends, FR-217 role internality,
 FR-210/FR-287 subject membership and FR-283 projection refusal codes. Protocol

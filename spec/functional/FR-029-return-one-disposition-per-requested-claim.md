@@ -93,11 +93,20 @@ the dispatcher's behaviour, never read off two dispositions' spellings.
 
 ### Acceptance state of adopted vocabularies
 
-Current Quire Specification defines the six exact claim kinds in FR-290 and the
-single-valued four-member strength in FR-281. Both are proposed QS #1 rulings,
-so Protocol's existing enums remain implementation candidates and cannot be
-promoted as independently authoritative contracts. Task-005 consumes the
-accepted owner types when QS #1 promotes them and otherwise reports the affected
+`ix://agent-ix/quire-specification/FR-290` is the accepted authority for the
+capability-kind vocabulary: its **Vocabulary authority** section, landed by
+`agent-ix/quire-specification#116`, states that its six labels
+— `global-conformance`, `monitorability`, `local-projection`, `refinement`,
+`realizability`, `composition` — are the single capability-kind vocabulary
+across the ecosystem and that quire-protocol's advertised claim-kind vocabulary
+aligns to that set. Protocol dispatches those six exact labels and authors none
+of its own. Where this repository's prose names a kind in shorter form —
+"conformance" for `global-conformance` and "projection" for `local-projection` —
+the FR-290 label is the vocabulary and the prose word is prose; the remaining
+four are spelled identically. The single-valued four-member strength in FR-281
+remains a proposed QS #1 ruling, so Protocol's strength enum stays an
+implementation candidate until QS #1 promotes it; Task-005 consumes that
+accepted owner type when QS #1 promotes it and otherwise reports the affected
 advanced-claim scenarios unexecutable. FR-283 has already resolved source
 digest mismatch to `invalid-source-result` and derived/target identity mismatch
 to `identity-mismatch`.

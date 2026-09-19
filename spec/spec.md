@@ -60,7 +60,10 @@ repository owns its strict implementation and evidence-backed conformance.
 - Business-operation or compensation execution.
 - Generic producer execution, evidence persistence, method catalogues, sufficiency,
   qualification disposition, or public release policy.
-- General projection, realizability, refinement, or composition algorithms.
+- General projection, realizability, or composition algorithms. Refinement is
+  in scope as the explicit-state product construction
+  [FR-301](functional/FR-301-admit-protocol-refinement-dispatch.md) dispatches
+  over the accepted upstream assume-guarantee and refinement contracts.
 - An external choreography library before E03 admission.
 
 ## 3. System Overview
