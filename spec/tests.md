@@ -92,7 +92,7 @@ The five words below are not interchangeable, and no total mixes them.
   verifies by `Inspection` or `Analysis` only. 32 of 315 criteria (28
   Inspection, 4 Analysis). An unbacked criterion is not covered by a test and
   this matrix writes `none` in its Test Cases cell rather than a test-case id
-  that would imply otherwise. TC-017 is the highest authored test case; no row
+  that would imply otherwise. TC-148 is the highest authored test case; no row
   cites a higher id.
 - **Engine-bound** — a compiler-checked trace symbol actually resolves to the
   criterion. This is the only one of the five words that is *measured* rather
@@ -216,7 +216,7 @@ The five words below are not interchangeable, and no total mixes them.
   published version 2 handoff but remains engine-unbound at criterion level;
   the lane binds its owning `IT-001` scenario instead.
 
-  The 275 test-backed criteria and 149 engine-bound rows are not contradictory:
+  The 275 test-backed criteria and 175 engine-bound rows are not contradictory:
   the two words have different denominators, and the definitions above say so.
   **Read 175/354 as the coverage figure.** "Test-backed" says a criterion has
   somewhere to be tested; "engine-bound" says a trace reaches a repository row.

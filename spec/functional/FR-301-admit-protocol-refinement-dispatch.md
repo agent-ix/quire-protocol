@@ -23,6 +23,8 @@ relationships:
     type: depends_on
   - target: ix://agent-ix/quire-specification/FR-290
     type: references
+  - target: ix://agent-ix/quire-specification/FR-292
+    type: references
   - target: ix://agent-ix/quire-specification/AD-007
     type: references
 ---
@@ -98,16 +100,18 @@ introduces no separate dispatch path, resource guard or fallback backend.
 
 ### Accepted owner rulings
 
-`agent-ix/quire-protocol#81` lands `ix://agent-ix/quire-specification/FR-176`
-and `ix://agent-ix/quire-specification/FR-177` as the accepted assume-guarantee
-and refinement owner contracts. This requirement consumes those contracts
+`ix://agent-ix/quire-specification/FR-176` and
+`ix://agent-ix/quire-specification/FR-177` are the accepted assume-guarantee and
+refinement owner contracts, landed and owned by `agent-ix/quire-specification`;
+`agent-ix/quire-protocol#81` is this repository's implementation ticket for
+them. This requirement consumes those contracts
 directly and defines no local refinement relation, correspondence rule or
 assumption-discharge algorithm; the explicit-state product construction is the
 dispatch shape this repository owns, not a restatement of FR-177's relation.
 
 ## Dependencies
 
-- [FR-002](./FR-002-build-linked-protocol-graph.md) supplies the linked graph
+- [FR-002](./FR-002-link-finite-protocol-representation.md) supplies the linked graph
   the product construction runs over.
 - [FR-005](./FR-005-dispatch-independent-protocol-claims.md) supplies closed
   claim dispatch.
@@ -117,6 +121,8 @@ dispatch shape this repository owns, not a restatement of FR-177's relation.
 - `ix://agent-ix/quire-specification/FR-060` states the projection-absence
   pattern this requirement mirrors for refinement.
 - `ix://agent-ix/quire-specification/FR-176` and
-  `ix://agent-ix/quire-specification/FR-177`, landed by
-  `agent-ix/quire-protocol#81`, supply the assume-guarantee and refinement
-  contracts this requirement dispatches.
+  `ix://agent-ix/quire-specification/FR-177` supply the assume-guarantee and
+  refinement contracts this requirement dispatches;
+  `agent-ix/quire-protocol#81` implements them here.
+- `ix://agent-ix/quire-specification/FR-292` supplies the analysis backend whose
+  accepted capability selects a refinement check.

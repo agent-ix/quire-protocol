@@ -389,16 +389,17 @@ affected identity or refuses.
    resource accountant across the path.
 7. Advanced projection, realizability and composition algorithms remain
    unsupported until their accepted owner contracts exist; unsupported never
-   means false, satisfied or successful. Refinement is admitted: once
-   `agent-ix/quire-protocol#81` lands FR-176's assume-guarantee contract and
-   FR-177's refinement relation, [FR-301](../functional/FR-301-admit-protocol-refinement-dispatch.md)
+   means false, satisfied or successful. Refinement is admitted: over the
+   accepted FR-176 assume-guarantee contract and FR-177 refinement relation,
+   which `agent-ix/quire-protocol#81` implements here,
+   [FR-301](../functional/FR-301-admit-protocol-refinement-dispatch.md)
    checks it as one explicit-state product construction over the FR-002 linked
    graph — paired correspondence between implementation and specification
    states, the selected trace, failure or observation refinement relation, and
    assumption discharge under FR-176 — using the same closed dispatch,
    premise-binding and unsupported-absence discipline FR-005, FR-029 and FR-030
-   already apply to every claim kind. This decision names no solver or
-   satisfiability prerequisite for refinement.
+   already apply to every claim kind. The construction is the sole check this
+   decision requires of a refinement claim.
 
 ## Conformance Rules
 
@@ -448,6 +449,15 @@ affected identity or refuses.
   (deciding element, index, value path, trace position).
   [FR-302](../functional/FR-302-carry-trace-position-witness.md) defines this
   repository's `quire.protocol.result/v1-draft.2` carrier for that record; the
-  physical schema and reader/producer code that emit it land in a follow-on
-  implementation task once #114 is accepted. Tracked by
+  physical schema and reader/producer code that emit it land under
+  `agent-ix/quire-protocol#80` once #114 is accepted, and this repository
+  publishes no draft-2 schema file before then. Tracked by
   `agent-ix/quire-specification#114` and `agent-ix/quire-protocol#80`.
+- **Result-wire version owner — in progress:** QSpec FR-352's cross-repo note
+  assigns the `quire.protocol.result` draft-revision bump to
+  `agent-ix/quire-protocol#96`, while QSpec FR-240-AC-1 still fixes
+  `contractVersion` at exactly `quire.protocol.result/v1-draft.1`.
+  [FR-302](../functional/FR-302-carry-trace-position-witness.md) states
+  `v1-draft.2` under that assignment; FR-240-AC-1's matching amendment is owed
+  upstream and Protocol will not restate it locally. Tracked by
+  `agent-ix/quire-specification#114`.
