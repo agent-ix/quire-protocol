@@ -8,7 +8,7 @@
 //! its prerequisites, an ordered cause chain, and an explicit partial-output
 //! state — every one of them readable with no string parsing.
 //!
-//! [`ProtocolRefusal`] is that structure. A refusal is not extendable by A: A
+//! [`crate::refusal::ProtocolRefusal`] is that structure. A refusal is not extendable by A: A
 //! owns `Invalid`/`Unsupported` and B cannot add to them, so this envelope is
 //! B's own, and it is the type `#1`'s "return the FR-008 typed admission
 //! refusal" box actually needs.
@@ -18,15 +18,15 @@
 //! Three separate namespaces are in play here and they get three different
 //! answers.
 //!
-//! **[`RefusalDomain`] is CLOSED.** FR-008 names exactly seven domains. An eighth
+//! **[`crate::refusal::RefusalDomain`] is CLOSED.** FR-008 names exactly seven domains. An eighth
 //! is a specification amendment, not a library change, and every consumer that
 //! switches on the domain should stop compiling until its author has classified
 //! the new one. `#[non_exhaustive]` here would force a wildcard arm on every
 //! downstream `match`, and a wildcard arm silently absorbs a variant added
 //! later — the exact failure the independently-assertable-refusal directive
 //! forbids. Same reasoning, same answer, as chunk C-07 reached for
-//! `IdentityKind`. [`ProtocolStage`], [`RetryDecision`], [`PartialOutput`]
-//! and [`Unavailability`] are closed for the same reason: each is a small set
+//! `IdentityKind`. [`crate::refusal::ProtocolStage`], [`crate::refusal::RetryDecision`], [`crate::refusal::PartialOutput`]
+//! and [`crate::refusal::Unavailability`] are closed for the same reason: each is a small set
 //! fixed by FR-008's own text.
 //!
 //! **Each chunk's own code enum is CLOSED, in that chunk's own file.** A
@@ -35,7 +35,7 @@
 //! independent assertability actually lives.
 //!
 //! **The crate-wide code namespace is NOT an enum at all.** It is
-//! [`catalog::REGISTRY`], and [`catalog::RefusalCode`] is a handle into it.
+//! [`crate::refusal::catalog::REGISTRY`], and [`crate::refusal::catalog::RefusalCode`] is a handle into it.
 //! Two reasons, and the second is the one that decides it:
 //!
 //! 1. A crate-wide closed enum would have to be edited by every chunk that
@@ -50,8 +50,8 @@
 //!
 //! What a crate-wide enum would have bought for free is the guarantee that no
 //! two chunks mint the same spelling. That guarantee is not given up; it is
-//! moved from the compiler to [`catalog::audit`] and the repo-wide literal scan
-//! in [`catalog::unregistered_literals`], both run as TC-011 tests. A chunk
+//! moved from the compiler to [`crate::refusal::catalog::audit`] and the repo-wide literal scan
+//! in [`crate::refusal::catalog::unregistered_literals`], both run as TC-011 tests. A chunk
 //! that mints a colliding code, an unregistered code, or a code under another
 //! chunk's reserved root fails the test suite on the commit that adds it.
 //!
@@ -629,7 +629,7 @@ impl CauseChain {
 ///
 /// Closed, and **separate from any success value**: the state is declared on
 /// the envelope and the surviving values, if any, live in
-/// [`RefusedWithIndependent`]. No `Option<T>` doubles as both, so a caller can
+/// `RefusedWithIndependent`. No `Option<T>` doubles as both, so a caller can
 /// never read "there is a value" out of "the operation partly succeeded" or
 /// the reverse.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]

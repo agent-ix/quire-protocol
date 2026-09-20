@@ -91,7 +91,10 @@ impl ChannelHandle {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum SlotCompatibility {
     /// This slot accepts one exact producer-local subject kind.
-    Subject { kind: SubjectKind },
+    Subject {
+        /// The exact producer-local subject kind this slot accepts.
+        kind: SubjectKind,
+    },
     /// This slot accepts one exact FCD relationship declaration and its
     /// ordered producer-local endpoint kinds.
     Relationship {
@@ -1505,6 +1508,7 @@ impl LinkedCompensationDefinition {
         self.identity.handle()
     }
 
+    /// Returns the complete authored FR-288 compensation definition.
     #[must_use]
     pub const fn definition(&self) -> &quire_spec_language::protocol_artifact::wire::Compensation {
         &self.definition
@@ -1548,18 +1552,22 @@ pub struct FifoDefinition {
 }
 
 impl FifoDefinition {
+    /// Returns the indexed binder that names the FIFO's carried value.
     #[must_use]
     pub const fn binder(&self) -> &Indexed<quire_spec_language::protocol_artifact::wire::Binder> {
         &self.binder
     }
+    /// Returns the indexed expression that selects the FIFO's ordering key.
     #[must_use]
     pub const fn key(&self) -> &Indexed<quire_spec_language::protocol_artifact::wire::Value> {
         &self.key
     }
+    /// Returns the indexed anchor the FIFO partition is scoped to.
     #[must_use]
     pub const fn anchor(&self) -> &Indexed<quire_spec_language::protocol_artifact::wire::Anchor> {
         &self.anchor
     }
+    /// Returns the indexed types admitted for the FIFO's carried value.
     #[must_use]
     pub fn types(&self) -> &[Indexed<quire_spec_language::protocol_artifact::wire::Type>] {
         &self.types
@@ -1575,6 +1583,7 @@ pub struct LinkedChannelDefinition {
 }
 
 impl LinkedChannelDefinition {
+    /// Returns the exact admitted channel coordinate this definition is linked to.
     #[must_use]
     pub const fn handle(&self) -> ChannelHandle {
         self.handle
@@ -1589,6 +1598,7 @@ impl LinkedChannelDefinition {
         &self.definition
     }
 
+    /// Returns this channel's FIFO expression definition, if it declares one.
     #[must_use]
     pub const fn fifo(&self) -> Option<&FifoDefinition> {
         self.fifo.as_ref()

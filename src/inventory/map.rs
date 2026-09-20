@@ -3,14 +3,14 @@
 //!
 //! A owns its own error enums and B cannot extend them. This module is B's
 //! discriminating layer *over* what A returns: every A refusal is retained as
-//! A's complete typed [`Error`], and the one A code that collapses several axes
+//! A's complete typed [`crate::Error`], and the one A code that collapses several axes
 //! — `Invalid::Selection` — is additionally resolved against B's own
 //! independently selected inventory before it reaches the caller.
 //!
 //! A's error enum is `#[non_exhaustive]`, so a downstream match must have a
 //! catch-all arm. That arm retains the original value rather than formatting it
 //! into a string. A future A variant therefore remains typed, keeps A's stable
-//! [`Error::code`], and cannot be folded into a neighbouring B classification.
+//! [`crate::Error::code`], and cannot be folded into a neighbouring B classification.
 
 use serde_json::Value;
 

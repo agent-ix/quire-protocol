@@ -36,19 +36,27 @@ this repository.
 - Run local checks only. Set `CARGO_BUILD_JOBS=1` and use
   `flock /tmp/quire-heavy-check.lock` for heavy Cargo work. Do not dispatch hosted CI.
 - The local gate is defined by [NFR-004](spec/non-functional/NFR-004-define-local-verification-gate.md).
-  It is exactly these three commands, in this order, over one unchanged head:
+  It is exactly these four commands, in this order, over one unchanged head:
 
   ```console
   CARGO_BUILD_JOBS=1 flock /tmp/quire-heavy-check.lock cargo fmt --all -- --check
   CARGO_BUILD_JOBS=1 flock /tmp/quire-heavy-check.lock cargo clippy --locked --all-targets --target-dir target-codex-backends -- -D warnings
   CARGO_BUILD_JOBS=1 flock /tmp/quire-heavy-check.lock cargo test --locked --target-dir target-codex-backends
+  CARGO_BUILD_JOBS=1 flock /tmp/quire-heavy-check.lock env RUSTDOCFLAGS="-D warnings" cargo doc --locked --no-deps --target-dir target-codex-backends
   ```
 
   The formatting command detects formatting drift. The Clippy command detects
   lint violations plus dead code and unused imports in library, test, fixture and
   example targets. The test command detects behavioural regressions against the
-  bound acceptance obligations. A command without a named risk is not part of
-  the gate.
+  bound acceptance obligations. The doc command detects undocumented public API
+  (rustc's `missing_docs`, declared `warn` in `[lints.rust]` and escalated to a
+  failure by `RUSTDOCFLAGS="-D warnings"`) — already caught by the Clippy
+  command above, since `missing_docs` is a plain rustc lint that fires under
+  `cargo clippy --all-targets -D warnings` too — and broken intra-doc links
+  (`rustdoc::broken_intra_doc_links`), which is rustdoc-only and is the actual
+  reason this command belongs in the gate: neither `clippy` nor `cargo check`
+  builds rustdoc output, so neither can reach it. A command without a named
+  risk is not part of the gate.
 
   This crate has one **Cargo-feature lane**. It declares no `[features]` table,
   optional dependency or `cfg(feature = ...)` condition, so

@@ -2,11 +2,12 @@
 //! Pure compensation assessment over exact linked and owner-issued facts.
 //!
 //! The subsystem is deliberately split by authority rather than by workflow
-//! step: [`activate`] owns obligation activation, [`algebra`] owns established
-//! effects/registration/authored order/retry, [`graph`] owns production
-//! request-state transitions and exact QSL evaluation reports, and [`purity`]
+//! step: [`crate::compensation::activate`] owns obligation activation,
+//! [`crate::compensation::algebra`] owns established
+//! effects/registration/authored order/retry, [`crate::compensation::graph`] owns production
+//! request-state transitions and exact QSL evaluation reports, and [`crate::compensation::purity`]
 //! constructs the capability-free witness required by every operation. The
-//! retained [`recovery`] kernel exposes output vocabulary and crate-private
+//! retained [`crate::compensation::recovery`] kernel exposes output vocabulary and crate-private
 //! test seams; production recovery is evaluated directly by the assessment
 //! Engine. This facade neither runs a business operation nor infers one fact
 //! from another.
@@ -165,19 +166,33 @@ pub struct Parts<'a> {
 /// Why an aggregate compensation assessment cannot report availability.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub enum UnavailableCause {
+    /// No activation fact was reported at all.
     ActivationAbsent,
+    /// The reported activation state could not be determined.
     ActivationUnknown,
+    /// The activation state requires a registration, but none was established.
     RegistrationAbsent,
+    /// The activation state requires an ordering assessment, but none was authored.
     OrderingAbsent,
+    /// The authored ordering assessment did not cover every required fact.
     OrderingIncomplete,
+    /// The authored causal order violates the required ordering.
     OrderingViolation(OrderingViolation),
+    /// The activation state requires a retry bound, but none was declared.
     RetryBoundAbsent,
+    /// A retained retry outcome does not name this registration.
     RetryRegistrationMismatch,
+    /// The declared retry bound was exceeded.
     RetryBoundExceeded,
+    /// The caller-owned retry resource budget was exhausted.
     RetryResourceExceeded,
+    /// The activation state requires a recovery decision, but none was reported.
     RecoveryAbsent,
+    /// A recovery decision was requested but has not yet been reported.
     RecoveryPending,
+    /// The reported recovery decision did not cover every required fact.
     RecoveryIncomplete,
+    /// Atomic facts are present that this activation state does not admit.
     InactiveFactsPresent,
 }
 
@@ -254,9 +269,13 @@ impl std::error::Error for ResourceRefusal {}
 /// Bounded aggregate population.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum Resource {
+    /// The retained attempt facts.
     Attempts,
+    /// The retained established effect facts.
     Effects,
+    /// The retained retry admission/refusal outcomes.
     RetryOutcomes,
+    /// The retained recovery-relation decisions.
     RecoveryDecisions,
 }
 

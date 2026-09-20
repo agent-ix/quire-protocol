@@ -51,7 +51,7 @@
 //! `open` or to `closed`: FR-061 requires that 'A strict reader SHALL refuse an
 //! omitted required axis'. Absence is not a member of this vocabulary."
 //!
-//! So [`ClosureState::new`] takes an `Option` per axis and refuses an omitted
+//! So [`crate::closure::ClosureState::new`] takes an `Option` per axis and refuses an omitted
 //! one, rather than admitting a bottom element standing for "not yet observed".
 //!
 //! # Why one label string is not one type
@@ -63,7 +63,7 @@
 //! make the axes equal or substitutable."
 //!
 //! The four scope axes are therefore four distinct types over one shared
-//! vocabulary type ([`ScopeState`]), and the fifth is unrelated to all of them,
+//! vocabulary type ([`crate::closure::ScopeState`]), and the fifth is unrelated to all of them,
 //! so a substitution between any two is a compile error rather than a runtime
 //! check.
 //!
@@ -72,8 +72,8 @@
 //! This module denies `clippy::wildcard_enum_match_arm` and no `match` in it
 //! carries a `_` arm, so a state added to any adopted vocabulary fails to
 //! compile until an author has classified it. Adding a sixth axis fails too:
-//! [`ClosureState::refusals`] destructures every field with no `..` rest
-//! pattern, and [`Axis`] is matched exhaustively.
+//! [`crate::closure::ClosureState::refusals`] destructures every field with no `..` rest
+//! pattern, and [`crate::closure::Axis`] is matched exhaustively.
 //!
 //! # Boundary
 //!

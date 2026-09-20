@@ -24,12 +24,12 @@
 //!
 //! **3. No two identities are interchangeable.** Each kind is its own `struct`,
 //! never a type alias and never a shared generic over a marker, so passing a
-//! [`SendId`] where a [`ReceiveId`] is expected is a compile error. The
+//! [`crate::ids::SendId`] where a [`crate::ids::ReceiveId`] is expected is a compile error. The
 //! `compile_fail` examples below are the proof, and they run under `cargo test`.
 //!
 //! # Public API boundary decision: this set is CLOSED, not `#[non_exhaustive]`
 //!
-//! [`IdentityKind`] is deliberately **not** `#[non_exhaustive]`, and neither is
+//! [`crate::ids::IdentityKind`] is deliberately **not** `#[non_exhaustive]`, and neither is
 //! any type in this module. This is a decision, not a derive default:
 //!
 //! * A `#[non_exhaustive]` enum forces every downstream `match` to carry a
@@ -43,7 +43,7 @@
 //!   recovery identities. Its authority is the specification, so it changes only
 //!   when the specification changes, and then deliberately.
 //! * The newtype `struct`s hold private fields and expose no public
-//!   constructor other than [`SendId::new`]-shaped associated functions, so
+//!   constructor other than [`crate::ids::SendId::new`]-shaped associated functions, so
 //!   field-level source compatibility is already controlled without
 //!   `#[non_exhaustive]`.
 //!

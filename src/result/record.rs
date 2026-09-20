@@ -186,9 +186,13 @@ pub struct Usage {
 /// FR-242 truth disposition.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum Truth {
+    /// The checked predicate held under every admitted evaluation.
     Satisfied,
+    /// The checked predicate did not hold under at least one admitted evaluation.
     Violated,
+    /// The checked predicate's truth has not yet been settled.
     Pending,
+    /// The checked predicate's truth could not be established.
     Unavailable,
 }
 impl Truth {
@@ -205,10 +209,15 @@ impl Truth {
 /// FR-243 settlement basis.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum SettlementBasis {
+    /// Settled because the evaluation scope closed with no further admission possible.
     ClosedScope,
+    /// Settled by a decisive witness that establishes the truth directly.
     DecisiveWitness,
+    /// Settled by a decisive counterexample that refutes the truth directly.
     DecisiveCounterexample,
+    /// Not yet settled by any closed scope, witness, or counterexample.
     Unsettled,
+    /// Settlement could not be established.
     Unavailable,
 }
 impl SettlementBasis {
@@ -226,8 +235,11 @@ impl SettlementBasis {
 /// FR-244 activation state.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum Activation {
+    /// The trigger fired; this result reports on an assessed instance.
     Triggered,
+    /// The trigger's guard was admitted and false; no instance was assessed.
     Inactive,
+    /// The trigger's guard could not be established.
     ActivationUnknown,
 }
 impl Activation {
@@ -243,9 +255,13 @@ impl Activation {
 /// FR-245 observation adequacy.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum Adequacy {
+    /// The observation evidence was sufficient to support the reported truth.
     Adequate,
+    /// The observation evidence was insufficient to support the reported truth.
     Inadequate,
+    /// Whether the observation evidence was sufficient could not be established.
     Unknown,
+    /// Observation adequacy was not assessed.
     NotAssessed,
 }
 impl Adequacy {
@@ -262,9 +278,13 @@ impl Adequacy {
 /// FR-246 protocol adequacy.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum ProtocolAdequacy {
+    /// The protocol was demonstrated to be adequate for this evaluation.
     Demonstrated,
+    /// The protocol was demonstrated to not be adequate for this evaluation.
     NotDemonstrated,
+    /// Protocol adequacy does not apply to this evaluation.
     Inapplicable,
+    /// Whether the protocol was adequate could not be established.
     Unknown,
 }
 impl ProtocolAdequacy {
@@ -281,9 +301,13 @@ impl ProtocolAdequacy {
 /// FR-280 assumption state.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum AssumptionState {
+    /// The assumption was established to hold.
     Met,
+    /// The assumption was established to not hold.
     NotMet,
+    /// Whether the assumption holds could not be established.
     Unknown,
+    /// The assumption was not assessed.
     NotAssessed,
 }
 impl AssumptionState {
@@ -300,18 +324,26 @@ impl AssumptionState {
 /// One independently identified assumption.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Assumption {
+    /// The identified assumption's exact identity.
     pub identity: String,
+    /// Whether the assumption was established to hold.
     pub state: AssumptionState,
 }
 
 /// FR-290 protocol claim kind.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum ClaimKind {
+    /// A claim about global conformance across the entire evaluated system.
     GlobalConformance,
+    /// A claim about whether the property is monitorable at runtime.
     Monitorability,
+    /// A claim about a projection restricted to one local participant.
     LocalProjection,
+    /// A claim that one specification refines another.
     Refinement,
+    /// A claim that the specification is realizable by some implementation.
     Realizability,
+    /// A claim about the composition of independently verified components.
     Composition,
 }
 impl ClaimKind {
@@ -330,9 +362,13 @@ impl ClaimKind {
 /// FR-281 claim strength.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum ClaimStrength {
+    /// Established by formal proof.
     Proven,
+    /// Established by exhaustive checking within a stated bound.
     BoundedChecked,
+    /// Established by test execution.
     Tested,
+    /// Established by runtime observation alone.
     Observed,
 }
 impl ClaimStrength {
@@ -349,18 +385,26 @@ impl ClaimStrength {
 /// Exact claim, admitted-fragment, and backend selections retained by a result.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Claim {
+    /// The kind of protocol claim being made.
     pub kind: ClaimKind,
+    /// The strength of evidence backing the claim, when established.
     pub strength: Option<ClaimStrength>,
+    /// The exact identity of the admitted fragment the claim covers, when scoped to one.
     pub admitted_fragment_identity: Option<String>,
+    /// The exact identity of the verification backend that produced the claim, when known.
     pub backend_identity: Option<String>,
 }
 
 /// FR-282 dependence relation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum DependenceRelation {
+    /// This decision-support record is independent of its predecessor.
     Independent,
+    /// This decision-support record shares its evidence with its predecessor.
     Shared,
+    /// This decision-support record is derived from its predecessor.
     Derived,
+    /// The dependence relation to the predecessor could not be established.
     Unknown,
 }
 impl DependenceRelation {
@@ -377,45 +421,64 @@ impl DependenceRelation {
 /// Exact locator for one decision-support record.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct SupportRef {
+    /// The exact identity of the referenced oracle.
     pub oracle_identity: String,
+    /// The exact identity of the referenced observation.
     pub observation_identity: String,
 }
 
 /// FR-248 decision-support record.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DecisionSupport {
+    /// The exact identity of the oracle backing this record.
     pub oracle_identity: String,
+    /// The exact identity of the observation backing this record.
     pub observation_identity: String,
+    /// This record's dependence relation to its predecessor.
     pub relation: DependenceRelation,
+    /// The predecessor record this one depends on, when one exists.
     pub predecessor: Option<SupportRef>,
+    /// The exact identity of the group of records that share this dependence, when grouped.
     pub dependence_group: Option<String>,
 }
 
 /// Settlement plus the exact fact/progress identities authorizing it.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Settlement {
+    /// The basis on which this settlement was reached.
     pub basis: SettlementBasis,
+    /// Exact identities of the facts that authorize this settlement.
     pub supporting_fact_identities: Vec<String>,
+    /// Exact identities of the progress records that authorize this settlement.
     pub supporting_progress_identities: Vec<String>,
 }
 
 /// One typed retained limitation.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Limitation {
+    /// The stable code identifying this limitation's kind.
     pub code: String,
+    /// The exact identity of the item this limitation affects.
     pub affected_identity: String,
 }
 
 /// FR-285 closed participation value object.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Participation {
+    /// Every required and participating role instance is fully established.
     Known {
+        /// Exact references to every role instance this evaluation required.
         required_role_instance_refs: Vec<String>,
+        /// Exact references to every role instance that actually participated.
         participating_role_instance_refs: Vec<String>,
     },
+    /// Participation could not be fully established.
     Unknown {
+        /// Exact references to the role instances known to have participated.
         participating_role_instance_refs: Vec<String>,
+        /// Exact references to dependencies missing from the evaluation.
         missing_dependency_refs: Vec<String>,
+        /// Reasons participation could not be fully established.
         reasons: Vec<String>,
     },
 }
@@ -423,14 +486,23 @@ pub enum Participation {
 /// Complete provenance identity set retained independently of display text.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProvenanceRecord {
+    /// The exact identity of the source that produced this result.
     pub source_identity: String,
+    /// The exact identity of the profile the evaluation was run under.
     pub profile_identity: String,
+    /// The exact identity of the model that produced the evaluated behavior.
     pub model_identity: String,
+    /// The exact identity of the protocol this result is bound to.
     pub protocol_identity: String,
+    /// The exact identity of the request that produced this result.
     pub request_identity: String,
+    /// The exact identity of the binding under which the request was evaluated.
     pub binding_identity: String,
+    /// The exact identity of the input consumed to produce this result.
     pub input_identity: String,
+    /// The exact identity of the backend that performed the evaluation.
     pub backend_identity: String,
+    /// The exact identity of the producer that emitted this result.
     pub producer_identity: String,
     /// Exact local-run inputs needed to reproduce this result.
     pub reproduction: ReproductionRecord,
@@ -439,7 +511,9 @@ pub struct ProvenanceRecord {
 /// Explicit correction relation to the direct predecessor.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CorrectionRelation {
+    /// This result supersedes its predecessor with an updated finding.
     Supersedes,
+    /// This result invalidates its predecessor outright.
     Invalidates,
 }
 impl CorrectionRelation {
@@ -454,32 +528,54 @@ impl CorrectionRelation {
 /// Immutable direct correction input. A predecessor must already be validated.
 #[derive(Clone, Copy, Debug)]
 pub struct CorrectionInput<'a> {
+    /// How this result relates to its predecessor.
     pub relation: CorrectionRelation,
+    /// The already-validated predecessor this result corrects.
     pub predecessor: &'a ValidatedResult,
+    /// The exact identity of the premise the predecessor's finding contradicted.
     pub contradicted_premise_identity: &'a str,
+    /// The exact identity of the input that was corrected.
     pub corrected_input_identity: &'a str,
 }
 
 /// Complete typed input to canonical result production.
 #[derive(Clone, Debug)]
 pub struct Input<'a> {
+    /// The validated checked predicate this result reports on.
     pub checked_predicate: &'a checked_predicate::ValidatedCheckedPredicate,
+    /// The validated temporal subject this result reports on.
     pub temporal_subject: &'a temporal_subject::ValidatedTemporalSubject,
+    /// The complete set of validated axis inputs for this result.
     pub axes: AxisInputs<'a>,
+    /// The observation-authority completeness view for this evaluation.
     pub completeness: &'a completeness::View,
+    /// The assessment execution this result was produced under.
     pub execution: AssessmentExecution,
+    /// The checked predicate's truth disposition.
     pub truth: Truth,
+    /// The settlement basis and its authorizing identities.
     pub settlement: Settlement,
+    /// The activation state of the evaluated trigger.
     pub activation: Activation,
+    /// The closed participation value object for this evaluation.
     pub participation: Participation,
+    /// Every independently identified assumption and its state.
     pub assumptions: Vec<Assumption>,
+    /// Whether the observation evidence was adequate to support the reported truth.
     pub observation_adequacy: Adequacy,
+    /// Whether the protocol was adequate for this evaluation.
     pub protocol_adequacy: ProtocolAdequacy,
+    /// The protocol claim, admitted-fragment, and backend selections for this result.
     pub claim: Claim,
+    /// Every decision-support record backing this result.
     pub decision_support: Vec<DecisionSupport>,
+    /// The global-conformance input this result was assessed against.
     pub global_conformance: GlobalConformanceInput,
+    /// Every typed limitation retained for this result.
     pub limitations: Vec<Limitation>,
+    /// The complete provenance identity set for this result.
     pub provenance: ProvenanceRecord,
+    /// The direct correction this result makes to a predecessor, when it corrects one.
     pub correction: Option<CorrectionInput<'a>>,
 }
 

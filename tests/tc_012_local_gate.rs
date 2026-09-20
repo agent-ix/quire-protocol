@@ -10,6 +10,7 @@ const FORMAT_COMMAND: &str =
     "CARGO_BUILD_JOBS=1 flock /tmp/quire-heavy-check.lock cargo fmt --all -- --check";
 const CLIPPY_COMMAND: &str = "CARGO_BUILD_JOBS=1 flock /tmp/quire-heavy-check.lock cargo clippy --locked --all-targets --target-dir target-codex-backends -- -D warnings";
 const TEST_COMMAND: &str = "CARGO_BUILD_JOBS=1 flock /tmp/quire-heavy-check.lock cargo test --locked --target-dir target-codex-backends";
+const DOC_COMMAND: &str = "CARGO_BUILD_JOBS=1 flock /tmp/quire-heavy-check.lock env RUSTDOCFLAGS=\"-D warnings\" cargo doc --locked --no-deps --target-dir target-codex-backends";
 const ADMITTED_TARGET: &str = "x86_64-unknown-linux-gnu";
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -70,6 +71,7 @@ enum CommandKind {
     Format,
     Clippy,
     Test,
+    Doc,
 }
 
 #[derive(Clone, Debug)]
@@ -93,6 +95,8 @@ impl Command {
             CommandKind::Clippy
         } else if text.contains("cargo test") {
             CommandKind::Test
+        } else if text.contains("cargo doc") {
+            CommandKind::Doc
         } else {
             panic!("the gate block contains an unknown command")
         };
@@ -100,6 +104,7 @@ impl Command {
             CommandKind::Format => agents.contains("formatting command detects formatting drift"),
             CommandKind::Clippy => agents.contains("Clippy command detects\n  lint violations"),
             CommandKind::Test => agents.contains("test command detects behavioural regressions"),
+            CommandKind::Doc => agents.contains("doc command detects undocumented public API"),
         };
         let build_jobs = if text.starts_with("CARGO_BUILD_JOBS=1 ") {
             1
@@ -188,9 +193,14 @@ impl GatePolicy {
 
     fn defects(&self) -> BTreeSet<GateDefect> {
         let mut defects = BTreeSet::new();
-        let expected_kinds = [CommandKind::Format, CommandKind::Clippy, CommandKind::Test];
+        let expected_kinds = [
+            CommandKind::Format,
+            CommandKind::Clippy,
+            CommandKind::Test,
+            CommandKind::Doc,
+        ];
         let actual_kinds: Vec<_> = self.commands.iter().map(|command| command.kind).collect();
-        let expected_text = [FORMAT_COMMAND, CLIPPY_COMMAND, TEST_COMMAND];
+        let expected_text = [FORMAT_COMMAND, CLIPPY_COMMAND, TEST_COMMAND, DOC_COMMAND];
 
         if actual_kinds.len() != expected_kinds.len()
             || actual_kinds
@@ -289,8 +299,10 @@ impl GatePolicy {
         }
 
         if self.commands.iter().any(|command| {
-            matches!(command.kind, CommandKind::Clippy | CommandKind::Test)
-                && command.target_directory.as_deref() != Some("target-codex-backends")
+            matches!(
+                command.kind,
+                CommandKind::Clippy | CommandKind::Test | CommandKind::Doc
+            ) && command.target_directory.as_deref() != Some("target-codex-backends")
         }) {
             defects.insert(GateDefect::SharedTarget);
         }

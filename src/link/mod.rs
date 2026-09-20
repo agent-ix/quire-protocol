@@ -3,8 +3,8 @@
 //!
 //! FR-002 requires one finite typed representation of an admitted protocol,
 //! with every identity kind kept distinct and with neither input order nor
-//! display text participating in what is linked. [`LinkedProtocol`] is that
-//! representation, and [`link`] builds it.
+//! display text participating in what is linked. [`crate::link::LinkedProtocol`] is that
+//! representation, and [`crate::link::link`] builds it.
 //!
 //! # What A refuses, what this module refuses, and what nobody refuses yet
 //!
@@ -35,10 +35,10 @@
 //!   `maximum = 0` is admitted, and A's contract documents N=0 as merely making
 //!   the progress edge unreachable. A refuses `maximum_attempts <= 0` for
 //!   compensation in the next function along, so the check exists there and not
-//!   here. [`LinkRefusal::ZeroProgressIteration`].
+//!   here. [`crate::link::LinkRefusal::ZeroProgressIteration`].
 //! - **Duplicate role authorities.** A dedupes role *names*, which are display
 //!   text. Nothing dedupes `role.model`, the export that says which authority
-//!   the role speaks for. [`LinkRefusal::DuplicateRoleAuthority`].
+//!   the role speaks for. [`crate::link::LinkRefusal::DuplicateRoleAuthority`].
 //!
 //! **Nobody refuses yet, and this is recorded rather than implied:**
 //!
@@ -71,10 +71,11 @@
 //!
 //! What does exist is the producer's own way of referring to a requirement, and
 //! that is what is retained: the owning declaration index, the requirement's
-//! index in that declaration's binding table, its declared [`BindingKind`] tag,
+//! index in that declaration's binding table, its declared
+//! [`quire_spec_language::protocol_artifact::wire::BindingKind`] tag,
 //! and the exact authority reference the producer attached to it. Those are
 //! producer-supplied and exact. They are encoded canonically by
-//! [`requirement_identity`] with length-prefixed members, so no two distinct
+//! [`crate::link::requirement_identity`] with length-prefixed members, so no two distinct
 //! requirements can encode to the same bytes by concatenation.
 //!
 //! The authored `name` is **not** part of that encoding. It is carried as
@@ -91,7 +92,7 @@
 //!
 //! # Equality is the linked identity
 //!
-//! [`LinkedProtocol`] implements `Eq` and `Hash` over its structural content
+//! [`crate::link::LinkedProtocol`] implements `Eq` and `Hash` over its structural content
 //! with display text excluded, so FR-002-AC-4 is checked by comparing two
 //! linked values. No digest is minted here: a digest would need a domain, and
 //! digest domains belong to `FR-015`'s selected vocabulary rather than to this
@@ -721,7 +722,7 @@ impl ControlShape {
     /// A derives the same `branch` and `join` edge kinds for a `Parallel` and
     /// for a `Choice`, so the causal edge set alone cannot tell concurrency
     /// from alternation. The operation kind can, and this is the one place that
-    /// reads it: the spellings are the ones [`control_shape`] writes, a few
+    /// reads it: the spellings are the ones `control_shape` writes, a few
     /// lines below.
     ///
     /// - `choice` — exactly one case runs (`FR-053`).

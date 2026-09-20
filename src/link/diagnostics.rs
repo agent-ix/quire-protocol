@@ -13,7 +13,7 @@
 //! them, so "some diagnostics, and here is the graph anyway" is not a value this
 //! module can express.
 //!
-//! [`LinkedProtocol`]: super::LinkedProtocol
+//! [`LinkedProtocol`]: crate::link::LinkedProtocol
 //!
 //! # What "independent" means
 //!
@@ -73,10 +73,10 @@
 //! [`Diagnostics::located`] yields only the findings that genuinely carry a
 //! region.
 //!
-//! [`link`]: super::link
-//! [`LinkRefusal::CollidingIdentity`]: super::LinkRefusal::CollidingIdentity
-//! [`LinkRefusal::NoSuchDeclaration`]: super::LinkRefusal::NoSuchDeclaration
-//! [`LinkRefusal::NotAProtocol`]: super::LinkRefusal::NotAProtocol
+//! [`link`]: crate::link::link
+//! [`LinkRefusal::CollidingIdentity`]: crate::link::LinkRefusal::CollidingIdentity
+//! [`LinkRefusal::NoSuchDeclaration`]: crate::link::LinkRefusal::NoSuchDeclaration
+//! [`LinkRefusal::NotAProtocol`]: crate::link::LinkRefusal::NotAProtocol
 //!
 //! # How many findings one refusal may carry
 //!
@@ -102,7 +102,7 @@
 //! and `input-byte` grants. It is not an unbounded traversal of a
 //! server-supplied cursor.
 //!
-//! What is still owed: [`Accumulator`] is a caller-controlled retention site,
+//! What is still owed: `Accumulator` is a caller-controlled retention site,
 //! and `NFR-002` requires every such site to appear in the resource inventory —
 //! `crate::bounds::inventory`, owner chunk **C-30**, today an empty stub. When
 //! C-30 lands, this site is charged through a granted dimension rather than

@@ -71,34 +71,61 @@ impl ProtocolCauseKind {
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum ProtocolCause {
     /// A required definition is absent.
-    MissingDefinition { definition: RetainedBytes },
+    MissingDefinition {
+        /// The exact bytes of the definition that was required but not found.
+        definition: RetainedBytes,
+    },
     /// Two definitions claim one identity with conflicting content.
     ConflictingDefinition {
+        /// The exact bytes of the first definition claiming the identity.
         definition: RetainedBytes,
+        /// The exact bytes of the second, conflicting definition.
         conflicting_definition: RetainedBytes,
     },
     /// An observation or runtime value names the wrong anchor.
     WrongAnchor {
+        /// The exact bytes of the anchor that was required.
         expected: RetainedBytes,
+        /// The exact bytes of the anchor that was actually observed.
         observed: RetainedBytes,
     },
     /// A required observation is absent.
-    MissingObservation { observation: RetainedBytes },
+    MissingObservation {
+        /// The exact bytes of the observation that was required but not found.
+        observation: RetainedBytes,
+    },
     /// Definedness was required but not established.
-    UnprovedDefinedness { expression: RetainedBytes },
+    UnprovedDefinedness {
+        /// The exact bytes of the expression whose definedness was not established.
+        expression: RetainedBytes,
+    },
     /// A defined obligation evaluated adversely.
-    LogicalViolation { obligation: RetainedBytes },
+    LogicalViolation {
+        /// The exact bytes of the obligation that evaluated adversely.
+        obligation: RetainedBytes,
+    },
     /// Two exact identities that must agree differ.
     IdentityMismatch {
+        /// The exact bytes of the identity that was required.
         expected: RetainedBytes,
+        /// The exact bytes of the identity that was actually observed.
         observed: RetainedBytes,
     },
     /// Required evidence is absent or incomplete.
-    IncompleteEvidence { evidence: RetainedBytes },
+    IncompleteEvidence {
+        /// The exact bytes of the evidence that was required but absent or incomplete.
+        evidence: RetainedBytes,
+    },
     /// The selected contract does not support a requested capability.
-    UnsupportedCapability { capability: RetainedBytes },
+    UnsupportedCapability {
+        /// The exact bytes naming the unsupported capability that was requested.
+        capability: RetainedBytes,
+    },
     /// Projection would omit a required finding.
-    ProjectionFindingLoss { finding: RetainedBytes },
+    ProjectionFindingLoss {
+        /// The exact bytes of the finding that projection would have discarded.
+        finding: RetainedBytes,
+    },
 }
 
 impl ProtocolCause {
