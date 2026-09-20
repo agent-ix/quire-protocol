@@ -1,4 +1,7 @@
-/target/
 /target-codex-backends/
 *.profraw
 *.profdata
+
+target/
+*-target/
+.worktrees/
