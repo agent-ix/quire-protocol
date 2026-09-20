@@ -50,10 +50,13 @@ this repository.
   example targets. The test command detects behavioural regressions against the
   bound acceptance obligations. The doc command detects undocumented public API
   (rustc's `missing_docs`, declared `warn` in `[lints.rust]` and escalated to a
-  failure by `RUSTDOCFLAGS="-D warnings"`) and broken intra-doc links
-  (`rustdoc::broken_intra_doc_links`), neither of which `clippy` or `cargo
-  check` can detect since both are rustdoc-only lints that fire only under
-  `cargo doc`. A command without a named risk is not part of the gate.
+  failure by `RUSTDOCFLAGS="-D warnings"`) — already caught by the Clippy
+  command above, since `missing_docs` is a plain rustc lint that fires under
+  `cargo clippy --all-targets -D warnings` too — and broken intra-doc links
+  (`rustdoc::broken_intra_doc_links`), which is rustdoc-only and is the actual
+  reason this command belongs in the gate: neither `clippy` nor `cargo check`
+  builds rustdoc output, so neither can reach it. A command without a named
+  risk is not part of the gate.
 
   This crate has one **Cargo-feature lane**. It declares no `[features]` table,
   optional dependency or `cfg(feature = ...)` condition, so
