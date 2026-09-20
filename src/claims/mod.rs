@@ -9,7 +9,7 @@
 //!
 //! # The defining constraint: there is no aggregate verdict
 //!
-//! [`ClaimDispositions`] exposes **no** field, constant or method whose value is
+//! [`crate::claims::ClaimDispositions`] exposes **no** field, constant or method whose value is
 //! a single roll-up of the six. No `overall`, no `verdict`, no `ok`, no
 //! `passed`, no `status`, no `is_success`, and no collection whose emptiness is
 //! a verdict. This is the whole point of the chunk: a rolled-up "did it pass"
@@ -18,9 +18,9 @@
 //! preference to the six facts it hides.
 //!
 //! A caller that genuinely wants a summary must compute it from all six, in the
-//! open, at the call site — for example by walking [`Claim::ALL`] and
-//! [`ClaimDispositions::establishes`], or by inspecting all six slots of
-//! [`ClaimDispositions::refusal_per_claim`]. That is deliberately more typing
+//! open, at the call site — for example by walking [`crate::claims::Claim::ALL`] and
+//! [`crate::claims::ClaimDispositions::establishes`], or by inspecting all six slots of
+//! [`crate::claims::ClaimDispositions::refusal_per_claim`]. That is deliberately more typing
 //! than reading one field, because the summary is the caller's assertion and not
 //! this record's fact.
 //!
@@ -28,7 +28,7 @@
 //! `tests/tc_005_claim_dispositions.rs` proves both rather than asserting them:
 //!
 //! 1. **Single-claim accessors depend on one field only.** Every accessor that
-//!    takes a [`Claim`] reads that claim's disposition and nothing else, so it
+//!    takes a [`crate::claims::Claim`] reads that claim's disposition and nothing else, so it
 //!    cannot smuggle a roll-up through a parameter. Proved by varying the other
 //!    five over the whole record space and requiring a bit-identical answer.
 //! 2. **All-claim accessors are injective.** Every accessor that ranges over all
@@ -84,7 +84,7 @@
 //! injectivity (2 images for 15 625 records); and making a single-claim accessor
 //! peek at a second field fails both independence tests.
 //!
-//! [`ClaimDispositions::refusal_per_claim`] returns a fixed-size
+//! [`crate::claims::ClaimDispositions::refusal_per_claim`] returns a fixed-size
 //! `[Option<ClaimRefusal>; 6]` rather than a `Vec` for the same reason: a `Vec`
 //! offers `is_empty()`, which is a one-call verdict. A six-slot array always has
 //! six slots, so a caller must look at each one.
@@ -103,7 +103,7 @@
 //! C-15's `GlobalConformanceClosure::NotRequired` is a genuine observation that
 //! nevertheless does **not** admit: a claim that never required global closure
 //! never established it. The analogue here is
-//! [`ConformanceDisposition::NotRequested`] and its five siblings. FR-005 is
+//! [`crate::claims::ConformanceDisposition::NotRequested`] and its five siblings. FR-005 is
 //! written for claims that *were* requested, so the plan's four states
 //! (`supported | unsupported | failed | established`) are the requested-claim
 //! states; a fifth state is required because a record must be able to say "this
@@ -119,8 +119,8 @@
 //!
 //! # Why the six dispositions are six types and not six values of one enum
 //!
-//! Each disposition is its own type ([`ConformanceDisposition`],
-//! [`MonitorabilityDisposition`], …). One shared enum would make the six fields
+//! Each disposition is its own type ([`crate::claims::ConformanceDisposition`],
+//! [`crate::claims::MonitorabilityDisposition`], …). One shared enum would make the six fields
 //! assignable to each other, so a copy-paste error could silently write the
 //! projection result into the refinement field and no test could see it. With
 //! six types that is a compile error:
@@ -148,8 +148,8 @@
 //! added is a seventh claim kind or a sixth disposition state — precisely the
 //! thing that must not be quietly classified as "nothing to report". Closed
 //! enums move that classification to compile time: adding a claim breaks
-//! [`Claim::index`], [`Claim::code`], [`ClaimDispositions::state_code`],
-//! [`ClaimDispositions::establishes`] and [`ClaimDispositions::refusal`]; adding
+//! [`crate::claims::Claim::index`], [`crate::claims::Claim::code`], [`crate::claims::ClaimDispositions::state_code`],
+//! [`crate::claims::ClaimDispositions::establishes`] and [`crate::claims::ClaimDispositions::refusal`]; adding
 //! a disposition state breaks that state's `index`, `code`, `establishes` and
 //! `refusal`. No `match` in this module has a `_` arm, and the module denies
 //! `clippy::wildcard_enum_match_arm` so none can be added.
@@ -160,7 +160,7 @@
 //!
 //! # Known limit of the declared value sets
 //!
-//! [`ClaimDisposition::VALUES`] and [`Claim::ALL`] are hand-declared, and stable
+//! [`crate::claims::ClaimDisposition::VALUES`] and [`crate::claims::Claim::ALL`] are hand-declared, and stable
 //! Rust cannot assert at compile time that they list every variant.
 //! `tc_005_declared_value_sets_are_exhaustive` checks their length and
 //! uniqueness, and the exhaustive matches above are the real defence. Closing
@@ -197,7 +197,7 @@ pub mod premises;
 /// backend failure invokes no fallback.
 ///
 /// The raw report evaluator is deliberately crate-private: an external caller
-/// must enter through [`crate::assessment::Engine::dispatch_activated`], which
+/// must enter through [`crate::assessment::ResolvedAssessmentEngine::dispatch_activated`], which
 /// first derives the report from the Engine's exact activation/graph state.
 ///
 /// ```compile_fail,E0603

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Source-bound caller-budget accounting and monotonic request deadlines.
 //!
-//! [`inventory::ResourceAccountant`] is the sole supported request accountant.
+//! [`crate::bounds::inventory::ResourceAccountant`] is the sole supported request accountant.
 //! Static work is charged at reconciled source sites before it begins; elapsed
 //! time is observed with a monotonic clock around each declared indivisible unit.
 //! Owner-specific accounting remains with the owner crate and is never mirrored

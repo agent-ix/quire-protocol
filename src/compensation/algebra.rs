@@ -80,11 +80,17 @@ const fn min(left: usize, right: usize) -> usize {
 /// Resource dimension refused before the next retained allocation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum Resource {
+    /// The retained authored compensation definitions.
     Definitions,
+    /// The retained derived registrations.
     Registrations,
+    /// The retained causal-order graph nodes.
     OrderNodes,
+    /// The retained causal-order graph edges.
     OrderEdges,
+    /// The retained attempt facts.
     Attempts,
+    /// The retained identity byte payloads.
     IdentityBytes,
 }
 
@@ -360,18 +366,26 @@ pub struct CausalEdge {
 /// Invalid authored-order reason.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum InvalidOrder {
+    /// A milestone was authored with empty identity bytes.
     EmptyIdentity,
+    /// The same milestone node was authored more than once.
     DuplicateNode,
+    /// An edge names a milestone that is not among the authored nodes.
     UnknownEndpoint,
+    /// The same directed edge was authored more than once.
     DuplicateEdge,
+    /// An edge names the same milestone as both endpoints.
     SelfEdge,
+    /// The authored edges form a cycle rather than a DAG.
     Cycle,
 }
 
 /// Construction failure for an authored causal order.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum OrderRefusal {
+    /// A bounded-work resource limit was exceeded while validating the order.
     Resource(ResourceRefusal),
+    /// The authored order is structurally invalid.
     Invalid(InvalidOrder),
 }
 
@@ -522,17 +536,24 @@ impl AuthoredOrder {
 /// The three upstream-authored ordering violations, kept mutually distinct.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub enum OrderingViolation {
+    /// The registration milestone is authored to occur after the commit milestone.
     RegistrationAfterCommit,
+    /// The compensation-effect milestone is authored to occur before the forward-effect milestone.
     CompensationBeforeForwardEffect,
+    /// The compensation-effect milestone is authored to occur after the commit milestone.
     CompensationAfterCommit,
 }
 
 /// Required ordering input that was absent or not present in the authored DAG.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub enum MissingOrderingInput {
+    /// The registration milestone was not available.
     Registration,
+    /// The forward-effect milestone was not available.
     ForwardEffect,
+    /// The compensation-effect milestone was not available.
     CompensationEffect,
+    /// The commit milestone was not available.
     Commit,
 }
 
@@ -651,9 +672,13 @@ fn pair_precedes(
 /// domain below and cannot be relabelled as an attempt result.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum AttemptOutcome {
+    /// The attempt was established to have failed.
     Failed,
+    /// The attempt was established to have timed out.
     TimedOut,
+    /// The attempt's outcome has not yet been established.
     Pending,
+    /// The attempt was established to have succeeded.
     Successful,
 }
 
@@ -709,9 +734,13 @@ pub struct CompensationEffectFact {
 /// recovery relation and its authorities, never inferred from a retry.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum RecoveryRelationOutcome {
+    /// The recovery relation was established to have failed.
     Failed,
+    /// The recovery relation was established to have timed out.
     TimedOut,
+    /// The recovery relation's outcome has not yet been established.
     Pending,
+    /// The recovery relation was established to have succeeded.
     Successful,
 }
 
@@ -745,23 +774,38 @@ pub struct AttemptFact {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum AttemptAdmission {
     /// Attempt lies at or below the authored bound and was retained at this position.
-    Admitted { attempt: AttemptId, position: usize },
+    Admitted {
+        /// The admitted attempt's identity.
+        attempt: AttemptId,
+        /// The position at which the attempt was retained in the ledger.
+        position: usize,
+    },
     /// No authored bound exists; absence is not interpreted as any bound.
-    RetryBoundAbsent { attempt: AttemptId },
+    RetryBoundAbsent {
+        /// The attempt identity offered with no authored retry bound.
+        attempt: AttemptId,
+    },
     /// Attempt names another registration.
     RegistrationMismatch {
+        /// The attempt identity that named the wrong registration.
         attempt: AttemptId,
+        /// The registration this ledger was opened for.
         expected: RegistrationId,
+        /// The registration the attempt actually named.
         offered: RegistrationId,
     },
     /// Attempt would exceed the authored finite bound.
     RetryBoundExceeded {
+        /// The attempt identity that would exceed the bound.
         attempt: AttemptId,
+        /// The authored finite retry bound that would be exceeded.
         bound: NonZeroU32,
     },
     /// The independent owner ceiling would be exceeded before retention.
     ResourceLimitExceeded {
+        /// The attempt identity that could not be retained.
         attempt: AttemptId,
+        /// The bounded-work refusal describing which ceiling would be exceeded.
         refusal: ResourceRefusal,
     },
 }

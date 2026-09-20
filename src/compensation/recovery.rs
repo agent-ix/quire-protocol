@@ -2,7 +2,7 @@
 //! Recovery decisions retained from exact authored relations.
 //!
 //! Production recovery evaluation is owned by
-//! [`crate::assessment::Engine::evaluate_compensation_recovery`] and walks the
+//! [`crate::assessment::ResolvedAssessmentEngine::evaluate_compensation_recovery`] and walks the
 //! selected admitted QSL expression. The former relation double is retained
 //! only as a crate-private test seam and is not importable by consumers:
 //!
@@ -383,44 +383,68 @@ pub(crate) struct Input<'a> {
 /// Missing input that prevents a recovery-success decision.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub enum MissingInput {
+    /// The captured target state was not available.
     TargetState,
+    /// The achieved state was not available.
     AchievedState,
+    /// The commit observation was not available.
     Commit,
+    /// The established compensation effect was not available.
     CompensationEffect,
+    /// The aggregate population was not available.
     Population,
+    /// A required population member was not available.
     PopulationMember,
+    /// The membership authority for an aggregate relation was not available.
     MembershipAuthority,
+    /// The completeness authority for an aggregate relation was not available.
     CompletenessAuthority,
 }
 
 /// Identity/authority substitution axis.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum Substitution {
+    /// The recovery obligation identity.
     Recovery,
+    /// The owning registration identity.
     Registration,
+    /// The captured target state.
     TargetState,
+    /// The open-set owner relation type.
     RelationType,
+    /// The authored relation bytes.
     RelationBytes,
+    /// The aggregate population.
     Population,
+    /// The membership rule used to evaluate the population.
     MembershipRule,
+    /// The membership digest used to evaluate the population.
     MembershipDigest,
+    /// The exact members of the population.
     PopulationMembers,
 }
 
 /// Invalid recovery input.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum InvalidInput {
+    /// A required value was supplied empty.
     EmptyValue,
+    /// The same population member was supplied more than once.
     DuplicatePopulationMember,
 }
 
 /// Recovery resource dimension.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum Resource {
+    /// Identity byte payloads.
     IdentityBytes,
+    /// Target and achieved state byte payloads.
     StateBytes,
+    /// Authored relation byte payloads.
     RelationBytes,
+    /// Membership and completeness authority byte payloads.
     AuthorityBytes,
+    /// Aggregate population member entries.
     PopulationMembers,
 }
 
@@ -455,8 +479,11 @@ impl ResourceRefusal {
 /// Typed recovery refusal.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Refusal {
+    /// A bounded-work resource limit was exceeded.
     Resource(ResourceRefusal),
+    /// A supplied input was structurally invalid.
     Invalid(InvalidInput),
+    /// An identity or authority axis was substituted rather than matched.
     Substitution(Substitution),
 }
 
@@ -504,9 +531,13 @@ pub struct Fact {
 /// Recovery outcome. Full and partial relations each produce their own value.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Decision {
+    /// The recovery relation held: the achieved state matched the target state.
     Satisfied(Fact),
+    /// The recovery relation was fully evaluated and did not hold.
     NotSatisfied(Fact),
+    /// The relation has not yet been evaluated because required input is missing.
     Pending(Vec<MissingInput>),
+    /// The relation was evaluated against an incomplete population.
     Incomplete(Vec<MissingInput>),
 }
 

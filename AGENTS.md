@@ -36,19 +36,24 @@ this repository.
 - Run local checks only. Set `CARGO_BUILD_JOBS=1` and use
   `flock /tmp/quire-heavy-check.lock` for heavy Cargo work. Do not dispatch hosted CI.
 - The local gate is defined by [NFR-004](spec/non-functional/NFR-004-define-local-verification-gate.md).
-  It is exactly these three commands, in this order, over one unchanged head:
+  It is exactly these four commands, in this order, over one unchanged head:
 
   ```console
   CARGO_BUILD_JOBS=1 flock /tmp/quire-heavy-check.lock cargo fmt --all -- --check
   CARGO_BUILD_JOBS=1 flock /tmp/quire-heavy-check.lock cargo clippy --locked --all-targets --target-dir target-codex-backends -- -D warnings
   CARGO_BUILD_JOBS=1 flock /tmp/quire-heavy-check.lock cargo test --locked --target-dir target-codex-backends
+  CARGO_BUILD_JOBS=1 flock /tmp/quire-heavy-check.lock env RUSTDOCFLAGS="-D warnings" cargo doc --locked --no-deps --target-dir target-codex-backends
   ```
 
   The formatting command detects formatting drift. The Clippy command detects
   lint violations plus dead code and unused imports in library, test, fixture and
   example targets. The test command detects behavioural regressions against the
-  bound acceptance obligations. A command without a named risk is not part of
-  the gate.
+  bound acceptance obligations. The doc command detects undocumented public API
+  (rustc's `missing_docs`, declared `warn` in `[lints.rust]` and escalated to a
+  failure by `RUSTDOCFLAGS="-D warnings"`) and broken intra-doc links
+  (`rustdoc::broken_intra_doc_links`), neither of which `clippy` or `cargo
+  check` can detect since both are rustdoc-only lints that fire only under
+  `cargo doc`. A command without a named risk is not part of the gate.
 
   This crate has one **Cargo-feature lane**. It declares no `[features]` table,
   optional dependency or `cfg(feature = ...)` condition, so

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Canonical protocol-result owner and downstream mapping views.
 //!
-//! [`record`] owns typed construction and immutable result bytes, [`reader`]
-//! owns the hostile-byte boundary, [`global`] validates global premise sets,
-//! [`lineage`] validates support and correction edges, and [`contract_ir`]
+//! [`crate::result::record`] owns typed construction and immutable result bytes, [`crate::result::reader`]
+//! owns the hostile-byte boundary, [`crate::result::global`] validates global premise sets,
+//! [`crate::result::lineage`] validates support and correction edges, and [`crate::result::contract_ir`]
 //! owns the selected read-only mapping. No module evaluates a predicate or
 //! parses Quire source.
 //!

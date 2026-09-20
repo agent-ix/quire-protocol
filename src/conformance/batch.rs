@@ -135,7 +135,7 @@ pub struct Usage {
 pub struct ObligationId(Box<str>);
 
 impl ObligationId {
-    /// Retain an offered exact identity. [`Model::new`] refuses an empty value.
+    /// Retain an offered exact identity. `Model::new` refuses an empty value.
     #[must_use]
     pub fn retained(value: impl Into<Box<str>>) -> Self {
         Self(value.into())

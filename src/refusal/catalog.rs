@@ -4,7 +4,7 @@
 //!
 //! Two different things are called a "catalog" by FR-008 and both live here.
 //!
-//! 1. **B's own code catalog** — [`REGISTRY`]: every stable refusal-code
+//! 1. **B's own code catalog** — [`crate::refusal::catalog::REGISTRY`]: every stable refusal-code
 //!    spelling this crate is allowed to emit, with its domain, its retry
 //!    decision and the chunk that owns it. This is the code *namespace*.
 //! 2. **The selected diagnostic catalog** — [`CatalogSelection`]: the exact
@@ -23,14 +23,14 @@
 //! **own closed enum** in its **own file**, and every variant of every such
 //! enum resolves to a [`RefusalCode`] registered here. The property a
 //! crate-wide enum would have given for free — no two chunks minting the same
-//! spelling — is recovered by [`audit`], which is run as a test.
+//! spelling — is recovered by [`crate::refusal::catalog::audit`], which is run as a test.
 //!
 //! # Reserved roots
 //!
 //! A module claims the first dotted segment of its codes as a **reserved
 //! root**. No two modules may claim the same root, and inside `src/` a
 //! code-shaped string literal under a reserved root that is not registered here
-//! is a defect — see [`unregistered_literals`], which the TC-011 audit runs
+//! is a defect — see [`crate::refusal::catalog::unregistered_literals`], which the TC-011 audit runs
 //! over every `.rs` file under `src/`, tracked or not. That is what makes the
 //! audit repo-wide
 //! rather than self-referential: a later chunk cannot mint a code by writing a
@@ -857,16 +857,6 @@ pub struct UnregisteredLiteral {
     pub literal: String,
 }
 
-/// Every code-shaped literal in one Rust source text that is under a reserved
-/// root and is not registered.
-///
-/// This is the repo-wide half of the audit: registering a code is the only way
-/// to emit one, so a chunk that writes a bare `"admission.something"` in
-/// `src/` without registering it fails TC-011 on the commit that adds it.
-///
-/// The scan is deliberately conservative. It looks only at double-quoted
-/// literals, and it only complains about roots a module has already reserved,
-/// so an unrelated dotted string such as a file name is never a finding.
 /// Code-shaped literals in `src/` that are deliberately not refusal codes.
 ///
 /// The scan is an allowlist over shape, and shape cannot distinguish a code
@@ -890,6 +880,16 @@ pub const EXEMPT_LITERALS: &[&str] = &[
     "quire.verification.jcs",
 ];
 
+/// Every code-shaped literal in one Rust source text that is under a reserved
+/// root and is not registered.
+///
+/// This is the repo-wide half of the audit: registering a code is the only way
+/// to emit one, so a chunk that writes a bare `"admission.something"` in
+/// `src/` without registering it fails TC-011 on the commit that adds it.
+///
+/// The scan is deliberately conservative. It looks only at double-quoted
+/// literals, and it only complains about roots a module has already reserved,
+/// so an unrelated dotted string such as a file name is never a finding.
 #[must_use]
 pub fn unregistered_literals(
     registry: &'static [CodeModule],

@@ -33,14 +33,23 @@ pub struct Binding {
 /// Identity axis whose offered binding differs from the exact selection.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub enum IdentityAxis {
+    /// The workflow instance identity.
     Workflow,
+    /// The role instance identity.
     Role,
+    /// The paired effect identity.
     Effect,
+    /// The checked predicate identity.
     Predicate,
+    /// The immutable capture identity.
     Capture,
+    /// The evaluation-anchor identity.
     Anchor,
+    /// The expected trigger observation identity.
     Trigger,
+    /// The trigger scope selected for closure authority.
     ClosureScope,
+    /// The trigger population selected for completeness authority.
     CompletenessPopulation,
 }
 
@@ -95,8 +104,11 @@ pub enum TriggerEvidence<'a> {
 /// Adopted activation vocabulary.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum Activation {
+    /// The trigger fired; a trigger instance was assessed.
     Triggered,
+    /// The trigger's guard was admitted and false; no instance was created.
     Inactive,
+    /// The trigger's guard could not be established.
     ActivationUnknown,
 }
 

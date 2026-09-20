@@ -17,9 +17,9 @@
 //!
 //! So this module refuses. There is no fallback value anywhere in it:
 //!
-//! * No type here implements [`Default`]. Not [`Seed`], not
-//!   [`ToolchainIdentity`], not [`CorpusIdentity`], not
-//!   [`ReproductionRecord`], not [`ReproductionInputs`]. The `compile_fail`
+//! * No type here implements [`Default`]. Not [`crate::repro::Seed`], not
+//!   [`crate::repro::ToolchainIdentity`], not [`crate::repro::CorpusIdentity`], not
+//!   [`crate::repro::ReproductionRecord`], not [`crate::repro::ReproductionInputs`]. The `compile_fail`
 //!   proofs below are the evidence, and they run under `cargo test`.
 //! * No `unwrap_or`, `unwrap_or_default`, `unwrap_or_else` or `if let ... else`
 //!   fallback reads an identity. Each offered input is matched, and the `None`
@@ -30,7 +30,7 @@
 //!
 //! # Identity is bytes; display text is not identity
 //!
-//! [`ToolchainIdentity`] and [`CorpusIdentity`] each retain the producer's
+//! [`crate::repro::ToolchainIdentity`] and [`crate::repro::CorpusIdentity`] each retain the producer's
 //! exact identity bytes unchanged — no trim, no case fold, no Unicode
 //! normalisation, no UTF-8 requirement — alongside the producer's
 //! human-readable display text. `PartialEq`, `Eq`, `PartialOrd`, `Ord` and
@@ -45,8 +45,8 @@
 //!
 //! An identity that is present but empty is **not** treated as absent. The two
 //! are distinct conditions with distinct codes
-//! ([`ReproductionRefusal::ToolchainIdentityAbsent`] versus
-//! [`ReproductionRefusal::ToolchainIdentityEmpty`]), because collapsing them
+//! ([`crate::repro::ReproductionRefusal::ToolchainIdentityAbsent`] versus
+//! [`crate::repro::ReproductionRefusal::ToolchainIdentityEmpty`]), because collapsing them
 //! would make "the caller never told us" indistinguishable from "the caller
 //! told us nothing identifies this toolchain". Both refuse; they refuse
 //! separately. An empty identity is never admitted into a record.
@@ -57,7 +57,7 @@
 //!
 //! # Public API boundary decision: these enums are CLOSED, not `#[non_exhaustive]`
 //!
-//! [`ReproductionRefusal`] and [`ReproductionInputKind`] are deliberately not
+//! [`crate::repro::ReproductionRefusal`] and [`crate::repro::ReproductionInputKind`] are deliberately not
 //! `#[non_exhaustive]`. This is a decision, not a derive default, and it weighs
 //! the same precedent chunk C-07 set for [`crate::ids`]:
 //!
@@ -71,8 +71,8 @@
 //!   absent and empty forms. Its authority is the specification, so a fourth
 //!   reproduction input is a spec amendment, and breaking every consumer's
 //!   `match` at compile time is the intended cost of one.
-//! * Both enums expose [`ReproductionRefusal::ALL`] and
-//!   [`ReproductionInputKind::ALL`], so a consumer that wants to iterate the
+//! * Both enums expose [`crate::repro::ReproductionRefusal::ALL`] and
+//!   [`crate::repro::ReproductionInputKind::ALL`], so a consumer that wants to iterate the
 //!   set does so over a named constant rather than over a wildcard.
 //!
 //! Every `match` in this module over either enum is exhaustive and carries no

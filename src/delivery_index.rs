@@ -450,14 +450,18 @@ pub enum DeliveryIndexError {
     MissingIndex(DeliveryRoot),
     /// The index record could not be read.
     UnreadableIndex {
+        /// The delivery root the unreadable index was selected under.
         root: DeliveryRoot,
+        /// The reason the index record could not be read.
         reason: ExactBytes,
     },
     /// A named member was absent.
     MissingMember(ExactBytes),
     /// A named member could not be read.
     UnreadableMember {
+        /// The path of the member that could not be read.
         path: ExactBytes,
+        /// The reason the member could not be read.
         reason: ExactBytes,
     },
     /// A requested input role has no index entry.
@@ -471,12 +475,19 @@ pub enum DeliveryIndexError {
     /// An indexed temporal record names no selected temporal declaration.
     SurplusDeclaration(u32),
     /// Temporal declarations are not in producer-required ascending order.
-    UnsortedBindings { previous: u32, declaration: u32 },
+    UnsortedBindings {
+        /// The declaration number that preceded the out-of-order entry.
+        previous: u32,
+        /// The out-of-order declaration number found after `previous`.
+        declaration: u32,
+    },
     /// More than one mutation fixture names one scenario.
     AmbiguousMutation(ExactBytes),
     /// More than one limit names one exact accountant and typed dimension.
     RepeatedLimit {
+        /// The accountant key that more than one limit named.
         accountant: EntryKey,
+        /// The typed dimension that more than one limit named for `accountant`.
         dimension: LimitDimension,
     },
     /// Retained byte lengths cannot be represented in the request counter.

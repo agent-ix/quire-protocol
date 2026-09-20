@@ -305,7 +305,7 @@ pub struct Disposition {
 ///
 /// Its fields are sealed so an external result consumer cannot construct a
 /// caller-authored substitute for the report returned by
-/// [`crate::assessment::Engine::dispatch_activated`].
+/// [`crate::assessment::ResolvedAssessmentEngine::dispatch_activated`].
 ///
 /// ```compile_fail,E0451
 /// use quire_protocol::claims::dispatch::{Report, Usage};

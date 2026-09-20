@@ -4,14 +4,15 @@
 //! This module deliberately does not reuse
 //! [`quire_spec_language::protocol_artifact::Dimension`]. That type is the
 //! producer's accounting vocabulary while reading a compiled artifact. The
-//! closed [`BudgetDimension`] set below is QProtocol's caller-facing vocabulary
-//! from FR-016. Similar labels across the two domains do not make them the same
-//! authority or the same exhausted resource.
+//! closed [`crate::bounds::inventory::BudgetDimension`] set below is QProtocol's
+//! caller-facing vocabulary from FR-016. Similar labels across the two domains
+//! do not make them the same authority or the same exhausted resource.
 //!
-//! A [`SourceSite`] is declared beside production work. An independent
-//! [`InventoryEntry`] assigns that site an authored-limit authority, pre-work
-//! charge point, finite termination argument, resource-incomplete code, and a
-//! discriminating TC-009 boundary case. [`Inventory::reconcile`] compares both
+//! A [`crate::bounds::inventory::SourceSite`] is declared beside production
+//! work. An independent [`crate::bounds::inventory::InventoryEntry`] assigns
+//! that site an authored-limit authority, pre-work charge point, finite
+//! termination argument, resource-incomplete code, and a discriminating
+//! TC-009 boundary case. [`crate::bounds::inventory::Inventory::reconcile`] compares both
 //! populations in both directions and rejects every duplicate, missing, orphan,
 //! cross-wired, or boundary-unassigned entry.
 
@@ -562,17 +563,35 @@ impl InventoryEntry {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum InventoryError {
     /// A source site identifier was declared twice.
-    DuplicateSource { site: SiteId },
+    DuplicateSource {
+        /// The site identifier that was declared more than once.
+        site: SiteId,
+    },
     /// An inventory entry was declared twice.
-    DuplicateEntry { site: SiteId },
+    DuplicateEntry {
+        /// The site identifier whose inventory entry was declared more than once.
+        site: SiteId,
+    },
     /// A real source site has no inventory entry.
-    MissingEntry { site: SiteId },
+    MissingEntry {
+        /// The site identifier with no inventory entry.
+        site: SiteId,
+    },
     /// An inventory entry names no real source site.
-    OrphanEntry { site: SiteId },
+    OrphanEntry {
+        /// The site identifier named by the entry with no matching source.
+        site: SiteId,
+    },
     /// An entry changes the source interface, dimension, or kind.
-    BindingMismatch { site: SiteId },
+    BindingMismatch {
+        /// The site identifier whose entry disagrees with its source declaration.
+        site: SiteId,
+    },
     /// An entry has no discriminating TC-009 boundary case.
-    BoundaryUnassigned { site: SiteId },
+    BoundaryUnassigned {
+        /// The site identifier whose entry has no assigned boundary case.
+        site: SiteId,
+    },
 }
 
 impl fmt::Display for InventoryError {
@@ -666,7 +685,10 @@ pub enum ChargeError {
     /// A positive caller grant was exhausted before work began.
     ResourceIncomplete(ResourceIncomplete),
     /// The source site did not survive inventory reconciliation.
-    UnregisteredSite { site: SiteId },
+    UnregisteredSite {
+        /// The site identifier that did not survive inventory reconciliation.
+        site: SiteId,
+    },
     /// The usage accumulator itself cannot represent the requested total.
     CounterOverflow {
         /// Site being charged.
@@ -721,7 +743,10 @@ pub enum ChargeError {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum AccountingFault {
     /// The source site did not survive inventory reconciliation.
-    UnregisteredSite { site: SiteId },
+    UnregisteredSite {
+        /// The site identifier that did not survive inventory reconciliation.
+        site: SiteId,
+    },
     /// The usage accumulator itself cannot represent the requested total.
     CounterOverflow {
         /// Site being charged.
