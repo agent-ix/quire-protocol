@@ -1,5 +1,7 @@
 # quire-protocol
 
+[![Discord](https://img.shields.io/badge/Discord-Join%20us-5865F2?logo=discord&logoColor=white)](https://discord.gg/6qsdhSPE)
+
 This is the Rust consumer and assessment boundary for the accepted A-owned
 `quire.compiled-protocol/1` and `/2` contracts. It delegates byte admission to
 the exact QSL readers, then owns a distinct identity-preserving linked
