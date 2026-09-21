@@ -36,11 +36,10 @@ admitted I/O capability naming the capability and the surface that admitted it.
 
 ## Behavior
 
-The prohibition is upstream's and is adopted, not invented. `FR-055` Outputs
-states that "no business action is executed"; `FR-056` Outputs states that the
-evaluator "does not invoke the compensating operation"; `FR-057` states that the
-evaluator "SHALL NOT infer recovery success from compensation-operation
-success", which presupposes that the operation is not invoked here.
+The prohibition is upstream's and is adopted, not invented. Assessment executes
+no business action (`FR-055`) and invokes no compensating operation (`FR-056`),
+and `FR-057` forbids inferring recovery success from compensation-operation
+success, which presupposes that the operation is not invoked here.
 
 The obligation is stated over the assessment surface as a whole rather than per
 child requirement, because an I/O capability admitted anywhere on the path

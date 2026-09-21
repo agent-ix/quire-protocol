@@ -8,7 +8,7 @@
 //! # Every vocabulary asserted here is an owner's
 //!
 //! The four scope axes take `open` or `closed` from
-//! `FR-284-scope-progress-and-closure-state`; the fifth takes one of five
+//! `FR-284`; the fifth takes one of five
 //! members from `FR-247`; the execution state takes one of five from `FR-241`.
 //! The assertions below compare against those published spellings, never
 //! against another local label — an assertion that compares two of this crate's
@@ -25,9 +25,9 @@
 //!
 //! An earlier revision enumerated lattice laws (associativity, commutativity,
 //! idempotence, absorption) over per-axis and product `meet`/`join`. Those
-//! operations are gone. `FR-284` gives the labels no causal order and "no
-//! progression from `open` towards `closed`", and reports a later contradiction
-//! "by supersession, not by a closure label". The lattice combined two
+//! operations are gone. `FR-284` gives the labels no causal order and no
+//! progression from one to another, and a later contradiction is reported by
+//! supersession rather than by a closure label. The lattice combined two
 //! disagreeing facts into a third value that no vocabulary publishes.
 //! Supersession is chunk C-26's obligation.
 
@@ -143,7 +143,7 @@ fn tc_004_the_fifth_axis_members_are_not_scope_axis_members() {
             "{extra} is a fifth-axis member only (FR-247), not a scope-axis member"
         );
     }
-    // The labels FR-284 names as belonging to no requirement.
+    // The labels that belong to no adopted vocabulary.
     for withdrawn in ["not-started", "advanced", "stalled", "unobserved"] {
         assert!(
             !scope.contains(withdrawn),
@@ -252,10 +252,9 @@ fn tc_004_axes_are_independently_settable() {
 
 /// Changing one axis changes no other axis's established status.
 ///
-/// `ix://agent-ix/quire-specification/FR-061`: "The result producer SHALL
-/// NOT use completeness, assessment
-/// execution or any other progress/closure fact as a substitute for any closure
-/// axis."
+/// Under `ix://agent-ix/quire-specification/FR-061` no completeness,
+/// assessment-execution or other progress/closure fact may substitute for a
+/// closure axis.
 ///
 /// Tracing: TC-004, FR-004-AC-3.
 #[test]
@@ -297,9 +296,9 @@ fn tc_004_changing_one_axis_changes_no_other() {
 
 /// A closed scope axis does not substitute for the global closure axis.
 ///
-/// `ix://agent-ix/quire-specification/FR-284`: "A label equal to `closed` or
-/// `open` on one of the four axes and on
-/// the fifth is one label string in two distinct vocabularies."
+/// Under `ix://agent-ix/quire-specification/FR-284`, a label equal to `closed`
+/// or `open` on one of the four axes and on the fifth is one label string in
+/// two distinct vocabularies.
 ///
 /// Tracing: TC-004, FR-004-AC-3.
 #[test]
@@ -334,11 +333,10 @@ fn tc_004_scoped_closure_cannot_substitute_for_global_closure() {
 
 /// An omitted axis refuses and is never defaulted.
 ///
-/// `ix://agent-ix/quire-specification/FR-284`: "an absent axis compares only
-/// to absence. It is never defaulted to `open` or to `closed`:
-/// `ix://agent-ix/quire-specification/FR-061` requires that 'A strict reader
-/// SHALL refuse an
-/// omitted required axis'."
+/// Under `ix://agent-ix/quire-specification/FR-284` an absent axis compares
+/// only to absence and is never defaulted to `open` or to `closed`, and
+/// `ix://agent-ix/quire-specification/FR-061` requires a strict reader to
+/// refuse an omitted required axis.
 ///
 /// Tracing: TC-004, FR-004-AC-3.
 #[test]

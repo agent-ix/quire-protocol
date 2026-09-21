@@ -114,14 +114,14 @@ shared mapping the decomposition was derived from, not as a second definition.
 
 | Noun | Upstream object | Identity kind |
 | --- | --- | --- |
-| Protocol obligation | `FR-230-protocol-obligation` | derived, keyed (clause subject, semantic trigger-event identity) |
-| Obligation activation state | `FR-231-obligation-activation-state` | value |
-| Activation capture | `FR-232-activation-capture` | value |
-| Compensation registration | `FR-233-compensation-registration` | derived, keyed (source compensation definition identity, established forward effect identity) |
-| Compensation obligation lifecycle | `FR-234-compensation-obligation-lifecycle` | value |
-| Compensation attempt outcome | `FR-236-compensation-attempt-outcome` | value |
-| Compensation retry policy | `FR-239-compensation-retry-policy` | value |
-| Membership rule | `FR-264-membership-rule` | value |
+| Protocol obligation | `FR-230` | derived, keyed (clause subject, semantic trigger-event identity) |
+| Obligation activation state | `FR-231` | value |
+| Activation capture | `FR-232` | value |
+| Compensation registration | `FR-233` | derived, keyed (source compensation definition identity, established forward effect identity) |
+| Compensation obligation lifecycle | `FR-234` | value |
+| Compensation attempt outcome | `FR-236` | value |
+| Compensation retry policy | `FR-239` | value |
+| Membership rule | `FR-264` | value |
 
 `FR-233`'s key is exactly this requirement's replay rule: registration is keyed on
 (compensation definition identity, established forward effect identity), so

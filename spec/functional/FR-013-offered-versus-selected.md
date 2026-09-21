@@ -74,9 +74,9 @@ or removing a manifest case changes no obligation stated here.
   ([FR-011](./FR-011-consumer-identity-discipline.md)).
 - **Key** — (`provenance`, `subject`, `value`). Provenance is a key component,
   not an annotation: that is precisely what prevents byte equality alone from
-  collapsing an offered value into a selected one. `FR-204` states the general
-  form — "Equal fields do not imply equal objects" — and this key is its
-  application at the consumer boundary. A display name, path, span, message text
+  collapsing an offered value into a selected one. `FR-204` owns the general
+  identity form this applies at the consumer boundary: equal fields do not make
+  two objects one. A display name, path, span, message text
   or locale never participates.
 - **Key order** — lexicographic over (`provenance`, `subject`, `value`), for
   collection comparison only. Ordering `provenance` first groups each side

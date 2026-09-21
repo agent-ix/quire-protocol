@@ -3,7 +3,7 @@ id: SR-050
 title: "gap-analysis review of the domain object layer and its upstream adoption"
 type: SpecReview
 analysis: gap-analysis
-scope: "spec/functional/FR-010 through FR-018; the Adopted vocabulary sections of spec/functional/FR-002, FR-003, FR-006, FR-008; spec/functional/FR-004, FR-005, FR-007 as unadopted comparators; spec/test-cases/TC-014; spec/tests.md; spec/spec.md §16; against ix://agent-ix/quire-specification spec/objects/ at origin/main 3c913c2"
+scope: "spec/functional/FR-010 through FR-018; the Adopted vocabulary sections of spec/functional/FR-002, FR-003, FR-006, FR-008; spec/functional/FR-004, FR-005, FR-007 as unadopted comparators; spec/test-cases/TC-014; spec/tests.md; spec/spec.md §16; against the ix://agent-ix/quire-specification object layer at origin/main 3c913c2"
 review_set: subset
 ---
 # SR-050: Domain object layer and upstream adoption
@@ -12,7 +12,7 @@ review_set: subset
 
 This review audited the nine new object requirements FR-010..FR-018 against the
 six-axis identity discipline of `ix://agent-ix/quire-specification/FR-200` and
-the exemplar `FR-204-declared-object-identity`, audited the four adopted-vocabulary
+the exemplar `FR-204`, audited the four adopted-vocabulary
 sections for residual local definitions of protocol, temporal and observation
 nouns, audited the `contains`/`part_of`/`specifies` edge set for consistency, and
 spot-checked the cited upstream open gaps against the upstream artifacts' own
@@ -24,18 +24,13 @@ omitted. The `contains`/`part_of` set is complete and consistent in both
 directions: FR-010 declares eight `contains` edges and each of FR-011..FR-018
 declares the matching `part_of` back to FR-010, with no orphan and no dangling
 edge. FR-010 carries no identity axes of its own, which matches upstream's own
-domain artifact FR-200 rather than departing from it. Every upstream gap citation
-sampled resolved verbatim: FR-224 ("establishes no component that distinguishes
-one delivery from another"), FR-225 ("A retried attempt is required to be retained
-as a second subject, and the prose supplies no component that separates it from
-the first"), FR-226 (the declared key "is constant across two effect claims ... so
-two duplicate effects compare equal under it"), FR-235, FR-237, FR-238, FR-240
-("no requirement declares a closed vocabulary. No member list is invented here";
-"Participation is unenumerated at the source"), FR-252 (its key carries no
-declaration component, exactly as FR-018 relies on), FR-259, FR-261, FR-263
-("No requirement states the identity domain of the membership, configuration or
-closure digests"), FR-273 (six versus eleven stages, both quoted, neither
-preferred) and FR-211..FR-215 (each "the prose does not fix the key components").
+domain artifact FR-200 rather than departing from it. Every upstream gap
+citation sampled resolved against the cited artifact: FR-224, FR-225, FR-226,
+FR-235, FR-237, FR-238, FR-240, FR-252 (whose key carries no declaration
+component, exactly as FR-018 relies on), FR-259, FR-261, FR-263, FR-273 and
+FR-211..FR-215. In each case the gap this repository cites is the gap the cited
+artifact records; the gaps themselves are described in this repository only by
+the obligation they leave unsettled here.
 FR-014's deliberate exclusion of scenario identity from the key is the right call
 at the level it is argued. FR-015's refusal to call the production enum a
 refinement of the specified membership is correct and is demonstrated below.
@@ -52,7 +47,7 @@ own reconciliation table is contradicted by FR-013 and FR-014 two files later.
 
 | ID | Severity | Summary | Refs | Escape Cause |
 | --- | --- | --- | --- | --- |
-| FND-001 | high | FR-006 attributes to upstream FR-243 a quotation that does not exist in it — "do not state the same membership. Two list five members, one lists four and never names the fifth." — and says three requirements where FR-243 says four ("Four requirements state this vocabulary and one of them lists only four members"). | FR-006 "Where the upstream vocabulary does not yet reach"; `ix://agent-ix/quire-specification/FR-243` | wrong-requirement |
+| FND-001 | high | FR-006 attributes to upstream FR-243 a quotation that does not exist in it, and miscounts the requirements FR-243 says state the settlement vocabulary. | FR-006 "Where the upstream vocabulary does not yet reach"; `ix://agent-ix/quire-specification/FR-243` | wrong-requirement |
 | FND-002 | high | FR-014 names `refusal_axis` as a key component, so distinct axes are distinct identities by construction and FR-014-AC-1 cannot fail; the shared-error-code defect the artifact exists to prevent is undetectable at the key, and only AC-3's producer-enum mapping retains any force. | FR-014 "Key", FR-014-AC-1, FR-014-AC-4, NFR-005 | wrong-requirement |
 | FND-003 | high | FR-010-AC-2 and spec/tests.md both assert that every protocol, temporal and observation noun resolves to an `ix://` reference; FR-004, FR-005 and FR-007 carry no object reference at all, and FR-007-AC-4 restates `FR-283`'s closed refusal set and FR-007-AC-2 restates `FR-249`'s derived projection identity locally. | FR-010-AC-2, spec/tests.md, FR-004, FR-005, FR-007; `ix://agent-ix/quire-specification/FR-249`, `FR-283` | wrong-requirement |
 | FND-004 | high | FR-010 and FR-012..FR-018 carry no `verifies` edge from any test case or integration test — TC-014 binds FR-011 alone — while FR-012's eight ACs all cite TC-013, whose own Traceability verifies FR-009-AC-1..AC-7 and nothing else. | spec/test-cases/*, FR-012-AC-1..AC-8, TC-013 | correct-requirement-no-evidence |

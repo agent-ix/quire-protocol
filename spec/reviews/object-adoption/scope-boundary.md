@@ -3,14 +3,14 @@ id: SR-051
 title: "Scope-boundary review of the upstream domain object adoption"
 type: SpecReview
 analysis: scope-boundary
-scope: "spec/functional/FR-010..FR-018, the Adopted vocabulary sections of FR-002/FR-003/FR-006/FR-008, spec/adr/ADR-001, spec/test-cases/TC-014, spec/tests.md, spec/spec.md section 16, against ix://agent-ix/quire-specification spec/objects at origin/main 3c913c2"
+scope: "spec/functional/FR-010..FR-018, the Adopted vocabulary sections of FR-002/FR-003/FR-006/FR-008, spec/adr/ADR-001, spec/test-cases/TC-014, spec/tests.md, spec/spec.md section 16, against the ix://agent-ix/quire-specification object layer at origin/main 3c913c2"
 review_set: subset
 ---
 
 ## Summary
 
 This review judges commit `293ffce` against one question: whether adopting
-`quire-specification`'s 73-object domain layer moved the ownership line in either
+`quire-specification`'s domain object layer moved the ownership line in either
 direction. Eight of the nine new object requirements hold the test FR-010-AC-1
 sets — they describe a consumer-to-producer relationship, not a producer's
 subject. **FR-015 does not.** It declares a second closed digest-domain
@@ -20,18 +20,18 @@ protocol semantics. The reverse failure is also present, once: the refusal
 envelope's interior is handed to an upstream catalog that upstream records as
 proposed, unselected and unowned, with no version-lock entry behind it.
 
-Ten findings: two high, four medium, four low. Every upstream quotation in the
+Ten findings: two high, four medium, four low. Every upstream attribution in the
 four "Where the upstream vocabulary does not yet reach" sections was checked
-against the upstream artifact's own bytes at `3c913c2`; all but one are verbatim
-and correctly attributed. All 40 distinct `ix://agent-ix/quire-specification/FR-2NN`
-references in `spec/` resolve to a published object file.
+against the upstream artifact's own bytes at `3c913c2`; all but one were found
+accurate. Every distinct `ix://agent-ix/quire-specification/FR-2NN` reference in
+`spec/` resolves to a published object.
 
 ## System boundary
 
 ```mermaid
 flowchart LR
   caller([Caller])
-  spec[(quire-specification: FR-050..062, FR-200..283)]
+  spec[(quire-specification: clause and object layers)]
   a[(A: quire-spec-language compiled-protocol)]
   e[(E: temporal profile)]
   f[(F: observation contracts)]
@@ -75,8 +75,8 @@ flowchart LR
 
 | Dependency | Type | Assumed or Guaranteed | Contract |
 | --- | --- | --- | --- |
-| `quire-specification` FR-050..062, NFR-020/021 | Formal clause source | Assumed | AGENTS.md, spec.md section 16 |
-| `quire-specification` FR-200..283 object layer | Domain vocabulary | Assumed | 40 resolving `ix://` references |
+| `quire-specification` clause layer | Formal clause source | Assumed | AGENTS.md, spec.md section 16 |
+| `quire-specification` object layer | Domain vocabulary | Assumed | Resolving `ix://` references |
 | A `quire-spec-language` compiled-protocol version 1, version 2 | Artifact bytes | Guaranteed | FR-009 entry, IT-001, digest |
 | E temporal profile | Artifact bytes | Guaranteed | FR-009 entry, IT-002 |
 | F observation and output-mapping contracts | Artifact bytes | Guaranteed | FR-009 entry, IT-002 |
@@ -95,28 +95,26 @@ Applied one at a time against `3c913c2`:
 | --- | --- | --- |
 | FR-010 | The consumer boundary itself | Yes. A bounded context naming what it does not own. |
 | FR-011 | Which side authored an identity | Yes. `authority` is orthogonal to upstream's three kinds and constrains only B-specified objects. Upstream has no concept of a consumer author. |
-| FR-012 | B's own manifest entry | Yes. FR-009 Inputs already fixes it as "B-authored and never producer-supplied". |
-| FR-013 | Retention before inspection | Yes, and stated: "a producer has no concept of a selection retained before its bytes were inspected." |
+| FR-012 | B's own manifest entry | Yes. FR-009 Inputs already fixes the entry as B-authored and never producer-supplied. |
+| FR-013 | Retention before inspection | Yes, and stated: a producer has no concept of a selection retained before its bytes were inspected. |
 | FR-014 | Which outcomes are the same outcome | Yes for the envelope identity. The interior is referenced, not restated — but see FND-002 and FND-003. |
 | FR-015 | Digest domain membership | **No.** See below. |
-| FR-016 | Caller budget dimensions | Yes, and independently confirmed. No object under `spec/objects/` types a budget dimension; the only hits for "budget" are FR-202 (input budget, in passing) and FR-271/FR-272, which carry the gloss "A semantic maximum is not a caller work budget" — upstream placing the caller work budget outside its own scope. NFR-002's seventeen caller dimensions and FR-009 "Bounds"'s three are reproduced exactly, with no invented eighteenth. |
+| FR-016 | Caller budget dimensions | Yes, and independently confirmed. No upstream object types a caller budget dimension, and the objects that come nearest (FR-202, FR-271, FR-272) place the caller work budget outside upstream's own scope. This repository's own NFR-002 and FR-009 Bounds dimensions are carried exactly, with none invented. |
 | FR-017 | B's own execution evidence | Yes. Passed, never stored. |
 | FR-018 | B's index of a shipment | Yes. See the FR-224 ruling below. |
 
 FR-015 fails because `ix://agent-ix/quire-specification/FR-201` is not, as FR-015
-describes it, an artifact that "types the domain *label kind*". It is
-`object: enumeration` with nine members, and it says of itself: "This artifact
-*is* the vocabulary of digest domains." Two of FR-015's four members re-spell
-members that vocabulary already publishes:
+describes it, an artifact that merely types the domain *label kind*. It owns the
+digest-domain vocabulary itself. Two of FR-015's four members re-spell members
+that vocabulary already publishes:
 
-- `native-raw` — "a digest over the exact delivered bytes ... with no
-  canonicalization, re-encoding or normalization" — against FR-201's
-  `raw-artifact-digest`, "Hashes the complete supplied bytes, including layout".
-- `protocol-result` — "the digest over the RFC 8785 (JCS) canonical form" —
-  against FR-201's `quire.verification.jcs`, "Emitted as `sha256-jcs:` ... over
-  RFC 8785 canonical UTF-8 bytes". FR-201 additionally names
-  `quire.protocol.e02-projection-identity/v1-draft.1` for the projection
-  identity FR-007 produces.
+- `native-raw`, the digest over the exact delivered bytes with no
+  canonicalization, re-encoding or normalization, against the published
+  `raw-artifact-digest`.
+- `protocol-result`, the digest over the RFC 8785 (JCS) canonical form, against
+  the published `quire.verification.jcs`. FR-201 additionally publishes the
+  preimage `quire.protocol.e02-projection-identity/v1-draft.1` for the
+  projection identity FR-007 produces.
 
 FR-015 is right that FR-201 selects no member for B's digests, and right that
 FR-259, FR-261 and FR-263 each record that omission and decline to close it — all
@@ -129,8 +127,8 @@ identical bytes. The consequences are concrete, not stylistic:
 
 1. A producer digest arriving labelled `raw-artifact-digest` or
    `quire.verification.jcs` has no member in FR-015's closed set. Under
-   FR-015's own absence rule it is "refused rather than interpreted under an
-   ambient selection" — so B cannot consume an upstream-labelled digest at all.
+   FR-015's own absence rule it is refused rather than interpreted under an
+   ambient selection — so B cannot consume an upstream-labelled digest at all.
 2. B's own FR-006 result digest under `protocol-result` compares unequal to the
    same bytes under `quire.verification.jcs`, which is the label the ecosystem's
    verification domain uses.
@@ -150,28 +148,22 @@ correctly used for every other gap it met.
 Drawn clearly enough. FR-018 carries a dedicated "This is not
 `ix://agent-ix/quire-specification/FR-224`" section, a five-row contrast table,
 FR-018-AC-2 as an executable form of the distinction, and an explicit note in
-Key order that the index order "is emphatically not the binding order". The
-table's characterisation of FR-224 is accurate: FR-224 records identity kind
-"**not established**", "**Key** — **none is established**", "**Key order** —
-**none is established**", and an Open gap headed "Delivery has neither a
-uniqueness key nor a total order in the prose". One residual exposure is
-recorded as FND-010.
+Key order that the index order is emphatically not the binding order. The
+table's characterisation of FR-224 is accurate: FR-224 establishes no identity
+kind, no key and no key order, and records that gap as open. One residual
+exposure is recorded as FND-010.
 
 ## Item 5: independent verdict on ADR-001's counts
 
 Both sides were recounted from the sources rather than from the ADR.
 
-**Upstream's claim — confirmed, exactly.** `git log -1 bd387dd` in
-`quire-specification` carries the four-line table ADR-001 quotes, byte for byte:
-foundation 41 / A, protocol 13 / B, temporal 6 / E, observation 7 / F. The file
-counts at `origin/main` are 41, 13, 6, 7, totalling 67 — verified by
-`git ls-tree`. The stated driver is likewise upstream's own: "spec/functional was
-a single flat directory of 67 requirements whose family structure lived only in
-the identifier ranges, while docs/functional-capability-ledger.md assigns those
-ranges to workstreams the layout did not show." No overlap or double-claim
-motive appears. A `git grep` over all of `origin/main` for `13 of 38`, `5 of 8`
-and `double-claim` returns nothing. **The prior brief's figures exist nowhere
-upstream, and ADR-001 is right to say so.**
+**Upstream's claim — confirmed.** Upstream's own commit record was checked
+directly and matches what ADR-001 says of it: each subsystem it split out maps
+to exactly one owner, and the stated driver is that a structure already assigned
+by identifier range was invisible in a flat layout. No overlap or double-claim
+motive appears. A `git grep` over all of upstream's `origin/main` for `13 of
+38`, `5 of 8` and `double-claim` returns nothing. **The prior brief's figures
+exist nowhere upstream, and ADR-001 is right to say so.**
 
 **B's own claim — one correct, one with a wrong denominator.** "FRs claimed by
 more than one candidate subsystem: 2 of 9" is correct: FR-002 and FR-004 are the
@@ -182,9 +174,9 @@ subsystem count — the table lists **eleven** candidates, so the figure is 0 of
 because every artifact under `spec/` is B-authored and the external parties enter
 only through FR-009's manifest. Recorded as FND-006.
 
-**Does the decision follow?** Yes. Upstream split because a published ledger
-already assigned single-owner ranges that the layout hid; B has no ledger, no
-second owner, nine requirements and an empty `temporal/` and `observation/`
+**Does the decision follow?** Yes. Upstream split because single-owner
+identifier ranges were already assigned and the layout hid them; B has no such
+assignment, no second owner, nine requirements, and would have empty directories
 under any mirroring split. The decision to stay flat follows from the corrected
 numbers as readily as from the stated ones.
 
@@ -225,14 +217,14 @@ numbers as readily as from the stated ones.
 | ID | Severity | Summary | Refs | Escape Cause |
 | --- | --- | --- | --- | --- |
 | FND-001 | high | FR-015 declares a second closed digest-domain vocabulary beside upstream FR-201's closed vocabulary — `native-raw` re-spells `raw-artifact-digest` and `protocol-result` re-spells `quire.verification.jcs` — so an upstream-labelled digest has no member at B's boundary and B's own result digest is unequal to the same bytes under upstream's label. | FR-015, FR-015-AC-1, FR-015-AC-4, FR-010-AC-2, FR-001, ix://agent-ix/quire-specification/FR-201 | wrong-requirement |
-| FND-002 | high | The refusal envelope's interior is bound to `FR-270-versioned-diagnostic-catalog`, but FR-270 records that the only catalog offered is "**Proposed, not adopted or implemented.**" and that "A response that names no catalog selection has an absent selection; it is never defaulted". No diagnostic-catalog owner appears in FR-009's producer list, no manifest entry exists for one, and spec.md section 16 names none — so a producer value carried in every refusal is consumed with no pin and no contract. | FR-008 Adopted vocabulary, FR-014 Properties, FR-009 Inputs, spec.md section 16, ix://agent-ix/quire-specification/FR-270 | missing-requirement |
-| FND-003 | medium | FR-014 states that the catalog digest's "domain selection is upstream's, not recomputed here", but FR-270's open gap records that "No artifact states whether this is `raw-artifact-digest`, `quire.verification.jcs` or a further domain"; FR-008's gap section says "Four of the five interiors carry open gaps" and omits FR-270's two, so the one interior B asserts is settled is the one upstream records as unsettled. | FR-014 Identity and comparison, FR-014-AC-8, FR-008 Where the upstream vocabulary does not yet reach, FR-010-AC-3 | wrong-requirement |
-| FND-004 | medium | FR-006's settlement-basis gap bullet is headed "stated three ways upstream" and attributes to FR-243 a quotation — "do not state the same membership. Two list five members, one lists four and never names the fifth." — that appears in FR-258, not FR-243. FR-243's own text says four requirements state the vocabulary, three list five and FR-091 lists four, i.e. two memberships, not three. | FR-006 Where the upstream vocabulary does not yet reach, ix://agent-ix/quire-specification/FR-243, ix://agent-ix/quire-specification/FR-258 | wrong-requirement |
+| FND-002 | high | The refusal envelope's interior is bound to `FR-270`, but FR-270 records that the only catalog offered is proposed rather than adopted or implemented, and that a response naming no catalog selection has an absent selection that is never defaulted. No diagnostic-catalog owner appears in FR-009's producer list, no manifest entry exists for one, and spec.md section 16 names none — so a producer value carried in every refusal is consumed with no pin and no contract. | FR-008 Adopted vocabulary, FR-014 Properties, FR-009 Inputs, spec.md section 16, ix://agent-ix/quire-specification/FR-270 | missing-requirement |
+| FND-003 | medium | FR-014 states that the catalog digest's domain selection is upstream's and not recomputed here, but FR-270 records as an open gap that no upstream artifact states which domain that is; FR-008's gap section counts the interiors carrying open gaps and omits FR-270's two, so the one interior B asserts is settled is the one upstream records as unsettled. | FR-014 Identity and comparison, FR-014-AC-8, FR-008 Where the upstream vocabulary does not yet reach, FR-010-AC-3 | wrong-requirement |
+| FND-004 | medium | FR-006's settlement-basis gap bullet claims the vocabulary is stated three ways upstream, and attributes to FR-243 a sentence that appears in FR-258 instead. FR-243's own text supports two memberships, not three. | FR-006 Where the upstream vocabulary does not yet reach, ix://agent-ix/quire-specification/FR-243, ix://agent-ix/quire-specification/FR-258 | wrong-requirement |
 | FND-005 | medium | FR-010-AC-2 asserts that every protocol, temporal or observation noun in this repository's requirements resolves to an `ix://...FR-2NN` reference, but adoption reached only FR-002, FR-003, FR-006 and FR-008. FR-004, FR-005, FR-007, NFR-001, IT-002 and IT-003 carry zero such references while using causal, channel, activation, compensation, closure and observation nouns. | FR-010-AC-2, FR-004 Description, FR-005, FR-007, NFR-001, IT-002, IT-003 | correct-requirement-no-evidence |
 | FND-006 | medium | ADR-001 reports "Candidate subsystems spanning more than one owner: **0 of 9**" against a table listing eleven candidates, reusing the FR denominator for a subsystem count. The correct figure is 0 of 11; the decision is unaffected. | ADR-001 The equivalent measurement here | wrong-requirement |
 | FND-007 | low | FR-010-AC-1..AC-3 are the three criteria that enforce the ownership line, and all three are verified by Inspection with no named artifact — the Domain Object Coverage row for FR-010 records "— (Inspection)". FND-001 is precisely the crossing FR-010-AC-1 exists to catch. | FR-010 Acceptance Criteria, spec/tests.md Domain Object Coverage | correct-requirement-no-evidence |
 | FND-008 | low | The Domain Object Coverage table records "see artifact" instead of criterion identifiers for seven of nine rows, and the TC-014 row binds only FR-011-AC-1..AC-7 although FR-013, FR-014, FR-015 and FR-017 each name TC-014 or TC-001/TC-011 as their verification, so no row carries those criteria. | spec/tests.md Domain Object Coverage, TC-014 row, FR-013-AC-1, FR-015-AC-2, FR-017-AC-8 | correct-requirement-no-evidence |
-| FND-009 | low | B's FR-015 and FR-018 collide numerically with upstream `FR-015-preserve-canonical-domains` and `FR-018-select-verification-jcs-domain`, both of which govern digest domains — the same subject as B's FR-015. Bare "FR-015" and "FR-018" in prose is ambiguous across the boundary exactly where the boundary is thinnest. | FR-015, FR-018, ix://agent-ix/quire-specification/FR-015, ix://agent-ix/quire-specification/FR-018 | wrong-requirement |
+| FND-009 | low | B's FR-015 and FR-018 collide numerically with upstream requirements of the same numbers, both of which govern digest domains — the same subject as B's FR-015. Bare "FR-015" and "FR-018" in prose is ambiguous across the boundary exactly where the boundary is thinnest. | FR-015, FR-018, ix://agent-ix/quire-specification/FR-015, ix://agent-ix/quire-specification/FR-018 | wrong-requirement |
 | FND-010 | low | The FR-224 disambiguation lives only inside FR-018's body. FR-018's own Description says "recording what that delivery contained" and FR-009 Inputs uses the bare noun "delivery index" with no reference to FR-018, so a reader arriving from FR-009 never meets the distinction. | FR-018 Description, FR-018-AC-2, FR-009 Inputs | correct-requirement-no-evidence |
 
 ## Recommendations

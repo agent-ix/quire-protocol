@@ -40,13 +40,13 @@ and forward effect identity; or a typed violation or refusal.
 
 ## Behavior
 
-Registration is keyed, not counted. `FR-233` declares its key as the source
-compensation definition identity together with the established forward effect
-identity, and `FR-056` states that "Repeated observation of one effect SHALL NOT
-create additional registrations" and that the evaluator "SHALL NOT register
-compensation from a send, receive, delivery or attempt that lacks the required
-successful effect". The replay rule of this requirement is exactly that key; it
-is adopted, not restated.
+Registration is keyed, not counted. `FR-233` owns the registration key — the
+source compensation definition identity together with the established forward
+effect identity — and `FR-056` owns the registration rule. This requirement
+adopts both: repeated observation of one effect creates no additional
+registration here, and no registration is created from a send, receive, delivery
+or attempt lacking the required successful effect. The replay rule of this
+requirement is exactly that key; it is adopted, not restated.
 
 An attempt with no established effect leaves the forward effect identity absent.
 `FR-233` records that absence is never compared to a default or empty effect
@@ -71,9 +71,9 @@ lifecycle labels of its own.
 
 | Noun | Upstream object | Identity kind |
 | --- | --- | --- |
-| Compensation registration | `FR-233-compensation-registration` | derived, keyed (source compensation definition identity, established forward effect identity) |
-| Compensation obligation lifecycle | `FR-234-compensation-obligation-lifecycle` | value |
-| Business effect | `FR-226-business-effect` | derived, keyed (static declaration path, workflow instance identity, iteration identity) |
+| Compensation registration | `FR-233` | derived, keyed (source compensation definition identity, established forward effect identity) |
+| Compensation obligation lifecycle | `FR-234` | value |
+| Business effect | `FR-226` | derived, keyed (static declaration path, workflow instance identity, iteration identity) |
 
 ### Accepted owner ruling
 
@@ -89,5 +89,5 @@ timestamp, source position or display text.
 - [FR-019](./FR-019-derive-obligation-activation-state.md) supplies the activated
   obligation a registration is paired against.
 - `ix://agent-ix/quire-specification/FR-056` establishes registration, its
-  retained components, the duplicate-registration rule and the rule that the
-  evaluator "does not invoke the compensating operation".
+  retained components, the duplicate-registration rule, and that assessing it
+  invokes no compensating operation.

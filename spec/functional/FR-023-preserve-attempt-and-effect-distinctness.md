@@ -44,16 +44,17 @@ exact outcome label or absence.
 
 ## Behavior
 
-`FR-058` requires the evaluator to "distinguish a repeated receipt, retried
-attempt and duplicate business effect", and `FR-058-AC-2` that "A timed-out
-attempt, failed attempt and duplicate effect remain three distinct outcomes".
-`FR-058-AC-1` states that "A failed refund attempt followed by one successful
-retry retains both attempts and one successful refund effect".
+This requirement adopts the distinctness obligations of `FR-058`, `FR-058-AC-1`
+and `FR-058-AC-2` for the consumer: a repeated receipt, a retried attempt and a
+duplicate business effect stay separable here; a timed-out attempt, a failed
+attempt and a duplicate effect stay three distinct outcomes; and a failed
+attempt followed by a successful retry is retained as two attempts and one
+established effect.
 
-An attempt identity never compares equal to an effect identity. `FR-235-AC-2`
-states that rule, and `FR-235-AC-3` refuses "A transport trace identifier,
-successful transport status, repeated delivery or equal payload alone" as an
-attempt or effect identity.
+An attempt identity never compares equal to an effect identity. That rule is
+`FR-235-AC-2`'s, and under `FR-235-AC-3` no transport trace identifier,
+transport status, repeated delivery or equal payload establishes either identity
+on its own.
 
 A `successful` outcome is not a recovery result. `FR-236-AC-4` states that a
 `successful` attempt outcome alone does not read as one; recovery is decided only
@@ -73,10 +74,10 @@ under [FR-024](./FR-024-decide-recovery-only-by-authored-relation.md).
 
 | Noun | Upstream object | Identity kind |
 | --- | --- | --- |
-| Compensation attempt | `FR-235-compensation-attempt` | authored FR-287 `compensation-attempt` key |
-| Compensation attempt outcome | `FR-236-compensation-attempt-outcome` | value |
-| Business effect | `FR-226-business-effect` | derived, keyed (static declaration path, workflow instance identity, iteration identity) |
-| Compensation registration | `FR-233-compensation-registration` | derived, keyed (source compensation definition identity, established forward effect identity) |
+| Compensation attempt | `FR-235` | authored FR-287 `compensation-attempt` key |
+| Compensation attempt outcome | `FR-236` | value |
+| Business effect | `FR-226` | derived, keyed (static declaration path, workflow instance identity, iteration identity) |
+| Compensation registration | `FR-233` | derived, keyed (source compensation definition identity, established forward effect identity) |
 
 ### Accepted identities and remaining owner gate
 

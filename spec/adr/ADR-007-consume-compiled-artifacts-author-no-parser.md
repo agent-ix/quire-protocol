@@ -111,9 +111,9 @@ effect-only, and recovery-relation outcome partition at `478afa2`. Protocol
 consumes that ruling as distinct domains and does not invent another partition.
 
 **One local vocabulary was minted anyway, and had to be withdrawn.** FR-015
-declared a closed four-member digest-domain set before discovering that upstream
-`FR-201` publishes nine and says of itself that it *is* the vocabulary of digest
-domains. Two of the four local members re-spelled upstream members, and because
+declared a closed four-member digest-domain set before discovering that
+`ix://agent-ix/quire-specification/FR-201` already owns the digest-domain
+vocabulary. Two of the four local members re-spelled published members, and because
 spelling is load-bearing, this repository's own result digest would have compared
 unequal to the same bytes under the ecosystem's own verification label. FR-015
 names it: "That is the \"second locally authored profile\" FR-001 exists to

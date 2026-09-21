@@ -12,10 +12,9 @@ Accepted.
 
 ## Context
 
-`agent-ix/quire-specification` reorganized `spec/functional/` into owner-aligned
-subsystem directories (`foundation/`, `protocol/`, `temporal/`, `observation/`)
-on `origin/main` at `bd387dd`. This repository was asked whether to mirror that
-layout.
+`agent-ix/quire-specification` reorganized its functional requirements from a
+flat directory into owner-aligned subsystem directories. This repository was
+asked whether to mirror that layout.
 
 Symmetry with an upstream repository is not a reason to move files. The question
 was measured instead, and the measurement changed the answer.
@@ -25,21 +24,11 @@ was measured instead, and the measurement changed the answer.
 A prior brief described upstream's trigger as "13 of 38 FRs double-claimed and 5
 of 8 subsystems owner-spanning". That measurement does not exist upstream. A
 search over `origin/main` for double-claim language returns nothing, and
-upstream's own commit message records a different driver:
-
-```
-functional/foundation/    41  A  FR-001..020, FR-030..049, FR-130
-functional/protocol/      13  B  FR-050..062
-functional/temporal/       6  E  FR-090..095
-functional/observation/    7  F  FR-110..116
-```
-
-67 requirements, four subsystems, and **every one maps to exactly one owner** —
-read off a pre-existing `docs/functional-capability-ledger.md` that already
-assigned identifier ranges to workstreams. Upstream did not split because
-subsystems overlapped. It split because a structure that already existed, with
-one owner per range, was invisible in the layout. That is a different
-justification, and it is the one that decides this question.
+upstream's own commit message records a different driver: a structure that
+already existed — one owner per identifier range, already assigned by an
+upstream index — was invisible in a flat layout. Upstream did not split because
+subsystems overlapped. That is a different justification, and it is the one that
+decides this question.
 
 ### The equivalent measurement here
 
@@ -78,8 +67,8 @@ Keep `spec/functional/` flat.
 
 ## Consequences
 
-Upstream's trigger — many requirements across several owning workstreams, with a
-published ledger already assigning them — is absent here. This repository has
+Upstream's trigger — many requirements across several owning workstreams, with
+identifier ranges already assigned to them — is absent here. This repository has
 nine requirements, one owner, one crate, and a directory that costs nothing to
 scan.
 
@@ -99,9 +88,9 @@ question should not return as symmetry pressure.
 
 ## Alternatives considered
 
-**Mirror upstream's four directory names.** Rejected: it copies a layout whose
-justification — one owner per range, already published in a ledger — does not
-hold here, and it creates empty directories.
+**Mirror upstream's subsystem layout.** Rejected: it copies a layout whose
+justification — one owner per identifier range, already assigned upstream — does
+not hold here, and it creates empty directories.
 
 **Split by lifecycle stage** (admission, linking, assessment, result). Rejected
 for the same reason and a worse one: FR-002 and FR-004 each straddle two stages,

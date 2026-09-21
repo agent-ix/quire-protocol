@@ -49,25 +49,24 @@ naming the missing input.
 
 ## Behavior
 
-`FR-057` states that the evaluator "SHALL NOT infer recovery success from
-compensation-operation success" and that it "SHALL retain the target and achieved
-states used by the recovery relation". `FR-057-AC-1` states that "A full refund
-effect before commit satisfies a full-restoration relation only when the captured
-amount and target state match", and `FR-057-AC-2` that "A successful partial
-refund can satisfy an authored partial-recovery relation while failing full
-restoration".
+This requirement adopts `FR-057` and adds nothing to it: recovery success is
+never inferred from compensation-operation success here, and the target and
+achieved states the recovery relation used are retained. Under `FR-057-AC-1` and
+`FR-057-AC-2` a full-restoration relation is satisfied only when the captured
+amount and target state match, while a partial-recovery relation may be
+satisfied where full restoration is not.
 
 Full restoration and partial recovery are separate authored relations, not two
-points on a scale. `FR-238-AC-2` states that neither ranks above the other.
+points on a scale. `FR-238-AC-2` establishes that neither ranks above the other,
+and this requirement declares no ranking of its own.
 
-`FR-058` states that "Where recovery aggregates related effects, it SHALL require
-the exact declared population scope, membership and completeness authorities
-before success", and `FR-058-AC-3` that "Two related partial refunds satisfy the
-captured amount only under a complete declared population with exact
-arithmetic". `FR-058-AC-4` states that "Unknown or missing population membership
-and attempts beyond the retry bound cannot produce recovery success", and
-`FR-057-AC-4` that "Missing state, commit or compensation-effect inputs yield
-incomplete/pending rather than recovery success".
+Aggregation is bounded by the same upstream authorities. Under `FR-058` and
+`FR-058-AC-3` an aggregated recovery succeeds here only against the exact
+declared population scope, membership and completeness authorities, with exact
+arithmetic. Under `FR-058-AC-4` unknown or missing population membership and
+attempts beyond the retry bound produce no recovery success, and under
+`FR-057-AC-4` missing state, commit or compensation-effect inputs yield
+incomplete or pending instead.
 
 Production walks only the admitted QSL typed recovery expression under its exact
 resolved state/temporal contract. An unknown or out-of-profile expression is
@@ -89,11 +88,11 @@ outcomes. A panic-capable or effectful callback is not a production input.
 
 | Noun | Upstream object | Identity kind |
 | --- | --- | --- |
-| Authored recovery relation | `FR-238-recovery-relation` | authored, keyed by qualified definition, compensation handle and typed recovery-expression handle |
-| Declared finite population | `FR-263-declared-population` | entity, retained per FR-112's identity set |
-| Declared membership rule | `FR-264-membership-rule` | value, keyed (rule identity, rule digest) |
-| Progress and late-data authority | `FR-268-progress-and-late-data-authority` | value |
-| Immutable activation capture | `FR-232-activation-capture` | value |
+| Authored recovery relation | `FR-238` | authored, keyed by qualified definition, compensation handle and typed recovery-expression handle |
+| Declared finite population | `FR-263` | entity, retained per FR-112's identity set |
+| Declared membership rule | `FR-264` | value, keyed (rule identity, rule digest) |
+| Progress and late-data authority | `FR-268` | value |
+| Immutable activation capture | `FR-232` | value |
 
 ### Accepted owner ruling
 

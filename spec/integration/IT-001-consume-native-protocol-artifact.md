@@ -100,12 +100,11 @@ field. B does not restate it as a "declared key" or a "declared total order":
 A uses neither phrase, and the inflation would attribute to A a declaration it
 did not make.
 
-`quire-specification` settles none of this. `FR-252-temporal-clock-binding`
+`quire-specification` settles none of this. `FR-252`
 gives a clock binding identity kind *value* with a key that contains no
-declaration, owner or positional component, and a key order that is
-"lexicographic over the key components, for collection comparison only … it
-carries no causal meaning". Two bindings on two different declarations compare
-equal under it. The association between a binding and the declaration it binds
+declaration, owner or positional component, and a key order that exists for
+collection comparison only and carries no causal meaning. Two bindings on two
+different declarations compare equal under it. The association between a binding and the declaration it binds
 is therefore A's wire concern, not an upstream semantic one.
 
 The sentence above lives in A's `docs/compiled-protocol-v2.md`, published on
@@ -212,7 +211,7 @@ dimension, one unit short of it, and a fresh budget at the exact value.
      ordered, singly owned, in-range binding set admits. Cardinality, duplication
      and ordering are judged against the version 2 wire rule quoted in Preconditions
      — one binding per temporal declaration, sorted by `declaration`, no repeats
-     — and `out-of-range` against upstream `FR-255-bounded-temporal-interval`.
+     — and `out-of-range` against upstream `FR-255`.
      `foreign-owner` is grounded in the same version 2 wire rule: the producer's
      contract states "Missing, surplus, duplicate, out-of-order, foreign-owner or
      out-of-range bindings refuse", so the axis is the producer's and the reader

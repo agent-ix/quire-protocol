@@ -71,25 +71,24 @@ total and injective.
 
 | Noun | Upstream object | Identity kind |
 | --- | --- | --- |
-| Assessment-execution disposition | `FR-241-assessment-execution-disposition` | value |
-| Truth disposition | `FR-242-truth-disposition` | value |
-| Claim strength | `FR-281-claim-strength` | value |
-| Decision-support dependence relation | `FR-282-dependence-relation` | value |
-| Projection refusal code | `FR-283-projection-refusal-code` | value |
-| Protocol claim kind | `FR-290-protocol-claim-kind` | value |
+| Assessment-execution disposition | `FR-241` | value |
+| Truth disposition | `FR-242` | value |
+| Claim strength | `FR-281` | value |
+| Decision-support dependence relation | `FR-282` | value |
+| Projection refusal code | `FR-283` | value |
+| Protocol claim kind | `FR-290` | value |
 
-`FR-241` supplies the two members this requirement's criteria name literally.
-Its `unsupported` member states that "One unsupported request does not remove an
-independent supported result (FR-061-AC-5)", and its `failed` member states that
-the selected analysis backend failed "for this exact claim, without invoking a
-fallback or changing independent results (FR-060)". FR-029-AC-3 and FR-029-AC-4
-are therefore adopted, not authored here.
+`FR-241` supplies the two members this requirement's criteria name literally,
+and the obligations FR-029-AC-3 and FR-029-AC-4 adopt rather than author: an
+unsupported request removes no independent supported result (`FR-061-AC-5`), and
+a backend failure is confined to its exact claim, invoking no fallback and
+changing no independent result (`FR-060`).
 
 `FR-282` supplies the rule behind FR-029-AC-6's second half: `independent` may
-not be inferred, and FR-282 records FR-061's exclusion that a strict reader
-"SHALL NOT infer independence from distinct display names or implementations".
-Independence between two claim dispositions is asserted by this requirement over
-the dispatcher's behaviour, never read off two dispositions' spellings.
+not be inferred, and under `FR-061` a strict reader never infers independence
+from distinct display names or implementations. Independence between two claim
+dispositions is asserted by this requirement over the dispatcher's behaviour,
+never read off two dispositions' spellings.
 
 ### Acceptance state of adopted vocabularies
 

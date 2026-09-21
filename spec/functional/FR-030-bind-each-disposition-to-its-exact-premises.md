@@ -74,23 +74,23 @@ The binding rule is this repository's; the components are not.
 
 | Noun | Upstream object | Identity kind |
 | --- | --- | --- |
-| Assumption state | `FR-280-assumption-state` | value |
-| Channel premise (all five components) | `FR-216-channel-premise` | value |
-| Role internality / visibility | `FR-217-role-internality` | value |
-| Protocol subject kind discrimination | `FR-210-protocol-subject-vocabulary` | value |
-| Derived portable projection result | `FR-249-derived-projection-result` | derived, keyed (canonical result identity and digest, target obligation and execution-binding identities, target contract version, adapter identity and version) |
-| Projection refusal code | `FR-283-projection-refusal-code` | value |
+| Assumption state | `FR-280` | value |
+| Channel premise (all five components) | `FR-216` | value |
+| Role internality / visibility | `FR-217` | value |
+| Protocol subject kind discrimination | `FR-210` | value |
+| Derived portable projection result | `FR-249` | derived, keyed (canonical result identity and digest, target obligation and execution-binding identities, target contract version, adapter identity and version) |
+| Projection refusal code | `FR-283` | value |
 
 `FR-216-AC-4` is the reason FR-030-AC-1 names all five channel-premise
-components: FR-054-AC-4 makes "any channel premise" identity-bearing, so a
+components: under `FR-054-AC-4` every channel premise is identity-bearing, so a
 disposition that drops one is a disposition of a different request. `FR-249`
-supplies the only derived-artifact correspondence the specification states in
-full, and FR-030-AC-5 is its identity rule applied at the dispatcher: changing
-any member of the derivation tuple changes the derived identity. `FR-280`
-supplies FR-030-AC-4: each assumption carries its exact identity plus exactly
-one of `met`, `not-met`, `unknown` or `not-assessed`, and an absent state "is
-never defaulted to `not-assessed` or to `unknown`; those are two distinct
-assessed outcomes". FR-030-AC-6 is `FR-011`'s authority rule, not a new one.
+owns the derived-artifact correspondence, and FR-030-AC-5 is its identity rule
+applied at the dispatcher: changing any member of the derivation tuple changes
+the derived identity. `FR-280` owns the assumption vocabulary FR-030-AC-4
+adopts: each assumption carries its exact identity and exactly one member of
+that vocabulary, and an absent state compares only to absence rather than being
+defaulted to any assessed member. FR-030-AC-6 is `FR-011`'s authority rule, not
+a new one.
 
 ### Accepted owner rulings
 

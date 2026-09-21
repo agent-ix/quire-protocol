@@ -166,18 +166,18 @@ establish them:
 
 | Noun | Upstream object | Identity kind |
 | --- | --- | --- |
-| Subject kind discrimination | `FR-210-protocol-subject-vocabulary` | value |
-| Channel premise (all five components) | `FR-216-channel-premise` | value |
-| Role internality / visibility | `FR-217-role-internality` | value |
-| Causal control graph | `FR-220-causal-control-graph` | derived |
-| Node occurrence | `FR-221-protocol-node-occurrence` | derived, keyed (static declaration path, workflow instance identity, iteration identity) |
-| Owned choice | `FR-227-owned-choice` | derived, via FR-221 |
-| Bounded control construct | `FR-228-bounded-control-construct` | value |
-| Temporal clock binding | `FR-252-temporal-clock-binding` | value |
-| Bounded temporal interval | `FR-255-bounded-temporal-interval` | value |
-| Runtime relationship | `FR-262-declared-relationship` | value |
-| Runtime subject | `FR-287-authority-qualified-runtime-subject-reference` | value |
-| Static protocol definition | `FR-288-qualified-protocol-definition-identity` | derived |
+| Subject kind discrimination | `FR-210` | value |
+| Channel premise (all five components) | `FR-216` | value |
+| Role internality / visibility | `FR-217` | value |
+| Causal control graph | `FR-220` | derived |
+| Node occurrence | `FR-221` | derived, keyed (static declaration path, workflow instance identity, iteration identity) |
+| Owned choice | `FR-227` | derived, via FR-221 |
+| Bounded control construct | `FR-228` | value |
+| Temporal clock binding | `FR-252` | value |
+| Bounded temporal interval | `FR-255` | value |
+| Runtime relationship | `FR-262` | value |
+| Runtime subject | `FR-287` | value |
+| Static protocol definition | `FR-288` | derived |
 
 ### Accepted owner boundary
 

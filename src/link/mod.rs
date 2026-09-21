@@ -564,10 +564,9 @@ impl LinkedChannel {
 ///
 /// `FR-216` fixes the premise set's key as six components — sender, receiver,
 /// message types, ordering policy, delivery cardinality and duplication premise
-/// — and `FR-054-AC-4` makes every one of them significant: "Changing any
-/// channel premise changes the conformance request identity and its result
-/// provenance." `FR-002-AC-4` carries the same obligation into the linked
-/// representation.
+/// — and `FR-054-AC-4` makes every one of them significant, so changing any of
+/// them changes the conformance request identity and its result provenance.
+/// `FR-002-AC-4` carries the same obligation into the linked representation.
 ///
 /// An earlier revision of [`LinkedChannel`] carried the four *binding
 /// requirements* and nothing else, so a channel whose sender, receiver, message

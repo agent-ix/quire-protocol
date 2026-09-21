@@ -156,8 +156,8 @@ boundaries:
 - Whether a requested evaluator ran:
   `ix://agent-ix/quire-specification/FR-241`, five members.
 - Why a projection to E02 was refused:
-  `ix://agent-ix/quire-specification/FR-283`, whose spellings are kebab-case
-  and "distinct from the snake_case native producer codes of FR-271".
+  `ix://agent-ix/quire-specification/FR-283`, whose spellings are kebab-case and
+  stay distinct from the snake_case native producer codes of `FR-271`.
 - Why an offered artifact was not admitted: the producer's own
   `protocol_artifact::Error`, with its `Invalid` and `Unsupported` payloads,
   carried unmodified.

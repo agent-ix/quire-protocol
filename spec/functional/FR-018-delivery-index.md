@@ -118,10 +118,8 @@ nothing here.
 ### Upstream settles none of it
 
 `ix://agent-ix/quire-specification/FR-252` gives a clock binding a **value**
-identity whose key is "the selected profile identity together with the clock
-identity, unit, epoch, period, sequence authority, admitted order and
-completeness premise components admitted by that profile." No declaration
-component appears in that key. Two bindings on two different declarations that
+identity whose key is composed of the selected profile identity and the clock
+components that profile admits. No declaration component appears in that key. Two bindings on two different declarations that
 agree on every listed component therefore compare **equal** upstream, which is
 exactly the comparison the no-repeat and sort clauses need to distinguish. This
 repository cites that as the reason it enforces the producer's wire rule over its

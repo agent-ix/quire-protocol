@@ -41,21 +41,21 @@ or no ordering violation.
 
 ## Behavior
 
-The three violations are named upstream and are not merged here. `FR-057-AC-3`
-states that "Registration after commit and compensation before the forward
-effect or after a forbidding commit are distinct ordering violations", and
-`FR-056-AC-4` that compensation observed before its forward effect "cannot
-retroactively validate registration".
+The three violations are distinguished upstream by `FR-057-AC-3` and are not
+merged here: registration after a forbidding commit, compensation before its
+forward effect, and compensation after a forbidding commit stay three separate
+typed violations at this boundary. Under `FR-056-AC-4`, compensation observed
+before its forward effect does not retroactively validate the registration, and
+this requirement does not let it.
 
-The ordering is causal, never a key order. `FR-237` records that "the commit
-ordering checked by FR-057 is a causal order, not a key order, and must not be
-read as one".
+The ordering is causal, never a key order. `FR-237` owns that distinction, and
+no key order, source position or equal-time reordering is read as a commit
+ordering here.
 
-Absence yields incompleteness, not a permitting default. `FR-057-AC-4` states
-that "Missing state, commit or compensation-effect inputs yield
-incomplete/pending rather than recovery success", and `FR-237` records that an
-absent commit "is never compared to a default, an empty commit or an implicit
-permitting commit".
+Absence yields incompleteness, not a permitting default. Under `FR-057-AC-4`
+missing state, commit or compensation-effect inputs yield incomplete or pending
+rather than recovery success, and under `FR-237` an absent commit compares only
+to absence — never to a default, an empty commit or an implicit permitting one.
 
 ## Acceptance Criteria
 
@@ -70,9 +70,9 @@ permitting commit".
 
 | Noun | Upstream object | Identity kind |
 | --- | --- | --- |
-| Commit boundary | `FR-237-commit-boundary` | derived static boundary, concrete occurrence and exact FR-287 observation key |
-| Compensation registration | `FR-233-compensation-registration` | derived, keyed (source compensation definition identity, established forward effect identity) |
-| Compensation obligation lifecycle | `FR-234-compensation-obligation-lifecycle` | value |
+| Commit boundary | `FR-237` | derived static boundary, concrete occurrence and exact FR-287 observation key |
+| Compensation registration | `FR-233` | derived, keyed (source compensation definition identity, established forward effect identity) |
+| Compensation obligation lifecycle | `FR-234` | value |
 
 ### Accepted owner ruling
 
