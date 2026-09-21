@@ -56,10 +56,10 @@ use quire_spec_language::protocol_artifact::{
     native_temporal::{self, request as temporal_request, v2 as temporal_v2},
     occurrence_key_schema, temporal_subject, v3, WorkflowInstanceIdentity,
 };
-use quire_verification::contracts::wire::{
+use quire_verification_contracts::wire::{
     ObservationReference, OracleReference, SharedArtifactEnvelope,
 };
-use quire_verification::contracts::{self, jcs_sha256};
+use quire_verification_contracts::{self as contracts, jcs_sha256};
 use serde_json::{json, Value};
 use std::time::Duration;
 

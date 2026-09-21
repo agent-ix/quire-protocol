@@ -10,7 +10,7 @@ publish = false
 [dependencies]
 quire-spec-language = { git = "https://github.com/agent-ix/quire-spec-language", rev = "2736b62b2f741496590d099d71478b3044d638d6" }
 quire-observation = { git = "https://github.com/agent-ix/quire-observation", rev = "924006300f45b38483be1cbdf99b68f899b7d368" }
-quire-verification = { git = "https://github.com/agent-ix/quire-verification", rev = "293e342c6f5e2c69738956ff5165f75761b0364a" }
+quire-verification-contracts = { git = "https://github.com/agent-ix/quire-verification-contracts", rev = "da8d7272051b1cf02768ec459539551414fd6c21" }
 # Reading the offer's already-published members and serialising B's own
 # selections through A's `Serialize` impls. B adds no schema, grammar or wire
 # decoder of its own: every record shape used here is A's.

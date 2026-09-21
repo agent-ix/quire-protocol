@@ -12,17 +12,17 @@ record discharges.
 | --- | --- | --- | --- |
 | `quire-spec-language` | `2736b62b2f741496590d099d71478b3044d638d6` | `AGPL-3.0-or-later` | Supplies the accepted `quire.compiled-protocol/1`, `/2`, and strict `/3` control-to-temporal mapping readers, committed owner-addressed handoffs, owner-exported constants, the FR-051 checked temporal activation-guard selection, the FR-052 temporal owner authority, FR-053 opaque native-temporal v2 trigger identity and exact borrowed temporal-axis/completeness evidence views, and the shared exact bounded `state::evaluate_v2` compensation-expression evaluator, including immutable authored-initializer resolution and exact compensation forward-effect admission for capture sources. The `/1` handoff retains distinct Service/Provider model authorities. Release `v0.2.0` is its ancestor at `6eccb05`. |
 | `quire-observation` | `924006300f45b38483be1cbdf99b68f899b7d368` | `AGPL-3.0-or-later` | Direct observation authority dependency used by the current compensation, conformance and result kernels. This exact accepted merge from owner PR #27 publishes the partial-fact, activation-scope-authority, authority-bundle v1/v2 and bounded-lineage contracts/schema bytes Task-020 recognizes. Protocol imports owner constants and bytes rather than mirroring their wire vocabulary; repair and aggregate-query remain explicit unsupported consumer capabilities. |
-| `quire-verification` | `293e342c6f5e2c69738956ff5165f75761b0364a` | `AGPL-3.0-or-later` | Direct E02 owner dependency. This exact accepted consumer revision supplies the generated `quire-verification/e02-draft-2` types, strict reader and RFC 8785/JCS operations used by Task-007 without a local target-contract mirror. |
+| `quire-verification-contracts` | `da8d7272051b1cf02768ec459539551414fd6c21` | `AGPL-3.0-or-later` | Direct E02 owner dependency (PLAT-861). This exact accepted revision supplies the generated `quire-verification/e02-draft-2` types, strict reader and RFC 8785/JCS operations used by Task-007 without a local target-contract mirror. Extracted from private `quire-verification`, which previously supplied this interface directly and is no longer in this build's dependency graph. |
 | `sha2` | `0.10.9` | `MIT OR Apache-2.0` | Direct digest carrier used to stream bounded producer-value request identities without allocating a caller-sized preimage. It supplies no schema, parser, semantics, or producer authority. |
-| `engineering-assurance` | `9237ce50ce19c6d6c937705bfde4b64adcc9d16b` | `AGPL-3.0-or-later` | Exact transitive producer-execution dependency selected by `quire-verification`; its normal Cargo requirements are compatible with Protocol's exact `serde` 1.0.228 graph. |
 | `agent-ix-baseline-producer` | `404288282402d60de007295ccbafa960532b955e` | `AGPL-3.0-only` | Transitive baseline producer reached through `quire-spec-language`; sourced from `agent-ix/filament-core-data`. |
 | `quire-contract-ir` | `53cc03c639e2e26528132d34d96dc56449df78e8` | `MIT OR Apache-2.0` | Direct test type and the exact transitive contract-IR revision selected by `quire-spec-language` `2736b62`; one identity type is present in the resolved graph. |
 | `ix-trace-rs` | `2ce4ebf47f726b9d76388220545cd0abda8a5cfb` | `AGPL-3.0-or-later` | Test-only trace attributes binding tests to acceptance criteria. |
 
-All eight are compatible with this repository's `AGPL-3.0-or-later` decision:
-six are AGPL, and the two permissive `MIT OR Apache-2.0` grants may be consumed
-under it. `publish = false` on the QObs crate is the required delivery policy,
-not a compatibility or availability failure for an exact git dependency.
+All seven are compatible with this repository's `AGPL-3.0-or-later` decision:
+five are AGPL (four `AGPL-3.0-or-later`, one `AGPL-3.0-only`), and the two
+permissive `MIT OR Apache-2.0` grants may be consumed under it. `publish =
+false` on the QObs crate is the required delivery policy, not a compatibility
+or availability failure for an exact git dependency.
 
 This crate adds no copied parser, encoder, formal semantics, or fixture corpus.
 

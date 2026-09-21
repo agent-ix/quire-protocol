@@ -10,11 +10,11 @@
 use core::fmt;
 use std::collections::{BTreeMap, BTreeSet};
 
-use quire_verification::contracts::wire::{
+use quire_verification_contracts::wire::{
     ObservationReference, OracleReference, SharedArtifactEnvelope, TechniqueResult,
 };
-use quire_verification::contracts::{
-    self, jcs_canonicalize, jcs_sha256, PublicContract, VerificationErrorCode,
+use quire_verification_contracts::{
+    self as contracts, jcs_canonicalize, jcs_sha256, PublicContract, VerificationErrorCode,
 };
 use serde::Serialize;
 use serde_json::{json, Map, Value};
@@ -43,10 +43,11 @@ use crate::version_lock::{
     ResolvedRequest, VersionLockManifest,
 };
 
-/// Exact qverify revision that owns the accepted private E02 Rust interface.
-pub const QVERIFY_E02_REVISION: &str = "293e342c6f5e2c69738956ff5165f75761b0364a";
+/// Exact revision of `quire-verification-contracts` that owns the accepted public E02 Rust
+/// interface (PLAT-861; previously the private `quire-verification` revision directly).
+pub const QVERIFY_E02_REVISION: &str = "da8d7272051b1cf02768ec459539551414fd6c21";
 /// Owner of the selected E02 interface.
-pub const QVERIFY_OWNER: &str = "agent-ix/quire-verification";
+pub const QVERIFY_OWNER: &str = "agent-ix/quire-verification-contracts";
 /// Projection-identity preimage version selected by FR-034.
 pub const IDENTITY_VERSION: &str = "quire.protocol.e02-projection-identity/v1-draft.1";
 /// Media type of the one retained canonical-result native artifact.
