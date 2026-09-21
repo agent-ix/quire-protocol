@@ -53,10 +53,14 @@ This repository does not own:
 - public release or publication policy.
 
 The normative language and protocol contracts remain in
-`agent-ix/quire-specification`. `quire-verification` owns E02. Engineering
-Assurance owns reusable bounded producer execution and typed transport. Quoin
-owns evidence. This repository consumes those exact interfaces and does not copy
-their semantics into local substitutes.
+`agent-ix/quire-specification`. `quire-verification-contracts` owns the public
+E02 wire types, strict reader, and RFC 8785 canonicalization this repository
+projects into (PLAT-861; extracted from private `quire-verification`, which
+still owns the planning and evidence-assessment strategy layer this repository
+does not consume). Engineering Assurance owns reusable bounded producer
+execution and typed transport. Quoin owns evidence. This repository consumes
+those exact interfaces and does not copy their semantics into local
+substitutes.
 
 ## Development controls
 

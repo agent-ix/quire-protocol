@@ -28,10 +28,8 @@ const OBSERVATION_OWNER: &str = "quire-observation";
 
 /// E02's accepted owner crate supplies the target types, JCS implementation,
 /// and strict reader. B maps into that interface and does not mirror it.
-const E02_OWNER: &str = "quire-verification";
-const E02_REVISION: &str = "293e342c6f5e2c69738956ff5165f75761b0364a";
-const ASSURANCE_OWNER: &str = "engineering-assurance";
-const ASSURANCE_REVISION: &str = "9237ce50ce19c6d6c937705bfde4b64adcc9d16b";
+const E02_OWNER: &str = "quire-verification-contracts";
+const E02_REVISION: &str = "da8d7272051b1cf02768ec459539551414fd6c21";
 
 /// Serialization carriers read members A has already published and serialize
 /// B's own selections through A's `Serialize` impls; they carry no schema,
@@ -112,11 +110,8 @@ const INVENTORY: &[&str] = &[
     "displaydoc",
     "dyn-clone",
     "email_address",
-    "engineering-assurance",
     "equivalent",
-    "errno",
     "fancy-regex",
-    "fastrand",
     "find-msvc-tools",
     "fnv",
     "fluent-uri",
@@ -130,7 +125,6 @@ const INVENTORY: &[&str] = &[
     "getrandom",
     "hashbrown",
     "heck",
-    "hybrid-array",
     "icu_collections",
     "icu_locale_core",
     "icu_normalizer",
@@ -140,7 +134,6 @@ const INVENTORY: &[&str] = &[
     "icu_provider",
     "idna",
     "idna_adapter",
-    "indexmap",
     "iso8601",
     "itoa",
     "ix-trace-rs",
@@ -150,7 +143,6 @@ const INVENTORY: &[&str] = &[
     "jsonschema-value",
     "lazy_static",
     "libc",
-    "linux-raw-sys",
     "litemap",
     "log",
     "lock_api",
@@ -183,7 +175,7 @@ const INVENTORY: &[&str] = &[
     "quire-contract-model",
     "quire-observation",
     "quire-spec-language",
-    "quire-verification",
+    "quire-verification-contracts",
     "quote",
     "r-efi",
     "redox_syscall",
@@ -195,7 +187,6 @@ const INVENTORY: &[&str] = &[
     "regex-automata",
     "regex-syntax",
     "rustversion",
-    "rustix",
     "ryu-js",
     "schemars",
     "schemars_derive",
@@ -208,7 +199,6 @@ const INVENTORY: &[&str] = &[
     "serde_json",
     "serde_json_canonicalizer",
     "serde_stacker",
-    "serde_spanned",
     "serde_tokenstream",
     "sha2",
     "shlex",
@@ -220,17 +210,12 @@ const INVENTORY: &[&str] = &[
     "strum_macros",
     "syn",
     "synstructure",
-    "tempfile",
     "thiserror",
     "thiserror-impl",
     "time",
     "time-core",
     "time-macros",
     "tinystr",
-    "toml",
-    "toml_datetime",
-    "toml_parser",
-    "toml_writer",
     "typify",
     "typify-impl",
     "typify-macro",
@@ -253,8 +238,6 @@ const INVENTORY: &[&str] = &[
     "winapi-i686-pc-windows-gnu",
     "winapi-x86_64-pc-windows-gnu",
     "windows-link",
-    "windows-sys",
-    "winnow",
     "wit-bindgen",
     "writeable",
     "yoke",
@@ -368,6 +351,12 @@ fn it_001_resolves_one_frontend_in_the_whole_graph() {
 }
 
 /// Tracing: TC-013 and NFR-006-AC-4.
+///
+/// `engineering-assurance` dropped out of this check (PLAT-861): it was only ever
+/// reachable transitively through the old direct `quire-verification` dependency, and
+/// `quire-verification-contracts` does not depend on it, so it is no longer in this
+/// crate's resolved graph at all — asserting a locked source for it would be asserting
+/// a package that no longer exists here.
 #[test]
 #[trace("TC-013", "NFR-006-AC-4")]
 fn tc_013_records_the_exact_e02_git_closure_in_all_three_sources() {
@@ -376,22 +365,23 @@ fn tc_013_records_the_exact_e02_git_closure_in_all_three_sources() {
         "the direct E02 dependency must select the accepted compatible revision"
     );
 
-    for (owner, revision) in [
-        (E02_OWNER, E02_REVISION),
-        (ASSURANCE_OWNER, ASSURANCE_REVISION),
-    ] {
-        let locked_sources = LOCKFILE
-            .lines()
-            .filter(|line| {
-                line.starts_with("source = ") && line.contains(owner) && line.contains(revision)
-            })
-            .count();
-        assert_eq!(locked_sources, 1, "lock source drift for {owner}");
-        assert!(
-            RIGHTS_RECORD.contains(&format!("| `{owner}` | `{revision}` |")),
-            "rights record drift for {owner}"
-        );
-    }
+    let locked_sources = LOCKFILE
+        .lines()
+        .filter(|line| {
+            line.starts_with("source = ") && line.contains(E02_OWNER) && line.contains(E02_REVISION)
+        })
+        .count();
+    assert_eq!(locked_sources, 1, "lock source drift for {E02_OWNER}");
+    assert!(
+        RIGHTS_RECORD.contains(&format!("| `{E02_OWNER}` | `{E02_REVISION}` |")),
+        "rights record drift for {E02_OWNER}"
+    );
+    assert!(
+        !LOCKFILE.contains("engineering-assurance"),
+        "engineering-assurance is no longer a dependency of this crate (PLAT-861); \
+         if it reappears in the lockfile, this assertion and DEPENDENCIES.md both need \
+         a deliberate update, not a silent drop"
+    );
 }
 
 /// Tracing: IT-001, Task-009.
