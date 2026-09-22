@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Typed FR-240/FR-286 result construction and immutable document storage.
 
+use engineering_assurance::claim_strength::ClaimStrength;
 use quire_observation::authority::{closure as observation_closure, completeness, progress};
 use quire_spec_language::protocol_artifact::{checked_predicate, temporal_subject};
 use serde::Serialize;
@@ -355,29 +356,6 @@ impl ClaimKind {
             Self::Refinement => "refinement",
             Self::Realizability => "realizability",
             Self::Composition => "composition",
-        }
-    }
-}
-
-/// FR-281 claim strength.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-pub enum ClaimStrength {
-    /// Established by formal proof.
-    Proven,
-    /// Established by exhaustive checking within a stated bound.
-    BoundedChecked,
-    /// Established by test execution.
-    Tested,
-    /// Established by runtime observation alone.
-    Observed,
-}
-impl ClaimStrength {
-    const fn label(self) -> &'static str {
-        match self {
-            Self::Proven => "proven",
-            Self::BoundedChecked => "bounded-checked",
-            Self::Tested => "tested",
-            Self::Observed => "observed",
         }
     }
 }
@@ -2074,7 +2052,7 @@ fn claim_wire(claim: &Claim) -> ClaimWire<'_> {
         admitted_fragment_identity: claim.admitted_fragment_identity.as_deref(),
         backend_identity: claim.backend_identity.as_deref(),
         kind: claim.kind.label(),
-        strength: claim.strength.map(ClaimStrength::label),
+        strength: claim.strength.map(ClaimStrength::wire_name),
     }
 }
 

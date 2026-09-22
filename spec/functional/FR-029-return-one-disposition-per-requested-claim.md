@@ -103,11 +103,12 @@ aligns to that set. Protocol dispatches those six exact labels and authors none
 of its own. Where this repository's prose names a kind in shorter form —
 "conformance" for `global-conformance` and "projection" for `local-projection` —
 the FR-290 label is the vocabulary and the prose word is prose; the remaining
-four are spelled identically. The single-valued four-member strength in FR-281
-remains a proposed QS #1 ruling, so Protocol's strength enum stays an
-implementation candidate until QS #1 promotes it; Task-005 consumes that
-accepted owner type when QS #1 promotes it and otherwise reports the affected
-advanced-claim scenarios unexecutable. FR-283 has already resolved source
+four are spelled identically. The single-valued four-member strength that
+FR-281 carries is owned by Engineering Assurance
+(`ix://agent-ix/engineering-assurance/FR-022`); Protocol imports
+`engineering_assurance::claim_strength::ClaimStrength` and parses a
+disposition's strength through its `FromStr`, refusing any other label.
+FR-283 has already resolved source
 digest mismatch to `invalid-source-result` and derived/target identity mismatch
 to `identity-mismatch`.
 

@@ -35,6 +35,8 @@ use crate::refusal::{
 };
 
 pub use crate::assessment::{AxisInputs, GlobalConformanceInput, GlobalPremise, PremiseKind};
+/// FR-281 claim strength, owned by Engineering Assurance (EA FR-022).
+pub use engineering_assurance::claim_strength::ClaimStrength;
 pub use reader::{read, read_bounded, Expected};
 #[allow(
     unused_imports,
@@ -42,7 +44,7 @@ pub use reader::{read, read_bounded, Expected};
 )]
 pub(crate) use record::{produce, produce_bounded};
 pub use record::{
-    Activation, Adequacy, Assumption, AssumptionState, AxisView, Claim, ClaimKind, ClaimStrength,
+    Activation, Adequacy, Assumption, AssumptionState, AxisView, Claim, ClaimKind,
     CompletenessView, CorrectionInput, CorrectionRelation, CorrectionView, DecisionSupport,
     DependenceRelation, Document, Input, Limitation, Limits, Participation, ProtocolAdequacy,
     ProvenanceRecord, Settlement, SettlementBasis, SupportRef, Truth, Usage, ValidatedResult,

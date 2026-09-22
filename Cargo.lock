@@ -235,6 +235,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "engineering-assurance"
+version = "0.3.1"
+source = "git+https://github.com/agent-ix/engineering-assurance?rev=712f4ff76c2b1e01d26d10efd97a0eef0235defa#712f4ff76c2b1e01d26d10efd97a0eef0235defa"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "equivalent"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -914,6 +922,7 @@ name = "quire-protocol"
 version = "0.1.0"
 dependencies = [
  "agent-ix-baseline-producer 0.0.0 (git+https://github.com/agent-ix/filament-core-data?rev=a6fe662542770e6acbec4917cfe1772b349ee414)",
+ "engineering-assurance",
  "ix-trace-rs",
  "jsonschema 0.17.1",
  "quire-contract-model",

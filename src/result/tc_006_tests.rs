@@ -4420,3 +4420,41 @@ fn tc_009_e02_projection_enforces_exact_one_short_and_fresh_exact_budgets() {
         assert_eq!(exact_usage.consumed(BudgetDimension::DerivedArtifact), 1);
     }
 }
+
+/// TC-006: the claim strength is Engineering Assurance's `ClaimStrength`
+/// (EA FR-022), and each of its strengths serializes to exactly the member,
+/// in the same position, of the result schema's closed `claim.strength` enum.
+/// Importing the owner type therefore leaves the emitted wire unchanged.
+#[test]
+#[trace("TC-006", "FR-032-AC-3")]
+fn tc_006_owner_claim_strengths_serialize_to_the_result_schema_enum() {
+    let schema: Value = serde_json::from_slice(result::SCHEMA_BYTES).expect("result schema JSON");
+    let declared = schema
+        .pointer("/$defs/claim/properties/strength/oneOf/1/enum")
+        .and_then(Value::as_array)
+        .expect("result schema declares the closed claim-strength enum")
+        .iter()
+        .map(|member| member.as_str().expect("claim-strength member is a string"))
+        .collect::<Vec<_>>();
+
+    let emitted = ClaimStrength::ALL
+        .iter()
+        .map(|strength| serde_json::to_value(strength).expect("claim strength serializes"))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        emitted,
+        declared
+            .iter()
+            .map(|member| json!(member))
+            .collect::<Vec<_>>()
+    );
+
+    for strength in ClaimStrength::ALL {
+        assert_eq!(json!(strength.wire_name()), json!(strength));
+        assert_eq!(
+            strength.wire_name().parse::<ClaimStrength>(),
+            Ok(strength),
+            "{strength} parses back to itself"
+        );
+    }
+}

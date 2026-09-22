@@ -11,6 +11,9 @@ publish = false
 quire-spec-language = { git = "https://github.com/agent-ix/quire-spec-language", rev = "2736b62b2f741496590d099d71478b3044d638d6" }
 quire-observation = { git = "https://github.com/agent-ix/quire-observation", rev = "2bdeb833a330bfa777c19eb4c28c423f856f3ba6" }
 quire-verification-contracts = { git = "https://github.com/agent-ix/quire-verification-contracts", rev = "da8d7272051b1cf02768ec459539551414fd6c21" }
+# Owner of the claim-strength vocabulary (EA FR-022). Only the serde-only
+# `claim-strength` feature: no serde_json, no arbitrary_precision.
+engineering-assurance = { version = "=0.3.1", git = "https://github.com/agent-ix/engineering-assurance", rev = "712f4ff76c2b1e01d26d10efd97a0eef0235defa", default-features = false, features = ["claim-strength"] }
 # Reading the offer's already-published members and serialising B's own
 # selections through A's `Serialize` impls. B adds no schema, grammar or wire
 # decoder of its own: every record shape used here is A's.
