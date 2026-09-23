@@ -478,6 +478,38 @@ fn locked_package(name: &str) -> &str {
         .expect("locked package")
 }
 
+/// Counts how many resolved versions of `name` the lockfile carries as
+/// distinct `[[package]]` entries. Cargo only version-qualifies a dependency
+/// reference (`"name version"` instead of bare `"name"`) when more than one
+/// version of that crate actually resolves in the graph; `jsonschema` above
+/// resolves as `"jsonschema 0.17.1"` in `quire-protocol`'s own dependency list
+/// because two versions of it resolve, while single-version crates such as
+/// `sha2` stay bare. This counts the real graph rather than hardcoding either
+/// outcome, so the assertion below tracks Cargo's actual qualification rule.
+fn locked_version_count(name: &str) -> usize {
+    include_str!("../Cargo.lock")
+        .split("[[package]]")
+        .filter(|paragraph| {
+            paragraph
+                .lines()
+                .any(|line| line == format!(r#"name = "{name}""#))
+        })
+        .count()
+}
+
+/// Finds the dependency-list line inside a locked package's paragraph that
+/// references `name`, whether Cargo rendered it bare (`"name",`) or
+/// version-qualified (`"name version",` / `"name version (source)",`).
+fn dependency_reference<'a>(block: &'a str, name: &str) -> &'a str {
+    let bare = format!(r#""{name}","#);
+    let qualified_prefix = format!(r#""{name} "#);
+    block
+        .lines()
+        .map(str::trim)
+        .find(|line| *line == bare || line.starts_with(&qualified_prefix))
+        .unwrap_or_else(|| panic!("`{name}` is not a locked dependency in:\n{block}"))
+}
+
 /// Every `.rs` file under `src/`, as (repository-relative path, contents),
 /// sorted by path so a failure names the same file on every run.
 ///
@@ -599,9 +631,34 @@ fn it_001_inventory_identifies_one_b_owned_reader_path() {
     assert!(consumer.contains(r#""quire-spec-language""#));
     assert!(consumer.contains(r#""quire-observation""#));
     assert!(consumer.contains(r#""quire-verification-contracts""#));
-    assert!(consumer.contains(r#""sha2 0.10.9""#));
     assert!(consumer.contains(r#""serde_json""#));
     assert!(!consumer.contains(r#""logos""#));
+
+    // Cargo only version-qualifies a locked dependency reference when more
+    // than one version of that crate resolves in the graph. Rather than
+    // hardcode today's qualification state (which broke the moment the graph
+    // dropped to a single sha2 version), derive the expected form from the
+    // actual number of resolved sha2 package entries, so this still catches
+    // both a disappeared sha2 dependency and a broken qualification rule.
+    let sha2_locked_versions = locked_version_count("sha2");
+    assert!(
+        sha2_locked_versions >= 1,
+        "sha2 must resolve at least one version in Cargo.lock"
+    );
+    let sha2_reference = dependency_reference(consumer, "sha2");
+    if sha2_locked_versions == 1 {
+        assert_eq!(
+            sha2_reference, r#""sha2","#,
+            "exactly one sha2 version resolves, so Cargo must not version-qualify \
+             quire-protocol's locked dependency entry for it, got `{sha2_reference}`"
+        );
+    } else {
+        assert!(
+            sha2_reference.starts_with(r#""sha2 "#),
+            "{sha2_locked_versions} sha2 versions resolve, so Cargo must version-qualify \
+             quire-protocol's locked dependency entry for it, got `{sha2_reference}`"
+        );
+    }
 }
 
 /// Tracing: IT-001, FR-001-AC-1, Task-009.
