@@ -478,6 +478,21 @@ fn locked_package(name: &str) -> &str {
         .expect("locked package")
 }
 
+/// Find the dependency-list line inside a locked package paragraph that
+/// references `name`. Cargo writes the bare form (`"name",`) while one version
+/// of a crate resolves and a version-qualified form (`"name version",` or
+/// `"name version (source)",`) once several do, so both forms are accepted:
+/// the boundary under test is which crates are depended on, not how Cargo
+/// happens to disambiguate them today.
+fn locked_dependency<'a>(block: &'a str, name: &str) -> Option<&'a str> {
+    let bare = format!(r#""{name}","#);
+    let qualified_prefix = format!(r#""{name} "#);
+    block
+        .lines()
+        .map(str::trim)
+        .find(|line| *line == bare || line.starts_with(&qualified_prefix))
+}
+
 /// Every `.rs` file under `src/`, as (repository-relative path, contents),
 /// sorted by path so a failure names the same file on every run.
 ///
@@ -596,12 +611,23 @@ fn it_001_inventory_identifies_one_b_owned_reader_path() {
     );
 
     let consumer = locked_package("quire-protocol");
-    assert!(consumer.contains(r#""quire-spec-language""#));
-    assert!(consumer.contains(r#""quire-observation""#));
-    assert!(consumer.contains(r#""quire-verification-contracts""#));
-    assert!(consumer.contains(r#""sha2 0.10.9""#));
-    assert!(consumer.contains(r#""serde_json""#));
-    assert!(!consumer.contains(r#""logos""#));
+    // Match bare and version-qualified lockfile references alike: a hardcoded
+    // `"sha2 0.10.9"` broke when the graph dropped to one sha2 version, and a
+    // bare `"logos"` negative check would pass vacuously if a second logos
+    // version made Cargo qualify the reference.
+    for required in [
+        "quire-spec-language",
+        "quire-observation",
+        "quire-verification-contracts",
+        "serde_json",
+        "sha2",
+    ] {
+        assert!(
+            locked_dependency(consumer, required).is_some(),
+            "`{required}` is not a locked dependency of quire-protocol in:\n{consumer}"
+        );
+    }
+    assert_eq!(locked_dependency(consumer, "logos"), None);
 }
 
 /// Tracing: IT-001, FR-001-AC-1, Task-009.
