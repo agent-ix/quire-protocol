@@ -1019,6 +1019,7 @@ fn dispatch_inputs_with_claim_refusal() -> Vec<ClaimRequest<'static>> {
 #[test]
 #[trace(
     "TC-006",
+    "TC-005",
     "IT-002",
     "Task-010",
     "FR-006-AC-1",
@@ -4482,33 +4483,45 @@ fn tc_009_e02_projection_enforces_exact_one_short_and_fresh_exact_budgets() {
     }
 }
 
-/// TC-006: the claim strength is Engineering Assurance's `ClaimStrength`
-/// (EA FR-022), and each of its strengths serializes to exactly the member,
-/// in the same position, of the result schema's closed `claim.strength` enum.
-/// Importing the owner type therefore leaves the emitted wire unchanged.
+/// TC-005: the claim strength is Engineering Assurance's `ClaimStrength`
+/// (EA FR-022), and its strengths serialize to exactly the members of the
+/// result schema's closed `claim.strength` enum — no more, no fewer, no two
+/// alike. Importing the owner type therefore leaves the emitted wire
+/// unchanged. Membership is compared as a set: EA declares `ALL`'s order a
+/// listing order only, and a JSON Schema `enum` is unordered.
 #[test]
 #[trace("TC-005", "FR-029-AC-6")]
-fn tc_006_owner_claim_strengths_serialize_to_the_result_schema_enum() {
+fn tc_005_owner_claim_strengths_serialize_to_the_result_schema_enum() {
     let schema: Value = serde_json::from_slice(result::SCHEMA_BYTES).expect("result schema JSON");
     let declared = schema
         .pointer("/$defs/claim/properties/strength/oneOf/1/enum")
         .and_then(Value::as_array)
         .expect("result schema declares the closed claim-strength enum")
         .iter()
-        .map(|member| member.as_str().expect("claim-strength member is a string"))
-        .collect::<Vec<_>>();
+        .map(|member| {
+            member
+                .as_str()
+                .expect("claim-strength member is a string")
+                .to_owned()
+        })
+        .collect::<std::collections::BTreeSet<_>>();
 
     let emitted = ClaimStrength::ALL
         .iter()
-        .map(|strength| serde_json::to_value(strength).expect("claim strength serializes"))
-        .collect::<Vec<_>>();
+        .map(|strength| {
+            serde_json::to_value(strength)
+                .expect("claim strength serializes")
+                .as_str()
+                .expect("claim strength serializes as a JSON string")
+                .to_owned()
+        })
+        .collect::<std::collections::BTreeSet<_>>();
     assert_eq!(
-        emitted,
-        declared
-            .iter()
-            .map(|member| json!(member))
-            .collect::<Vec<_>>()
+        emitted.len(),
+        ClaimStrength::ALL.len(),
+        "two strengths share a wire name"
     );
+    assert_eq!(emitted, declared);
 
     for strength in ClaimStrength::ALL {
         assert_eq!(json!(strength.wire_name()), json!(strength));
