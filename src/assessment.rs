@@ -3153,17 +3153,12 @@ fn result_input_from_dispatch<'a, 'd>(
     global_conformance: &GlobalConformanceInput,
     selected: CanonicalRowFacts<'a>,
 ) -> Result<(result::Input<'a>, result::Limits), RowAssemblyRefusal<'d>> {
-    let strength = match disposition.strength.as_ref() {
-        b"proven" => result::ClaimStrength::Proven,
-        b"bounded-checked" => result::ClaimStrength::BoundedChecked,
-        b"tested" => result::ClaimStrength::Tested,
-        b"observed" => result::ClaimStrength::Observed,
-        _ => {
-            return Err(RowAssemblyRefusal::UnknownClaimStrength(
-                &disposition.strength,
-            ))
-        }
-    };
+    let strength = std::str::from_utf8(&disposition.strength)
+        .ok()
+        .and_then(|label| label.parse::<result::ClaimStrength>().ok())
+        .ok_or(RowAssemblyRefusal::UnknownClaimStrength(
+            &disposition.strength,
+        ))?;
     let admitted_fragment_identity = retained_text(
         disposition.premises.admitted_fragment.identity.as_ref(),
         RowAssemblyRefusal::NonTextAdmittedFragmentIdentity,

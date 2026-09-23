@@ -1019,13 +1019,15 @@ fn dispatch_inputs_with_claim_refusal() -> Vec<ClaimRequest<'static>> {
 #[test]
 #[trace(
     "TC-006",
+    "TC-005",
     "IT-002",
     "Task-010",
     "FR-006-AC-1",
     "FR-006-AC-2",
     "FR-006-AC-9",
     "FR-008-AC-1",
-    "FR-009-AC-1"
+    "FR-009-AC-1",
+    "FR-029-AC-6"
 )]
 fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
     let loaded = handoff::Handoff::load().expect("published v2 handoff");
@@ -1628,7 +1630,7 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
                         ConformanceLimits::default(),
                         DispatchLimits::default(),
                         vec![
-                            Some(canonical_row_controls(input, Limits::owner_max())),
+                            Some(canonical_row_controls(input.clone(), Limits::owner_max())),
                             None,
                         ],
                         Budget::nothing_granted(),
@@ -1747,6 +1749,66 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
                 result_completed,
                 quire_protocol::outcome::OperationOutcome::Completed(())
             ));
+
+            // FR-029: a disposition strength that is not exactly one EA FR-022
+            // wire spelling is refused at row assembly, carrying the
+            // producer's raw bytes. A case variant and a non-UTF-8 prefix each
+            // reach `result_input_from_dispatch` through the same engine path
+            // as the accepted row above. Each case gets its own engine, since
+            // `assess_activated` consumes the resolved scope it is called on.
+            for strength in [&b"Proven"[..], &b"\xffproven"[..]] {
+                let mut requests = dispatch_inputs_with_claim_refusal();
+                requests[0].strength = strength.to_vec().into_boxed_slice();
+                let strength_result = with_result_assessment(
+                    context,
+                    requested.to_vec(),
+                    &mapping,
+                    &subject,
+                    &temporal_request,
+                    &temporal_result,
+                    &fixture.predicate,
+                    &fixture.temporal,
+                    |strength_engine| {
+                        let outcome = strength_engine.assess_activated(
+                            &requests,
+                            std::slice::from_ref(&fact),
+                            axes,
+                            &decision.completeness_complete,
+                            &global,
+                            AssessmentExecution::Completed,
+                            ConformanceLimits::default(),
+                            DispatchLimits::default(),
+                            vec![
+                                Some(canonical_row_controls(input.clone(), Limits::owner_max())),
+                                None,
+                            ],
+                            Budget::nothing_granted(),
+                        );
+                        let quire_protocol::outcome::OperationOutcome::Completed(bundle) = outcome
+                        else {
+                            panic!("an unknown strength refuses its row, not the operation: {strength:?}")
+                        };
+                        let quire_protocol::outcome::ClaimOutcome::Refused(refusal) =
+                            &bundle.rows()[0].outcome
+                        else {
+                            panic!("strength {strength:?} must refuse the conformance row")
+                        };
+                        assert_eq!(
+                            refusal.code().as_str(),
+                            "assessment-result.unknown-claim-strength"
+                        );
+                        assert_eq!(refusal.stage(), ProtocolStage::ResultAssembly);
+                        assert_eq!(
+                            refusal.identity(),
+                            &quire_protocol::refusal::AffectedIdentity::retained(strength)
+                        );
+                    },
+                );
+                assert!(matches!(
+                    strength_result,
+                    quire_protocol::outcome::OperationOutcome::Completed(())
+                ));
+            }
         },
     );
     assert!(matches!(
@@ -4418,5 +4480,55 @@ fn tc_009_e02_projection_enforces_exact_one_short_and_fresh_exact_budgets() {
         );
         assert!(matches!(outcome, OperationOutcome::Completed(_)));
         assert_eq!(exact_usage.consumed(BudgetDimension::DerivedArtifact), 1);
+    }
+}
+
+/// TC-005: the claim strength is Engineering Assurance's `ClaimStrength`
+/// (EA FR-022), and its strengths serialize to exactly the members of the
+/// result schema's closed `claim.strength` enum — no more, no fewer, no two
+/// alike. Importing the owner type therefore leaves the emitted wire
+/// unchanged. Membership is compared as a set: EA declares `ALL`'s order a
+/// listing order only, and a JSON Schema `enum` is unordered.
+#[test]
+#[trace("TC-005", "FR-029-AC-6")]
+fn tc_005_owner_claim_strengths_serialize_to_the_result_schema_enum() {
+    let schema: Value = serde_json::from_slice(result::SCHEMA_BYTES).expect("result schema JSON");
+    let declared = schema
+        .pointer("/$defs/claim/properties/strength/oneOf/1/enum")
+        .and_then(Value::as_array)
+        .expect("result schema declares the closed claim-strength enum")
+        .iter()
+        .map(|member| {
+            member
+                .as_str()
+                .expect("claim-strength member is a string")
+                .to_owned()
+        })
+        .collect::<std::collections::BTreeSet<_>>();
+
+    let emitted = ClaimStrength::ALL
+        .iter()
+        .map(|strength| {
+            serde_json::to_value(strength)
+                .expect("claim strength serializes")
+                .as_str()
+                .expect("claim strength serializes as a JSON string")
+                .to_owned()
+        })
+        .collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(
+        emitted.len(),
+        ClaimStrength::ALL.len(),
+        "two strengths share a wire name"
+    );
+    assert_eq!(emitted, declared);
+
+    for strength in ClaimStrength::ALL {
+        assert_eq!(json!(strength.wire_name()), json!(strength));
+        assert_eq!(
+            strength.wire_name().parse::<ClaimStrength>(),
+            Ok(strength),
+            "{strength} parses back to itself"
+        );
     }
 }

@@ -31,6 +31,12 @@ const OBSERVATION_OWNER: &str = "quire-observation";
 const E02_OWNER: &str = "quire-verification-contracts";
 const E02_REVISION: &str = "da8d7272051b1cf02768ec459539551414fd6c21";
 
+/// Engineering Assurance owns the claim-strength vocabulary (EA FR-022). B
+/// imports its `ClaimStrength` through the serde-only `claim-strength` feature
+/// and declares no strength enum of its own.
+const CLAIM_STRENGTH_OWNER: &str = "engineering-assurance";
+const CLAIM_STRENGTH_REVISION: &str = "712f4ff76c2b1e01d26d10efd97a0eef0235defa";
+
 /// Serialization carriers read members A has already published and serialize
 /// B's own selections through A's `Serialize` impls; they carry no schema,
 /// grammar or wire decoder.
@@ -110,6 +116,7 @@ const INVENTORY: &[&str] = &[
     "displaydoc",
     "dyn-clone",
     "email_address",
+    "engineering-assurance",
     "equivalent",
     "fancy-regex",
     "find-msvc-tools",
@@ -283,6 +290,7 @@ fn it_001_declares_only_selected_owner_dependencies() {
             FRONTEND,
             OBSERVATION_OWNER,
             E02_OWNER,
+            CLAIM_STRENGTH_OWNER,
             SERIALISATION,
             SERIALISATION_DERIVE,
             SCHEMA_VALIDATOR,
@@ -352,11 +360,10 @@ fn it_001_resolves_one_frontend_in_the_whole_graph() {
 
 /// Tracing: TC-013 and NFR-006-AC-4.
 ///
-/// `engineering-assurance` dropped out of this check (PLAT-861): it was only ever
-/// reachable transitively through the old direct `quire-verification` dependency, and
-/// `quire-verification-contracts` does not depend on it, so it is no longer in this
-/// crate's resolved graph at all — asserting a locked source for it would be asserting
-/// a package that no longer exists here.
+/// `engineering-assurance` is a direct dependency again (TL-206), for the
+/// claim-strength vocabulary alone. It must resolve at exactly one revision:
+/// a second revision would carry a distinct `ClaimStrength` type that does not
+/// unify with the one B emits.
 #[test]
 #[trace("TC-013", "NFR-006-AC-4")]
 fn tc_013_records_the_exact_e02_git_closure_in_all_three_sources() {
@@ -376,11 +383,33 @@ fn tc_013_records_the_exact_e02_git_closure_in_all_three_sources() {
         RIGHTS_RECORD.contains(&format!("| `{E02_OWNER}` | `{E02_REVISION}` |")),
         "rights record drift for {E02_OWNER}"
     );
+
     assert!(
-        !LOCKFILE.contains("engineering-assurance"),
-        "engineering-assurance is no longer a dependency of this crate (PLAT-861); \
-         if it reappears in the lockfile, this assertion and DEPENDENCIES.md both need \
-         a deliberate update, not a silent drop"
+        manifest_section("[dependencies]").contains(CLAIM_STRENGTH_REVISION),
+        "the direct claim-strength owner dependency must select the pinned revision"
+    );
+    let claim_strength_packages = LOCKFILE
+        .split("[[package]]")
+        .filter(|package| {
+            package
+                .lines()
+                .any(|line| line == format!(r#"name = "{CLAIM_STRENGTH_OWNER}""#))
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        claim_strength_packages.len(),
+        1,
+        "one locked {CLAIM_STRENGTH_OWNER} package in the graph, got {claim_strength_packages:?}"
+    );
+    assert!(
+        claim_strength_packages[0].contains(CLAIM_STRENGTH_REVISION),
+        "got {claim_strength_packages:?}"
+    );
+    assert!(
+        RIGHTS_RECORD.contains(&format!(
+            "| `{CLAIM_STRENGTH_OWNER}` | `{CLAIM_STRENGTH_REVISION}` |"
+        )),
+        "rights record drift for {CLAIM_STRENGTH_OWNER}"
     );
 }
 

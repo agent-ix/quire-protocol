@@ -603,6 +603,7 @@ fn it_001_inventory_identifies_one_b_owned_reader_path() {
             "quire-spec-language",
             "quire-observation",
             "quire-verification-contracts",
+            "engineering-assurance",
             "serde_json",
             "serde",
             "jsonschema",
@@ -619,6 +620,7 @@ fn it_001_inventory_identifies_one_b_owned_reader_path() {
         "quire-spec-language",
         "quire-observation",
         "quire-verification-contracts",
+        "engineering-assurance",
         "serde_json",
         "sha2",
     ] {
@@ -628,6 +630,9 @@ fn it_001_inventory_identifies_one_b_owned_reader_path() {
         );
     }
     assert_eq!(locked_dependency(consumer, "logos"), None);
+    // One `sha2` is locked, so the lockfile names it without a version suffix;
+    // the version is asserted on the locked package itself.
+    assert!(locked_package("sha2").contains(r#"version = "0.10.9""#));
 }
 
 /// Tracing: IT-001, FR-001-AC-1, Task-009.
