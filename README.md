@@ -58,7 +58,8 @@ E02 wire types, strict reader, and RFC 8785 canonicalization this repository
 projects into (PLAT-861; extracted from private `quire-verification`, which
 still owns the planning and evidence-assessment strategy layer this repository
 does not consume). Engineering Assurance owns reusable bounded producer
-execution and typed transport. Quoin owns evidence. This repository consumes
+execution, typed transport and the claim-strength vocabulary (EA FR-022).
+Quoin owns evidence. This repository consumes
 those exact interfaces and does not copy their semantics into local
 substitutes.
 

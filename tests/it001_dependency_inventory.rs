@@ -388,18 +388,22 @@ fn tc_013_records_the_exact_e02_git_closure_in_all_three_sources() {
         manifest_section("[dependencies]").contains(CLAIM_STRENGTH_REVISION),
         "the direct claim-strength owner dependency must select the pinned revision"
     );
-    let claim_strength_sources = LOCKFILE
-        .lines()
-        .filter(|line| line.starts_with("source = ") && line.contains(CLAIM_STRENGTH_OWNER))
+    let claim_strength_packages = LOCKFILE
+        .split("[[package]]")
+        .filter(|package| {
+            package
+                .lines()
+                .any(|line| line == format!(r#"name = "{CLAIM_STRENGTH_OWNER}""#))
+        })
         .collect::<Vec<_>>();
     assert_eq!(
-        claim_strength_sources.len(),
+        claim_strength_packages.len(),
         1,
-        "one {CLAIM_STRENGTH_OWNER} revision in the graph, got {claim_strength_sources:?}"
+        "one locked {CLAIM_STRENGTH_OWNER} package in the graph, got {claim_strength_packages:?}"
     );
     assert!(
-        claim_strength_sources[0].contains(CLAIM_STRENGTH_REVISION),
-        "got {claim_strength_sources:?}"
+        claim_strength_packages[0].contains(CLAIM_STRENGTH_REVISION),
+        "got {claim_strength_packages:?}"
     );
     assert!(
         RIGHTS_RECORD.contains(&format!(

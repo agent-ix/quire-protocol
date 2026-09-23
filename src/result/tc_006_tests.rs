@@ -1025,7 +1025,8 @@ fn dispatch_inputs_with_claim_refusal() -> Vec<ClaimRequest<'static>> {
     "FR-006-AC-2",
     "FR-006-AC-9",
     "FR-008-AC-1",
-    "FR-009-AC-1"
+    "FR-009-AC-1",
+    "FR-029-AC-6"
 )]
 fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
     let loaded = handoff::Handoff::load().expect("published v2 handoff");
@@ -1741,6 +1742,49 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
                         refusal.stage(),
                         quire_protocol::refusal::ProtocolStage::ClaimDispatch
                     );
+
+                    // FR-029: a disposition strength that is not exactly one EA
+                    // FR-022 wire spelling is refused at row assembly, carrying
+                    // the producer's raw bytes. A case variant and a non-UTF-8
+                    // prefix each reach `result_input_from_dispatch` through the
+                    // same engine path as the accepted row above.
+                    for strength in [&b"Proven"[..], &b"\xffproven"[..]] {
+                        let mut requests = dispatch_inputs_with_claim_refusal();
+                        requests[0].strength = strength.to_vec().into_boxed_slice();
+                        let outcome = result_engine.assess_activated(
+                            &requests,
+                            std::slice::from_ref(&fact),
+                            axes,
+                            &decision.completeness_complete,
+                            &global,
+                            AssessmentExecution::Completed,
+                            ConformanceLimits::default(),
+                            DispatchLimits::default(),
+                            vec![
+                                Some(canonical_row_controls(input.clone(), Limits::owner_max())),
+                                None,
+                            ],
+                            Budget::nothing_granted(),
+                        );
+                        let quire_protocol::outcome::OperationOutcome::Completed(bundle) = outcome
+                        else {
+                            panic!("an unknown strength refuses its row, not the operation: {strength:?}")
+                        };
+                        let quire_protocol::outcome::ClaimOutcome::Refused(refusal) =
+                            &bundle.rows()[0].outcome
+                        else {
+                            panic!("strength {strength:?} must refuse the conformance row")
+                        };
+                        assert_eq!(
+                            refusal.code().as_str(),
+                            "assessment-result.unknown-claim-strength"
+                        );
+                        assert_eq!(refusal.stage(), ProtocolStage::ResultAssembly);
+                        assert_eq!(
+                            refusal.identity(),
+                            &quire_protocol::refusal::AffectedIdentity::retained(strength)
+                        );
+                    }
                 },
             );
             assert!(matches!(
@@ -4426,7 +4470,7 @@ fn tc_009_e02_projection_enforces_exact_one_short_and_fresh_exact_budgets() {
 /// in the same position, of the result schema's closed `claim.strength` enum.
 /// Importing the owner type therefore leaves the emitted wire unchanged.
 #[test]
-#[trace("TC-006", "FR-032-AC-3")]
+#[trace("TC-005", "FR-029-AC-6")]
 fn tc_006_owner_claim_strengths_serialize_to_the_result_schema_enum() {
     let schema: Value = serde_json::from_slice(result::SCHEMA_BYTES).expect("result schema JSON");
     let declared = schema
