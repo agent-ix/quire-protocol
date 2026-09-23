@@ -603,6 +603,7 @@ fn it_001_inventory_identifies_one_b_owned_reader_path() {
             "quire-spec-language",
             "quire-observation",
             "quire-verification-contracts",
+            "engineering-assurance",
             "serde_json",
             "serde",
             "jsonschema",
@@ -619,6 +620,7 @@ fn it_001_inventory_identifies_one_b_owned_reader_path() {
         "quire-spec-language",
         "quire-observation",
         "quire-verification-contracts",
+        "engineering-assurance",
         "serde_json",
         "sha2",
     ] {
