@@ -1629,7 +1629,7 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
                         ConformanceLimits::default(),
                         DispatchLimits::default(),
                         vec![
-                            Some(canonical_row_controls(input, Limits::owner_max())),
+                            Some(canonical_row_controls(input.clone(), Limits::owner_max())),
                             None,
                         ],
                         Budget::nothing_granted(),
@@ -1742,16 +1742,33 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
                         refusal.stage(),
                         quire_protocol::refusal::ProtocolStage::ClaimDispatch
                     );
+                },
+            );
+            assert!(matches!(
+                result_completed,
+                quire_protocol::outcome::OperationOutcome::Completed(())
+            ));
 
-                    // FR-029: a disposition strength that is not exactly one EA
-                    // FR-022 wire spelling is refused at row assembly, carrying
-                    // the producer's raw bytes. A case variant and a non-UTF-8
-                    // prefix each reach `result_input_from_dispatch` through the
-                    // same engine path as the accepted row above.
-                    for strength in [&b"Proven"[..], &b"\xffproven"[..]] {
-                        let mut requests = dispatch_inputs_with_claim_refusal();
-                        requests[0].strength = strength.to_vec().into_boxed_slice();
-                        let outcome = result_engine.assess_activated(
+            // FR-029: a disposition strength that is not exactly one EA FR-022
+            // wire spelling is refused at row assembly, carrying the
+            // producer's raw bytes. A case variant and a non-UTF-8 prefix each
+            // reach `result_input_from_dispatch` through the same engine path
+            // as the accepted row above. Each case gets its own engine, since
+            // `assess_activated` consumes the resolved scope it is called on.
+            for strength in [&b"Proven"[..], &b"\xffproven"[..]] {
+                let mut requests = dispatch_inputs_with_claim_refusal();
+                requests[0].strength = strength.to_vec().into_boxed_slice();
+                let strength_result = with_result_assessment(
+                    context,
+                    requested.to_vec(),
+                    &mapping,
+                    &subject,
+                    &temporal_request,
+                    &temporal_result,
+                    &fixture.predicate,
+                    &fixture.temporal,
+                    |strength_engine| {
+                        let outcome = strength_engine.assess_activated(
                             &requests,
                             std::slice::from_ref(&fact),
                             axes,
@@ -1784,13 +1801,13 @@ fn tc_006_engine_constructs_and_strict_reads_canonical_rows() {
                             refusal.identity(),
                             &quire_protocol::refusal::AffectedIdentity::retained(strength)
                         );
-                    }
-                },
-            );
-            assert!(matches!(
-                result_completed,
-                quire_protocol::outcome::OperationOutcome::Completed(())
-            ));
+                    },
+                );
+                assert!(matches!(
+                    strength_result,
+                    quire_protocol::outcome::OperationOutcome::Completed(())
+                ));
+            }
         },
     );
     assert!(matches!(
