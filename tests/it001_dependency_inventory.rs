@@ -103,9 +103,11 @@ const INVENTORY: &[&str] = &[
     // `it_001_resolves_one_frontend_in_the_whole_graph`.
     "qsl-attrs",
     "qsl-cst",
+    "qsl-eval",
     "qsl-forms",
     "qsl-foundation",
     "qsl-package",
+    "qsl-replay",
     "qsl-semantics",
     "quire-exact",
     // Third repositories' crates reaching the graph through A at that
@@ -396,6 +398,9 @@ fn it_001_declares_only_selected_owner_dependencies() {
             "agent-ix-baseline-producer",
             "ix-trace-rs",
             "quire-contract-ir",
+            // QSL-251: the same pinned frontend again, with its test-only
+            // `handoff-writer` feature, for the tests' in-process producer.
+            FRONTEND,
             "serde_json",
         ])
     );

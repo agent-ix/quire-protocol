@@ -83,6 +83,7 @@ pub fn emit() -> Result<PathBuf, String> {
 ///
 /// `PUBLISHED_HANDOFF` is `<QSL source>/artifacts/compiled-protocol-v2`. The
 /// lanes still compare the written handoff's authored sources against it.
+#[allow(dead_code, reason = "each including test target uses a subset")]
 pub fn qsl_root() -> Result<&'static Path, String> {
     Path::new(PUBLISHED_HANDOFF)
         .parent()
