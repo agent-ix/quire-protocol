@@ -63,8 +63,9 @@ The version 2 intake is a separate contract with its own published surface:
   PUBLISHED_MUTATION_MANIFEST_FILE, PUBLISHED_CHECKSUMS_FILE,
   MUTATION_MANIFEST_FORMAT}`
 
-B constructs `Expected`, `ExpectedDefinition` and `ExpectedTemporal`
-independently from its own retained inputs and submits the exact offered bytes
+B constructs `Expected`, `ExpectedDefinition` and `ExpectedTemporal` from A's
+`expected-v2.json` selection sidecar and the digest-checked original inputs,
+without reading the offered bytes, and submits the exact offered bytes
 through `v2::read`. Temporal selection is therefore an admission-time input on
 this contract; `temporal::evaluate_v2` and its companions remain a separate
 post-admission concern that IT-001 does not exercise. Neither version may
@@ -84,9 +85,9 @@ For version 1: the retained four-unit compiled package; independently selected
 original native sources, model source, admitted model, and dependency closure.
 
 For version 2: A's raw emitted package bytes and external artifact reference;
-B-retained original, unrecanonicalized source, model, definition, profile,
-configuration, dependency, producer, artifact, and result selections; the
-B-retained temporal profile, clock alternative, and clock parameter selections
+the original, unrecanonicalized source, model, definition, profile,
+configuration, dependency, producer, artifact, and result selections from A's
+selection sidecar, each checked against its digest; the selected temporal profile, clock alternative, and clock parameter selections
 bound by that package, carried as `v2::ExpectedTemporal` over
 `v2::wire::{TemporalBinding, ClockConfiguration}`; and A's typed
 `v2::AdmittedPackage` report and its `Report`/`Error`/`Invalid`/`Unsupported`
@@ -140,7 +141,8 @@ dimension, one unit short of it, and a fresh budget at the exact value.
 
 ## Test Procedure
 
-1. Construct `Expected` only from B-selected retained inputs, resolve
+1. Construct `Expected` only from A's selection sidecar and the digest-checked
+   original inputs, before reading the offer, resolve
    `quire.compiled-protocol/1`, then submit the exact producer package through
    `quire_protocol::intake::v1::admit` and
    `quire_protocol::model::v1::link_static`.
@@ -170,8 +172,8 @@ dimension, one unit short of it, and a fresh budget at the exact value.
    - IT-001-SC-05: the evidence positively identifies the A-owned reader as the
      only native compiler reader and identifies no second parser, formal
      frontend, or foreign runtime in the admitted path.
-6. Resolve `quire.compiled-protocol/2`, then submit the exact version 2 bytes and an independently retained version 2 selection,
-   built as `v2::Expected` and `v2::ExpectedTemporal` without reading A's
+6. Resolve `quire.compiled-protocol/2`, then submit the exact version 2 bytes and the version 2 selection from A's
+   sidecar, built as `v2::Expected` and `v2::ExpectedTemporal` without reading A's
    offered bytes, through `quire_protocol::intake::v2::admit` and
    `quire_protocol::model::v2::link`. Load the bundle
    from a fresh run of A's `native_protocol_v2_handoff` producer at the pinned
