@@ -40,11 +40,12 @@ struct Fixture {
 
 impl Fixture {
     fn load(root: &Path) -> Self {
-        // A publishes the independent selection sidecar beside the offer as a
-        // separate member. It is loaded by reference from the exactly pinned
-        // QSL source, before the offer, and is never read out of the offered
+        // A publishes the independent selection sidecar beside the offer as its
+        // own member. It is read from the fresh output of A's producer (see
+        // `qsl_producer`), before the offer, and never out of the offered
         // bytes, so the offered package cannot select its own acceptance
-        // context. B keeps no copy of it.
+        // context. B keeps no copy of it, and checks every source, model and
+        // dependency byte against the sidecar's digests below.
         let selection: Selection = serde_json::from_slice(
             &fs::read(root.join(PUBLISHED_V1_SELECTION_FILE)).expect("A selection sidecar"),
         )
@@ -109,7 +110,16 @@ impl Fixture {
         let dependency_bytes = selection
             .dependencies
             .iter()
-            .map(|dependency| fs::read(root.join(&dependency.file)).expect("dependency bytes"))
+            .map(|dependency| {
+                let bytes = fs::read(root.join(&dependency.file)).expect("dependency bytes");
+                assert_eq!(
+                    ByteDigest::of(&bytes),
+                    dependency.artifact.digest,
+                    "selected dependency {} does not hash to its selected digest",
+                    dependency.file
+                );
+                bytes
+            })
             .collect();
         Self {
             selection,

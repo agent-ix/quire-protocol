@@ -44,8 +44,9 @@ legacy compatibility exception: it mints no capability, independently selects
 and retains the compiler contract, baseline, producer, native-source,
 model-source and dependency bytes before inspecting the offer, and cannot read
 any full-assessment input. The native compiler publishes both versioned
-compiled-protocol contracts and committed owner-addressed handoffs at current
-exact pin `2736b62b2f741496590d099d71478b3044d638d6`. Version 1 retains its
+compiled-protocol contracts and the producer examples that emit their complete
+handoffs at current exact pin `51245876e0d406aeed3047c608ad478b53b19205`.
+Version 1 retains its
 `quire.protocol.numeric/1` wire profile.
 
 The version 2 intake is a separate contract with its own published surface:
@@ -144,8 +145,12 @@ dimension, one unit short of it, and a fresh budget at the exact value.
    `quire_protocol::intake::v1::admit` and
    `quire_protocol::model::v1::link_static`.
    - IT-001-SC-01: admission retains artifact, contract, baseline, producer,
-     native-source, model-source, and dependency identities unchanged; the
-     producer's `expected.json` is not read as authorization.
+     native-source, model-source, and dependency identities unchanged. B reads
+     A's `expected.json` selection sidecar, a separate handoff member, before
+     the offer; checks every source, model and dependency byte against the
+     sidecar's digests; and re-admits the model through A's reader and compares
+     its artifact bytes with the selected model dependency. Nothing is read out
+     of the offered bytes.
 2. Inspect the public admitted package and its source/declaration links.
    - IT-001-SC-02: all four source units, every declaration/reference, and the
      actual `Workflow.wide`/`Workflow.exact` binding path agree with the selected
@@ -169,7 +174,8 @@ dimension, one unit short of it, and a fresh budget at the exact value.
    built as `v2::Expected` and `v2::ExpectedTemporal` without reading A's
    offered bytes, through `quire_protocol::intake::v2::admit` and
    `quire_protocol::model::v2::link`. Load the bundle
-   from A's `protocol_artifact::handoff::PUBLISHED_HANDOFF` and use A's exported
+   from a fresh run of A's `native_protocol_v2_handoff` producer at the pinned
+   revision and use A's exported
    member-name and manifest-format constants rather than B-owned literals. Submit each
    version's bytes at the other version's entry point; and reseal one changed
    version 2 selection axis at a time.
@@ -260,10 +266,11 @@ are accepted. `quire-spec-language` release `v0.2.0` is at
 `6eccb05adf58cb2ed0c6092f5ef8e23d55030028`. Its post-release interface PR #92
 exports the handoff paths, all member names, and the mutation-manifest format on
 `main`; this repository pins
-`2736b62b2f741496590d099d71478b3044d638d6`. The version 2 reader, its typed per-axis refusals, the independent
-selection records, the original inputs, the 28-case mutation corpus, and the
-published handoff are all present under that dependency source. No environment
-configuration or copied artifact tree is part of the gate.
+`51245876e0d406aeed3047c608ad478b53b19205`. The version 2 reader, its typed
+per-axis refusals and the producer examples that emit the independent selection
+records, original inputs, dependency bytes and 28-case mutation corpus are all
+present under that dependency source. No environment configuration or copied
+artifact tree is part of the gate.
 
 `v2::Expected` **composes** the version 1 expectation rather than replacing it:
 `{ inherited: protocol_artifact::Expected, temporal: &[ExpectedTemporal] }`, and
@@ -273,22 +280,20 @@ enum's variant and the clock parameters are its fields. Changed-selection axes
 therefore divide into inherited axes, which version 1 already discriminates, and the
 temporal axes this contract adds.
 
-B consumes only A's exported surface. The producer sidecar remains inert as
-authorization: B reconstructs the expected values from its independently
-retained inputs, and the loader checks the original bytes against those selected
-identities before admission.
-
-The recipe is a derivation B implements, not a file B reads. A producer-emitted
-sidecar carrying the expected selection — `expected.json` beside the version 1
-artifact, or any version 2 equivalent — is never B's selection source, because an
-offer that ships its own acceptance context authorizes itself. SC-01 forbids
-this for version 1 and it holds identically for version 2.
+B consumes only A's exported surface. A publishes its selection sidecar
+(`expected.json` for version 1, `expected-v2.json` for version 2) as its own
+handoff member, separate from the offer. B reads the sidecar before the offer,
+checks every source, model and dependency byte against the sidecar's digests,
+and independently re-admits the model through A's reader and compares its bytes
+with the selected model dependency. B never reads a selection out of the offered
+bytes, because an offer that ships its own acceptance context authorizes itself.
+SC-01 states this for version 1 and it holds identically for version 2.
 
 The version 1 numeric and handoff commits that were previously reachable only from
 `agent-a/handoff-numeric-domains` are contained in A's `main`. QSL #112 added
 the committed version-1 address, and QSL #114 corrected the published package's
-Service/Provider authority collision; both are included by the same `6c8c401`
-pin.
+Service/Provider authority collision; both are included by the current
+`5124587` pin.
 
 A prose definition, native source file, emitted sidecar, hand-authored bytes, or
 a version 1 value cannot substitute for either compiled interface because this
@@ -296,10 +301,13 @@ repository owns no parser.
 
 ## Notes
 
-The version-1 lane loads A's committed handoff through
-`PUBLISHED_V1_HANDOFF` and A's published offer-file constant. B's independently
-retained selection snapshot is loaded before the offer and every selected source,
-model and dependency byte is checked against it. The lane runs by default,
+A's committed handoff copies under `PUBLISHED_V1_HANDOFF` and
+`PUBLISHED_HANDOFF` carry no dependency bytes, so they cannot be admitted. Both
+lanes instead run A's `native_protocol_handoff` and `native_protocol_v2_handoff`
+producer examples from the pinned source, once per test process, and read their
+complete output. The version-1 lane reads A's `expected.json` sidecar before the
+offer, using A's published member-name constants, and checks every selected
+source, model and dependency byte against it. The lane runs by default,
 executes the positive parser/reader inventory for SC-05, and reaches the local
 version-1 static linker.
 
@@ -311,8 +319,8 @@ escaping path, a symbolic link, a malformed checksum line and a ceiling above
 A's hard maximum — builds synthetic handoffs under `CARGO_TARGET_TMPDIR` and is
 checked on every gate run.
 
-The version 2 lane runs on every local gate from A's exported
-`PUBLISHED_HANDOFF`. Its loader verifies `PUBLISHED_CHECKSUMS_FILE` over every
+The version 2 lane runs on every local gate from the fresh
+`native_protocol_v2_handoff` output. Its loader verifies `PUBLISHED_CHECKSUMS_FILE` over every
 published member before decoding, and the lane admits the base offer, checks
 both cross-version submissions, runs all 28 manifest mutations, and probes every
 member of `Dimension::ALL` at exact usage, one-short, and fresh exact usage.
