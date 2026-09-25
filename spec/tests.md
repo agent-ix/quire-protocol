@@ -283,10 +283,10 @@ of A's mutation manifest. On the revision named below, the base offer is admitte
 and every mutation refuses with the identity A declares for it.
 
 The exact pin is `quire-spec-language`
-`2736b62b2f741496590d099d71478b3044d638d6`, a post-`v0.2.0` revision. A
+`51245876e0d406aeed3047c608ad478b53b19205`, a post-`v0.2.0` revision. A
 exports `PUBLISHED_HANDOFF` plus every member-name
-and manifest-format constant. B loads that owner path directly, verifies all
-109 published members, refuses unlisted or corrupt members, admits the base,
+and manifest-format constant. B runs that owner's producer example from the pinned source (the committed copy omits dependency bytes), verifies all
+listed members, refuses unlisted or corrupt members, admits the base,
 checks both cross-version directions, submits all 28 declared mutations, and
 probes all 13 `Dimension::ALL` budget members. No environment selector or
 vendored mirror remains, and the lane reports `18 passed; 0 ignored`.

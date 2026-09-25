@@ -21,6 +21,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
+pub mod qsl_producer;
+
 use qsl_foundation::{ByteDigest, Source, SourceIdentity};
 use quire_contract_ir as ir;
 use quire_spec_language::{
@@ -94,6 +96,8 @@ pub enum Absence {
     /// The model source could not be re-admitted through A's public reader, so
     /// B cannot construct the `AdmittedModel` the expectation requires.
     Model { cause: String },
+    /// A's producer could not be built or run from the pinned QSL source.
+    Producer { cause: String },
 }
 
 impl fmt::Display for Absence {
@@ -179,6 +183,7 @@ impl fmt::Display for Absence {
             Self::Model { cause } => {
                 write!(f, "the model source could not be re-admitted: {cause}")
             }
+            Self::Producer { cause } => write!(f, "A's producer did not run: {cause}"),
         }
     }
 }
@@ -261,9 +266,12 @@ pub struct Handoff {
 }
 
 impl Handoff {
-    /// Load the handoff published inside the exactly pinned producer crate.
+    /// Load a complete handoff freshly emitted by A's own `/2` producer from
+    /// the exactly pinned QSL source. The committed `PUBLISHED_HANDOFF` copy
+    /// omits dependency bytes, so it is not admissible; see `qsl_producer`.
     pub fn load() -> Result<Self, Absence> {
-        Self::load_from(Path::new(PUBLISHED_HANDOFF))
+        let root = qsl_producer::v2().map_err(|cause| Absence::Producer { cause })?;
+        Self::load_from(root)
     }
 
     /// Load the handoff published under `root`.
@@ -549,6 +557,10 @@ impl Handoff {
                 sources: &inventories.sources,
                 dependencies: &inventories.dependencies,
                 models: &inventories.models,
+                // FR-042 (QSL-63): the sidecar selects no domain package, and
+                // every model in this handoff is a directly admitted native
+                // model whose `domain_package` is an explicit null.
+                domain_packages: &[],
             },
             temporal: &inventories.temporal,
         }
@@ -828,7 +840,9 @@ fn admit_model(
 ) -> Result<NativeModel, Absence> {
     let source = Source::read(
         SourceIdentity {
+            authority: selected.source.native.authority.clone(),
             identity: selected.source.native.identity.clone(),
+            revision_namespace: selected.source.native.revision_namespace.clone(),
             revision: selected.source.native.revision.clone(),
         },
         selected.source.path.clone(),

@@ -22,10 +22,15 @@ use quire_spec_language::{
     model_source::{self, ModelSourceLimits},
     native_model::ModelLimits,
     protocol_artifact::{
-        handoff::{SelectedDependency, Selection, PUBLISHED_V1_HANDOFF, PUBLISHED_V1_OFFER_FILE},
+        handoff::{
+            SelectedDependency, Selection, PUBLISHED_V1_OFFER_FILE, PUBLISHED_V1_SELECTION_FILE,
+        },
         NumberWire,
     },
 };
+
+#[path = "support/v2_handoff/qsl_producer.rs"]
+mod qsl_producer;
 
 struct Fixture {
     selection: Selection,
@@ -35,13 +40,15 @@ struct Fixture {
 
 impl Fixture {
     fn load(root: &Path) -> Self {
-        // This B-owned immutable selection fixture is loaded before the offer.
-        // It is distinct from A's emitted `expected.json`, which the harness
-        // never reads. The offered package can therefore not select its own
-        // acceptance context.
-        let selection: Selection =
-            serde_json::from_slice(include_bytes!("fixtures/a-four-unit-selections.json"))
-                .expect("B selection fixture shape");
+        // A publishes the independent selection sidecar beside the offer as a
+        // separate member. It is loaded by reference from the exactly pinned
+        // QSL source, before the offer, and is never read out of the offered
+        // bytes, so the offered package cannot select its own acceptance
+        // context. B keeps no copy of it.
+        let selection: Selection = serde_json::from_slice(
+            &fs::read(root.join(PUBLISHED_V1_SELECTION_FILE)).expect("A selection sidecar"),
+        )
+        .expect("A selection sidecar shape");
         // Each selected source names a file in the handoff whose bytes hash to
         // the digest the selection carries. A non-empty-string check passed on
         // any fixture ever committed; this one fails whenever the selection and
@@ -62,7 +69,9 @@ impl Fixture {
         assert_eq!(ByteDigest::of(&model_bytes), model_source.artifact.digest);
         let source = Source::read(
             SourceIdentity {
+                authority: model_source.native.authority.clone(),
                 identity: model_source.native.identity.clone(),
+                revision_namespace: model_source.native.revision_namespace.clone(),
                 revision: model_source.native.revision.clone(),
             },
             &model_source.path,
@@ -209,6 +218,7 @@ impl Fixture {
                 sources: &expected_sources,
                 dependencies: &dependencies,
                 models: &models,
+                domain_packages: &[],
             },
         )
     }
@@ -226,8 +236,13 @@ fn dependency_bytes(
     fs::read(root.join(&dependency.file)).expect("selected model bytes")
 }
 
+/// A complete `/1` handoff freshly emitted by A's own producer from the exactly
+/// pinned QSL source. The committed `PUBLISHED_V1_HANDOFF` copy omits
+/// dependency bytes, so it is not admissible; see `qsl_producer`.
 fn fixture_root() -> std::path::PathBuf {
-    std::path::PathBuf::from(PUBLISHED_V1_HANDOFF)
+    qsl_producer::v1()
+        .unwrap_or_else(|cause| panic!("A's /1 producer did not run: {cause}"))
+        .to_path_buf()
 }
 
 fn offered_bytes(root: &Path) -> Vec<u8> {
@@ -601,6 +616,7 @@ fn it_001_inventory_identifies_one_b_owned_reader_path() {
         dependencies,
         [
             "quire-spec-language",
+            "qsl-foundation",
             "quire-observation",
             "quire-verification-contracts",
             "engineering-assurance",
@@ -618,6 +634,7 @@ fn it_001_inventory_identifies_one_b_owned_reader_path() {
     // version made Cargo qualify the reference.
     for required in [
         "quire-spec-language",
+        "qsl-foundation",
         "quire-observation",
         "quire-verification-contracts",
         "engineering-assurance",
@@ -906,8 +923,7 @@ fn it_001_refuses_one_axis_cross_domain_baseline_digest() {
             slot: DigestSlot::Baseline,
             selected: DigestDomain::RawArtifact,
             offered: OfferedDomain::ForeignLabel("sha512".to_owned()),
-            value: "sha512:6f9cb8bf8521ca51a5e6340511b545db43001879446a59c5c87efe4985acdb06"
-                .to_owned(),
+            value: foreign.clone(),
         }),
         "got {error:?}"
     );

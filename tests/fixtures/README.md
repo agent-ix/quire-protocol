@@ -1,27 +1,18 @@
-# A four-unit selection fixture
+# IT-001 handoffs
 
-`a-four-unit-selections.json` is B's reviewed acceptance selection for IT-001.
-It is derived against the original sources, admitted model, contract and
-dependency bytes produced by `native_protocol_handoff` at `quire-spec-language`
-`6c8c401bb807a417215fae7593ef27fd9bab051e` — an ancestor of the QSL revision
-`0c2f13e261c0ffeaf89f0638931b573ec038e99b` currently pinned by this crate —
-and retained
-here as an AGPL-3.0-only compatibility fixture. JSON does not support an SPDX
-header; this provenance record supplies the applicable license notice.
+B keeps no copy of A's handoffs or selection sidecars. QSL's committed handoff
+copies (`PUBLISHED_V1_HANDOFF`, `PUBLISHED_HANDOFF`) carry no `dependencies/`
+bytes and select an empty dependency inventory, so they cannot be admitted.
+The IT-001 lanes therefore run A's own `native_protocol_handoff` and
+`native_protocol_v2_handoff` examples from the exactly pinned
+`quire-spec-language` source, once per test process, into
+`<target-dir>/qsl-producer/` (`tests/support/v2_handoff/qsl_producer.rs`). The
+first run builds those examples, which takes a few minutes.
 
-The runtime test never reads the producer-emitted `expected.json`. It selects
-this local fixture before it reads `compiled-protocol.json`, then independently
-loads the corresponding source, model, producer, and dependency bytes from the
-actual producer directory.
-
-QSL #112 replaced the ambient build-specific address with the committed,
-owner-exported `PUBLISHED_V1_HANDOFF` and member-name constants. QSL #114 then
-gave `Service` and `Provider` distinct admitted model authorities. The selected
-version-1 package digest is
-`sha256:fb00f406798997dae14c6de1b5e61c184c354f5470aa926dde8813e707e50cce`.
-Protocol retains its own reviewed selection snapshot, but obtains the offered
-bytes and every selected dependency from QSL's exactly pinned crate source.
-It neither vendors the handoff nor invokes the producer during tests.
+Each lane reads the producer's own selection sidecar (`expected.json`,
+`expected-v2.json`) before it reads the offer, checks every retained input
+against its selected digest, and never derives an expectation from the offered
+bytes.
 
 ## Running the IT-001 version-1 lane
 
@@ -55,9 +46,8 @@ unchanged while the new `/2` module was added separately.
 ## Version 2 published handoff
 
 The version 2 lane also needs no environment variable or vendored fixture. It loads
-`protocol_artifact::handoff::PUBLISHED_HANDOFF` from the exactly pinned
-`quire-spec-language` source and imports that module's member-name and
-mutation-format constants. `tests/it001_v2_handoff.rs` verifies the published
+the fresh `native_protocol_v2_handoff` output described above and imports
+`protocol_artifact::handoff`'s member-name and mutation-format constants. `tests/it001_v2_handoff.rs` verifies the published
 checksums before decoding, then runs the base offer, all 28 published mutations,
 both cross-version submissions, and exact/one-short/fresh probes for every
 `protocol_artifact::Dimension::ALL` member under the default local gate.

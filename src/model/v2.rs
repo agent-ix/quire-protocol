@@ -1211,13 +1211,9 @@ fn selection_closure(
             .models
             .get(usize::try_from(*index).unwrap_or(usize::MAX))
             .ok_or(SelectionClosureRefusal::InvalidSelection)?;
+        // FR-042 (QSL-63): a model names its domain package by digest, not by
+        // dependency-table index, so the model artifact is its only coordinate.
         dependencies.insert(model.artifact);
-        if let Some(correspondence) = &model.correspondence.0 {
-            dependencies.insert(correspondence.producer.interface);
-            dependencies.insert(correspondence.native);
-            dependencies.insert(correspondence.relation);
-            dependencies.extend(correspondence.exports.iter().copied());
-        }
     }
     close_dependencies(&mut dependencies, &inherited.dependencies)?;
 

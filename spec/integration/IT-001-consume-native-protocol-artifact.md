@@ -70,9 +70,12 @@ post-admission concern that IT-001 does not exercise. Neither version may
 select, repair, upgrade, or downgrade the other, neither may be detected from
 the offered bytes, and the two mutually refuse.
 
-The published handoff is integration evidence owned by the producer and reached
-through `PUBLISHED_HANDOFF` in the pinned dependency source. No environment
-variable, copied path, or vendored mirror selects it.
+The handoff is integration evidence owned by the producer. The committed copy
+under `PUBLISHED_HANDOFF` carries no dependency bytes and cannot be admitted, so
+B runs the producer's own `native_protocol_handoff` and
+`native_protocol_v2_handoff` examples from the pinned dependency source and
+reads their complete output. No environment variable, copied path, or vendored
+mirror selects it.
 
 ## Inputs
 
