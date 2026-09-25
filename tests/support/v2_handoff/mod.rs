@@ -694,7 +694,8 @@ fn member_path(root: &Path, relative: &str, role: &str) -> Result<PathBuf, Absen
 /// It does not establish provenance: the manifest is verified only against
 /// itself. Provenance is anchored separately by loading only A's exported path
 /// from the exactly pinned dependency source.
-fn verify_checksums(root: &Path) -> Result<(), Absence> {
+/// Verify the handoff's `SHA256SUMS` over every member under `root`.
+pub fn verify_checksums(root: &Path) -> Result<(), Absence> {
     // The walk runs first: it refuses symbolic links, whose bytes are not the
     // published ones, before any member is read through one.
     let present = published_files(root, root, 0)?;

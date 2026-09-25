@@ -148,10 +148,15 @@ not that. A publishes it (`expected.json` for version 1, `expected-v2.json` for
 version 2) as its own handoff member beside the offer. B reads it before the
 offer, checks every source, model and dependency byte against its digests, and
 re-admits the model through A's reader and compares the bytes, as IT-001 SC-01
-states.
+states. The sidecar is A's own assertion under B's exact pin of A's source: its
+authority is that pin, and it is not independent evidence of the selection. B's
+independent anchor is that each selected source's bytes equal the source file
+in the pinned checkout of A.
 
-Amended for QSL-250. This paragraph previously refused the sidecar outright and
-attributed that refusal to AD-001, which contains no such sentence. The code
+Amended for QSL-250. This paragraph previously refused the sidecar outright,
+quoting AD-001, which contains no such sentence; the refusal came from
+[FR-013](../functional/FR-013-offered-versus-selected.md) "Self-authorization",
+amended with it. The code
 had already diverged: the version 2 lane has read `expected-v2.json` since
 Task-012, and the version 1 lane's "independently retained" selection was a
 stale copy of A's `expected.json`. The copy is deleted and the text now states

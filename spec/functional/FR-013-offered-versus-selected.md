@@ -49,11 +49,14 @@ independent; a selection derived from the offer is not a selection.
 ### Self-authorization
 
 An offer that supplies its own acceptance context authorizes itself, and is
-refused. A producer-emitted sidecar carrying the expected selection — an
-`expected.json` beside the artifact, or any equivalent — is never this
-repository's selection source ([FR-009](./FR-009-lock-external-producer-revisions.md)
-"Self-authorization", IT-001 Dependencies). The recipe by which an expectation
-is constructed is a derivation this repository implements, not a file it reads.
+refused. A selection read out of the offered bytes, or out of any member the
+offered package contains, is never this repository's selection source
+([FR-009](./FR-009-lock-external-producer-revisions.md) "Self-authorization").
+A's selection sidecar (`expected.json`, `expected-v2.json`) is not such a
+member: A publishes it as its own handoff member beside the offer, under this
+repository's exact pin of A's source, and B reads it before the offer and
+checks every input it selects against its digest (IT-001 SC-01 and
+Dependencies, [ADR-007](../adr/ADR-007-consume-compiled-artifacts-author-no-parser.md)).
 A contract version is likewise never inferred from the offered bytes
 ([FR-001](./FR-001-admit-selected-protocol-profile.md) Behavior).
 
@@ -113,7 +116,7 @@ erases which side moved, which is the whole content of this discrimination.
 | --- | --- | --- |
 | FR-013-AC-1 | An offered value and a selected value that are byte-identical over the same subject compare unequal, in both directions. | Test (TC-001, IT-001) |
 | FR-013-AC-2 | Mutating one selected-side component and mutating one offered-side component each refuse, and the two refusals carry different typed outcome identities. | Test (TC-001, IT-001) |
-| FR-013-AC-3 | An offer supplying its own acceptance context — a producer-emitted sidecar, display name, path or message text — is refused as a selection source, and removing it changes no admission outcome. | Test (TC-001, IT-001) |
+| FR-013-AC-3 | An offer supplying its own acceptance context — a selection, display name, path or message text carried in the offered bytes or in any member the offered package contains — is refused as a selection source, and removing or altering such a member changes no admission outcome. | Test (TC-001, IT-001) |
 | FR-013-AC-4 | A contract version is inferred from no offered bytes, and bytes of one contract version offered at another version's entry point refuse with no detection, upgrade, downgrade or repair. | Test (IT-001) |
 | FR-013-AC-5 | A value carrying no provenance is compared against no expectation and refuses, rather than being defaulted to either side. | Test (TC-001) |
 | FR-013-AC-6 | Changing a display name, path, span, message text or locale on either side changes no equality verdict and no refusal identity. | Test (TC-001, IT-001) |

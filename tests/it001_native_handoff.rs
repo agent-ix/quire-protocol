@@ -29,8 +29,11 @@ use quire_spec_language::{
     },
 };
 
-#[path = "support/v2_handoff/qsl_producer.rs"]
-mod qsl_producer;
+#[allow(dead_code, unused_imports)]
+#[path = "support/v2_handoff/mod.rs"]
+mod handoff;
+
+use handoff::qsl_producer;
 
 struct Fixture {
     selection: Selection,
@@ -40,6 +43,9 @@ struct Fixture {
 
 impl Fixture {
     fn load(root: &Path) -> Self {
+        // Every member is listed in A's checksum manifest and hashes to it;
+        // an unlisted, corrupt or symbolic-link member refuses.
+        handoff::verify_checksums(root).expect("A's /1 handoff checksums");
         // A publishes the independent selection sidecar beside the offer as its
         // own member. It is read from the fresh output of A's producer (see
         // `qsl_producer`), before the offer, and never out of the offered
@@ -55,6 +61,7 @@ impl Fixture {
         // any fixture ever committed; this one fails whenever the selection and
         // the handoff are derived from different producer runs, which is how a
         // hybrid fixture went unnoticed across two A revisions.
+        let qsl = qsl_producer::qsl_root().expect("pinned QSL source");
         for source in &selection.sources {
             let bytes = fs::read(root.join(&source.file))
                 .unwrap_or_else(|error| panic!("selected source {}: {error}", source.file));
@@ -64,10 +71,19 @@ impl Fixture {
                 "selected source {} does not hash to its selected digest",
                 source.file
             );
+            assert_authored_source(qsl, &source.source.path, &bytes);
         }
         let model_source = &selection.model.source;
         let model_bytes = fs::read(root.join(&selection.model.source_file)).expect("model bytes");
         assert_eq!(ByteDigest::of(&model_bytes), model_source.artifact.digest);
+        // B's anchor, independent of the sidecar: the model source is the
+        // authored file in the pinned QSL checkout, byte for byte.
+        assert_eq!(
+            model_bytes,
+            fs::read(qsl.join(&model_source.path)).expect("authored model source"),
+            "model source {} differs from the pinned QSL checkout",
+            model_source.path
+        );
         let source = Source::read(
             SourceIdentity {
                 authority: model_source.native.authority.clone(),
@@ -231,6 +247,29 @@ impl Fixture {
                 domain_packages: &[],
             },
         )
+    }
+}
+
+/// B's anchor, independent of the sidecar: a selected native source is the
+/// authored unit body in the pinned QSL checkout (`<unit>.body.native` beside the
+/// selected path), preceded only by the import header A's producer prepends.
+fn assert_authored_source(qsl: &Path, path: &str, bytes: &[u8]) {
+    let stem = path
+        .strip_suffix(".native")
+        .unwrap_or_else(|| panic!("selected source {path} is not a .native unit"));
+    let body = fs::read(qsl.join(format!("{stem}.body.native")))
+        .unwrap_or_else(|error| panic!("authored body for {path}: {error}"));
+    let header = bytes
+        .strip_suffix(body.as_slice())
+        .unwrap_or_else(|| panic!("selected source {path} does not end with its authored body"));
+    let header = std::str::from_utf8(header).expect("UTF-8 import header");
+    for line in header.lines() {
+        assert!(
+            ["language ", "profile ", "model "]
+                .iter()
+                .any(|prefix| line.starts_with(prefix)),
+            "selected source {path} carries a non-import header line: {line:?}"
+        );
     }
 }
 

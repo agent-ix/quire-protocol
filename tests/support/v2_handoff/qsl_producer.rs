@@ -71,11 +71,7 @@ fn runs() -> Result<&'static Runs, String> {
 ///
 /// Every call emits afresh; `v1()`/`v2()` call this once per process.
 pub fn emit_and_publish() -> Result<PathBuf, String> {
-    // `PUBLISHED_HANDOFF` is `<QSL source>/artifacts/compiled-protocol-v2`.
-    let qsl = Path::new(PUBLISHED_HANDOFF)
-        .parent()
-        .and_then(Path::parent)
-        .ok_or_else(|| format!("{PUBLISHED_HANDOFF} has no QSL source root"))?;
+    let qsl = qsl_root()?;
     let build = producer_target()?;
 
     let cargo = std::env::var_os("CARGO").unwrap_or_else(|| OsString::from("cargo"));
@@ -110,13 +106,23 @@ pub fn emit_and_publish() -> Result<PathBuf, String> {
     publish(&build, &fresh)
 }
 
+/// The exactly pinned QSL source root.
+///
+/// `PUBLISHED_HANDOFF` is `<QSL source>/artifacts/compiled-protocol-v2`.
+pub fn qsl_root() -> Result<&'static Path, String> {
+    Path::new(PUBLISHED_HANDOFF)
+        .parent()
+        .and_then(Path::parent)
+        .ok_or_else(|| format!("{PUBLISHED_HANDOFF} has no QSL source root"))
+}
+
 /// Publish a fresh run under a directory named by its content:
 /// `handoff-<sha256 of v1/SHA256SUMS then v2/SHA256SUMS>`. The inventories
 /// cover every member, so equal names mean equal runs. A run that is already
 /// published is reused and the fresh copy removed; nothing ever deletes or
 /// replaces a published directory, so a process still reading one (including
 /// a test that re-executes this binary) is never disturbed.
-fn publish(build: &Path, fresh: &Path) -> Result<PathBuf, String> {
+pub fn publish(build: &Path, fresh: &Path) -> Result<PathBuf, String> {
     let mut inventories = Sha256::new();
     for version in ["v1", "v2"] {
         let path = fresh.join(version).join("SHA256SUMS");
@@ -138,6 +144,7 @@ fn publish(build: &Path, fresh: &Path) -> Result<PathBuf, String> {
         remove_if_present(fresh)?;
         return Ok(published);
     }
+    remove_if_present(fresh)?;
     Err(format!(
         "cannot publish A's producer run at {}",
         published.display()
@@ -159,7 +166,7 @@ fn remove_if_present(directory: &Path) -> Result<(), String> {
 }
 
 /// `<target>/qsl-producer`, beside this test binary's own target directory.
-fn producer_target() -> Result<PathBuf, String> {
+pub fn producer_target() -> Result<PathBuf, String> {
     let executable = std::env::current_exe()
         .map_err(|error| format!("cannot locate the test executable: {error}"))?;
     // `<target>/<profile>/deps/<test binary>`.

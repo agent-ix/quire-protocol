@@ -151,8 +151,11 @@ dimension, one unit short of it, and a fresh budget at the exact value.
      A's `expected.json` selection sidecar, a separate handoff member, before
      the offer; checks every source, model and dependency byte against the
      sidecar's digests; and re-admits the model through A's reader and compares
-     its artifact bytes with the selected model dependency. Nothing is read out
-     of the offered bytes.
+     its artifact bytes with the selected model dependency. Independently of
+     the sidecar, each selected source must be its authored file in the pinned
+     QSL checkout: the model source byte for byte, and each native unit its
+     authored body preceded only by the producer's import header. Nothing is
+     read out of the offered bytes.
 2. Inspect the public admitted package and its source/declaration links.
    - IT-001-SC-02: all four source units, every declaration/reference, and the
      actual `Workflow.wide`/`Workflow.exact` binding path agree with the selected
