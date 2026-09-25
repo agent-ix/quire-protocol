@@ -8,7 +8,13 @@ description = "Strict consumer boundary for accepted native Quire protocol packa
 publish = false
 
 [dependencies]
-quire-spec-language = { git = "https://github.com/agent-ix/quire-spec-language", rev = "2736b62b2f741496590d099d71478b3044d638d6" }
+# QSL-250: bumped to the QSL-177/ADR-011 §6.1 layer F extraction commit.
+# quire-spec-language's own `checked_predicate`/`temporal_subject` etc. return
+# `qsl_foundation::ByteDigest` from that commit on (no root-crate re-export),
+# so this pin and qsl-foundation's below must resolve the same git commit for
+# the two crates' `ByteDigest` to unify as one type.
+quire-spec-language = { git = "https://github.com/agent-ix/quire-spec-language", rev = "512cc9dcb2471369e89f98ac6c3577acb5ee4840" }
+qsl-foundation = { git = "https://github.com/agent-ix/quire-spec-language", rev = "512cc9dcb2471369e89f98ac6c3577acb5ee4840" }
 quire-observation = { git = "https://github.com/agent-ix/quire-observation", rev = "2bdeb833a330bfa777c19eb4c28c423f856f3ba6" }
 quire-verification-contracts = { git = "https://github.com/agent-ix/quire-verification-contracts", rev = "da8d7272051b1cf02768ec459539551414fd6c21" }
 # Owner of the claim-strength vocabulary (EA FR-022). Only the serde-only
@@ -27,7 +33,10 @@ sha2 = "=0.10.9"
 [dev-dependencies]
 agent-ix-baseline-producer = { version = "=0.0.0", git = "https://github.com/agent-ix/filament-core-data", rev = "a6fe662542770e6acbec4917cfe1772b349ee414" }
 ix-trace-rs = { git = "https://github.com/agent-ix/ix-trace-rs", rev = "2ce4ebf47f726b9d76388220545cd0abda8a5cfb" }
-quire-contract-ir = { package = "quire-contract-model", git = "https://github.com/agent-ix/quire-contract-ir", rev = "53cc03c639e2e26528132d34d96dc56449df78e8" }
+# QSL-250: bumped alongside quire-spec-language's own pin above so this
+# test-only quire-contract-model identity type unifies with the one
+# quire-spec-language's `formal_source` resolves internally at its new pin.
+quire-contract-ir = { package = "quire-contract-model", git = "https://github.com/agent-ix/quire-contract-ir", rev = "dbb2e22d577b56fed5c27e81e584370acdf02512" }
 serde_json = "=1.0.151"
 
 [lints.rust]

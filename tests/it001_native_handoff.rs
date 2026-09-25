@@ -4,6 +4,7 @@
 use std::{fs, path::Path};
 
 use ix_trace_rs::trace;
+use qsl_foundation::{Source, SourceIdentity};
 use quire_contract_ir as ir;
 use quire_protocol::{
     digest::producer::{CrossDomainDigest, DigestDomain, DigestSlot, OfferedDomain},
@@ -24,7 +25,6 @@ use quire_spec_language::{
         handoff::{SelectedDependency, Selection, PUBLISHED_V1_HANDOFF, PUBLISHED_V1_OFFER_FILE},
         NumberWire,
     },
-    Source, SourceIdentity,
 };
 
 struct Fixture {

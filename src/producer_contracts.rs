@@ -9,6 +9,7 @@
 
 use core::fmt;
 
+use qsl_foundation::ByteDigest;
 use quire_observation::authority::{
     activation, availability, bundle, capture, clock, closure, completeness, observation, partial,
     population, position, progress,
@@ -18,7 +19,6 @@ use quire_spec_language::protocol_artifact::{
     native_temporal::{request, result, v2 as temporal_v2},
     v2 as artifact_v2, v3 as artifact_v3,
 };
-use quire_spec_language::ByteDigest;
 use sha2::{Digest as _, Sha256};
 
 use crate::bounds::inventory::{BudgetDimension, ResourceIncomplete, SourceSite, Usage};

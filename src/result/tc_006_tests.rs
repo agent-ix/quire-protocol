@@ -750,10 +750,7 @@ fn canonical_row_controls(input: Input<'_>, limits: Limits) -> CanonicalRowContr
 }
 
 fn temporal_digest(label: &str) -> String {
-    format!(
-        "{:x}",
-        quire_spec_language::ByteDigest::of(label.as_bytes())
-    )
+    format!("{:x}", qsl_foundation::ByteDigest::of(label.as_bytes()))
 }
 
 fn temporal_evidence(scope: &str, identity: &str) -> native_temporal::EvidenceRef {

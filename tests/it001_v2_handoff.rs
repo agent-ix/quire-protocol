@@ -11,10 +11,8 @@
 //! against the identity the sidecar selects for it before any admission runs.
 
 use ix_trace_rs::trace;
-use quire_spec_language::{
-    protocol_artifact::{self as artifact, v2},
-    ByteDigest,
-};
+use qsl_foundation::ByteDigest;
+use quire_spec_language::protocol_artifact::{self as artifact, v2};
 
 #[path = "support/v2_handoff/mod.rs"]
 mod handoff;

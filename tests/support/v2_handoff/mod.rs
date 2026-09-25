@@ -21,13 +21,13 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use qsl_foundation::{ByteDigest, Source, SourceIdentity};
 use quire_contract_ir as ir;
 use quire_spec_language::{
     formal_source::FormalSource,
     model_source::{self, ModelSourceLimits},
     native_model::{ModelLimits, NativeModel},
     protocol_artifact::{self as artifact, v2, wire as w},
-    ByteDigest, Source, SourceIdentity,
 };
 
 // ---------------------------------------------------------------------------

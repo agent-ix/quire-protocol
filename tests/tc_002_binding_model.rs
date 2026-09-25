@@ -7,6 +7,7 @@ use std::time::{Duration, Instant};
 
 use agent_ix_baseline_producer::StaticProducerBundle;
 use ix_trace_rs::trace;
+use qsl_foundation::ByteDigest;
 use quire_observation::{
     authority::{closure, completeness, observation, progress, OpenClosed},
     QualifiedSubject, Relationship, RelationshipIdentity, SubjectIdentity, SubjectKind,
@@ -47,7 +48,7 @@ use quire_spec_language::protocol_artifact::{
     occurrence_key_schema, temporal_subject, v2 as artifact_v2, v3, wire as qsl_wire,
     WorkflowInstanceIdentity,
 };
-use quire_spec_language::{temporal, ByteDigest};
+use quire_spec_language::temporal;
 
 // The shared handoff reader carries all public mutation helpers; this focused
 // binding lane exercises only `Handoff`, so the remaining helper surface is
