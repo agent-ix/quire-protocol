@@ -12,8 +12,8 @@ publish = false
 # (ADR-011 layer F); A's reader returns its `ByteDigest`/`Source`/
 # `SourceIdentity`, so both pins must name the same commit for those types to
 # unify.
-quire-spec-language = { git = "https://github.com/agent-ix/quire-spec-language", rev = "51245876e0d406aeed3047c608ad478b53b19205" }
-qsl-foundation = { git = "https://github.com/agent-ix/quire-spec-language", rev = "51245876e0d406aeed3047c608ad478b53b19205" }
+quire-spec-language = { git = "https://github.com/agent-ix/quire-spec-language", rev = "9395be4268e650ca2753204d6d306c9cd7b453ec" }
+qsl-foundation = { git = "https://github.com/agent-ix/quire-spec-language", rev = "9395be4268e650ca2753204d6d306c9cd7b453ec" }
 quire-observation = { git = "https://github.com/agent-ix/quire-observation", rev = "2bdeb833a330bfa777c19eb4c28c423f856f3ba6" }
 quire-verification-contracts = { git = "https://github.com/agent-ix/quire-verification-contracts", rev = "da8d7272051b1cf02768ec459539551414fd6c21" }
 # Owner of the claim-strength vocabulary (EA FR-022). Only the serde-only
@@ -30,11 +30,15 @@ jsonschema = { version = "=0.17.1", default-features = false, features = ["draft
 sha2 = "=0.10.9"
 
 [dev-dependencies]
+# QSL-251: the test producer calls QSL's in-process handoff writer
+# (`protocol_artifact::handoff::{write_v1, write_v2}`); the feature is
+# test-only, so the production dependency above does not embed the recipe.
+quire-spec-language = { git = "https://github.com/agent-ix/quire-spec-language", rev = "9395be4268e650ca2753204d6d306c9cd7b453ec", features = ["handoff-writer"] }
 agent-ix-baseline-producer = { version = "=0.0.0", git = "https://github.com/agent-ix/filament-core-data", rev = "a6fe662542770e6acbec4917cfe1772b349ee414" }
 ix-trace-rs = { git = "https://github.com/agent-ix/ix-trace-rs", rev = "2ce4ebf47f726b9d76388220545cd0abda8a5cfb" }
 # The exact contract-IR revision QSL's own manifest pins, so this test-only
 # identity type unifies with the one `quire-spec-language` resolves internally.
-quire-contract-ir = { package = "quire-contract-model", git = "https://github.com/agent-ix/quire-contract-ir", rev = "dc03aa4ecfbce9958efe6d766497d44c44e1200a" }
+quire-contract-ir = { package = "quire-contract-model", git = "https://github.com/agent-ix/quire-contract-ir", rev = "7b1ec7a19f031dcea433293a25af57f0bb6a14f8" }
 serde_json = "=1.0.151"
 
 [features]
