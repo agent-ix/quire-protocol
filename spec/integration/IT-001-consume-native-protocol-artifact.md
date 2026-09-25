@@ -74,9 +74,8 @@ the offered bytes, and the two mutually refuse.
 
 The handoff is integration evidence owned by the producer. The committed copy
 under `PUBLISHED_HANDOFF` carries no dependency bytes and cannot be admitted, so
-B runs the producer's own `native_protocol_handoff` and
-`native_protocol_v2_handoff` examples from the pinned dependency source and
-reads their complete output. No environment variable, copied path, or vendored
+B calls the producer's public `handoff-writer` `write_v1` and `write_v2`
+from the pinned dependency and reads their complete output. No environment variable, copied path, or vendored
 mirror selects it.
 
 ## Inputs
@@ -179,7 +178,7 @@ dimension, one unit short of it, and a fresh budget at the exact value.
    sidecar, built as `v2::Expected` and `v2::ExpectedTemporal` without reading A's
    offered bytes, through `quire_protocol::intake::v2::admit` and
    `quire_protocol::model::v2::link`. Load the bundle
-   from a fresh run of A's `native_protocol_v2_handoff` producer at the pinned
+   from a fresh run of A's `write_v2` at the pinned
    revision and use A's exported
    member-name and manifest-format constants rather than B-owned literals. Submit each
    version's bytes at the other version's entry point; and reseal one changed
@@ -298,7 +297,7 @@ The version 1 numeric and handoff commits that were previously reachable only fr
 `agent-a/handoff-numeric-domains` are contained in A's `main`. QSL #112 added
 the committed version-1 address, and QSL #114 corrected the published package's
 Service/Provider authority collision; both are included by the current
-`5124587` pin.
+pin.
 
 A prose definition, native source file, emitted sidecar, hand-authored bytes, or
 a version 1 value cannot substitute for either compiled interface because this
@@ -324,7 +323,7 @@ A's hard maximum — builds synthetic handoffs under `CARGO_TARGET_TMPDIR` and i
 checked on every gate run.
 
 The version 2 lane runs on every local gate from the fresh
-`native_protocol_v2_handoff` output. Its loader verifies `PUBLISHED_CHECKSUMS_FILE` over every
+`write_v2` output. Its loader verifies `PUBLISHED_CHECKSUMS_FILE` over every
 published member before decoding, and the lane admits the base offer, checks
 both cross-version submissions, runs all 28 manifest mutations, and probes every
 member of `Dimension::ALL` at exact usage, one-short, and fresh exact usage.

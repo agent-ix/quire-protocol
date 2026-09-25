@@ -1100,30 +1100,59 @@ fn a_ceiling_above_a_s_hard_maximum_is_refused() {
     );
 }
 
-/// A's writer is deterministic: two runs write byte-identical inventories, and
-/// the lane loads the process's own run.
+/// A's writer is deterministic and its runs publish once: two runs write
+/// identical inventories, land in ONE content-addressed directory (the second
+/// reuses the first in place), and that directory is the one the lane loads.
 ///
 /// Tracing: Task-012.
 #[test]
 #[trace("Task-012")]
-fn producer_runs_are_deterministic() {
+fn producer_runs_publish_once_and_are_reused() {
+    use std::os::unix::fs::MetadataExt;
+
     let inventory = |root: &std::path::Path| {
         ["v1", "v2"].map(|version| {
             std::fs::read(root.join(version).join("SHA256SUMS")).expect("written inventory")
         })
     };
     let first = handoff::qsl_producer::emit().expect("first producer run");
-    let second = handoff::qsl_producer::emit().expect("second producer run");
-    assert_ne!(first, second, "each run writes its own directory");
-    assert_eq!(
+    let (first_inode, before) = (
+        std::fs::metadata(&first)
+            .expect("published directory")
+            .ino(),
         inventory(&first),
-        inventory(&second),
-        "two runs must write identical bytes"
     );
-    let lane = handoff::qsl_producer::v2().expect("lane handoff");
+    let second = handoff::qsl_producer::emit().expect("second producer run");
+    assert_eq!(first, second, "an identical run must reuse one directory");
     assert_eq!(
-        std::fs::read(lane.join("SHA256SUMS")).expect("lane inventory"),
-        inventory(&first)[1],
-        "the lane loads a run with the same bytes"
+        std::fs::metadata(&second)
+            .expect("published directory")
+            .ino(),
+        first_inode,
+        "the published directory was replaced"
+    );
+    assert_eq!(inventory(&second), before, "a reused run keeps its bytes");
+    assert_eq!(
+        handoff::qsl_producer::v2().expect("lane handoff"),
+        second.join("v2"),
+        "the lane loads the published directory"
+    );
+    let name = first
+        .file_name()
+        .and_then(|name| name.to_str())
+        .expect("published directory name");
+    assert!(
+        name.strip_prefix("handoff-")
+            .is_some_and(|digest| digest.len() == 64),
+        "published directory is content-addressed: {name}"
+    );
+    let base = handoff::qsl_producer::producer_target().expect("producer directory");
+    let mine = format!("fresh-{}-", std::process::id());
+    assert!(
+        std::fs::read_dir(&base)
+            .expect("producer directory listing")
+            .filter_map(Result::ok)
+            .all(|entry| !entry.file_name().to_string_lossy().starts_with(&mine)),
+        "this process left no fresh temp directory"
     );
 }

@@ -22,6 +22,8 @@ use std::{
     },
 };
 
+use sha2::{Digest, Sha256};
+
 use quire_spec_language::protocol_artifact::handoff::{write_v1, write_v2, PUBLISHED_HANDOFF};
 
 /// Directories holding one `/1` and `/2` producer run.
@@ -54,29 +56,61 @@ fn runs() -> Result<&'static Runs, String> {
     .map_err(Clone::clone)
 }
 
-/// Write A's `/1` and `/2` handoffs into a directory private to this call,
-/// beside this test binary's target directory. Returns the directory, which
+/// Write A's `/1` and `/2` handoffs into a private temp directory, then
+/// publish it as `handoff-<sha256 of v1/SHA256SUMS then v2/SHA256SUMS>` beside
+/// this test binary's target directory. Returns the published directory, which
 /// holds `v1/` and `v2/`.
 ///
-/// Every call writes afresh; `v1()`/`v2()` call this once per process.
-#[allow(dead_code, reason = "each including test target uses one version")]
+/// The inventories cover every member, so equal names mean equal runs and the
+/// number of directories stays bounded across test processes. A run that is
+/// already published is reused and the fresh copy removed; nothing replaces a
+/// published directory, so a process still reading one is never disturbed. A
+/// concurrent process that loses the rename does the same.
 pub fn emit() -> Result<PathBuf, String> {
     static CALLS: AtomicUsize = AtomicUsize::new(0);
-    let run = producer_target()?.join(format!(
-        "run-{}-{}",
+    let base = producer_target()?;
+    let fresh = base.join(format!(
+        "fresh-{}-{}",
         std::process::id(),
         CALLS.fetch_add(1, Ordering::Relaxed)
     ));
-    match fs::remove_dir_all(&run) {
-        Ok(()) => {}
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-        Err(error) => return Err(format!("cannot remove {}: {error}", run.display())),
+    remove_if_present(&fresh)?;
+    fs::create_dir_all(&fresh)
+        .map_err(|error| format!("cannot create {}: {error}", fresh.display()))?;
+    write_v1(&fresh.join("v1")).map_err(|error| format!("A's write_v1 failed: {error}"))?;
+    write_v2(&fresh.join("v2")).map_err(|error| format!("A's write_v2 failed: {error}"))?;
+
+    let mut inventories = Sha256::new();
+    for version in ["v1", "v2"] {
+        let path = fresh.join(version).join("SHA256SUMS");
+        let bytes =
+            fs::read(&path).map_err(|error| format!("cannot read {}: {error}", path.display()))?;
+        inventories.update(&bytes);
     }
-    fs::create_dir_all(&run)
-        .map_err(|error| format!("cannot create {}: {error}", run.display()))?;
-    write_v1(&run.join("v1")).map_err(|error| format!("A's write_v1 failed: {error}"))?;
-    write_v2(&run.join("v2")).map_err(|error| format!("A's write_v2 failed: {error}"))?;
-    Ok(run)
+    let name: String = inventories
+        .finalize()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
+    let published = base.join(format!("handoff-{name}"));
+    if !published.is_dir() && fs::rename(&fresh, &published).is_ok() {
+        return Ok(published);
+    }
+    // Already published, possibly by a concurrent process that won the rename.
+    remove_if_present(&fresh)?;
+    if published.is_dir() {
+        Ok(published)
+    } else {
+        Err(format!("cannot publish A's run at {}", published.display()))
+    }
+}
+
+fn remove_if_present(directory: &Path) -> Result<(), String> {
+    match fs::remove_dir_all(directory) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(format!("cannot remove {}: {error}", directory.display())),
+    }
 }
 
 /// The exactly pinned QSL source root.
