@@ -27,8 +27,6 @@ use quire_spec_language::protocol_artifact::handoff::PUBLISHED_HANDOFF;
 const V1_EXAMPLE: &str = "native_protocol_handoff";
 /// A's version-2 producer example.
 const V2_EXAMPLE: &str = "native_protocol_v2_handoff";
-/// Prefix of each per-process output directory under the producer target dir.
-const RUN_PREFIX: &str = "handoff-";
 
 /// Directories holding one fresh `/1` and `/2` producer run.
 struct Runs {
@@ -76,30 +74,70 @@ fn run() -> Result<Runs, String> {
         return Err(format!("building A's producer examples failed: {status}"));
     }
 
-    sweep_previous_runs(&build);
-    let output = build.join(format!("{RUN_PREFIX}{}", std::process::id()));
-    if output.exists() {
-        fs::remove_dir_all(&output)
-            .map_err(|error| format!("cannot clear {}: {error}", output.display()))?;
-    }
-    fs::create_dir_all(&output)
-        .map_err(|error| format!("cannot create {}: {error}", output.display()))?;
-
+    // Emit into a private directory, then publish it as the one shared
+    // `handoff` directory. The producer is deterministic, so a process that
+    // finds an identical published run reuses it; this includes tests that
+    // re-execute this binary while the parent is still reading its handoff.
+    let fresh = build.join(format!("fresh-{}", std::process::id()));
+    remove_if_present(&fresh)?;
+    fs::create_dir_all(&fresh)
+        .map_err(|error| format!("cannot create {}: {error}", fresh.display()))?;
     let examples = build.join("debug").join("examples");
-    let runs = Runs {
-        v1: output.join("v1"),
-        v2: output.join("v2"),
-    };
-    for (example, directory) in [(V1_EXAMPLE, &runs.v1), (V2_EXAMPLE, &runs.v2)] {
+    for (example, version) in [(V1_EXAMPLE, "v1"), (V2_EXAMPLE, "v2")] {
         let status = Command::new(examples.join(example))
-            .arg(directory)
+            .arg(fresh.join(version))
             .status()
             .map_err(|error| format!("cannot start A's {example}: {error}"))?;
         if !status.success() {
             return Err(format!("A's {example} failed: {status}"));
         }
     }
-    Ok(runs)
+
+    let published = build.join("handoff");
+    for _ in 0..2 {
+        if same_run(&published, &fresh) {
+            remove_if_present(&fresh)?;
+            return Ok(Runs {
+                v1: published.join("v1"),
+                v2: published.join("v2"),
+            });
+        }
+        // A different (older) run is published: replace it. If another
+        // process publishes first, the rename fails and the loop re-checks.
+        remove_if_present(&published)?;
+        if fs::rename(&fresh, &published).is_ok() {
+            return Ok(Runs {
+                v1: published.join("v1"),
+                v2: published.join("v2"),
+            });
+        }
+    }
+    Err(format!(
+        "cannot publish A's producer run at {}",
+        published.display()
+    ))
+}
+
+/// Two runs are the same when both versions' complete checksum inventories
+/// are byte-identical.
+fn same_run(left: &Path, right: &Path) -> bool {
+    ["v1", "v2"].iter().all(|version| {
+        match (
+            fs::read(left.join(version).join("SHA256SUMS")),
+            fs::read(right.join(version).join("SHA256SUMS")),
+        ) {
+            (Ok(left), Ok(right)) => left == right,
+            _ => false,
+        }
+    })
+}
+
+fn remove_if_present(directory: &Path) -> Result<(), String> {
+    match fs::remove_dir_all(directory) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(format!("cannot remove {}: {error}", directory.display())),
+    }
 }
 
 /// `<target>/qsl-producer`, beside this test binary's own target directory.
@@ -113,20 +151,4 @@ fn producer_target() -> Result<PathBuf, String> {
         .and_then(Path::parent)
         .map(|target| target.join("qsl-producer"))
         .ok_or_else(|| format!("{} is not under a target directory", executable.display()))
-}
-
-/// Remove earlier processes' outputs. Cargo runs one test binary at a time,
-/// so no other live process reads them.
-fn sweep_previous_runs(build: &Path) {
-    let Ok(entries) = fs::read_dir(build) else {
-        return;
-    };
-    let own = format!("{RUN_PREFIX}{}", std::process::id());
-    for entry in entries.flatten() {
-        let name = entry.file_name();
-        let name = name.to_string_lossy();
-        if name.starts_with(RUN_PREFIX) && name != own {
-            let _ = fs::remove_dir_all(entry.path());
-        }
-    }
 }

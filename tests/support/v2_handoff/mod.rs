@@ -199,8 +199,8 @@ impl fmt::Display for Absence {
 pub use artifact::handoff::{
     MutationInput, MutationManifest, SelectedArtifactLimits, SelectedDeclaration, SelectedModel,
     SelectionV2, MUTATION_MANIFEST_FORMAT, PUBLISHED_ARTIFACT_REFERENCE_FILE,
-    PUBLISHED_CHECKSUMS_FILE, PUBLISHED_HANDOFF, PUBLISHED_MUTATION_MANIFEST_FILE,
-    PUBLISHED_OFFER_FILE, PUBLISHED_SELECTION_FILE,
+    PUBLISHED_CHECKSUMS_FILE, PUBLISHED_MUTATION_MANIFEST_FILE, PUBLISHED_OFFER_FILE,
+    PUBLISHED_SELECTION_FILE,
 };
 
 /// A's selected ceilings as this platform's `Limits`.
