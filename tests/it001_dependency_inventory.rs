@@ -18,9 +18,16 @@ const INTAKE_V1: &str = include_str!("../src/intake/v1.rs");
 const INTAKE_V2: &str = include_str!("../src/intake/v2.rs");
 const MODEL_V1: &str = include_str!("../src/model/v1.rs");
 
-/// A's accepted reader, pinned to the exact revision this lane froze.
+/// A's accepted reader. Its exact revision is whatever the manifest pins; this
+/// lane checks that every crate from A's repository resolves at that one
+/// revision, not which revision it is.
 const FRONTEND: &str = "quire-spec-language";
-const FRONTEND_REVISION: &str = "2736b62b2f741496590d099d71478b3044d638d6";
+/// A's foundation crate (ADR-011 layer F), from the same repository and
+/// revision as `FRONTEND`. It owns `ByteDigest`, `Source` and `SourceIdentity`,
+/// which A's reader returns, so the two must resolve one commit to unify.
+const FRONTEND_FOUNDATION: &str = "qsl-foundation";
+/// A's repository, as it appears in manifest and lockfile sources.
+const FRONTEND_REPOSITORY: &str = "agent-ix/quire-spec-language";
 
 /// F's promoted observation owner supplies typed progress, closure and
 /// completeness views. B consumes those views and does not mirror them.
@@ -91,9 +98,30 @@ const INVENTORY: &[&str] = &[
     // below still resolves exactly one package from A's repository -- and B
     // did not choose it: A did, and B's only say is whether it pins A.
     "agent-ix-baseline-producer",
+    // A's own workspace crates, split out of `quire-spec-language` (ADR-011),
+    // all resolved from A's repository at the one pinned revision; see
+    // `it_001_resolves_one_frontend_in_the_whole_graph`.
+    "qsl-attrs",
+    "qsl-cst",
+    "qsl-forms",
+    "qsl-foundation",
+    "qsl-package",
+    "qsl-semantics",
+    "quire-exact",
+    // Third repositories' crates reaching the graph through A at that
+    // revision; B did not choose them.
+    "agent-ix-extraction-frontend",
+    "agent-ix-semantic-ir",
+    "quire-canonical",
+    "quire-rs",
     "ahash",
     "aho-corasick",
     "allocator-api2",
+    "anstream",
+    "anstyle",
+    "anstyle-parse",
+    "anstyle-query",
+    "anstyle-wincon",
     "anyhow",
     "ar_archive_writer",
     "autocfg",
@@ -103,33 +131,47 @@ const INVENTORY: &[&str] = &[
     "bitflags",
     "block-buffer",
     "borrow-or-share",
+    "bstr",
     "bumpalo",
     "bytecount",
     "cc",
     "cfg-if",
     "chrono",
+    "clap",
+    "clap_builder",
+    "clap_derive",
+    "clap_lex",
+    "colorchoice",
     "cpufeatures",
+    "crossbeam-deque",
+    "crossbeam-epoch",
+    "crossbeam-utils",
     "crypto-common",
     "data-encoding",
     "deranged",
     "digest",
     "displaydoc",
     "dyn-clone",
+    "either",
     "email_address",
     "engineering-assurance",
     "equivalent",
+    "errno",
     "fancy-regex",
+    "fastrand",
     "find-msvc-tools",
-    "fnv",
     "fluent-uri",
+    "fnv",
     "foldhash",
     "form_urlencoded",
     "fraction",
     "futures-core",
     "futures-task",
     "futures-util",
+    "generator",
     "generic-array",
     "getrandom",
+    "globset",
     "hashbrown",
     "heck",
     "icu_collections",
@@ -141,6 +183,9 @@ const INVENTORY: &[&str] = &[
     "icu_provider",
     "idna",
     "idna_adapter",
+    "ignore",
+    "indexmap",
+    "is_terminal_polyfill",
     "iso8601",
     "itoa",
     "ix-trace-rs",
@@ -150,15 +195,20 @@ const INVENTORY: &[&str] = &[
     "jsonschema-value",
     "lazy_static",
     "libc",
+    "libyaml-rs",
+    "linux-raw-sys",
     "litemap",
-    "log",
     "lock_api",
+    "log",
     "logos",
     "logos-codegen",
     "logos-derive",
+    "loom",
+    "matchers",
     "memchr",
     "micromap",
     "nom",
+    "nu-ansi-term",
     "num",
     "num-bigint",
     "num-cmp",
@@ -170,6 +220,7 @@ const INVENTORY: &[&str] = &[
     "num-traits",
     "object",
     "once_cell",
+    "once_cell_polyfill",
     "outref",
     "parking_lot",
     "parking_lot_core",
@@ -185,18 +236,24 @@ const INVENTORY: &[&str] = &[
     "quire-verification-contracts",
     "quote",
     "r-efi",
+    "rayon",
+    "rayon-core",
     "redox_syscall",
     "ref-cast",
     "ref-cast-impl",
     "referencing",
-    "regress",
     "regex",
     "regex-automata",
     "regex-syntax",
+    "regress",
+    "rustix",
     "rustversion",
+    "ryu",
     "ryu-js",
+    "same-file",
     "schemars",
     "schemars_derive",
+    "scoped-tls",
     "scopeguard",
     "semver",
     "serde",
@@ -205,36 +262,50 @@ const INVENTORY: &[&str] = &[
     "serde_derive_internals",
     "serde_json",
     "serde_json_canonicalizer",
+    "serde_path_to_error",
     "serde_stacker",
     "serde_tokenstream",
     "sha2",
+    "sharded-slab",
     "shlex",
     "slab",
     "smallvec",
     "stable_deref_trait",
     "stacker",
+    "strsim",
     "strum",
     "strum_macros",
     "syn",
     "synstructure",
+    "tempfile",
     "thiserror",
     "thiserror-impl",
+    "thread_local",
     "time",
     "time-core",
     "time-macros",
     "tinystr",
+    "tinyvec",
+    "tracing",
+    "tracing-core",
+    "tracing-log",
+    "tracing-subscriber",
+    "typenum",
     "typify",
     "typify-impl",
     "typify-macro",
-    "typenum",
-    "unicode-ident",
     "unicode-general-category",
+    "unicode-ident",
+    "unicode-normalization",
     "url",
     "utf8_iter",
+    "utf8parse",
     "uuid",
     "uuid-simd",
+    "valuable",
     "version_check",
     "vsimd",
+    "walkdir",
     "wasi",
     "wasip2",
     "wasm-bindgen",
@@ -243,10 +314,14 @@ const INVENTORY: &[&str] = &[
     "wasm-bindgen-shared",
     "winapi",
     "winapi-i686-pc-windows-gnu",
+    "winapi-util",
     "winapi-x86_64-pc-windows-gnu",
     "windows-link",
+    "windows-result",
+    "windows-sys",
     "wit-bindgen",
     "writeable",
+    "yaml_serde",
     "yoke",
     "yoke-derive",
     "zerocopy",
@@ -288,6 +363,7 @@ fn it_001_declares_only_selected_owner_dependencies() {
         declared_packages(manifest_section("[dependencies]")),
         BTreeSet::from([
             FRONTEND,
+            FRONTEND_FOUNDATION,
             OBSERVATION_OWNER,
             E02_OWNER,
             CLAIM_STRENGTH_OWNER,
@@ -297,10 +373,18 @@ fn it_001_declares_only_selected_owner_dependencies() {
             STREAMING_DIGEST,
         ])
     );
-    assert!(
-        manifest_section("[dependencies]").contains(FRONTEND_REVISION),
-        "the single protocol dependency must stay pinned to the frozen revision"
-    );
+    let revision = frontend_revision();
+    for package in [FRONTEND, FRONTEND_FOUNDATION] {
+        let declaration = manifest_section("[dependencies]")
+            .lines()
+            .find(|line| line.starts_with(&format!("{package} = ")))
+            .unwrap_or_else(|| panic!("manifest declares {package}"));
+        assert!(
+            declaration.contains(FRONTEND_REPOSITORY)
+                && declaration.contains(&format!(r#"rev = "{revision}""#)),
+            "{package} must be pinned to A's repository at the reader's exact revision: {declaration}"
+        );
+    }
 
     // Development dependencies are harness-only: tracing, the cycle-free
     // Contract Model types used to construct the native handoff, the exact FCD
@@ -341,21 +425,44 @@ fn it_001_resolves_one_frontend_in_the_whole_graph() {
         "the resolved graph gained packages outside the frozen inventory: {unexpected:?}"
     );
 
-    // Exactly one resolved package comes from A's repository, at the frozen
-    // revision: there is no second copy, fork or alternate revision of the
-    // native frontend anywhere in the graph.
+    // Every resolved package from A's repository comes from one source, at the
+    // pinned revision: there is no second copy, fork or alternate revision of
+    // the native frontend anywhere in the graph. A's workspace crates share
+    // that one source line.
     // The baseline producer named in the inventory above comes from a third
     // repository, so the one-frontend claim would be empty if it could be a
     // second reader under another name. It cannot: it is not from A's
     // repository, which is what the assertion below counts.
+    let revision = frontend_revision();
     let from_a = LOCKFILE
         .lines()
-        .filter(|line| {
-            line.starts_with("source = ") && line.contains("agent-ix/quire-spec-language")
-        })
-        .collect::<Vec<_>>();
+        .filter(|line| line.starts_with("source = ") && line.contains(FRONTEND_REPOSITORY))
+        .collect::<BTreeSet<_>>();
     assert_eq!(from_a.len(), 1, "got {from_a:?}");
-    assert!(from_a[0].contains(FRONTEND_REVISION), "got {from_a:?}");
+    assert!(
+        from_a.iter().all(|source| source.contains(&revision)),
+        "got {from_a:?}"
+    );
+}
+
+/// The exact revision the manifest pins `FRONTEND` to.
+fn frontend_revision() -> String {
+    let declaration = manifest_section("[dependencies]")
+        .lines()
+        .find(|line| line.starts_with(&format!("{FRONTEND} = ")))
+        .unwrap_or_else(|| panic!("manifest declares {FRONTEND}"));
+    let (_, rest) = declaration
+        .split_once(r#"rev = ""#)
+        .unwrap_or_else(|| panic!("{FRONTEND} is pinned by rev: {declaration}"));
+    let (revision, _) = rest
+        .split_once('"')
+        .unwrap_or_else(|| panic!("{FRONTEND} rev is quoted: {declaration}"));
+    assert_eq!(
+        revision.len(),
+        40,
+        "{FRONTEND} rev is a full commit: {revision}"
+    );
+    revision.to_owned()
 }
 
 /// Tracing: TC-013 and NFR-006-AC-4.

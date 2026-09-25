@@ -64,7 +64,7 @@ fn owner_evidence(
         contract,
         schema_sha256,
         identity,
-        format!("{:x}", quire_spec_language::ByteDigest::of(bytes)),
+        format!("{:x}", qsl_foundation::ByteDigest::of(bytes)),
         authority.definition_identity.as_str(),
         authority.definition_revision.as_str(),
         digest_hex(authority.definition_digest.as_bytes()),

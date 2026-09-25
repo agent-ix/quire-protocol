@@ -1668,13 +1668,13 @@ const fn body_tag(body: &Body) -> &'static str {
 #[cfg(test)]
 mod tests {
     use ix_trace_rs::trace;
+    use qsl_foundation::ByteDigest;
     use quire_spec_language::protocol_artifact::wire::{
         Activation, ArtifactKind, ArtifactRef, Branch, Channel, ChoiceCase, Control,
         ControlOperation, EdgeKind, Endpoint, Execution, ExportRef, Finish, Handle, Integer,
         Interval, Nullable, Ordering, Port, Requirement, Revision, Role, Span, Subject, Wire,
     };
     use quire_spec_language::protocol_artifact::NumberWire;
-    use quire_spec_language::ByteDigest;
 
     use crate::bounds::inventory::{
         production_inventory, Budget, BudgetDimension, OperationOutcome, ResourceAccountant,

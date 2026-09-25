@@ -9,6 +9,7 @@
 
 use core::fmt;
 
+use qsl_foundation::ByteDigest;
 use quire_observation::authority::{
     activation, availability, bundle, capture, clock, closure, completeness, observation, partial,
     population, position, progress,
@@ -18,7 +19,6 @@ use quire_spec_language::protocol_artifact::{
     native_temporal::{request, result, v2 as temporal_v2},
     v2 as artifact_v2, v3 as artifact_v3,
 };
-use quire_spec_language::ByteDigest;
 use sha2::{Digest as _, Sha256};
 
 use crate::bounds::inventory::{BudgetDimension, ResourceIncomplete, SourceSite, Usage};
@@ -39,7 +39,11 @@ use crate::version_lock::{
 pub const QOBS_REVISION: &str = "924006300f45b38483be1cbdf99b68f899b7d368";
 /// Accepted QSL revision that first supplies the native-temporal v1 contracts.
 pub const QSL_NATIVE_TEMPORAL_REVISION: &str = "f1700a9264d6d3bcdd07e0f77b70f3dae9ed4c07";
-/// Accepted QSL revision compiled for the opaque-trigger v2 contracts.
+/// QSL revision at which the opaque-trigger v2 contracts were accepted.
+///
+/// Informational: this records the accepted contract revision carried in the
+/// version-lock manifest entries. It is not the linked `quire-spec-language`
+/// pin, which `Cargo.toml` names and which may be later.
 pub const QSL_OPAQUE_TRIGGER_REVISION: &str = "2736b62b2f741496590d099d71478b3044d638d6";
 
 const QOBS_OWNER: &str = "agent-ix/quire-observation";

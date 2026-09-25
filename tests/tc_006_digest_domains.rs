@@ -98,6 +98,7 @@ impl Selections {
             sources: &[],
             dependencies: &[],
             models: &[],
+            domain_packages: &[],
         }
     }
 
@@ -438,8 +439,12 @@ fn tc_006_no_two_selection_axes_share_a_code() {
 ///
 /// A's enums are `#[non_exhaustive]`. A debug-string catch-all therefore loses
 /// type identity exactly when A adds a family, and it already loses the
-/// published `Producer` and version-2 families at this pin. Retaining the
-/// complete `Error` makes the compulsory catch-all typed and future-safe.
+/// published version-2 family at this pin. Retaining the complete `Error`
+/// makes the compulsory catch-all typed and future-safe. `Error::Producer`
+/// (and `Target::Producer`) no longer exist as of this pin: QSL dropped the
+/// Producer 1.2/Filament correspondence adapter entirely (QSL #131/#137), so
+/// this enumeration no longer lists it either. `Unsupported::ProducerCorrespondence`
+/// went with the wire `Correspondence` record in QSL-63 (FR-042).
 ///
 /// Tracing: TC-001, FR-001-AC-2, Task-001.
 #[test]
@@ -447,7 +452,6 @@ fn tc_006_no_two_selection_axes_share_a_code() {
 fn tc_001_mapping_retains_every_published_source_error() {
     use quire_protocol::inventory::map::classify_source;
     use quire_protocol::{v2, Error, Invalid, NumberError, Unsupported};
-    use quire_spec_language::linking::composed::producer::ProducerModelRefusal;
     use quire_spec_language::protocol_artifact::{Dimension, Exhaustion};
 
     const INVALID: [Invalid; 26] = [
@@ -478,12 +482,11 @@ fn tc_001_mapping_retains_every_published_source_error() {
         Invalid::Canonical,
         Invalid::Encoding,
     ];
-    const UNSUPPORTED: [Unsupported; 7] = [
+    const UNSUPPORTED: [Unsupported; 6] = [
         Unsupported::Wire,
         Unsupported::Feature,
         Unsupported::Definition,
         Unsupported::Profile,
-        Unsupported::ProducerCorrespondence,
         Unsupported::FamilyProof,
         Unsupported::Export,
     ];
@@ -504,7 +507,6 @@ fn tc_001_mapping_retains_every_published_source_error() {
         Error::Allocation,
         Error::Json { line: 1, column: 2 },
         Error::Numeric(NumberError::NonPositiveDenominator),
-        Error::Producer(ProducerModelRefusal::Interface),
         Error::V2(v2::Refusal::OfferOrder),
         Error::Incomplete(Exhaustion {
             dimension: Dimension::Entries,

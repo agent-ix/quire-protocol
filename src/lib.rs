@@ -75,7 +75,9 @@ pub use quire_spec_language::protocol_artifact::{
     ExpectedForeignSource, ExpectedSource, Invalid, Limits, NumberComponent, NumberError, Report,
     SuppliedDependency, Unsupported,
 };
-pub use quire_spec_language::ByteDigest;
+// ADR-011 §6.1 layer F (QSL-177): ByteDigest moved out of quire-spec-language's
+// root crate into the qsl-foundation workspace crate it was extracted to.
+pub use qsl_foundation::ByteDigest;
 
 /// Admit the exact bytes selected by the caller and validate their finite
 /// references through A's public `quire.compiled-protocol/1` reader.

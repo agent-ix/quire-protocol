@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Exact QSL `/2` state-view fixtures for Protocol integration tests.
 
+use qsl_foundation::ByteDigest;
 use quire_spec_language::protocol_artifact::{v2, wire as w, ExactInteger, ProtocolNumber};
 use quire_spec_language::state::{
     AssessmentAuthority, AuthorityAdapter, AuthorityEvidence, BinderInput, CanonicalDigest,
     ContextualSlot, FieldInput, FieldValue, InputSlot, MissingInput, ObjectInput, ObjectKey,
     ObservationDigest, ObservationIdentity, ObservationKey, PopulationInput, StateView,
     StaticAuthority, Value as StateValue, ValueKind as StateValueKind,
-    OBSERVATION_CONTRACT_REVISION, PRODUCER_CONTRACT_REVISION,
+    OBSERVATION_CONTRACT_REVISION,
 };
-use quire_spec_language::ByteDigest;
 
 fn canonical(value: char) -> CanonicalDigest {
     CanonicalDigest {
@@ -40,7 +40,6 @@ fn state_authority(
         .artifact
         .clone();
     let static_selection = StaticAuthority {
-        interface_version: "1.2.0".into(),
         document_identity: "document:selected".into(),
         document_digest: canonical('1'),
         model_identity: "model:selected".into(),
@@ -75,13 +74,11 @@ fn state_authority(
         requirement: observation.clone(),
         producer: producer.clone(),
         observation: observation.clone(),
-        producer_contract_revision: PRODUCER_CONTRACT_REVISION.into(),
         observation_contract_revision: OBSERVATION_CONTRACT_REVISION.into(),
         static_selection: static_selection.clone(),
         assessment_selection: assessment_selection.clone(),
     };
     AuthorityEvidence {
-        producer_contract_revision: PRODUCER_CONTRACT_REVISION.into(),
         observation_contract_revision: OBSERVATION_CONTRACT_REVISION.into(),
         producer,
         observation,

@@ -4,6 +4,7 @@
 use std::{fs, path::Path};
 
 use ix_trace_rs::trace;
+use qsl_foundation::{Source, SourceIdentity};
 use quire_contract_ir as ir;
 use quire_protocol::{
     digest::producer::{CrossDomainDigest, DigestDomain, DigestSlot, OfferedDomain},
@@ -21,11 +22,18 @@ use quire_spec_language::{
     model_source::{self, ModelSourceLimits},
     native_model::ModelLimits,
     protocol_artifact::{
-        handoff::{SelectedDependency, Selection, PUBLISHED_V1_HANDOFF, PUBLISHED_V1_OFFER_FILE},
+        handoff::{
+            SelectedDependency, Selection, PUBLISHED_V1_OFFER_FILE, PUBLISHED_V1_SELECTION_FILE,
+        },
         NumberWire,
     },
-    Source, SourceIdentity,
 };
+
+#[allow(dead_code, unused_imports)]
+#[path = "support/v2_handoff/mod.rs"]
+mod handoff;
+
+use handoff::qsl_producer;
 
 struct Fixture {
     selection: Selection,
@@ -35,18 +43,25 @@ struct Fixture {
 
 impl Fixture {
     fn load(root: &Path) -> Self {
-        // This B-owned immutable selection fixture is loaded before the offer.
-        // It is distinct from A's emitted `expected.json`, which the harness
-        // never reads. The offered package can therefore not select its own
-        // acceptance context.
-        let selection: Selection =
-            serde_json::from_slice(include_bytes!("fixtures/a-four-unit-selections.json"))
-                .expect("B selection fixture shape");
+        // Every member is listed in A's checksum manifest and hashes to it;
+        // an unlisted, corrupt or symbolic-link member refuses.
+        handoff::verify_checksums(root).expect("A's /1 handoff checksums");
+        // A publishes the independent selection sidecar beside the offer as its
+        // own member. It is read from the fresh output of A's producer (see
+        // `qsl_producer`), before the offer, and never out of the offered
+        // bytes, so the offered package cannot select its own acceptance
+        // context. B keeps no copy of it, and checks every source, model and
+        // dependency byte against the sidecar's digests below.
+        let selection: Selection = serde_json::from_slice(
+            &fs::read(root.join(PUBLISHED_V1_SELECTION_FILE)).expect("A selection sidecar"),
+        )
+        .expect("A selection sidecar shape");
         // Each selected source names a file in the handoff whose bytes hash to
         // the digest the selection carries. A non-empty-string check passed on
         // any fixture ever committed; this one fails whenever the selection and
         // the handoff are derived from different producer runs, which is how a
         // hybrid fixture went unnoticed across two A revisions.
+        let qsl = qsl_producer::qsl_root().expect("pinned QSL source");
         for source in &selection.sources {
             let bytes = fs::read(root.join(&source.file))
                 .unwrap_or_else(|error| panic!("selected source {}: {error}", source.file));
@@ -56,13 +71,24 @@ impl Fixture {
                 "selected source {} does not hash to its selected digest",
                 source.file
             );
+            assert_authored_source(qsl, &source.source.path, &bytes);
         }
         let model_source = &selection.model.source;
         let model_bytes = fs::read(root.join(&selection.model.source_file)).expect("model bytes");
         assert_eq!(ByteDigest::of(&model_bytes), model_source.artifact.digest);
+        // B's anchor, independent of the sidecar: the model source is the
+        // authored file in the pinned QSL checkout, byte for byte.
+        assert_eq!(
+            model_bytes,
+            fs::read(qsl.join(&model_source.path)).expect("authored model source"),
+            "model source {} differs from the pinned QSL checkout",
+            model_source.path
+        );
         let source = Source::read(
             SourceIdentity {
+                authority: model_source.native.authority.clone(),
                 identity: model_source.native.identity.clone(),
+                revision_namespace: model_source.native.revision_namespace.clone(),
                 revision: model_source.native.revision.clone(),
             },
             &model_source.path,
@@ -100,7 +126,16 @@ impl Fixture {
         let dependency_bytes = selection
             .dependencies
             .iter()
-            .map(|dependency| fs::read(root.join(&dependency.file)).expect("dependency bytes"))
+            .map(|dependency| {
+                let bytes = fs::read(root.join(&dependency.file)).expect("dependency bytes");
+                assert_eq!(
+                    ByteDigest::of(&bytes),
+                    dependency.artifact.digest,
+                    "selected dependency {} does not hash to its selected digest",
+                    dependency.file
+                );
+                bytes
+            })
             .collect();
         Self {
             selection,
@@ -209,8 +244,32 @@ impl Fixture {
                 sources: &expected_sources,
                 dependencies: &dependencies,
                 models: &models,
+                domain_packages: &[],
             },
         )
+    }
+}
+
+/// B's anchor, independent of the sidecar: a selected native source is the
+/// authored unit body in the pinned QSL checkout (`<unit>.body.native` beside the
+/// selected path), preceded only by the import header A's producer prepends.
+fn assert_authored_source(qsl: &Path, path: &str, bytes: &[u8]) {
+    let stem = path
+        .strip_suffix(".native")
+        .unwrap_or_else(|| panic!("selected source {path} is not a .native unit"));
+    let body = fs::read(qsl.join(format!("{stem}.body.native")))
+        .unwrap_or_else(|error| panic!("authored body for {path}: {error}"));
+    let header = bytes
+        .strip_suffix(body.as_slice())
+        .unwrap_or_else(|| panic!("selected source {path} does not end with its authored body"));
+    let header = std::str::from_utf8(header).expect("UTF-8 import header");
+    for line in header.lines() {
+        assert!(
+            ["language ", "profile ", "model "]
+                .iter()
+                .any(|prefix| line.starts_with(prefix)),
+            "selected source {path} carries a non-import header line: {line:?}"
+        );
     }
 }
 
@@ -226,8 +285,13 @@ fn dependency_bytes(
     fs::read(root.join(&dependency.file)).expect("selected model bytes")
 }
 
+/// A complete `/1` handoff freshly emitted by A's own producer from the exactly
+/// pinned QSL source. The committed `PUBLISHED_V1_HANDOFF` copy omits
+/// dependency bytes, so it is not admissible; see `qsl_producer`.
 fn fixture_root() -> std::path::PathBuf {
-    std::path::PathBuf::from(PUBLISHED_V1_HANDOFF)
+    qsl_producer::v1()
+        .unwrap_or_else(|cause| panic!("A's /1 producer did not run: {cause}"))
+        .to_path_buf()
 }
 
 fn offered_bytes(root: &Path) -> Vec<u8> {
@@ -601,6 +665,7 @@ fn it_001_inventory_identifies_one_b_owned_reader_path() {
         dependencies,
         [
             "quire-spec-language",
+            "qsl-foundation",
             "quire-observation",
             "quire-verification-contracts",
             "engineering-assurance",
@@ -618,6 +683,7 @@ fn it_001_inventory_identifies_one_b_owned_reader_path() {
     // version made Cargo qualify the reference.
     for required in [
         "quire-spec-language",
+        "qsl-foundation",
         "quire-observation",
         "quire-verification-contracts",
         "engineering-assurance",
@@ -906,8 +972,7 @@ fn it_001_refuses_one_axis_cross_domain_baseline_digest() {
             slot: DigestSlot::Baseline,
             selected: DigestDomain::RawArtifact,
             offered: OfferedDomain::ForeignLabel("sha512".to_owned()),
-            value: "sha512:6f9cb8bf8521ca51a5e6340511b545db43001879446a59c5c87efe4985acdb06"
-                .to_owned(),
+            value: foreign.clone(),
         }),
         "got {error:?}"
     );

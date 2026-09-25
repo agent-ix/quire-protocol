@@ -11,17 +11,15 @@
 //! against the identity the sidecar selects for it before any admission runs.
 
 use ix_trace_rs::trace;
-use quire_spec_language::{
-    protocol_artifact::{self as artifact, v2},
-    ByteDigest,
-};
+use qsl_foundation::ByteDigest;
+use quire_spec_language::protocol_artifact::{self as artifact, v2};
 
 #[path = "support/v2_handoff/mod.rs"]
 mod handoff;
 
 use handoff::{Absence, Handoff, MutationInput};
 
-/// A's mutation corpus as published at the pinned revision `f1700a9`, sorted.
+/// A's mutation corpus as its producer emits it at the pinned revision, sorted.
 ///
 /// Frozen so the corpus cannot shrink unnoticed: every assertion over "every
 /// declared case" is only as strong as the number of cases A declares.
@@ -1100,4 +1098,78 @@ fn a_ceiling_above_a_s_hard_maximum_is_refused() {
         ),
         "a ceiling above A's hard maximum was not refused"
     );
+}
+
+/// A's producer runs publish under one content-addressed directory: a second
+/// run reuses the first run's directory in place (same inode, same bytes), and
+/// that is the directory the lane loads. A run with a different inventory
+/// publishes beside it, and neither directory is removed.
+///
+/// Tracing: Task-012.
+#[test]
+#[trace("Task-012")]
+fn producer_runs_publish_once_and_are_reused() {
+    use std::os::unix::fs::MetadataExt;
+    use std::path::Path;
+
+    let inode = |root: &Path| std::fs::metadata(root).expect("published directory").ino();
+    let inventory = |root: &Path| {
+        ["v1", "v2"].map(|version| {
+            std::fs::read(root.join(version).join("SHA256SUMS")).expect("published inventory")
+        })
+    };
+
+    let first = handoff::qsl_producer::emit_and_publish().expect("first producer run");
+    let (first_inode, before) = (inode(&first), inventory(&first));
+    let second = handoff::qsl_producer::emit_and_publish().expect("second producer run");
+    assert_eq!(
+        first, second,
+        "an identical run must reuse the published directory"
+    );
+    assert_eq!(
+        inode(&second),
+        first_inode,
+        "the published directory was replaced"
+    );
+    assert_eq!(
+        inventory(&second),
+        before,
+        "a reused run must keep its bytes"
+    );
+    assert_eq!(
+        handoff::qsl_producer::v2().expect("lane handoff"),
+        second.join("v2"),
+        "the lane must load the published directory"
+    );
+    let name = first
+        .file_name()
+        .and_then(|name| name.to_str())
+        .expect("published directory name");
+    assert!(
+        name.strip_prefix("handoff-")
+            .is_some_and(|digest| digest.len() == 64),
+        "published directory is content-addressed: {name}"
+    );
+
+    // A run with a different inventory gets its own directory; the first one
+    // stays in place.
+    let build = handoff::qsl_producer::producer_target().expect("producer directory");
+    let fresh = build.join(format!("synthetic-{}", std::process::id()));
+    for version in ["v1", "v2"] {
+        std::fs::create_dir_all(fresh.join(version)).expect("synthetic run");
+        std::fs::write(
+            fresh.join(version).join("SHA256SUMS"),
+            format!("synthetic {version} {}\n", std::process::id()),
+        )
+        .expect("synthetic inventory");
+    }
+    let other = handoff::qsl_producer::publish(&build, &fresh).expect("synthetic publish");
+    assert_ne!(other, first, "a different inventory must publish elsewhere");
+    assert!(
+        other.is_dir() && first.is_dir(),
+        "both published runs must remain"
+    );
+    assert!(!fresh.exists(), "publishing moves the fresh run");
+    assert_eq!(inode(&first), first_inode, "the first run was disturbed");
+    std::fs::remove_dir_all(&other).expect("remove the synthetic run");
 }
