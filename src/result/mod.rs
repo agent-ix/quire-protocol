@@ -21,6 +21,9 @@ pub mod reader;
 pub mod record;
 /// Reversible opaque runtime-reference carrier for string-only result fields.
 pub mod runtime_reference;
+/// Test-only validated-result constructors; see the `test-support` feature.
+#[cfg(any(test, feature = "test-support"))]
+pub mod test_support;
 
 #[cfg(test)]
 #[path = "tc_006_tests.rs"]
@@ -40,7 +43,7 @@ pub use engineering_assurance::claim_strength::ClaimStrength;
 pub use reader::{read, read_bounded, Expected};
 #[allow(
     unused_imports,
-    reason = "the unbounded producer is consumed only by the in-crate semantic corpus; production orchestration uses the bounded producer"
+    reason = "the unbounded producer is consumed only by the in-crate semantic corpus and the test-support constructors; production orchestration uses the bounded producer"
 )]
 pub(crate) use record::{produce, produce_bounded};
 pub use record::{
