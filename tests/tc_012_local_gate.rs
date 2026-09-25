@@ -11,6 +11,9 @@ const FORMAT_COMMAND: &str =
 const CLIPPY_COMMAND: &str = "CARGO_BUILD_JOBS=1 flock /tmp/quire-heavy-check.lock cargo clippy --locked --all-targets --target-dir target-codex-backends -- -D warnings";
 const TEST_COMMAND: &str = "CARGO_BUILD_JOBS=1 flock /tmp/quire-heavy-check.lock cargo test --locked --target-dir target-codex-backends";
 const DOC_COMMAND: &str = "CARGO_BUILD_JOBS=1 flock /tmp/quire-heavy-check.lock env RUSTDOCFLAGS=\"-D warnings\" cargo doc --locked --no-deps --target-dir target-codex-backends";
+const FEATURE_CLIPPY_COMMAND: &str = "CARGO_BUILD_JOBS=1 flock /tmp/quire-heavy-check.lock cargo clippy --locked --all-targets --features test-support --target-dir target-codex-backends -- -D warnings";
+const FEATURE_TEST_COMMAND: &str = "CARGO_BUILD_JOBS=1 flock /tmp/quire-heavy-check.lock cargo test --locked --features test-support --target-dir target-codex-backends";
+const FEATURE_DOC_COMMAND: &str = "CARGO_BUILD_JOBS=1 flock /tmp/quire-heavy-check.lock env RUSTDOCFLAGS=\"-D warnings\" cargo doc --locked --no-deps --features test-support --target-dir target-codex-backends";
 const ADMITTED_TARGET: &str = "x86_64-unknown-linux-gnu";
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -161,13 +164,22 @@ impl GatePolicy {
     fn repository() -> Self {
         let agents = include_str!("../AGENTS.md");
         let cargo = include_str!("../Cargo.toml");
-        let commands = agents
+        let commands: Vec<Command> = agents
             .lines()
             .map(str::trim)
             .filter(|line| line.starts_with("CARGO_BUILD_JOBS=1 flock "))
             .map(|line| line.trim_end_matches('`'))
             .map(|line| Command::from_documented_line(line, agents))
             .collect();
+        let mut feature_lanes: Vec<BTreeSet<String>> = Vec::new();
+        for command in commands
+            .iter()
+            .filter(|command| command.kind == CommandKind::Test)
+        {
+            if !feature_lanes.contains(&command.requested_features) {
+                feature_lanes.push(command.requested_features.clone());
+            }
+        }
 
         Self {
             commands,
@@ -181,7 +193,7 @@ impl GatePolicy {
                     .collect::<String>()
                     .contains("optional=true")
             }),
-            feature_lanes: vec![BTreeSet::new()],
+            feature_lanes,
             conditions: conditional_inventory(Path::new(env!("CARGO_MANIFEST_DIR"))),
             admitted_target: ADMITTED_TARGET.to_owned(),
             first_head: "candidate-head".to_owned(),
@@ -198,9 +210,20 @@ impl GatePolicy {
             CommandKind::Clippy,
             CommandKind::Test,
             CommandKind::Doc,
+            CommandKind::Clippy,
+            CommandKind::Test,
+            CommandKind::Doc,
         ];
         let actual_kinds: Vec<_> = self.commands.iter().map(|command| command.kind).collect();
-        let expected_text = [FORMAT_COMMAND, CLIPPY_COMMAND, TEST_COMMAND, DOC_COMMAND];
+        let expected_text = [
+            FORMAT_COMMAND,
+            CLIPPY_COMMAND,
+            TEST_COMMAND,
+            DOC_COMMAND,
+            FEATURE_CLIPPY_COMMAND,
+            FEATURE_TEST_COMMAND,
+            FEATURE_DOC_COMMAND,
+        ];
 
         if actual_kinds.len() != expected_kinds.len()
             || actual_kinds
@@ -412,6 +435,24 @@ fn collect_rust_files(directory: &Path, files: &mut Vec<PathBuf>) {
     }
 }
 
+/// The repository policy with its one declared feature, the conditions that
+/// reference it, the commands' feature selections and its opposing lane
+/// removed: the shape of a crate that declares no Cargo feature, for the
+/// controls that need one. Command texts stay as documented so that only the
+/// feature axis differs.
+fn featureless() -> GatePolicy {
+    let mut policy = GatePolicy::repository();
+    policy.declared_features.clear();
+    for command in &mut policy.commands {
+        command.requested_features.clear();
+    }
+    policy
+        .conditions
+        .retain(|condition| !matches!(condition, Condition::Feature { .. }));
+    policy.feature_lanes = vec![BTreeSet::new()];
+    policy
+}
+
 fn one_defect(mut policy: GatePolicy, mutate: impl FnOnce(&mut GatePolicy)) -> GateDefect {
     mutate(&mut policy);
     let defects = policy.defects();
@@ -481,12 +522,20 @@ fn tc_012_both_warning_channels_are_independently_required() {
 
 #[test]
 #[trace("NFR-004-AC-5", "Task-014")]
-fn tc_012_the_current_crate_has_one_cargo_feature_lane() {
-    let policy = GatePolicy::repository();
+fn tc_012_a_featureless_crate_has_one_cargo_feature_lane() {
+    let policy = featureless();
     assert!(policy.declared_features.is_empty());
     assert!(!policy.optional_dependency);
     assert_eq!(policy.feature_lanes, [BTreeSet::new()]);
     assert!(policy.defects().is_empty());
+
+    let mut second_empty_lane = policy;
+    second_empty_lane.feature_lanes.push(BTreeSet::new());
+    assert_eq!(
+        second_empty_lane.defects(),
+        [GateDefect::MissingFeatureLane].into(),
+        "a featureless crate runs exactly one lane"
+    );
 }
 
 #[test]
@@ -506,6 +555,32 @@ fn tc_012_an_undeclared_feature_is_its_own_defect() {
 #[test]
 #[trace("NFR-004-AC-7", "Task-014")]
 fn tc_012_a_new_feature_surface_requires_opposing_lanes() {
+    let repository = GatePolicy::repository();
+    assert_eq!(
+        repository.declared_features,
+        ["test-support".to_owned()].into_iter().collect()
+    );
+    assert_eq!(
+        repository.feature_lanes,
+        [
+            BTreeSet::new(),
+            ["test-support".to_owned()].into_iter().collect()
+        ]
+    );
+    assert!(repository.defects().is_empty());
+    let mut without_opposing_lane = repository.clone();
+    without_opposing_lane.feature_lanes.truncate(1);
+    assert_eq!(
+        without_opposing_lane.defects(),
+        [GateDefect::MissingFeatureLane].into()
+    );
+    let mut without_minimal_lane = repository;
+    without_minimal_lane.feature_lanes.remove(0);
+    assert_eq!(
+        without_minimal_lane.defects(),
+        [GateDefect::MissingFeatureLane].into()
+    );
+
     let mut policy = GatePolicy::repository();
     policy.declared_features.insert("fast-path".to_owned());
     policy.conditions.push(Condition::Feature {
@@ -519,7 +594,7 @@ fn tc_012_a_new_feature_surface_requires_opposing_lanes() {
         .push(["fast-path".to_owned()].into_iter().collect());
     assert!(policy.defects().is_empty());
 
-    let mut optional = GatePolicy::repository();
+    let mut optional = featureless();
     optional.optional_dependency = true;
     optional.feature_lanes.push(BTreeSet::new());
     assert_eq!(
@@ -572,6 +647,10 @@ fn tc_012_every_conditional_site_is_selected_and_phantom_features_refuse() {
             },
             Condition::Test {
                 path: "src/refusal/mod.rs".to_owned(),
+            },
+            Condition::Feature {
+                path: "src/result/mod.rs".to_owned(),
+                name: "test-support".to_owned(),
             },
             Condition::Test {
                 path: "src/result/mod.rs".to_owned(),

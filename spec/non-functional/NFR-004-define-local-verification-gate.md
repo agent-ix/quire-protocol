@@ -74,11 +74,16 @@ catches real defects: items that compile in only one configuration, `cfg`-
 divergent wire and runtime behaviour, and unused-import or dead-code drift in
 whichever lane the author did not build.
 
-This crate declares no `[features]` table, no optional dependency and no
-`cfg(feature = ...)` condition, so `--no-default-features`, `--all-features` and
+While a crate declares no `[features]` table, no optional dependency and no
+`cfg(feature = ...)` condition, `--no-default-features`, `--all-features` and
 the default feature selection resolve to the identical unit graph. Running all
 three covers no additional Cargo-feature configuration; it only multiplies
-build time and creates the appearance of coverage. The existing `cfg(test)` and
+build time and creates the appearance of coverage. This crate now declares one
+feature, `test-support`, which compiles `result::test_support` — validated-result
+constructors for dependents' test suites — behind one
+`cfg(any(test, feature = "test-support"))` site, so AC-7 obligates its opposing
+lane: the gate runs clippy, test and doc in both the default and the
+`test-support` selection. The existing `cfg(test)` and
 `cfg(unix)` sites do not change that fact: one varies target kind and the other
 varies target platform. Declaring a feature to make
 `--features quire-extraction` stop erroring would be worse still: a feature with
