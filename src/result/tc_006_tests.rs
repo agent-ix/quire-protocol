@@ -4529,3 +4529,144 @@ fn tc_005_owner_claim_strengths_serialize_to_the_result_schema_enum() {
         );
     }
 }
+
+#[test]
+#[trace("TC-015", "FR-042-AC-1", "FR-042-AC-6")]
+fn tc_015_test_support_constructor_matches_canonical_production_and_refuses_what_it_refuses() {
+    let fixture = fixture();
+    let canonical = validated(base_input(&fixture));
+    let constructed =
+        result::test_support::validated_result(base_input(&fixture), Limits::owner_max())
+            .expect("test-support result");
+    assert_eq!(constructed.bytes(), canonical.bytes());
+    assert_eq!(constructed.result_id(), canonical.result_id());
+    assert_eq!(constructed.digest(), canonical.digest());
+
+    let mut violated = base_input(&fixture);
+    violated.truth = Truth::Violated;
+    let violated =
+        result::test_support::validated_result(violated, Limits::owner_max()).expect("violated");
+    assert_eq!(violated.truth(), Truth::Violated);
+    assert_ne!(violated.result_id(), canonical.result_id());
+
+    // The canonical producer refuses a closed-scope settlement over open
+    // decision progress; the test-support constructor refuses it identically.
+    let mut open_closed_scope = base_input(&fixture);
+    open_closed_scope.axes.decision_scope_progress = &fixture.decision.progress_open;
+    open_closed_scope.settlement.supporting_progress_identities = vec![fixture
+        .decision
+        .progress_open
+        .identity()
+        .as_str()
+        .to_owned()];
+    let canonical_refusal = result::produce(open_closed_scope.clone(), Limits::owner_max())
+        .expect_err("canonical producer refuses");
+    let refusal = result::test_support::validated_result(open_closed_scope, Limits::owner_max())
+        .expect_err("test-support refuses");
+    assert_eq!(refusal.code(), ErrorCode::InvalidCombination);
+    assert_eq!(refusal.code(), canonical_refusal.code());
+    assert_eq!(refusal.detail(), canonical_refusal.detail());
+
+    let mut limited = Limits::owner_max();
+    limited.max_support_records = 0;
+    assert_eq!(
+        result::test_support::validated_result(base_input(&fixture), limited)
+            .expect_err("support limit")
+            .code(),
+        ErrorCode::ResourceIncomplete
+    );
+
+    // The strict read is a separate step: a limit the producer accepts but the
+    // strict reader refuses is still refused, with the real code.
+    let mut read_limited = Limits::owner_max();
+    read_limited.max_input_bytes = canonical.bytes().len() - 1;
+    result::produce(base_input(&fixture), read_limited).expect("producer accepts the limit");
+    assert_eq!(
+        result::test_support::validated_result(base_input(&fixture), read_limited)
+            .expect_err("strict read refuses")
+            .code(),
+        ErrorCode::ResourceIncomplete
+    );
+
+    let mut carries_correction = base_input(&fixture);
+    carries_correction.provenance.input_identity = "input:corrected".into();
+    carries_correction.correction = Some(CorrectionInput {
+        relation: CorrectionRelation::Invalidates,
+        predecessor: &canonical,
+        contradicted_premise_identity: "premise:branch",
+        corrected_input_identity: "input:corrected",
+    });
+    assert_eq!(
+        result::test_support::validated_result(carries_correction, Limits::owner_max())
+            .expect_err("a correction goes through corrected_result")
+            .code(),
+        ErrorCode::InvalidSelection
+    );
+}
+
+#[test]
+#[trace("TC-006", "TC-015", "FR-033-AC-2", "FR-033-AC-4", "FR-033-AC-5")]
+fn tc_015_test_support_corrected_result_is_direct_and_validated() {
+    let fixture = fixture();
+    let predecessor = validated(base_input(&fixture));
+    let prior_bytes = predecessor.bytes().to_vec();
+    let correction = CorrectionInput {
+        relation: CorrectionRelation::Invalidates,
+        predecessor: &predecessor,
+        contradicted_premise_identity: "premise:branch",
+        corrected_input_identity: "input:corrected",
+    };
+    let mut corrected = base_input(&fixture);
+    corrected.execution = AssessmentExecution::Unsupported;
+    corrected.truth = Truth::Unavailable;
+    corrected.settlement.basis = SettlementBasis::Unavailable;
+    corrected.provenance.input_identity = "input:corrected".into();
+
+    let canonical = {
+        let mut input = corrected.clone();
+        input.correction = Some(correction);
+        validated(input)
+    };
+    let constructed =
+        result::test_support::corrected_result(corrected.clone(), correction, Limits::owner_max())
+            .expect("test-support corrected result");
+    assert_eq!(constructed.bytes(), canonical.bytes());
+    assert_eq!(predecessor.bytes(), prior_bytes);
+    let edge = constructed.correction().expect("direct correction edge");
+    assert_eq!(edge.relation(), CorrectionRelation::Invalidates);
+    assert_eq!(edge.predecessor_result_id(), predecessor.result_id());
+    assert_eq!(edge.predecessor_digest(), predecessor.digest());
+    assert_eq!(edge.contradicted_premise_identity(), "premise:branch");
+    assert_eq!(edge.corrected_input_identity(), "input:corrected");
+
+    // A correction that restates the predecessor's own input is a
+    // continuation, not a correction; lineage validation refuses it.
+    let continuation = CorrectionInput {
+        corrected_input_identity: "input:one",
+        ..correction
+    };
+    assert_eq!(
+        predecessor.provenance().input_identity,
+        "input:one",
+        "the continuation control must name the predecessor's own input"
+    );
+    assert_eq!(
+        result::test_support::corrected_result(
+            corrected.clone(),
+            continuation,
+            Limits::owner_max()
+        )
+        .expect_err("continuation refused")
+        .code(),
+        ErrorCode::LineageInvalid
+    );
+
+    let mut already_corrected = corrected;
+    already_corrected.correction = Some(correction);
+    assert_eq!(
+        result::test_support::corrected_result(already_corrected, correction, Limits::owner_max())
+            .expect_err("one correction, stated once")
+            .code(),
+        ErrorCode::InvalidSelection
+    );
+}
