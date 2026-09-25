@@ -8,13 +8,12 @@ description = "Strict consumer boundary for accepted native Quire protocol packa
 publish = false
 
 [dependencies]
-# QSL-250: bumped to the QSL-177/ADR-011 §6.1 layer F extraction commit.
-# quire-spec-language's own `checked_predicate`/`temporal_subject` etc. return
-# `qsl_foundation::ByteDigest` from that commit on (no root-crate re-export),
-# so this pin and qsl-foundation's below must resolve the same git commit for
-# the two crates' `ByteDigest` to unify as one type.
-quire-spec-language = { git = "https://github.com/agent-ix/quire-spec-language", rev = "512cc9dcb2471369e89f98ac6c3577acb5ee4840" }
-qsl-foundation = { git = "https://github.com/agent-ix/quire-spec-language", rev = "512cc9dcb2471369e89f98ac6c3577acb5ee4840" }
+# QSL-250: pinned to current QSL main. `qsl-foundation` is A's foundation crate
+# (ADR-011 layer F); A's reader returns its `ByteDigest`/`Source`/
+# `SourceIdentity`, so both pins must name the same commit for those types to
+# unify.
+quire-spec-language = { git = "https://github.com/agent-ix/quire-spec-language", rev = "51245876e0d406aeed3047c608ad478b53b19205" }
+qsl-foundation = { git = "https://github.com/agent-ix/quire-spec-language", rev = "51245876e0d406aeed3047c608ad478b53b19205" }
 quire-observation = { git = "https://github.com/agent-ix/quire-observation", rev = "2bdeb833a330bfa777c19eb4c28c423f856f3ba6" }
 quire-verification-contracts = { git = "https://github.com/agent-ix/quire-verification-contracts", rev = "da8d7272051b1cf02768ec459539551414fd6c21" }
 # Owner of the claim-strength vocabulary (EA FR-022). Only the serde-only
@@ -33,10 +32,9 @@ sha2 = "=0.10.9"
 [dev-dependencies]
 agent-ix-baseline-producer = { version = "=0.0.0", git = "https://github.com/agent-ix/filament-core-data", rev = "a6fe662542770e6acbec4917cfe1772b349ee414" }
 ix-trace-rs = { git = "https://github.com/agent-ix/ix-trace-rs", rev = "2ce4ebf47f726b9d76388220545cd0abda8a5cfb" }
-# QSL-250: bumped alongside quire-spec-language's own pin above so this
-# test-only quire-contract-model identity type unifies with the one
-# quire-spec-language's `formal_source` resolves internally at its new pin.
-quire-contract-ir = { package = "quire-contract-model", git = "https://github.com/agent-ix/quire-contract-ir", rev = "dbb2e22d577b56fed5c27e81e584370acdf02512" }
+# The exact contract-IR revision QSL's own manifest pins, so this test-only
+# identity type unifies with the one `quire-spec-language` resolves internally.
+quire-contract-ir = { package = "quire-contract-model", git = "https://github.com/agent-ix/quire-contract-ir", rev = "dc03aa4ecfbce9958efe6d766497d44c44e1200a" }
 serde_json = "=1.0.151"
 
 [lints.rust]
