@@ -72,7 +72,8 @@ pub fn emit() -> Result<PathBuf, String> {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
         Err(error) => return Err(format!("cannot remove {}: {error}", run.display())),
     }
-    fs::create_dir_all(&run).map_err(|error| format!("cannot create {}: {error}", run.display()))?;
+    fs::create_dir_all(&run)
+        .map_err(|error| format!("cannot create {}: {error}", run.display()))?;
     write_v1(&run.join("v1")).map_err(|error| format!("A's write_v1 failed: {error}"))?;
     write_v2(&run.join("v2")).map_err(|error| format!("A's write_v2 failed: {error}"))?;
     Ok(run)
