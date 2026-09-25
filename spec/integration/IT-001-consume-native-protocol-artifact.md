@@ -44,8 +44,8 @@ legacy compatibility exception: it mints no capability, independently selects
 and retains the compiler contract, baseline, producer, native-source,
 model-source and dependency bytes before inspecting the offer, and cannot read
 any full-assessment input. The native compiler publishes both versioned
-compiled-protocol contracts and the producer examples that emit their complete
-handoffs at current exact pin `51245876e0d406aeed3047c608ad478b53b19205`.
+compiled-protocol contracts and the `handoff-writer` API that emits their complete
+handoffs at current exact pin `9395be4268e650ca2753204d6d306c9cd7b453ec`.
 Version 1 retains its
 `quire.protocol.numeric/1` wire profile.
 
@@ -271,8 +271,8 @@ are accepted. `quire-spec-language` release `v0.2.0` is at
 `6eccb05adf58cb2ed0c6092f5ef8e23d55030028`. Its post-release interface PR #92
 exports the handoff paths, all member names, and the mutation-manifest format on
 `main`; this repository pins
-`51245876e0d406aeed3047c608ad478b53b19205`. The version 2 reader, its typed
-per-axis refusals and the producer examples that emit the independent selection
+`9395be4268e650ca2753204d6d306c9cd7b453ec`. The version 2 reader, its typed
+per-axis refusals and the `handoff-writer` API that emits the independent selection
 records, original inputs, dependency bytes and 28-case mutation corpus are all
 present under that dependency source. No environment configuration or copied
 artifact tree is part of the gate.
@@ -308,9 +308,8 @@ repository owns no parser.
 
 A's committed handoff copies under `PUBLISHED_V1_HANDOFF` and
 `PUBLISHED_HANDOFF` carry no dependency bytes, so they cannot be admitted. Both
-lanes instead run A's `native_protocol_handoff` and `native_protocol_v2_handoff`
-producer examples from the pinned source, once per test process, and read their
-complete output. The version-1 lane reads A's `expected.json` sidecar before the
+lanes instead call A's `handoff-writer` `write_v1` and `write_v2` in-process,
+once per test process, and read their complete output. The version-1 lane reads A's `expected.json` sidecar before the
 offer, using A's published member-name constants, and checks every selected
 source, model and dependency byte against it. The lane runs by default,
 executes the positive parser/reader inventory for SC-05, and reaches the local

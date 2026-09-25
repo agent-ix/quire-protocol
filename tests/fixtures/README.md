@@ -3,11 +3,11 @@
 B keeps no copy of A's handoffs or selection sidecars. QSL's committed handoff
 copies (`PUBLISHED_V1_HANDOFF`, `PUBLISHED_HANDOFF`) carry no `dependencies/`
 bytes and select an empty dependency inventory, so they cannot be admitted.
-The IT-001 lanes therefore run A's own `native_protocol_handoff` and
-`native_protocol_v2_handoff` examples from the exactly pinned
-`quire-spec-language` source, once per test process, into
-`<target-dir>/qsl-producer/` (`tests/support/v2_handoff/qsl_producer.rs`). The
-first run builds those examples, which takes a few minutes.
+The IT-001 lanes therefore call `quire-spec-language`'s public handoff writer
+(`protocol_artifact::handoff::{write_v1, write_v2}`, behind its `handoff-writer`
+feature, enabled as a dev-dependency) once per test process, into
+`<target-dir>/qsl-producer/` (`tests/support/v2_handoff/qsl_producer.rs`). No
+QSL examples are built and no QSL source tree is walked for the producer.
 
 Each lane reads the producer's own selection sidecar (`expected.json`,
 `expected-v2.json`) before it reads the offer, checks every retained input
@@ -46,7 +46,7 @@ unchanged while the new `/2` module was added separately.
 ## Version 2 published handoff
 
 The version 2 lane also needs no environment variable or vendored fixture. It loads
-the fresh `native_protocol_v2_handoff` output described above and imports
+the fresh `write_v2` output described above and imports
 `protocol_artifact::handoff`'s member-name and mutation-format constants. `tests/it001_v2_handoff.rs` verifies the published
 checksums before decoding, then runs the base offer, all 28 published mutations,
 both cross-version submissions, and exact/one-short/fresh probes for every
