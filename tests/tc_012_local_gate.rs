@@ -225,17 +225,21 @@ impl GatePolicy {
             FEATURE_DOC_COMMAND,
         ];
 
+        let actual_text: Vec<_> = self
+            .commands
+            .iter()
+            .map(|command| command.text.as_str())
+            .collect();
         if actual_kinds.len() != expected_kinds.len()
             || actual_kinds
                 .iter()
                 .any(|kind| !expected_kinds.contains(kind))
-            || self
-                .commands
-                .iter()
-                .any(|command| !expected_text.contains(&command.text.as_str()))
+            || actual_text.iter().any(|text| !expected_text.contains(text))
         {
             defects.insert(GateDefect::CommandSet);
-        } else if actual_kinds != expected_kinds {
+        } else if actual_kinds != expected_kinds || actual_text != expected_text {
+            // Text-for-text and in order: a feature lane replaced by a copy of
+            // its default lane, or two lanes swapped, is not the documented gate.
             defects.insert(GateDefect::CommandOrder);
         }
         if self.commands.iter().any(|command| !command.risk_bound) {
@@ -377,9 +381,6 @@ fn conditional_inventory(root: &Path) -> Vec<Condition> {
     collect_rust_files(&root.join("tests"), &mut rust_files);
     rust_files.sort();
 
-    let attribute = ["#[", "cfg("].concat();
-    let crate_attribute = ["#![", "cfg("].concat();
-    let macro_call = ["cfg", "!("].concat();
     let mut conditions = Vec::new();
     for path in rust_files {
         let text = fs::read_to_string(&path).expect("tracked Rust source must be readable");
@@ -388,40 +389,102 @@ fn conditional_inventory(root: &Path) -> Vec<Condition> {
             .expect("inventory path must remain below the repository root")
             .display()
             .to_string();
-        for line in text.lines().map(str::trim) {
-            if !(line.starts_with(&attribute)
-                || line.starts_with(&crate_attribute)
-                || line.contains(&macro_call))
-            {
-                continue;
-            }
-            if line.contains("feature =") {
-                let name = line
-                    .split('"')
-                    .nth(1)
-                    .expect("feature conditions must use one literal feature name");
-                conditions.push(Condition::Feature {
-                    path: relative.clone(),
-                    name: name.to_owned(),
-                });
-            } else if line.contains("cfg(test)") {
-                conditions.push(Condition::Test {
-                    path: relative.clone(),
-                });
-            } else if line.contains("cfg(unix)") {
-                conditions.push(Condition::Target {
-                    path: relative.clone(),
-                    predicate: "unix".to_owned(),
-                });
-            } else {
-                conditions.push(Condition::Target {
-                    path: relative.clone(),
-                    predicate: line.to_owned(),
-                });
-            }
-        }
+        conditions.extend(conditions_in(&relative, &text));
     }
     conditions
+}
+
+/// Every conditional-compilation attribute or macro site in `text`, as the
+/// condition its predicate selects. An attribute may span lines, so the
+/// predicate is read up to its balanced closing parenthesis, and whitespace is
+/// ignored so `feature="x"` and `feature = "x"` classify alike. For `cfg_attr`
+/// the predicate is its first argument.
+fn conditions_in(relative: &str, text: &str) -> Vec<Condition> {
+    let openers = [
+        (["#[", "cfg("].concat(), false),
+        (["#![", "cfg("].concat(), false),
+        (["#[", "cfg_attr("].concat(), true),
+        (["#![", "cfg_attr("].concat(), true),
+        (["cfg", "!("].concat(), false),
+    ];
+    let lines: Vec<&str> = text.lines().map(str::trim).collect();
+    let mut conditions = Vec::new();
+    for (index, line) in lines.iter().enumerate() {
+        let found = openers.iter().find_map(|(opener, is_attr)| {
+            let start = if opener.starts_with("#") {
+                line.starts_with(opener.as_str()).then_some(0)
+            } else {
+                line.find(opener.as_str())
+            }?;
+            Some((start + opener.len(), *is_attr))
+        });
+        let Some((start, is_attr)) = found else {
+            continue;
+        };
+        let mut arguments = String::new();
+        let mut depth = 1_usize;
+        'scan: for (offset, part) in lines[index..].iter().enumerate() {
+            let tail = if offset == 0 { &part[start..] } else { part };
+            for character in tail.chars() {
+                match character {
+                    '(' => depth += 1,
+                    ')' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            break 'scan;
+                        }
+                    }
+                    _ => {}
+                }
+                arguments.push(character);
+            }
+        }
+        let arguments: String = arguments
+            .chars()
+            .filter(|character| !character.is_whitespace())
+            .collect();
+        let predicate = if is_attr {
+            top_level_first_argument(&arguments)
+        } else {
+            arguments.as_str()
+        };
+        conditions.push(classify(relative, predicate));
+    }
+    conditions
+}
+
+fn top_level_first_argument(arguments: &str) -> &str {
+    let mut depth = 0_usize;
+    for (position, character) in arguments.char_indices() {
+        match character {
+            '(' => depth += 1,
+            ')' => depth = depth.saturating_sub(1),
+            ',' if depth == 0 => return &arguments[..position],
+            _ => {}
+        }
+    }
+    arguments
+}
+
+fn classify(relative: &str, predicate: &str) -> Condition {
+    let path = relative.to_owned();
+    if let Some((_, tail)) = predicate.split_once("feature=\"") {
+        let name = tail
+            .split('"')
+            .next()
+            .expect("feature conditions must use one literal feature name");
+        Condition::Feature {
+            path,
+            name: name.to_owned(),
+        }
+    } else if predicate == "test" || predicate == "not(test)" {
+        Condition::Test { path }
+    } else {
+        Condition::Target {
+            path,
+            predicate: predicate.to_owned(),
+        }
+    }
 }
 
 fn collect_rust_files(directory: &Path, files: &mut Vec<PathBuf>) {
@@ -480,9 +543,21 @@ fn tc_012_the_current_command_set_and_risks_are_exact() {
         GateDefect::CommandOrder
     );
     assert_eq!(
-        one_defect(policy, |candidate| candidate.commands[0].risk_bound = false),
+        one_defect(policy.clone(), |candidate| candidate.commands[0]
+            .risk_bound = false),
         GateDefect::MissingRisk
     );
+
+    // A feature lane replaced by a copy of its default lane, or the default
+    // and feature lanes swapped, is not the documented gate.
+    for (feature, default) in [(4, 1), (6, 3)] {
+        let mut replaced = policy.clone();
+        replaced.commands[feature].text = replaced.commands[default].text.clone();
+        assert_eq!(replaced.defects(), [GateDefect::CommandOrder].into());
+    }
+    let mut swapped = policy;
+    swapped.commands.swap(1, 4);
+    assert_eq!(swapped.defects(), [GateDefect::CommandOrder].into());
 }
 
 #[test]
@@ -646,6 +721,24 @@ fn tc_012_every_conditional_site_is_selected_and_phantom_features_refuse() {
                 path: "src/projection.rs".to_owned(),
             },
             Condition::Test {
+                path: "src/refusal/cause.rs".to_owned(),
+            },
+            Condition::Test {
+                path: "src/refusal/cause.rs".to_owned(),
+            },
+            Condition::Test {
+                path: "src/refusal/cause.rs".to_owned(),
+            },
+            Condition::Test {
+                path: "src/refusal/mod.rs".to_owned(),
+            },
+            Condition::Test {
+                path: "src/refusal/mod.rs".to_owned(),
+            },
+            Condition::Test {
+                path: "src/refusal/mod.rs".to_owned(),
+            },
+            Condition::Test {
                 path: "src/refusal/mod.rs".to_owned(),
             },
             Condition::Feature {
@@ -654,6 +747,9 @@ fn tc_012_every_conditional_site_is_selected_and_phantom_features_refuse() {
             },
             Condition::Test {
                 path: "src/result/mod.rs".to_owned(),
+            },
+            Condition::Test {
+                path: "src/version_lock.rs".to_owned(),
             },
             Condition::Test {
                 path: "src/version_lock.rs".to_owned(),
@@ -701,6 +797,48 @@ fn tc_012_every_conditional_site_is_selected_and_phantom_features_refuse() {
         undeclared_condition.defects(),
         [GateDefect::UndeclaredFeature].into()
     );
+}
+
+#[test]
+#[trace("NFR-004-AC-8", "Task-014")]
+fn tc_012_the_inventory_reads_cfg_attr_and_unspaced_features() {
+    let attribute = |name: &str, body: &str| format!("#[{name}({body})]");
+    let attr = |body: &str| conditions_in("src/x.rs", &attribute("cfg_attr", body));
+    let feature = |name: &str| Condition::Feature {
+        path: "src/x.rs".to_owned(),
+        name: name.to_owned(),
+    };
+
+    assert_eq!(
+        attr("feature = \"test-support\", derive(Default)"),
+        [feature("test-support")]
+    );
+    assert_eq!(attr("feature=\"ts\", derive(Default)"), [feature("ts")]);
+    assert_eq!(
+        conditions_in("src/x.rs", &attribute("cfg", "feature=\"ts\"")),
+        [feature("ts")]
+    );
+    assert_eq!(
+        conditions_in("src/x.rs", &attribute("cfg", "any(test, feature=\"ts\")")),
+        [feature("ts")]
+    );
+    // A multi-line attribute reads its predicate from the following lines.
+    let split = format!("#[cfg_attr(\n    not(test),\n    expect(dead_code)\n)]");
+    assert_eq!(
+        conditions_in("src/x.rs", &split),
+        [Condition::Test {
+            path: "src/x.rs".to_owned()
+        }]
+    );
+    assert_eq!(
+        conditions_in("src/x.rs", &attribute("cfg", "windows")),
+        [Condition::Target {
+            path: "src/x.rs".to_owned(),
+            predicate: "windows".to_owned()
+        }]
+    );
+    let macro_call = format!("let on = {}{}feature=\"ts\");", "cfg", "!(");
+    assert_eq!(conditions_in("src/x.rs", &macro_call), [feature("ts")]);
 }
 
 #[test]

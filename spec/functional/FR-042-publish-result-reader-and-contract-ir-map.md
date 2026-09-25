@@ -104,7 +104,7 @@ uses fresh accounting; caller limits may lower but not raise owner maxima.
 | FR-042-AC-3 | Every independent combination of the four open/closed axes and FR-295 completeness remains representable and no axis supplies another. | Test (TC-015) |
 | FR-042-AC-4 | The exact selected mapping derives true only from completed+satisfied and false only from completed+violated; all other valid rows remain typed non-values with complete source facts. | Test (TC-015) |
 | FR-042-AC-5 | Mapping bytes/read views are fully re-derived from the validated result; every retained progress/closure owner-reference field is available through borrowed typed accessors without JSON parsing; and source/mapping identities, vocabularies and schema digests cannot substitute for one another. | Test (TC-015) |
-| FR-042-AC-6 | Exact and one-over limits cover every bounded dimension and refuse before excess retention; no public constructor, callback, parser, evaluator or trust flag bypasses admission. | Test (TC-015) |
+| FR-042-AC-6 | Exact and one-over limits cover every bounded dimension and refuse before excess retention; no public constructor, callback, parser, evaluator or trust flag bypasses admission. The one exception is the opt-in `test-support` Cargo feature: its `result::test_support` constructors are compiled only when a dependent enables the feature for testing, they run the canonical producer and the strict reader over their input, and the default build exposes none of them. | Test (TC-015) |
 
 ## Dependencies
 

@@ -4531,7 +4531,7 @@ fn tc_005_owner_claim_strengths_serialize_to_the_result_schema_enum() {
 }
 
 #[test]
-#[trace("TC-015", "FR-042-AC-1")]
+#[trace("TC-015", "FR-042-AC-1", "FR-042-AC-6")]
 fn tc_015_test_support_constructor_matches_canonical_production_and_refuses_what_it_refuses() {
     let fixture = fixture();
     let canonical = validated(base_input(&fixture));
@@ -4572,6 +4572,18 @@ fn tc_015_test_support_constructor_matches_canonical_production_and_refuses_what
     assert_eq!(
         result::test_support::validated_result(base_input(&fixture), limited)
             .expect_err("support limit")
+            .code(),
+        ErrorCode::ResourceIncomplete
+    );
+
+    // The strict read is a separate step: a limit the producer accepts but the
+    // strict reader refuses is still refused, with the real code.
+    let mut read_limited = Limits::owner_max();
+    read_limited.max_input_bytes = canonical.bytes().len() - 1;
+    result::produce(base_input(&fixture), read_limited).expect("producer accepts the limit");
+    assert_eq!(
+        result::test_support::validated_result(base_input(&fixture), read_limited)
+            .expect_err("strict read refuses")
             .code(),
         ErrorCode::ResourceIncomplete
     );

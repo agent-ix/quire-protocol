@@ -2,10 +2,13 @@
 //! Test-only constructors for [`ValidatedResult`], behind the `test-support`
 //! Cargo feature.
 //!
-//! Production code has no route to a [`ValidatedResult`] other than the
-//! Engine-owned transition in [`crate::assessment`]. Downstream crates' test
-//! suites still need results with a chosen truth, settlement and execution to
-//! exercise their own mapping of a result. This module is that route, and it
+//! Production code reaches a [`ValidatedResult`] only through the Engine-owned
+//! transition in [`crate::assessment`], which derives truth, settlement and
+//! execution, or through the strict [`super::read`] of bytes some producer
+//! already made. Downstream crates' test suites still need results with a
+//! chosen truth, settlement and execution to exercise their own mapping of a
+//! result, including values the Engine would derive itself. This module is that
+//! route, and it
 //! exists only when a dependent enables `test-support`, which a dependent should
 //! do for its `[dev-dependencies]` entry alone. The default build compiles none
 //! of it.
@@ -20,7 +23,9 @@ use super::reader::{read, Expected};
 use super::record::{produce, CorrectionInput, Input, Limits, ValidatedResult};
 use super::{ErrorCode, Refusal, Result};
 
-/// Produce and strict-read one uncorrected canonical result from `input`.
+/// **Test-only.** Produce and strict-read one uncorrected canonical result from
+/// `input`. The caller chooses the truth, settlement and execution that the
+/// Engine would derive.
 ///
 /// `input.correction` must be `None`; a correcting result is built with
 /// [`corrected_result`], so that a test states the correction explicitly.
@@ -50,7 +55,8 @@ pub fn validated_result(input: Input<'_>, limits: Limits) -> Result<ValidatedRes
 /// deferred upstream (Plan-001 Task-006), and the Engine derives no correction
 /// (see [`crate::assessment::CanonicalRowControls`]). This constructor stands in
 /// for that deferred capability so a dependent can test how it reads a
-/// correction edge. It is removed or replaced once the capability ships.
+/// correction edge. It is removed or replaced once Task-006 ships that
+/// capability.
 ///
 /// The correction edge is validated by the same lineage rules the canonical
 /// producer applies, and the predecessor's bytes are never modified.

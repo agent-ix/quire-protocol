@@ -31,8 +31,14 @@ that the current `cfg(unix)` test is selected on the admitted local Unix target;
 claim no unexecuted target. With `CARGO_BUILD_JOBS=1` under
 `flock /tmp/quire-heavy-check.lock`, run `cargo fmt --all -- --check`,
 `cargo clippy --locked --all-targets --target-dir target-codex-backends -- -D
-warnings`, and `cargo test --locked --target-dir target-codex-backends`,
-recording each exit status, commit, tracked state and covering risk.
+warnings`, `cargo test --locked --target-dir target-codex-backends` and
+`env RUSTDOCFLAGS="-D warnings" cargo doc --locked --no-deps --target-dir
+target-codex-backends`, then the `test-support` lane: `cargo clippy --locked
+--all-targets --features test-support --target-dir target-codex-backends -- -D
+warnings`, `cargo test --locked --features test-support --target-dir
+target-codex-backends` and `env RUSTDOCFLAGS="-D warnings" cargo doc --locked
+--no-deps --features test-support --target-dir target-codex-backends`, recording
+each exit status, commit, tracked state and covering risk.
 
 Then exercise independent Rust policy fixtures for every negative control.
 Remove each denied-warning channel in turn; omit `--all-targets`; request
@@ -49,7 +55,7 @@ statuses for the unchanged candidate.
 All enumerated commands execute and pass over one unchanged clean worktree
 state, each recorded with its covering risk, and the default and `test-support`
 lanes are both built, linted, tested and documented.
-All seven current conditional sites are selected without misclassifying target
+All 22 current conditional sites (20 test-kind, one feature, one `unix`) are selected without misclassifying target
 kind or platform as a Cargo feature. Each negative policy fixture returns its
 own refusal: missing warning channel, missing all-target coverage, undeclared or
 phantom feature, missing opposing feature lane, unexecuted target condition,
