@@ -823,7 +823,7 @@ fn tc_012_the_inventory_reads_cfg_attr_and_unspaced_features() {
         [feature("ts")]
     );
     // A multi-line attribute reads its predicate from the following lines.
-    let split = format!("#[cfg_attr(\n    not(test),\n    expect(dead_code)\n)]");
+    let split = "#[cfg_attr(\n    not(test),\n    expect(dead_code)\n)]".to_owned();
     assert_eq!(
         conditions_in("src/x.rs", &split),
         [Condition::Test {

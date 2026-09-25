@@ -4,7 +4,7 @@
 //!
 //! Production code reaches a [`ValidatedResult`] only through the Engine-owned
 //! transition in [`crate::assessment`], which derives truth, settlement and
-//! execution, or through the strict [`super::read`] of bytes some producer
+//! execution, or through the strict [`crate::result::read`] of bytes some producer
 //! already made. Downstream crates' test suites still need results with a
 //! chosen truth, settlement and execution to exercise their own mapping of a
 //! result, including values the Engine would derive itself. This module is that
