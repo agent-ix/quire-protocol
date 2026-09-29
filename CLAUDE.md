@@ -6,6 +6,16 @@ producer emits. No parser, no source frontend, no encoder, no formal semantics.
 This repository is one part of an ecosystem where each repository owns part of
 the design. **Most types handled here belong to someone else.**
 
+## Hash / digest / pin antipattern: present, slated for removal
+
+This repository still contains hashes, digests, SHAs, pins, checksum catalogs and
+records that track files, versions or tools. That is an antipattern and it is slated
+for removal. Do not introduce any new use of it. When you touch code or specs that
+contain one, remove it as part of the change. The only hash that stays is a canonical
+identity digest that binds a proof to the exact content it proved. Package versions
+live in Cargo.toml / package.json and their lockfiles only; reports name the app
+version they ran.
+
 ## Before you declare anything
 
 Before declaring any type, enum member, key, wire string, or file schema, find
