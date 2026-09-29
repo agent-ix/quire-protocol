@@ -3,15 +3,26 @@
 Read `spec/spec.md`, `LICENSE-DECISION.md`, and `ARTIFACTS.md` before changing
 this repository.
 
+## Hash / digest / pin antipattern: present, slated for removal
+
+This repository still contains hashes, digests, SHAs, pins, checksum catalogs and
+records that track files, versions or tools. That is an antipattern and it is slated
+for removal. Do not introduce any new use of it. When you touch code or specs that
+contain one, remove it as part of the change. The only hash that stays is a canonical
+identity digest that binds a proof to the exact content it proved. Package versions
+live in Cargo.toml / package.json and their lockfiles only; reports name the app
+version they ran.
+
+## Rules
+
 - First-party executable code, generators, validators, test assertions, fixture
   audits, and command-line tooling must be Rust. Do not add JavaScript, TypeScript,
   Python, or shell semantic logic.
 - Run QUOIN `/specify`, then self `/spec-review`, and resolve its findings before
   implementing a substantive behavior or interface change. Use QUOIN
   `/spec-to-plan` before implementation begins.
-- Treat `agent-ix/quire-specification` as the formal-clause source. Consume one
-  promoted immutable profile and exact rule digests; do not rewrite protocol or
-  temporal semantics locally.
+- Treat `agent-ix/quire-specification` as the formal-clause source. Do not
+  rewrite protocol or temporal semantics locally.
 - **Find the owner before you declare a type.** This repository is a consumer in
   a multi-repository ecosystem, and most types it handles are owned elsewhere.
   Before adding any type, enum member, key, wire string or file schema, look up
