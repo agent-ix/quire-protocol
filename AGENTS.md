@@ -99,4 +99,4 @@ version they ran.
 - Every GitHub Actions workflow must use `workflow_dispatch` as its only trigger.
 - License new implementation source and tests as `AGPL-3.0-or-later`; preserve
   all imported grants and complete dependency compatibility review before use.
-- Preserve source, fixture, generated-artifact, and dependency rights and provenance.
+- Preserve source, fixture, generated-artifact, and dependency rights.
