@@ -3,16 +3,6 @@
 version = 4
 
 [[package]]
-name = "agent-ix-baseline-producer"
-version = "0.0.0"
-source = "git+https://github.com/agent-ix/filament-core-data?rev=a6fe662542770e6acbec4917cfe1772b349ee414#a6fe662542770e6acbec4917cfe1772b349ee414"
-dependencies = [
- "serde",
- "serde_json",
- "sha2",
-]
-
-[[package]]
 name = "agent-ix-extraction-frontend"
 version = "0.0.0"
 source = "git+https://github.com/agent-ix/filament-core-data?rev=1572ba4ba8fad0e94e9a0b19a569f82a5181b488#1572ba4ba8fad0e94e9a0b19a569f82a5181b488"
@@ -1285,7 +1275,7 @@ source = "git+https://github.com/agent-ix/quire-spec-language?rev=9395be4268e650
 dependencies = [
  "qsl-foundation",
  "qsl-semantics",
- "quire-canonical",
+ "quire-canonical 0.1.0",
  "quire-contract-model",
  "quire-exact",
  "serde",
@@ -1316,7 +1306,7 @@ dependencies = [
  "agent-ix-semantic-ir",
  "qsl-forms",
  "qsl-foundation",
- "quire-canonical",
+ "quire-canonical 0.1.0",
  "quire-exact",
  "serde",
  "serde_json",
@@ -1328,6 +1318,17 @@ dependencies = [
 name = "quire-canonical"
 version = "0.1.0"
 source = "git+https://github.com/agent-ix/quire-canonical?rev=0143a2b76be9a51941e95ee2613f2d5608d756fe#0143a2b76be9a51941e95ee2613f2d5608d756fe"
+dependencies = [
+ "ryu-js",
+ "serde",
+ "sha2",
+ "thiserror",
+]
+
+[[package]]
+name = "quire-canonical"
+version = "0.3.0"
+source = "git+https://github.com/agent-ix/quire-canonical?tag=quire-canonical-v0.3.0#1d73f93f6b8139f10eb5bd5082a0b877958344fa"
 dependencies = [
  "ryu-js",
  "serde",
@@ -1365,9 +1366,9 @@ dependencies = [
 [[package]]
 name = "quire-observation"
 version = "0.1.0"
-source = "git+https://github.com/agent-ix/quire-observation?rev=2bdeb833a330bfa777c19eb4c28c423f856f3ba6#2bdeb833a330bfa777c19eb4c28c423f856f3ba6"
+source = "git+https://github.com/agent-ix/quire-observation?rev=ab4abe3a03d24ed8430f513b8b695ac2d1471938#ab4abe3a03d24ed8430f513b8b695ac2d1471938"
 dependencies = [
- "agent-ix-baseline-producer",
+ "quire-canonical 0.3.0",
  "serde",
  "serde_json",
  "sha2",
@@ -1378,7 +1379,6 @@ dependencies = [
 name = "quire-protocol"
 version = "0.1.0"
 dependencies = [
- "agent-ix-baseline-producer",
  "engineering-assurance",
  "ix-trace-rs",
  "jsonschema 0.17.1",
@@ -1429,7 +1429,7 @@ dependencies = [
  "qsl-package",
  "qsl-replay",
  "qsl-semantics",
- "quire-canonical",
+ "quire-canonical 0.1.0",
  "quire-contract-model",
  "quire-exact",
  "serde",

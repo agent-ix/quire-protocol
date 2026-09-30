@@ -89,10 +89,20 @@ pub fn validate_subject(encoded: &str, subject: &QualifiedSubject) -> Result<(),
 }
 
 fn canonical_subject(subject: &QualifiedSubject) -> Result<String, Error> {
-    let authority =
-        serde_json::to_value(subject.authority()).map_err(|_| Error::Canonicalization)?;
+    let authority = subject.authority();
+    let authority_value = json!({
+        "bundleIdentity": authority.bundle_identity,
+        "bundleRevision": {
+            "namespace": authority.bundle_revision.namespace,
+            "value": authority.bundle_revision.value,
+        },
+        "digest": {
+            "label": authority.digest.label,
+            "value": authority.digest.value,
+        },
+    });
     let value = json!({
-        "authority": authority,
+        "authority": authority_value,
         "identityHex": hex(subject.identity().as_bytes()),
         "kindHex": hex(subject.kind().as_bytes()),
     });
@@ -136,19 +146,11 @@ fn complete_shape(value: &Value) -> bool {
             .and_then(Value::as_str)
             .is_some_and(|value| !value.is_empty())
         && digest
-            .get("algorithm")
-            .and_then(Value::as_str)
-            .is_some_and(|value| !value.is_empty())
-        && digest
-            .get("domain")
+            .get("label")
             .and_then(Value::as_str)
             .is_some_and(|value| !value.is_empty())
         && digest
             .get("value")
-            .and_then(Value::as_str)
-            .is_some_and(|value| !value.is_empty())
-        && digest
-            .get("version")
             .and_then(Value::as_str)
             .is_some_and(|value| !value.is_empty())
         && object
@@ -162,7 +164,7 @@ fn complete_shape(value: &Value) -> bool {
             .all(|key| matches!(key.as_str(), "namespace" | "value"))
         && digest
             .keys()
-            .all(|key| matches!(key.as_str(), "algorithm" | "domain" | "value" | "version"))
+            .all(|key| matches!(key.as_str(), "label" | "value"))
 }
 
 fn hex(bytes: &[u8]) -> String {

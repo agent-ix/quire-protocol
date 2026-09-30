@@ -5,9 +5,9 @@ use std::cell::{Cell, OnceCell};
 use std::collections::{BTreeMap, BTreeSet};
 use std::time::{Duration, Instant};
 
-use agent_ix_baseline_producer::StaticProducerBundle;
 use ix_trace_rs::trace;
 use qsl_foundation::ByteDigest;
+use quire_observation::StaticProducerBundle;
 use quire_observation::{
     authority::{closure, completeness, observation, progress, OpenClosed},
     QualifiedSubject, Relationship, RelationshipIdentity, SubjectIdentity, SubjectKind,
