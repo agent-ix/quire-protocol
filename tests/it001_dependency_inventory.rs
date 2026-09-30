@@ -89,15 +89,6 @@ const LIBRARY_MODULES: &[&str] = &[
 /// without being added here fails the lane, so a second frontend, an alternate
 /// decoder or a foreign runtime cannot enter unannounced.
 const INVENTORY: &[&str] = &[
-    // A third repository's crate, reaching B's published library as a normal
-    // (not development) dependency of A: `filament-core-data` at
-    // `4042882`, pulled in by `quire-spec-language` at the pinned revision.
-    // Named rather than left to the alphabet because a hundred-entry sorted
-    // list announces nothing, and announcing is what this inventory is for.
-    // It is not a frontend and not a decoder -- the one-frontend assertion
-    // below still resolves exactly one package from A's repository -- and B
-    // did not choose it: A did, and B's only say is whether it pins A.
-    "agent-ix-baseline-producer",
     // A's own workspace crates, split out of `quire-spec-language` (ADR-011),
     // all resolved from A's repository at the one pinned revision; see
     // `it_001_resolves_one_frontend_in_the_whole_graph`.
@@ -389,13 +380,14 @@ fn it_001_declares_only_selected_owner_dependencies() {
     }
 
     // Development dependencies are harness-only: tracing, the cycle-free
-    // Contract Model types used to construct the native handoff, the exact FCD
-    // static-producer owner that admits shared QObs fixture bytes, and JSON
-    // fixtures. None is reachable from the published library.
+    // Contract Model types used to construct the native handoff, and JSON
+    // fixtures. The Producer interface 1.2 static-bundle admission used by
+    // fixtures is `quire_observation`'s own `StaticProducerBundle` (a
+    // production dependency already), not a separate FCD crate. None is
+    // reachable from the published library.
     assert_eq!(
         declared_packages(manifest_section("[dev-dependencies]")),
         BTreeSet::from([
-            "agent-ix-baseline-producer",
             "ix-trace-rs",
             "quire-contract-ir",
             // QSL-251: the same pinned frontend again, with its test-only

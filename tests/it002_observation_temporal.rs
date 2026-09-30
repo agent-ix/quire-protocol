@@ -1251,11 +1251,11 @@ fn it_002_sc_06_each_composed_budget_is_exact_one_short_and_fresh() {
     };
 
     let exercised = [
-        (BudgetDimension::InputByte, 28_176),
+        (BudgetDimension::InputByte, 27_836),
         (BudgetDimension::Node, 8),
         (BudgetDimension::Observation, 2),
         (BudgetDimension::ResultItem, 5),
-        (BudgetDimension::OutputByte, 9_205),
+        (BudgetDimension::OutputByte, 8_933),
         (BudgetDimension::Operation, 249),
         (BudgetDimension::AccountedAllocation, 20),
     ];

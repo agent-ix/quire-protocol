@@ -144,7 +144,7 @@ impl SelectionHasher {
 
 fn hash_authority_components(
     hasher: &mut SelectionHasher,
-    components: [&[u8]; 7],
+    components: [&[u8]; 5],
 ) -> Result<(), ProducerSelectionTooLarge> {
     for component in components {
         hasher.component(component)?;
@@ -163,9 +163,7 @@ fn hash_subject(
             authority.bundle_identity.as_bytes(),
             authority.bundle_revision.namespace.as_bytes(),
             authority.bundle_revision.value.as_bytes(),
-            authority.digest.algorithm.as_bytes(),
-            authority.digest.domain.as_bytes(),
-            authority.digest.version.as_bytes(),
+            authority.digest.label.as_bytes(),
             authority.digest.value.as_bytes(),
         ],
     )?;
@@ -211,9 +209,7 @@ pub(crate) fn select_loaded_runtime_bindings(
                     authority.bundle_identity.as_bytes(),
                     authority.bundle_revision.namespace.as_bytes(),
                     authority.bundle_revision.value.as_bytes(),
-                    authority.digest.algorithm.as_bytes(),
-                    authority.digest.domain.as_bytes(),
-                    authority.digest.version.as_bytes(),
+                    authority.digest.label.as_bytes(),
                     authority.digest.value.as_bytes(),
                 ],
             )?;
@@ -364,7 +360,7 @@ define_producer_contracts! {
         owner: QOBS_OWNER,
         contract: observation::CONTRACT,
         revision: QOBS_REVISION,
-        schema: Some(OwnerSchema { bytes: observation::SCHEMA_BYTES, sha256: "8737683a5971aabcb39bbc5f0842fa1d7c1db5c8f283b8b2544c6364c682f882" }),
+        schema: Some(OwnerSchema { bytes: observation::SCHEMA_BYTES, sha256: "f113c4157c25608b6c61dc085dc0533120d0049d8a54946b966c00e0b82b1ffa" }),
     },
     /// Qualified population record.
     ObservationPopulation {
@@ -448,14 +444,14 @@ define_producer_contracts! {
         owner: QOBS_OWNER,
         contract: bundle::CONTRACT,
         revision: QOBS_REVISION,
-        schema: Some(OwnerSchema { bytes: bundle::SCHEMA_BYTES, sha256: "9614d8077bd1e667507b2107eab08e0f7934337115ce3e10c8c55b5d5538cdab" }),
+        schema: Some(OwnerSchema { bytes: bundle::SCHEMA_BYTES, sha256: "636a695900643067596ececb5177a8b7d446e977727a6eee7aeff494e18e336b" }),
     },
     /// Canonical observation-authority bundle version 2.
     ObservationAuthorityBundleV2 {
         owner: QOBS_OWNER,
         contract: bundle::V2_CONTRACT,
         revision: QOBS_REVISION,
-        schema: Some(OwnerSchema { bytes: bundle::V2_SCHEMA_BYTES, sha256: "f92335c5e5e1e3434f1c2484557ca1f512c22b496eb97319c94fcac3491f116a" }),
+        schema: Some(OwnerSchema { bytes: bundle::V2_SCHEMA_BYTES, sha256: "728cb5d0954440a094a16d05020d4db53be693579cae170d0bb2ce76b5226f31" }),
     },
     /// Bounded observation-authority lineage.
     ObservationAuthorityLineage {
@@ -938,8 +934,8 @@ mod selection_tests {
         RuntimeBinding, RuntimeBindingSet, SlotCompatibility, SlotHandle, StaticBindingDefinition,
         StaticSelection, StaticSlot, RUNTIME_BINDING_CONTRACT, STATIC_BINDING_CONTRACT,
     };
-    use agent_ix_baseline_producer::StaticProducerBundle;
     use ix_trace_rs::trace;
+    use quire_observation::StaticProducerBundle;
     use quire_observation::{
         QualifiedSubject, Relationship, RelationshipIdentity, SubjectIdentity, SubjectKind,
     };
@@ -1031,8 +1027,8 @@ mod selection_tests {
         assert_eq!(
             selected.digest(),
             [
-                173, 2, 101, 84, 158, 94, 76, 69, 124, 166, 230, 109, 62, 189, 6, 154, 139, 212,
-                180, 134, 80, 144, 180, 111, 126, 197, 82, 36, 122, 245, 241, 3,
+                132, 80, 142, 220, 127, 15, 50, 251, 38, 84, 249, 219, 161, 197, 186, 199, 153, 37,
+                98, 87, 113, 66, 212, 181, 226, 35, 168, 73, 219, 237, 206, 237,
             ]
         );
         let exact_framed_bytes = selected.framed_bytes();

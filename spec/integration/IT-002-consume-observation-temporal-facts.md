@@ -70,8 +70,8 @@ owner contracts and schema digests at the exact accepted revision:
 | --- | --- |
 | `quire.observation.partial-fact/v1` | `9dc068376a7db5a7509810910c36e2efff6b9c3701d83c474701ec572f13f23c` |
 | `quire.observation.activation-scope-authority/v1` | `c17ad8b3ec10c48e535bc3a762738b979206c01af20c31775d8a9a9e0a97fab6` |
-| `quire.observation-authority/v1` | `9614d8077bd1e667507b2107eab08e0f7934337115ce3e10c8c55b5d5538cdab` |
-| `quire.observation-authority/v2` | `f92335c5e5e1e3434f1c2484557ca1f512c22b496eb97319c94fcac3491f116a` |
+| `quire.observation-authority/v1` | `636a695900643067596ececb5177a8b7d446e977727a6eee7aeff494e18e336b` |
+| `quire.observation-authority/v2` | `728cb5d0954440a094a16d05020d4db53be693579cae170d0bb2ce76b5226f31` |
 | `quire.observation-authority-lineage/v1` | `d58c70516e53bde40ab2d276df143fffb05740348b98d09a71e89857a82a22ef` |
 
 These entries authorize only the published Rust interfaces. QObs repair and

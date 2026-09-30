@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! TC-003: graph-owned transactional compensation assessment.
 
-use agent_ix_baseline_producer::StaticProducerBundle;
 use ix_trace_rs::trace;
+use quire_observation::StaticProducerBundle;
 use quire_observation::{QualifiedSubject, SubjectIdentity, SubjectKind};
 use quire_protocol::assessment::{
     with_assessment_after_resolving, AssessmentInputs, ResolvedAssessmentScope,

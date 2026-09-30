@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Shared strict QObs owner fixtures for protocol integration tests.
 
-use agent_ix_baseline_producer::StaticProducerBundle;
 use quire_observation::authority::{
     self, AuthoritySelection, Context, History, Limits as ObservationLimits, OpenClosed,
     SubjectSelection, TemporalBoundary,
 };
+use quire_observation::StaticProducerBundle;
 use quire_observation::{
     admit, AdmissionOutcome, AdmissionRequest, AdmittedRecord, Anchor, ClockRange, Digest,
     Identity, Member, ObservationBinding, PackageSelection, QualifiedObservation, QualifiedSubject,
