@@ -1,0 +1,180 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Agent-IX
+"""quire-protocol's documentation figures, rendered by the docs-figures skill.
+
+Regenerate from the repository root with the agent-ix/dev-tools skill:
+
+    python3 -m pip install fonttools
+    python3 <dev-tools>/skills/docs-figures/scripts/render.py docs/images/figures.py
+
+Add --check to confirm the committed SVGs are current. The outcome names come
+from src/conformance/batch.rs and src/compensation/mod.rs.
+"""
+
+from docs_figures import FONTS, SMALL, TITLE, Figure  # noqa: F401
+
+STYLE = "ix-docs"
+
+# One role per kind of thing, fixed across the Quire repositories.
+ROLES = [
+    ("code", "authored source", "box"),
+    ("logic", "compiler stage", "box"),
+    ("model", "checked package / IR", "box"),
+    ("evidence", "outcome", "box"),
+    ("ink", "input", "box"),
+]
+
+
+# ---- figures -----------------------------------------------------------------
+
+
+def hero():
+    """README hero: a compiled protocol plus observed traffic gives a verdict."""
+    f = Figure(
+        "hero",
+        980,
+        290,
+        "A compiled protocol is admitted and linked into roles and channels. Observed traffic is "
+        "then checked against it for conformance, and compensation is assessed alongside. The "
+        "result is a conformance verdict and a compensation path that is available or unavailable.",
+    )
+    f.box(0, 30, 170, 56, "model", "compiled protocol", "from QSL, /1 or /2")
+    f.box(0, 190, 170, 56, "ink", "observed traffic", "messages · effects")
+    f.box(214, 90, 150, 56, "logic", "admit · link", "two separate steps")
+    f.box(408, 90, 150, 56, "model", "linked protocol", "roles · channels")
+    f.line([(170, 58), (190, 58), (190, 118), (211, 118)], "model")
+    f.line([(364, 118), (405, 118)], "logic")
+    f.line([(558, 118), (580, 118)], "model", arrow=False)
+    f.line([(580, 58), (580, 178)], "model", arrow=False)
+    f.line([(170, 218), (580, 218), (580, 178)], "ink", arrow=False)
+    f.line([(580, 58), (602, 58)], "model")
+    f.line([(580, 178), (602, 178)], "model")
+    f.box(604, 30, 170, 56, "logic", "compensation", "undo steps, in order")
+    f.box(604, 150, 170, 56, "logic", "conformance", "finite replay")
+    f.line([(774, 58), (807, 58)], "evidence", weight=2.4)
+    f.line([(774, 178), (807, 178)], "evidence", weight=2.4)
+    f.box(810, 30, 170, 56, "evidence", "compensation path", "available or not")
+    f.box(810, 150, 170, 56, "evidence", "conformance verdict", "conforms · violates")
+    f.legend(0, 284, [ROLES[1], ROLES[2], ROLES[3], ROLES[4]])
+    return f
+
+
+def outcomes():
+    """The per-obligation dispositions and the adverse kinds behind a violation."""
+    dispositions = [
+        ("conforms", "every required fact present", "logic"),
+        ("pending", "a required fact may still arrive", "evidence"),
+        ("violates", "an adverse observation exists", "evidence"),
+        ("incomplete", "a required valuation is absent", "evidence"),
+        ("unavailable", "the assessment did not complete", "evidence"),
+    ]
+    adverse = [
+        ("unexpected", "not the expected observation"),
+        ("missing", "absent at a complete boundary"),
+        ("causally misordered", "dependent before predecessor"),
+        ("duplicate effect", "two observations, one effect"),
+        ("cross-workflow", "another workflow instance"),
+    ]
+    f = Figure(
+        "outcomes",
+        980,
+        290,
+        "Each obligation in a protocol ends in one of five dispositions: conforms, pending, "
+        "violates, incomplete or unavailable. A violation is always backed by an adverse "
+        "observation of one kind: unexpected, missing, causally misordered, duplicate effect or "
+        "cross-workflow.",
+    )
+    f.text(0, 14, "ONE DISPOSITION PER OBLIGATION", "muted", "mono", SMALL)
+    f.text(520, 14, "WHAT BACKS A VIOLATION", "muted", "mono", SMALL)
+    for i, (name, why, role) in enumerate(dispositions):
+        y = 24 + i * 48
+        f.box(0, y, 170, 40, role, name)
+        f.line([(170, y + 20), (197, y + 20)], role, arrow=False)
+        f.text(210, y + 25, why, "muted", "mono", SMALL + 1)
+    for i, (name, why) in enumerate(adverse):
+        y = 24 + i * 48
+        f.box(520, y, 200, 40, "evidence", name)
+        f.line([(720, y + 20), (747, y + 20)], "evidence", arrow=False)
+        f.text(760, y + 25, why, "muted", "mono", SMALL)
+    return f
+
+
+REPOS = [
+    (1, 0, "quire-driver", "the quire command", True),
+    (2, 0, "quire-integration", "tests the whole chain", True),
+    (3, 0, "quire-verification", "plans verification", True),
+    (0, 1, "quire-specification", "the standard", True),
+    (1, 1, "quire-spec-language", "compiler · evaluator", False),
+    (2, 1, "quire-contract-ir", "contract model", False),
+    (3, 1, "quire-contract-codegen", "code · tests · proofs", False),
+    (4, 1, "quire-contract-runtime", "runs generated checks", False),
+    (0, 2, "quire-observation", "qualified observations", False),
+    (1, 2, "quire-protocol", "protocol conformance", True),
+    (2, 2, "quire-analyze", "SMT consistency", False),
+    (0, 3, "quire-mltl", "MLTL over observations", False),
+]
+FEEDS = [
+    ("quire-specification", "quire-spec-language"),
+    ("quire-spec-language", "quire-contract-ir"),
+    ("quire-contract-ir", "quire-contract-codegen"),
+    ("quire-contract-codegen", "quire-contract-runtime"),
+    ("quire-spec-language", "quire-protocol"),
+    ("quire-contract-ir", "quire-analyze"),
+    ("quire-observation", "quire-protocol"),
+    ("quire-observation", "quire-mltl"),
+]
+SHARED = ["quire-exact", "quire-semantic-value", "quire-walk", "quire-canonical",
+          "quire-verification-contracts"]
+
+
+def ecosystem(here="quire-spec-language"):
+    """The Quire repositories: the main chain, its branches, and what runs and shares it."""
+    f = Figure(
+        "ecosystem",
+        980,
+        476,
+        "The Quire repositories. The main chain runs from the standard, quire-specification, to "
+        "the compiler, quire-spec-language, then quire-contract-ir, quire-contract-codegen and "
+        "quire-contract-runtime. quire-spec-language also feeds quire-protocol, and "
+        "quire-contract-ir feeds quire-analyze. quire-observation feeds quire-protocol and "
+        "quire-mltl. Above the chain, quire-driver runs it, quire-integration tests it and "
+        "quire-verification plans verification. Below it, shared libraries used throughout: "
+        "quire-exact, quire-semantic-value, quire-walk, quire-canonical and "
+        "quire-verification-contracts.",
+    )
+    w, h, step = 176, 50, 201
+    rows = {0: 20, 1: 120, 2: 210, 3: 290}
+    where = {}
+    for col, row, name, sub, private in REPOS:
+        x, y = col * step, rows[row]
+        where[name] = (x, y)
+        role = "logic" if name == here else "ink"
+        f.box(x, y, w, h, role, name, sub, dashed=private)
+    for a, b in FEEDS:
+        (ax, ay), (bx, by) = where[a], where[b]
+        if ay == by:
+            f.line([(ax + w, ay + h / 2), (bx - 3, by + h / 2)], "model")
+        else:
+            f.line([(ax + w / 2, ay + h), (bx + w / 2, by - 3)], "model")
+    f.text(0, 12, "ORCHESTRATION", "muted", "mono", SMALL)
+    f.text(0, 112, "THE CHAIN", "muted", "mono", SMALL)
+    f.text(0, 382, "SHARED LIBRARIES · USED THROUGHOUT", "muted", "mono", SMALL)
+    gap = 10
+    widths = [FONTS["title"].width(name, TITLE) + 24 for name in SHARED]
+    spare = (980 - sum(widths) - gap * (len(SHARED) - 1)) / len(SHARED)
+    x = 0
+    for name, w0 in zip(SHARED, widths):
+        w0 = round(w0 + spare)
+        f.box(x, 390, w0, h, "logic" if name == here else "ink", name)
+        x += w0 + gap
+    f.legend(0, 472, [("logic", "this repository", "box"), ("ink", "private", "dash"),
+                      ("model", "feeds", "fill")])
+    return f
+
+
+def this_repo():
+    """The ecosystem figure with quire-protocol highlighted."""
+    return ecosystem(here="quire-protocol")
+
+
+FIGURES = [hero, outcomes, this_repo]
