@@ -117,7 +117,8 @@ match report.result() {
 | `bounds` | Count, allocation and deadline guards. |
 | `digest`, `result` | Digest domains and the canonical protocol result. |
 | `projection` | The projection of a result into `quire-verification/e02-draft-2`. |
-| `refusal` | The typed refusal envelope and its catalogue. |
+| `refusal` | The typed refusal envelope and its catalog
+. |
 | `repro`, `delivery_index`, `producer_contracts` | Reproduction record, evidence index for one pinned delivery, and the producer-contract inventory. |
 
 The crate has one feature, `test-support`, which exposes validated-result
