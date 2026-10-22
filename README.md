@@ -178,3 +178,5 @@ artifact and rights policy is in [`ARTIFACTS.md`](ARTIFACTS.md).
 
 AGPL-3.0-or-later. See [`LICENSE`](LICENSE) and
 [`LICENSE-DECISION.md`](LICENSE-DECISION.md).
+
+<!-- STD-30 language-boundary canary: inert README change. -->
