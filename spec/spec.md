@@ -267,9 +267,14 @@ not permission to substitute a local contract.
 
 ## 15. Governance Notes
 
-All hosted workflows remain manual dispatch. Local heavy Cargo activity uses one
-job and the shared workstation lock. This repository does not implement another
-agent's owned producer or evidence surface.
+Build and qualification workflows remain manual dispatch. The sole
+qualification-policy exception is `.github/workflows/language-boundary.yml`,
+which may run on `pull_request_target` to invoke the trusted shared Rust checker
+and report a status against the pull request head without privileged execution
+of pull request code. That hosted status is not evidence for the local gate.
+The existing CLA administration workflow retains its separate triggers. Local
+heavy Cargo activity uses one job and the shared workstation lock. This
+repository does not implement another agent's owned producer or evidence surface.
 
 ## 16. References
 
