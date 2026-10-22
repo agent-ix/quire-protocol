@@ -96,7 +96,14 @@ version they ran.
   literal `target-codex-backends` directory is required for compiling commands;
   a shared `CARGO_TARGET_DIR` or another worktree's path can serve a stale result
   and is not accepted as gate evidence.
-- Every GitHub Actions workflow must use `workflow_dispatch` as its only trigger.
+- Build and qualification workflows must use `workflow_dispatch` as their only
+  trigger. The sole qualification-policy exception is
+  `.github/workflows/language-boundary.yml`: it may run on
+  `pull_request_target` to call the trusted shared Rust language-boundary
+  checker and report its result against the pull request head. It must not
+  execute pull request code with the event's privileged token.
+  This guard result is not evidence for the seven-command local gate above.
+  The existing CLA administration workflow retains its separate event triggers.
 - License new implementation source and tests as `AGPL-3.0-or-later`; preserve
   all imported grants and complete dependency compatibility review before use.
 - Preserve source, fixture, generated-artifact, and dependency rights.
