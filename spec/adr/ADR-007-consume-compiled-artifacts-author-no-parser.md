@@ -74,10 +74,7 @@ This repository consumes compiled artifacts and parses no source.
   gap is cited and no local member list is supplied.
 - The boundary is enforced mechanically, not by intent.
   [NFR-003](../non-functional/NFR-003-preserve-rust-assurance-boundary.md)-AC-3
-  requires the accepted shared checker to reject an unapproved tracked source,
-  shebang, manifest, inline workflow command, generated executable template,
-  runtime dependency, extensionless executable, rename, or Rust-wrapper bypass,
-  and NFR-003-AC-4 requires the inventory to contain no local producer runner,
+  requires every first-party path to be Rust, and NFR-003-AC-4 requires the inventory to contain no local producer runner,
   stdout verdict parser, evidence store, method catalogue, sufficiency or
   human-disposition implementation.
 

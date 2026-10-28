@@ -162,20 +162,13 @@ The five words below are not interchangeable, and no total mixes them.
   The reason is narrow, and it is worth stating narrowly. AC-5's only declared
   verification is `Test (TC-010)`; TC-010 is Task-011's; Task-011 is `blocked`.
   Its own subtask for TC-010 ends "add no local scanner", so a scanner written
-  here would not discharge the criterion even if it worked. An earlier revision
-  of this paragraph reached instead for NFR-003's Verification clause forbidding
-  a local replacement. That clause is about the shared Rust-native
-  *language-boundary* checker, which verifies AC-3, not AC-5 — and the same
-  sentence names Quire coverage as a permitted method. Stretching a real
-  prohibition to cover something it does not reach is not a stronger reason for
-  waiting; it is a weaker one, because it can be checked and found wrong.
+  here would not discharge the criterion even if it worked.
 
   Nor is TC-010 one upstream publish away. Task-011 `depends_on` Task-008,
-  Task-009 and Task-010, and its first subtask freezes five external revisions
+  Task-009 and Task-010, and its first subtask freezes four external revisions
   at once: Engineering Assurance issue 34, E02, the Quoin interface, Quoin
-  containment (`agent-ix/quire-research#62`) and the shared Rust checker
-  (`agent-ix/quire-research#64`). Naming only #64 would make the block read as
-  nearly lifted.
+  containment (`agent-ix/quire-research#62`). Naming only one would make the
+  block read as nearly lifted.
 
   Note also what `ix-trace-rs` does and does not check, since "compiler-checked"
   is easy to over-read. The macro validates argument **shape** only: it rejects
@@ -381,7 +374,7 @@ the reference resolves in both directions.
 | --- | --- | --- | --- |
 | NFR-001 | Property and metamorphic testing | TC-008 (AC-1..AC-3) | ✅ Implemented — all 3 criteria are engine-backed. Canonical results retain the complete reproduction tuple; map order, locale-isolated child processes, allocation layout, permitted independent arrival order, authored causal order, producer-integration permutations and E02 projection maps reproduce. Every named result identity and the projection adapter identity independently changes the affected identity or refuses. |
 | NFR-002 | Property, mutation, and source-bound inventory inspection | TC-009 (AC-1..AC-4) | ✅ Implemented — one `ResourceAccountant` covers the reconciled admission, linking, assessment, result, resolution, delivery, reproduction and E02 projection sites. Static and authored ceilings admit exact/fresh-exact usage and refuse representable one-short use before work; deadlines report before/after observations and overshoot; inventory/guard mutants and zero-action controls execute. The retired parallel `CountGuard`/`BoundedRun` surface and its dead refusal codes are absent. |
-| NFR-003 | Shared Rust language-boundary check, static analysis, architecture inspection, Rust review, Quire coverage, gap analysis | TC-010 (AC-1..AC-6); IT-003 (AC-4, AC-6) | 🚧 Planned — 6 of 6 criteria test-backed, 0 unbacked, 0 unexecutable |
+| NFR-003 | Static analysis, architecture inspection, Rust review, Quire coverage, gap analysis | TC-010 (AC-1..AC-6); IT-003 (AC-4, AC-6) | 🚧 Planned — 6 of 6 criteria test-backed, 0 unbacked, 0 unexecutable |
 | NFR-004 | Cargo metadata inspection, conditional-compilation inventory, enumerated gate execution over one unchanged head, per-criterion negative controls | TC-012 (AC-1..AC-10) | ✅ Implemented — 10 of 10 criteria are engine-backed by ten executable TC-012 tests. The actual documented commands, manifest and seven conditional sites are checked alongside isolated command/risk, serialization, warning, feature/lane, target and evidence-state mutations. Both real compiler warning-channel controls and the undeclared-feature control refuse as specified. NFR-004-AC-2 remains inspection-method but test-case-backed. |
 | NFR-005 | Composition properties and Quire coverage over owed integration lanes | TC-016 (AC-1..AC-6); TC-010 (AC-6); IT-001, IT-002, IT-003 (AC-1..AC-3, AC-6) | 🚧 Planned — 6 of 6 criteria are test-backed. The denominator is all 32 owed scenarios; until Task-018 and the concrete handoffs execute, each metric reports its actual completed count rather than a vacuous percentage. |
 | NFR-006 | Cargo manifest, lockfile and rights-record inspection with per-criterion negative controls; delivery-surface tests on B-owned fixtures | TC-013 (AC-6, AC-7); TC-017 (AC-8); none for NFR-006-AC-1..AC-5 | 🚧 In progress — AC-6 and AC-7 execute in Task-013's exact delivery-member controls and AC-8 executes through the consumer `DeliveryIndex`; AC-1..AC-5 remain inspection-backed. `DEPENDENCIES.md` records all seven current git sources, including exact QObs C00, qverify and transitive EA pins. |
