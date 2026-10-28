@@ -21,7 +21,7 @@ license, and evidence dependencies are explicit gates rather than local fallback
 | --- | --- | --- | --- |
 | FND-001 | high | Accepted external gate: implementation cannot begin until A mints an immutable candidate that pins the integrated FR-061/FR-062 bytes; existing `1-draft.3` predates them. | FR-001; IT-001; AD-001 |
 | FND-002 | high | Accepted integration gates: F's consumer must preserve canonical result facts and Engineering Assurance issue 34 must publish typed Rust execution/transport before IT-002/IT-003 can run; neither absence authorizes a local implementation. | IT-002; IT-003; NFR-003 |
-| FND-003 | medium | Accepted repository gate: the exact outbound SPDX choice and compatibility review precede implementation source or dependencies. | LICENSE-DECISION.md; AD-001 |
+| FND-003 | medium | Accepted repository gate: the exact outbound SPDX choice and compatibility review precede implementation source or dependencies. | AD-001 |
 
 ## Classification and order
 

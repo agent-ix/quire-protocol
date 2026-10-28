@@ -1,6 +1,6 @@
 # Contributor instructions
 
-Read `spec/spec.md`, `LICENSE-DECISION.md`, and `ARTIFACTS.md` before changing
+Read `spec/spec.md` and `ARTIFACTS.md` before changing
 this repository.
 
 ## Hash / digest / pin antipattern: present, slated for removal

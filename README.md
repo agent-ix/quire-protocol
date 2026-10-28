@@ -176,5 +176,4 @@ artifact and rights policy is in [`ARTIFACTS.md`](ARTIFACTS.md).
 
 ## License
 
-AGPL-3.0-or-later. See [`LICENSE`](LICENSE) and
-[`LICENSE-DECISION.md`](LICENSE-DECISION.md).
+AGPL-3.0-or-later. See [`LICENSE`](LICENSE).
