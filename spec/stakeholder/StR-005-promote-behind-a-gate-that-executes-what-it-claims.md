@@ -63,10 +63,8 @@ requires; that publication is an external obligation, not an assumption of fact.
 
 ## Stakeholder Constraints (Contextual)
 
-Build and qualification workflows remain manual dispatch, with one
-`pull_request_target` exception for the trusted shared Rust language-boundary
-checker to report against the pull request head. Its hosted status does not
-stand as evidence for the local gate. The existing CLA administration workflow
+Build and qualification workflows remain manual dispatch. No hosted status
+stands as evidence for the local gate. The existing CLA administration workflow
 retains its separate triggers, and heavy local activity shares one workstation
 lock.
 
