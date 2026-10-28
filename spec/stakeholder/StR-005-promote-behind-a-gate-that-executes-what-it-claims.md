@@ -49,7 +49,7 @@ assures all of them.
 The primary stakeholder is the promotion owner for this repository, recorded in
 AD-001 as `agent-ix-protocol-owner`, who decides whether an implementation may be
 promoted. Engineering Assurance is an affected party as the owner of producer
-execution and of the shared language-boundary and review gates; Quoin is an
+execution and of the shared review gates; Quoin is an
 affected party as the owner of retained evidence. Reviewers reading this
 repository's gate alongside other repositories' gates are affected consumers.
 

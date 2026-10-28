@@ -48,8 +48,7 @@ triple recorded with that run. This ticket qualifies
 `x86_64-unknown-linux-gnu`; it makes no portability claim for a target whose
 conditions did not execute.
 
-Does not apply to the shared Rust language-boundary checker, the exact Rust
-review, or QUOIN semantic gap analysis, which remain owned by
+Does not apply to the exact Rust review, or QUOIN semantic gap analysis, which remain owned by
 [NFR-003](NFR-003-preserve-rust-assurance-boundary.md). Does not apply to hosted
 workflow triggers or to whether a hosted run may serve as local evidence, both of
 which remain owned by [NFR-003-AC-1](NFR-003-preserve-rust-assurance-boundary.md).
