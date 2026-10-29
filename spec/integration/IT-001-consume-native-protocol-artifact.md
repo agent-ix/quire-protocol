@@ -45,7 +45,7 @@ and retains the compiler contract, baseline, producer, native-source,
 model-source and dependency bytes before inspecting the offer, and cannot read
 any full-assessment input. The native compiler publishes both versioned
 compiled-protocol contracts and the `handoff-writer` API that emits their complete
-handoffs through the QSL dependency selected in Cargo.
+handoffs through the QSL dependency recorded in Cargo.
 Version 1 retains its
 `quire.protocol.numeric/1` wire profile.
 
@@ -73,7 +73,7 @@ the offered bytes, and the two mutually refuse.
 
 The handoff is integration evidence owned by the producer, so B calls the
 producer's public `handoff-writer` `write_v1` and `write_v2`
-from the pinned dependency and reads their complete output. No environment variable, copied path, or vendored
+from the dependency selected in Cargo and reads their complete output. No environment variable, copied path, or vendored
 mirror selects it.
 
 ## Inputs
@@ -141,7 +141,7 @@ dimension, one unit short of it, and a fresh budget at the exact value.
      before the offer; compares every source, model and dependency byte against
      the independently selected original inputs; and re-admits the model through A's reader and compares
      its artifact bytes with the selected model dependency. Independently of
-     the sidecar, each selected source must be its authored file in the pinned
+     the sidecar, each selected source must be its authored file in the
      QSL checkout: the model source byte for byte, and each native unit its
      authored body preceded only by the producer's import header. Nothing is
      read out of the offered bytes.
@@ -168,8 +168,7 @@ dimension, one unit short of it, and a fresh budget at the exact value.
    sidecar, built as `v2::Expected` and `v2::ExpectedTemporal` without reading A's
    offered bytes, through `quire_protocol::intake::v2::admit` and
    `quire_protocol::model::v2::link`. Load the bundle
-   from a fresh run of A's `write_v2` at the pinned
-   revision and use A's exported
+   from a fresh run of A's `write_v2` and use A's exported
    member-name and manifest-format constants rather than B-owned literals. Submit each
    version's bytes at the other version's entry point; and change one selected
    version 2 identity axis at a time.
@@ -191,14 +190,18 @@ dimension, one unit short of it, and a fresh budget at the exact value.
      revision that adds version 2 and obtaining the same admitted identities and the
      same typed refusal per axis as at the revision before it, with
      `admit_and_link`'s signature and refusal set unchanged.
-7. Submit recanonicalized source, model, dependency and configuration inputs.
+7. Submit recanonicalized source, model, dependency and configuration inputs,
+   and offer a protocol-result digest in a selected producer-digest slot.
    - IT-001-SC-07: a producer input that B recanonicalized instead of copying
      byte for byte refuses rather than admitting an equivalent form. The
      recanonicalization probe uses a form that is byte-distinguishable from the
      as-delivered form — a pretty-printed JSON re-encoding of the original model
      bytes — so a producer input that is already canonical cannot make the
      scenario vacuous. The reader compares the selected original bytes directly;
-     it does not require an ArtifactRef content digest.
+     it does not require an ArtifactRef content digest. In the independent
+     cross-domain subcase, replace the selected baseline's producer-domain digest
+     with the `quire.verification.jcs` digest of that same baseline reference;
+     require refusal as a cross-domain digest in the baseline slot.
 8. Submit version 2 temporal binding sets that are missing, surplus, duplicated,
    reordered, owned by a foreign owner, or out of the declared range.
    - IT-001-SC-08: each returns a typed refusal that names the offending
@@ -241,7 +244,7 @@ or campaign-completion result.
 
 - Priority: P0
 - Target Integration: native compiler artifact to protocol library
-- Automation: Automated local fixture lane reached through the pinned producer
+- Automation: Automated local fixture lane reached through the producer selected in Cargo
   dependency; no hosted execution
 
 ## Dependencies

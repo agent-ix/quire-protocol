@@ -275,15 +275,12 @@ independent selection sidecar and the original inputs, and submits all 28 cases
 of A's mutation manifest. On the revision named below, the base offer is admitted
 and every mutation refuses with the identity A declares for it.
 
-The exact pin is `quire-spec-language`
-`9395be4268e650ca2753204d6d306c9cd7b453ec`, a post-`v0.2.0` revision. A
-exports `PUBLISHED_HANDOFF` plus every member-name and manifest-format
-constant. The committed copy omits dependency bytes, so B calls A's
-`handoff-writer` `write_v2` from the pinned crate, verifies
-all listed members, refuses unlisted or corrupt members, admits the base,
-checks both cross-version directions, submits all 28 declared mutations, and
-probes all 13 `Dimension::ALL` budget members. No environment selector or
-vendored mirror remains, and the lane reports `19 passed; 0 ignored`.
+A exports the handoff member-name and manifest-format constants. B calls A's
+`handoff-writer` `write_v2` to generate the handoff, verifies all listed
+members, refuses unlisted or corrupt members, admits the base, checks both
+cross-version directions, submits all 28 declared mutations, and probes all 13
+`Dimension::ALL` budget members. No committed handoff copy or vendored mirror
+selects it, and the lane reports `19 passed; 0 ignored`.
 
 `FR-009` records status per exact contract. QSL, QObs, Engineering Assurance
 and qverify E02 are pinnable; QObs is pinned at accepted owner PR #27 merge
@@ -306,7 +303,7 @@ in Domain Object Coverage instead.
 | FR-003 | FR-003-AC-1, FR-003-AC-2, FR-003-AC-3, FR-003-AC-4, FR-003-AC-5, FR-003-AC-6, FR-003-AC-7 | TC-003 (AC-1..AC-7); TC-009 (AC-7) | ✅ Implemented — Task-003 connects the landed pure kernels to one graph-owned Engine. Exact QSL guard/retry/recovery inputs and reports plus QObs subjects/observation/position views are retained in replay-safe transactional registration, attempt/effect, selected-commit ordering and full/partial-recovery state; production exposes no recovery callback. Aggregate view of FR-019..FR-025. |
 | FR-004 | FR-004-AC-1, FR-004-AC-2, FR-004-AC-3, FR-004-AC-4 | TC-004 (AC-1..AC-4) | ✅ Complete — strict FR-300 activation facts derive the production model from the linked graph; the Engine synchronizes its compensation snapshot into that kernel; batch and incremental frontends share it. Aggregate view of FR-026..FR-028 and FR-041. |
 | FR-005 | FR-005-AC-1, FR-005-AC-2, FR-005-AC-3, FR-005-AC-4, FR-005-AC-5 | TC-005 (AC-1..AC-5) | ✅ Complete — public Engine dispatch derives the actual strict activation conformance report, preserves independent claim rows and exact premises, and admits only the closed local conformance backend. Aggregate view of FR-029 and FR-030. |
-| FR-006 | FR-006-AC-1..FR-006-AC-9 | TC-006 (AC-1..AC-9); TC-011 (AC-9) | ✅ Implemented — one atomic per-assessment Engine operation reuses exact conformance axes/completeness/global closure, derives truth and provenance from sealed dispatch/selection facts, privately produces and strictly reads canonical rows, then commits the AssessmentBundle. Aggregate view of FR-031..FR-033. |
+| FR-006 | FR-006-AC-1..AC-7, FR-006-AC-9 | TC-006 (AC-1..AC-7); TC-011 (AC-9) | ✅ Implemented — one atomic per-assessment Engine operation reuses exact conformance axes/completeness/global closure, derives truth and provenance from dispatch/selection facts, privately produces and strictly reads canonical rows, then commits the AssessmentBundle. Aggregate view of FR-031..FR-033. |
 | FR-007 | FR-007-AC-1, FR-007-AC-2, FR-007-AC-3, FR-007-AC-4, FR-007-AC-5, FR-007-AC-6 | TC-007 (AC-1..AC-6) | ✅ Complete — the total mapper, exact identity, owner strict read and four TC-007 symbols execute against exact qverify `293e342` / EA `9237ce5`; no local patch or target-contract mirror remains. Aggregate view of FR-034 and FR-035. |
 | FR-008 | FR-008-AC-1, FR-008-AC-2, FR-008-AC-3, FR-008-AC-4, FR-008-AC-5, FR-008-AC-6, FR-008-AC-7, FR-008-AC-8, FR-008-AC-9 | TC-011 (AC-1..AC-9) | ✅ Implemented — the Task-017 foundation and Task-006 routing retain exact stages, prerequisites, axes, causes, source interiors, partial-output state and full Protocol resource usage. Static TC-011 inspection verifies the complete FR-036..FR-040 decomposition. |
 | FR-009 | FR-009-AC-1..FR-009-AC-9 | TC-013 (AC-1..AC-9); TC-010 (AC-7); IT-001, IT-002, IT-003 (AC-1..AC-6) | 🚧 In progress — Task-013's resolver tests execute all nine criteria with deterministic bounded request-bound capabilities. Task-020's IT-002 SC-08 test resolves fifteen QObs owner contracts plus four versioned QSL native-temporal contracts, compiled protocol `/2`, and activation mapping `/3` (twenty-one entries total); it asserts exact affected identities, sidecar non-authority and cross-entry independence, and returns unresolved manifests as unexecutable before producer read. The atomic Task-010 assessment path is public only after this resolution gate. QObs is pinned at accepted merge `9240063`; repair/query remain typed unsupported, Quoin intake remains unresolved, and Task-018 owns final record composition. |
@@ -322,7 +319,7 @@ in Domain Object Coverage instead.
 | FR-028 | FR-028-AC-1..AC-6 | TC-004 (AC-1..AC-6) | 🚧 Planned — 6 of 6 criteria test-backed, 0 unbacked, 0 unexecutable |
 | FR-029 | FR-029-AC-1..AC-6 | TC-005 (AC-1..AC-6) | ✅ Complete — ordered total dispositions retain independent supported, refused, unsupported and failed outcomes. |
 | FR-030 | FR-030-AC-1..AC-6 | TC-005 (AC-1..AC-6) | ✅ Complete — every exact retained premise axis, backend identity/version and derived correspondence is mutation-tested without fallback repair. |
-| FR-031 | FR-031-AC-1..AC-7 | TC-006 (AC-1..AC-7), TC-008 (AC-5) | ✅ Implemented — canonical identity/digest construction uses owner-selected domains and an exact reversible `quire.protocol.runtime-reference/1` carrier for admitted opaque runtime subjects. |
+| FR-031 | FR-031-AC-1, FR-031-AC-4..AC-7 | TC-006 (AC-1, AC-4..AC-7), TC-008 (AC-5) | ✅ Implemented — canonical result identity construction uses owner-selected domains and an exact reversible `quire.protocol.runtime-reference/1` carrier for admitted opaque runtime subjects. |
 | FR-032 | FR-032-AC-1..AC-7 | TC-006 (AC-1..AC-7) | ✅ Implemented — orthogonal result axes remain typed and are reused from exact owner outputs rather than caller-restated values. |
 | FR-033 | FR-033-AC-1..AC-5 | TC-006 (AC-1..AC-5) | ✅ Implemented — strict lineage validation, immutable predecessor/correction edges and identity mutation controls execute before bundle commit. |
 | FR-034 | FR-034-AC-1..AC-7 | TC-007 (AC-1..AC-7) | ✅ Complete — exact owner RFC 8785 preimage, every identity-bearing member, target-context equality, source digest and semantic binding order execute at the pinned qverify revision. |
@@ -397,7 +394,7 @@ and 1 is unexecutable.
 | Integration Test | Boundary | Requirements | Status |
 | --- | --- | --- | --- |
 | IT-001 version 1 | Native compiler `quire.compiled-protocol/1` artifact to protocol library | FR-001, FR-002, FR-009, FR-013, FR-016, FR-017, NFR-002, NFR-005 | ✅ Implemented — SC-01..SC-05 run as 24 default tests from a fresh run of QSL's `/1` producer at the pinned revision. B reads A's `expected.json` sidecar before the offer, checks every source, model and dependency byte against its digests, and re-admits the model through A's reader, then runs explicit admission and local static linking. The positive reader inventory and all numeric/digest/refusal axes pass with no ignores. |
-| IT-001 version 2 | Native compiler version 2 artifact to protocol library | FR-001-AC-5, FR-002-AC-5, FR-009, FR-013-AC-4, FR-017, NFR-002, NFR-005, NFR-007 | ✅ Implemented — SC-06 through SC-09 execute under the default local gate, including paired refusal of all eight inherited selection axes, and SC-06a passes the identical 23-case historical `/1` corpus at Protocol `0e5ec292` and `5ce9070e`. QSL's in-process handoff writer (`handoff-writer` API) at the exact `9395be4` pin emits both handoffs. |
+| IT-001 version 2 | Native compiler version 2 artifact to protocol library | FR-001-AC-5, FR-002-AC-5, FR-009, FR-013-AC-4, FR-017, NFR-002, NFR-005, NFR-007 | ✅ Implemented — SC-06 through SC-09 execute under the default local gate, including paired refusal of all eight inherited selection axes. SC-06a passes the same 23-case historical `/1` corpus before and after `/2` support, with unchanged `/1` identities, refusals and public entry point. QSL's in-process handoff writer (`handoff-writer` API) emits both handoffs. |
 | IT-002 | Observation and temporal facts to protocol evaluator/result | FR-003, FR-004, FR-006, FR-009, FR-017, FR-026, FR-041, NFR-002, NFR-005 | 🚧 In progress — Task-010 executes SC-01 through SC-04 through the real QObs/QSL assessment path. Task-021 executes SC-05a..SC-05d and SC-06 with exact QSL/QObs evidence correlation, replay/permutation agreement and seven active composed-budget dimensions. Done Task-020's SC-08 executes the exact twenty-one-contract inventory (including compiled `/2` and activation mapping `/3`), fifteen QObs schema digests, affected-identity and non-authority mutations, and the request-bound resolver-before-read assessment boundary at accepted QObs merge `9240063`. Ten of twelve scenario units pass; SC-07a/SC-07b remain planned under Task-018, and QCI remains downstream only. |
 | IT-003 | Protocol result through Engineering Assurance, E02, and Quoin | FR-006, FR-007, FR-009, FR-014, FR-017, FR-039, FR-040, NFR-002, NFR-003, NFR-005 | ⛔ Unexecutable — Engineering Assurance and the exact qverify E02 consumer graph are delivered, but Quoin has no Protocol scenario-record intake, so all owed scenarios score zero rather than passing. |
 
