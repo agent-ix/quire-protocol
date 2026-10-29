@@ -45,7 +45,7 @@ collapsed into `independent` or into each other.
 
 A premise contradiction is not an admitted continuation under the earlier input
 identity. The earlier result's bytes and its result identity remain unchanged;
-the producer does not rewrite, reseal or silently replace them. The new result
+the producer does not rewrite or silently replace them. The new result
 strictly matches the prior-result identity and the contradicted premise identity
 rather than describing them in prose, and it makes dependent package success
 unavailable while recomputing truth only under the corrected exact input
@@ -56,7 +56,7 @@ identity.
 | ID | Criteria | Verification |
 | --- | --- | --- |
 | FR-033-AC-1 | Support lineage rejects missing predecessors, cycles, self-reference, and invented independence while retaining shared and derived relations. | Test (TC-006) |
-| FR-033-AC-2 | A later contradiction emits a new linked result and cannot rewrite or reseal the earlier artifact. | Test (TC-006) |
+| FR-033-AC-2 | A later contradiction emits a new linked result and cannot rewrite the earlier artifact bytes or identity. | Test (TC-006) |
 | FR-033-AC-3 | Each retained decision-support record carries exactly one `FR-282` member plus its exact oracle and observation identities, and an absent relation is never read as `independent`. | Test (TC-006) |
 | FR-033-AC-4 | The superseding or invalidating result strictly matches the prior-result identity, the contradicted premise identity and the corrected input identity. | Test (TC-006) |
 | FR-033-AC-5 | A premise contradiction is not admitted as a continuation under the earlier input identity, and it makes dependent package success unavailable. | Test (TC-006) |

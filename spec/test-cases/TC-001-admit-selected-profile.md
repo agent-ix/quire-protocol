@@ -11,7 +11,7 @@ relationships:
 ## Description
 
 Verify strict admission for exact compiled protocol bytes and refusal for every
-one-axis artifact-contract, producer, accepted source-baseline, revision, digest,
+one-axis artifact-contract, producer, accepted source-baseline, revision,
 dependency, profile, feature, and numeric-wire mutation.
 
 The executable closure target is the version 2 handoff published inside the
@@ -23,15 +23,15 @@ run in the default gate.
 ## Test Procedure
 
 Load the owner-published handoff through its exported address and verify its
-closed checksummed inventory before admission. Construct the expected selection
+closed inventory before admission. Construct the expected selection
 from the retained original inputs, never from the offered bytes. Admit the exact
 version 2 offer, then submit every owner-published one-axis mutation and require
 its declared typed refusal. Independently substitute the accepted baseline's
-identity, revision and digest in the caller selection while leaving the offer
+identity and revision in the caller selection while leaving the offer
 unchanged, and require selection refusal with no admitted package.
 
 Exercise the base package's integer and exact-rational zero, field endpoints and
-signed-64 endpoints. Reseal independent one-axis mutations for an unsafe bare
+signed-64 endpoints. Submit independent one-axis mutations for an unsafe bare
 JSON integer, float, negative zero, leading-zero or plus-prefixed decimal,
 signed-64 overflow, zero/negative rational denominator, non-reduced rational,
 wrong numeric kind and below/above field domain. Replace a producer-owned
@@ -46,8 +46,8 @@ Only the exact accepted fixture under the accepted compiled-artifact contract is
 admitted. Every mutation refuses before semantic evaluation with the affected
 identity and no parser or locally substituted profile. Every accepted numeric
 value decodes to the exact native value and re-encodes to identical canonical
-artifact bytes; no producer-owned digest is reinterpreted or equated across
-domains.
+artifact bytes; producer-owned model/configuration digests retain their own
+domain and are not reinterpreted as artifact-reference content digests.
 
 ## Traceability
 TC-001 closes FR-001-AC-1 through FR-001-AC-4. FR-001-AC-5 remains bound to

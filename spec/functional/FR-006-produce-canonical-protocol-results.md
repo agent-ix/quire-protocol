@@ -77,7 +77,7 @@ once and independently verifiably, by exactly one of its parts.
 
 | Part | Obligation it owns |
 | --- | --- |
-| [FR-031](./FR-031-canonical-result-identity-and-digest.md) | Contract version, kind, result identity, RFC 8785 canonical bytes, the non-self-referential `sha256-jcs` enclosing digest and its recomputation, the selected digest domain, and provenance identity matching. |
+| [FR-031](./FR-031-canonical-result-identity-and-digest.md) | Contract version, kind, result identity, RFC 8785 canonical bytes, the selected result-identity digest domain, and provenance identity matching. |
 | [FR-032](./FR-032-retain-orthogonal-result-axes.md) | Separate retention of every result axis, the FR-061 result-combination table, adequacy-domain disjointness, open-subject settlement, and the complete-global-conformance closure record with its premise set. |
 | [FR-033](./FR-033-preserve-result-lineage-integrity.md) | Decision-support dependence relations and their lineage refusals, and the superseding or invalidating result that preserves the earlier bytes and identity. |
 
@@ -117,9 +117,8 @@ declares a substitute.
 | FR-006-AC-3 | Assumption, observation-adequacy, protocol-adequacy, execution, truth, activation, participation, decision-scope progress, decision-scope closure, surrounding-execution progress, surrounding-execution closure, complete-global-conformance closure, settlement, claim, and completeness mutations remain independently observable, per [FR-032](./FR-032-retain-orthogonal-result-axes.md)-AC-3 and -AC-4. | Test (TC-006) |
 | FR-006-AC-4 | Every source, profile, model, protocol, request, binding, input, backend, decision-scope progress/closure, surrounding-execution progress/closure, complete-global-conformance closure, settlement, support, producer, and prior-result identity is recomputed or strictly matched: [FR-031](./FR-031-canonical-result-identity-and-digest.md)-AC-5 covers the provenance identities, [FR-032](./FR-032-retain-orthogonal-result-axes.md)-AC-7 the axis identities, and [FR-033](./FR-033-preserve-result-lineage-integrity.md)-AC-3 and -AC-4 the support and prior-result identities. | Test (TC-006) |
 | FR-006-AC-5 | Support lineage rejects missing predecessors, cycles, self-reference, and invented independence while retaining shared and derived relations, which is exactly [FR-033](./FR-033-preserve-result-lineage-integrity.md)-AC-1. | Test (TC-006) |
-| FR-006-AC-6 | A later contradiction emits a new linked result and cannot rewrite or reseal the earlier artifact, which is exactly [FR-033](./FR-033-preserve-result-lineage-integrity.md)-AC-2. | Test (TC-006) |
+| FR-006-AC-6 | A later contradiction emits a new linked result and cannot rewrite the earlier artifact bytes or identity, which is exactly [FR-033](./FR-033-preserve-result-lineage-integrity.md)-AC-2. | Test (TC-006) |
 | FR-006-AC-7 | Independently omitting, duplicating, cross-wiring, changing scope on, or changing the identity of every required execution, branch, and workflow global-closure premise refuses the record or prevents complete global success while leaving an independently settled per-obligation truth unchanged, which is exactly [FR-032](./FR-032-retain-orthogonal-result-axes.md)-AC-5. | Test (TC-006) |
-| FR-006-AC-8 | The emitted artifact's enclosing reference is a recomputed non-self-referential `sha256-jcs` digest over the complete RFC 8785 canonical result bytes under the selected domain member, per [FR-031](./FR-031-canonical-result-identity-and-digest.md)-AC-2 through -AC-4 and -AC-6. | Test (TC-006) |
 | FR-006-AC-9 | The public assessment operation returns exactly the three-member operation outcome; each completed bundle has one ordered canonical row or claim-local refusal per admitted claim, a whole-operation refusal/resource-incomplete outcome has no bundle, and no outcome is accepted in another's place. | Test (TC-006, TC-011) |
 
 ## Adopted vocabulary

@@ -39,8 +39,7 @@ result::contract_ir::read(bytes, &ValidatedResult, MappingSelection, Limits)
 ```
 
 `ValidatedResult` and `MappedResultView` have no public constructors. `Document`
-exposes the complete canonical bytes, FR-286 result identity and enclosing
-non-self-referential digest.
+exposes the complete canonical bytes and FR-286 result identity.
 
 ## Canonical result admission
 
@@ -54,8 +53,8 @@ settlement, participation, adequacy, global closure, claim and correction
 lineage retain their separately owned closed values and required premises.
 
 The reader SHALL reject unknown/duplicate/missing/out-of-order fields, trailing
-data, noncanonical JSON, unknown contracts/labels, noncanonical JCS, result or
-artifact digest mismatch, same identity on unequal canonical bytes, invalid
+data, noncanonical JSON, unknown contracts/labels, noncanonical JCS, same
+identity on unequal canonical bytes, invalid
 axis combinations, incomplete support, invalid global premises, missing/cyclic/
 self lineage, and a non-direct correction predecessor.
 

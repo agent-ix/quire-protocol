@@ -24,9 +24,9 @@ neither is reconciled. Both readings are recorded below rather than merged.
 
 ## Context
 
-This repository owns a canonicaliser. [FR-006](../functional/FR-006-produce-canonical-protocol-results.md)
-requires one canonical protocol result plus "its non-self-referential RFC 8785
-`sha256-jcs` artifact reference", and `src/digest/jcs.rs` implements it.
+This repository owns a canonicaliser for its result identity. [FR-006](../functional/FR-006-produce-canonical-protocol-results.md)
+requires canonical protocol result bytes and an FR-286 identity; the external
+ArtifactRef carries no digest.
 
 Owning a canonicaliser next to a stream of externally produced bytes creates a
 standing temptation: run the producer's bytes through it, and then two inputs
@@ -54,11 +54,10 @@ Three requirements carry the intake half:
   entry digest to be recomputed "over the exact consumed bytes as delivered,
   with no canonicalization, re-encoding, or normalization of any kind", and the
   verified byte sequence to be the one passed to the consumer.
-- [FR-015](../functional/FR-015-digest-domain-selection.md) selects
-  `raw-artifact-digest` for offered artifact bytes — upstream's own description
-  of that member is that it "Hashes the complete supplied bytes, including
-  layout" — and reserves `quire.verification.jcs` for this repository's
-  protocol-result digest.
+- [FR-015](../functional/FR-015-digest-domain-selection.md) publishes digest
+  domains; this consumer does not use one to seal an external ArtifactRef.
+  `quire.verification.jcs` remains the domain for this repository's result
+  identity.
 
 IT-001-SC-07 is the negative control, and it was written to be non-vacuous: the
 recanonicalization probe uses a pretty-printed JSON re-encoding of the original

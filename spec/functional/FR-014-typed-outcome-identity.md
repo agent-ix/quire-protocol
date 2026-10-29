@@ -48,9 +48,9 @@ The library SHALL derive a typed outcome identity from no display text, locale o
   the refusal a caller receives is the producer's own value, from
   `protocol_artifact::Error` and its typed payloads, carried unmodified.
 
-  Five of the corpus axes name conditions the producer already has codes for —
-  a wrong contract version is `Unsupported::Wire`, a cross-domain digest is
-  `Invalid::Seal`, a recanonicalized input is `Invalid::Canonical`, a temporal
+  Four of the corpus axes name conditions the producer already has codes for —
+  a wrong contract version is `Unsupported::Wire`, a recanonicalized input is
+  `Invalid::Canonical`, a temporal
   binding fault is `Invalid::Binding` or `Invalid::Order`, and an exhausted
   budget is `Error::Incomplete`. This requirement selects none of them, spells
   none of them, and does not re-partition them: the producer decides how coarse

@@ -22,7 +22,7 @@ relationships:
 
 When a protocol artifact is submitted, the library SHALL admit it only when its
 artifact-contract version, contract version, source revision, selected rule
-digests, dependency closure, profile identity, and required feature set exactly
+identities/revisions, dependency closure, profile identity, and required feature set exactly
 match one immutable protocol profile frozen by an accepted coherent native Quire
 baseline and its accepted compiled-artifact interface.
 
@@ -41,7 +41,9 @@ baseline and its accepted compiled-artifact interface.
 
 ## Behavior
 
-The library SHALL recompute every content digest before reading dependent fields.
+The library SHALL match each offered artifact identity against its independently
+selected reference before reading dependent fields. Its reader SHALL NOT require
+or synthesize an ArtifactRef content digest.
 It SHALL reject unknown artifact encodings or contracts and unknown, draft-only,
 unaccepted, superseded, substituted, internally inconsistent, or feature-incomplete
 baselines. It SHALL retain the accepted baseline, artifact-contract, producer,
@@ -76,8 +78,8 @@ already-published version's admission behaviour unchanged.
 | ID | Criteria | Verification |
 | --- | --- | --- |
 | FR-001-AC-1 | Exact bytes under one accepted compiled-artifact contract, accepted frozen baseline, producer revision, and complete dependency closure are admitted with every identity unchanged. | Test (TC-001) |
-| FR-001-AC-2 | Mutating each artifact-contract, producer, accepted source-baseline, version, revision, digest, dependency, profile, or required feature independently returns a typed refusal before semantic evaluation. | Test (TC-001) |
-| FR-001-AC-3 | A pre-acceptance working draft, superseded or unknown baseline, or internally resealed artifact cannot be selected through display-name equality or a locally authored substitute. | Test (TC-001) |
+| FR-001-AC-2 | Mutating each artifact-contract, producer, accepted source-baseline, version, revision, dependency, profile, or required feature independently returns a typed refusal before semantic evaluation. | Test (TC-001) |
+| FR-001-AC-3 | A pre-acceptance working draft, superseded or unknown baseline cannot be selected through display-name equality or a locally authored substitute. | Test (TC-001) |
 | FR-001-AC-4 | Every declared numeric minimum and maximum, the signed-64 extrema in fields whose source domains admit them, and every normalized exact-rational boundary round-trip without loss under the selected numeric wire profile; an unsafe bare JSON number, non-canonical integer/rational form, field-domain or signed-64 overflow, or cross-domain producer-digest substitution refuses before semantic evaluation. | Test (TC-001, IT-001) |
 | FR-001-AC-5 | Each published compiled-artifact contract version is admitted only through its own explicit entry point: bytes of one version offered at another version's entry point return a typed refusal with no version detection, upgrade, downgrade, or repair, and the admission behaviour of an already-published version is unchanged by the addition of a later one. | Test (IT-001) |
 

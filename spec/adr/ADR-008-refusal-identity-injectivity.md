@@ -23,7 +23,7 @@ FR-014 now records the resolved two-level operation/claim outcome algebra.
 ## Context
 
 Almost every scenario in this repository is a negative scenario. IT-001's
-mutation sweep alone covers offered wire/version, seal,
+mutation sweep alone covers offered wire/version,
 producer/source/dependency/baseline identity, feature, referenced binding,
 numeric representation, numeric domain and digest domain, plus on the version 2 lane
 temporal profile, clock alternative, clock parameter, six temporal-binding
@@ -126,9 +126,10 @@ The measured fact above is not incidental: A returns one code across three axes.
 FR-008 therefore owns the envelope — its seven-member domain, the partial-output
 state, the local `unsupported-source-contract` disposition — while treating the
 interior as upstream's and copying it byte-exactly. SR-027's remediation is a
-B-owned discriminating layer, and SR-027 FND-003 records that it is incomplete:
-per-source, per-dependency and per-model digest slots are unguarded, and only
-the three top-level selection references are covered.
+B-owned discriminating layer, and SR-027 FND-003 records that it was incomplete:
+per-source, per-dependency and per-model digest slots were unguarded. QSL-1270
+removes the ArtifactRef content-digest member, so those slots are no longer part
+of the current selection surface.
 
 **Local and source interiors remain separate.** Protocol's local refusal paths
 use FR-008's accepted closed causes and stages. A known source response retains
