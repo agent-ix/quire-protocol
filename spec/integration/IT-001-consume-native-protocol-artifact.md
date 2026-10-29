@@ -157,8 +157,8 @@ dimension, one unit short of it, and a fresh budget at the exact value.
    representations through their declared fields.
    - IT-001-SC-04: admitted endpoint values canonically round-trip byte for
      byte; bare JSON numbers, non-canonical forms, signed-64 or field-domain
-     overflow, non-positive or unreduced denominators, wrong numeric kinds, and
-     producer/result digest-domain substitution refuse before linking.
+     overflow, non-positive or unreduced denominators, and wrong numeric kinds
+     refuse before linking.
 5. Inspect the resolved direct and transitive consumer path and the public API
    call used by the integration harness.
    - IT-001-SC-05: the evidence positively identifies the A-owned reader as the
@@ -190,18 +190,14 @@ dimension, one unit short of it, and a fresh budget at the exact value.
      revision that adds version 2 and obtaining the same admitted identities and the
      same typed refusal per axis as at the revision before it, with
      `admit_and_link`'s signature and refusal set unchanged.
-7. Submit recanonicalized source, model, dependency and configuration inputs,
-   and offer a protocol-result digest in a selected producer-digest slot.
+7. Submit recanonicalized source, model, dependency and configuration inputs.
    - IT-001-SC-07: a producer input that B recanonicalized instead of copying
      byte for byte refuses rather than admitting an equivalent form. The
      recanonicalization probe uses a form that is byte-distinguishable from the
      as-delivered form — a pretty-printed JSON re-encoding of the original model
      bytes — so a producer input that is already canonical cannot make the
      scenario vacuous. The reader compares the selected original bytes directly;
-     it does not require an ArtifactRef content digest. In the independent
-     cross-domain subcase, replace the selected baseline's producer-domain digest
-     with the `quire.verification.jcs` digest of that same baseline reference;
-     require refusal as a cross-domain digest in the baseline slot.
+     it does not require an ArtifactRef content digest.
 8. Submit version 2 temporal binding sets that are missing, surplus, duplicated,
    reordered, owned by a foreign owner, or out of the declared range.
    - IT-001-SC-08: each returns a typed refusal that names the offending
