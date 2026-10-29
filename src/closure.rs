@@ -6,9 +6,9 @@
 //!
 //! | Concept | Vocabulary | Owner |
 //! | --- | --- | --- |
-//! | the four scope axes | `open`, `closed` | `FR-284-scope-progress-and-closure-state` |
-//! | complete-global-conformance closure | five members | `FR-247-complete-global-conformance-closure-state` |
-//! | assessment execution | five members | `FR-241-assessment-execution-disposition` |
+//! | the four scope axes | `open`, `closed` | `FR-284` |
+//! | complete-global-conformance closure | five members | `FR-247` |
+//! | assessment execution | five members | `FR-241` |
 //!
 //! # Correction: this module previously declared three vocabularies of its own
 //!
@@ -16,10 +16,9 @@
 //! (`not-started`, `advanced`, `stalled`, plus `unobserved` and `contradicted`
 //! throughout), re-spelled `FR-247`'s five members under a local
 //! `complete-global-conformance-closure/` prefix, and fused three separate core
-//! axes into one local outcome enum. `FR-284` now names four of those labels
-//! directly: "`not-started`, `advanced`, `stalled`, `unobserved` — named by no
-//! requirement. They are not members here and are not to be reintroduced by a
-//! consumer."
+//! axes into one local outcome enum. Four of those labels — `not-started`,
+//! `advanced`, `stalled` and `unobserved` — are members of no adopted
+//! vocabulary, and this crate does not reintroduce them.
 //!
 //! # Why there is no join lattice
 //!
@@ -28,18 +27,16 @@
 //! facts with `meet`/`join`. Both of those elements were invented, and the
 //! construction contradicts the adopted vocabularies in two ways.
 //!
-//! `FR-284` states of its key order that "`closed` sorting before `open` is an
-//! artefact of that ordering and carries no progression from `open` towards
-//! `closed`, no precedence and no causal meaning", and gives the axes no causal
-//! order at all. A join lattice manufactures exactly that progression.
+//! The vocabulary adopted from `FR-284` carries no causal order over its
+//! labels and no progression from one to the other; any sort order over them is
+//! an artefact of sorting. A join lattice manufactures exactly the progression
+//! the vocabulary does not have.
 //!
-//! And disagreement is not a state on these axes. `FR-284`: "A retained premise
-//! that is later contradicted is reported by supersession, not by a closure
-//! label: FR-061-AC-9 requires a superseding or invalidating result that
-//! preserves the earlier bytes." So two disagreeing facts do not combine into a
-//! third value here; they are two results, and the later one supersedes while
-//! retaining the earlier bytes. That is chunk C-26's obligation, not this
-//! module's.
+//! And disagreement is not a state on these axes. Under `FR-284` a retained
+//! premise that is later contradicted is reported by supersession, not by a
+//! closure label. So two disagreeing facts do not combine into a third value
+//! here; they are two results, and the later one supersedes while retaining the
+//! earlier bytes. That is chunk C-26's obligation, not this module's.
 //!
 //! What remains is what the vocabularies actually support: each axis is a value
 //! compared as an exact string, the five are independent, and none substitutes
@@ -47,9 +44,9 @@
 //!
 //! # Why absence is not a value
 //!
-//! `FR-284`: "an absent axis compares only to absence. It is never defaulted to
-//! `open` or to `closed`: FR-061 requires that 'A strict reader SHALL refuse an
-//! omitted required axis'. Absence is not a member of this vocabulary."
+//! Absence is not a member of the adopted vocabulary. An absent axis compares
+//! only to absence, is never defaulted to `open` or to `closed`, and an omitted
+//! required axis is refused rather than filled in (`FR-284`, `FR-061`).
 //!
 //! So [`crate::closure::ClosureState::new`] takes an `Option` per axis and refuses an omitted
 //! one, rather than admitting a bottom element standing for "not yet observed".
@@ -57,10 +54,9 @@
 //! # Why one label string is not one type
 //!
 //! `closed` and `open` are members of the four scope axes and also of the
-//! fifth. `FR-284` is explicit that this is a coincidence of spelling: "A label
-//! equal to `closed` or `open` on one of the four axes and on the fifth is one
-//! label string in two distinct vocabularies. Equality of the label does not
-//! make the axes equal or substitutable."
+//! fifth. `FR-284` is explicit that this is a coincidence of spelling: one
+//! label string in two distinct vocabularies, whose equality makes neither the
+//! axes equal nor either substitutable for the other.
 //!
 //! The four scope axes are therefore four distinct types over one shared
 //! vocabulary type ([`crate::closure::ScopeState`]), and the fifth is unrelated to all of them,
@@ -91,11 +87,11 @@ use core::hash::Hash;
 // The adopted scope vocabulary (FR-284)
 // ---------------------------------------------------------------------------
 
-/// The two members `FR-284-scope-progress-and-closure-state` publishes.
+/// The two members `FR-284` publishes.
 ///
-/// This crate selects the vocabulary and mints nothing. `FR-284` states of the
-/// pair: "Both label strings are used by the accepted requirements for both
-/// scopes and for progress. This artifact mints no new spelling."
+/// This crate selects the vocabulary and mints nothing: one pair of label
+/// strings serves both scopes and progress, with no new spelling minted here or
+/// upstream.
 ///
 /// Identity kind *value*: compared componentwise as an exact string, with no
 /// causal order over the labels.
@@ -146,9 +142,9 @@ pub trait ScopeAxis: Copy + Debug + Eq + Hash + Sized + 'static {
     /// Whether this state, on its own axis alone, permits complete global
     /// conformance.
     ///
-    /// Only `closed` does. `FR-061` forbids reading across axes: "The result
-    /// producer SHALL NOT use completeness, assessment execution or any other
-    /// progress/closure fact as a substitute for any closure axis."
+    /// Only `closed` does. `FR-061` forbids reading across axes, so no
+    /// completeness, assessment-execution or other progress/closure fact is
+    /// substituted for a closure axis here.
     fn admits_complete_global_conformance(self) -> bool {
         match self.state() {
             ScopeState::Closed => true,
@@ -214,13 +210,11 @@ scope_axis!(
 // The fifth axis (FR-247) — a distinct vocabulary
 // ---------------------------------------------------------------------------
 
-/// The five members `FR-247-complete-global-conformance-closure-state`
-/// publishes.
+/// The members this crate adopts from `FR-247`.
 ///
-/// Unrelated to [`ScopeState`] as a type, deliberately. `FR-284`: "Its extra
-/// three members belong to that axis alone", and `FR-061` "refuses the
-/// cross-wire directly — 'another closure axis relabelled `not-required` is
-/// refused'".
+/// Unrelated to [`ScopeState`] as a type, deliberately: the three members this
+/// axis carries beyond `open`/`closed` belong to this axis alone (`FR-284`),
+/// and relabelling another closure axis as one of them is refused (`FR-061`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum GlobalConformanceClosure {
     /// `closed`. The global-conformance premise is closed.
@@ -261,8 +255,8 @@ impl GlobalConformanceClosure {
     ///
     /// Only `closed` does. `not-required` does not: where no global-conformance
     /// claim applies there is no claim to establish, and `FR-059` refuses the
-    /// substitution of any other fact for "a missing or non-closed global
-    /// premise".
+    /// substitution of any other fact for a missing or non-closed global
+    /// premise.
     pub const fn admits_complete_global_conformance(self) -> bool {
         match self {
             Self::Closed => true,
@@ -339,15 +333,15 @@ impl Axis {
 /// code, so bypassing one axis cannot fall through to another under the same
 /// code.
 ///
-/// These codes are this crate's own. `FR-271-diagnostic-code-vocabulary`
+/// These codes are this crate's own. `FR-271`
 /// governs *producer*-minted codes and a consumer's refusal codes are a
 /// separate namespace that never resolves to a member there.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ClosureRefusal {
     /// An axis required for the claim was omitted entirely.
     ///
-    /// `FR-061` via `FR-284`: "A strict reader SHALL refuse an omitted required
-    /// axis". Absence is not a value on any axis, so it is a refusal.
+    /// A strict reader refuses an omitted required axis (`FR-061` via
+    /// `FR-284`). Absence is not a value on any axis, so it is a refusal.
     AxisOmitted(Axis),
     /// Axis 1 is not closed.
     DecisionScopeProgressNotClosed(DecisionScopeProgress),
@@ -417,11 +411,11 @@ impl ClosureRefusal {
 // Assessment execution (FR-241)
 // ---------------------------------------------------------------------------
 
-/// The five members `FR-241-assessment-execution-disposition` publishes.
+/// The members this crate adopts from `FR-241`.
 ///
 /// This axis records **whether the requested evaluator ran** — not whether
-/// conformance succeeded. `FR-241`: "no state other than `completed` carries a
-/// successful truth value."
+/// conformance succeeded. Under `FR-241` no state other than `completed`
+/// carries a successful truth value.
 ///
 /// An earlier revision of this crate fused three separate core axes into one
 /// local enum here: a `CompleteGlobalSuccess` member that is not an execution
@@ -517,9 +511,8 @@ pub struct ClosureState {
 impl ClosureState {
     /// Admit five observed axes, refusing any that was omitted.
     ///
-    /// `FR-284` forbids defaulting an absent axis: "It is never defaulted to
-    /// `open` or to `closed`: FR-061 requires that 'A strict reader SHALL refuse
-    /// an omitted required axis'."
+    /// `FR-284` forbids defaulting an absent axis to `open` or to `closed`, and
+    /// `FR-061` requires a strict reader to refuse an omitted required axis.
     ///
     /// Every omitted axis is reported, in [`Axis::ALL`] order — a first failure
     /// does not mask the rest.

@@ -54,11 +54,11 @@ axis.
 
 ## Behavior
 
-Activation is independent from truth. `FR-055` states that the evaluator "SHALL
-keep activation independent from truth" and that it "SHALL NOT treat an inactive
-or unknown obligation as satisfied or demonstrated"; `FR-055` Outputs adds that
-"no business action is executed". This requirement adopts those obligations for
-the consumer and adds none.
+Activation is independent from truth. This requirement adopts
+`ix://agent-ix/quire-specification/FR-055` for the consumer and adds nothing to
+it: activation is kept independent from truth, an inactive or unknown obligation
+is never read as satisfied or demonstrated, and no business action is executed
+on any activation path.
 
 The obligation instance being reported on is
 `ix://agent-ix/quire-specification/FR-230`; its activation label vocabulary is
@@ -91,16 +91,16 @@ one from independently supplied static and runtime fragments.
 
 | Noun | Upstream object | Identity kind |
 | --- | --- | --- |
-| Protocol obligation instance | `FR-230-protocol-obligation` | derived, keyed (clause subject, semantic trigger-event identity) |
-| Obligation activation state machine | `FR-231-obligation-activation-state` | value |
-| Activation state label vocabulary | `FR-244-activation-state` | value |
-| Immutable activation capture | `FR-232-activation-capture` | value |
-| Temporal evaluation anchor | `FR-253-temporal-evaluation-anchor` | value |
-| Protocol-obligation activation binding | `FR-300-obligation-activation-binding` | value; selection key (qualified definition, control, clause subject, semantic trigger) |
+| Protocol obligation instance | `FR-230` | derived, keyed (clause subject, semantic trigger-event identity) |
+| Obligation activation state machine | `FR-231` | value |
+| Activation state label vocabulary | `FR-244` | value |
+| Immutable activation capture | `FR-232` | value |
+| Temporal evaluation anchor | `FR-253` | value |
+| Protocol-obligation activation binding | `FR-300` | value; selection key (qualified definition, control, clause subject, semantic trigger) |
 
-`FR-055-AC-4` already states the substitution rule this requirement's AC-2
-exercises: "Substituting O2's trigger, a changed capture or a different
-evaluation anchor refuses the binding."
+`ix://agent-ix/quire-specification/FR-055-AC-4` already establishes the
+substitution rule this requirement's AC-2 exercises; AC-2 applies it at the
+consumer boundary and states no substitute for it.
 
 ### Accepted owner ruling
 

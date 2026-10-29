@@ -22,7 +22,7 @@ relationships:
 
 ## Description
 
-When a canonical protocol result is projected, the adapter SHALL derive the `TechniqueResult.resultId` from the exact tuple `FR-249-derived-projection-result` states.
+When a canonical protocol result is projected, the adapter SHALL derive the `TechniqueResult.resultId` from the exact tuple `FR-249` states.
 When a projection is emitted, the adapter SHALL retain exactly one unchanged canonical-result entry in `nativeArtifacts` with its source URI, recomputed digest and the media type FR-062 states.
 When a projection is emitted, the adapter SHALL set every E02 target-binding field equal to its selected context.
 
@@ -37,7 +37,7 @@ E02 contract revision.
 
 One derived `TechniqueResult.resultId` with its retained source reference and
 provenance, or one refusal carrying a code from
-`FR-283-projection-refusal-code` and no `TechniqueResult`.
+`FR-283` and no `TechniqueResult`.
 
 ## Behavior
 
@@ -58,17 +58,17 @@ recanonicalises nor re-labels them.
 `provenance` identifies the protocol producer plus this adapter and their
 versions. The E02 property, subject, profile, binding, dependency-closure,
 execution-scope, plan, task and run fields each equal their selected context,
-and FR-062 states that "the adapter SHALL NOT infer or substitute one from
-display text." `bindingRefs` "uses the selected E02 semantic order and SHALL NOT
-be resorted by presentation text" (FR-062); that order is semantic, not a key
-order, and this requirement declares no order over derived identities.
+and under FR-062 none is inferred or substituted from display text here.
+`bindingRefs` keeps the selected E02 semantic order and is not resorted by
+presentation text (FR-062); that order is semantic, not a key order, and this
+requirement declares no order over derived identities.
 
 Both digests this requirement compares carry the `quire.verification.jcs` member
 that [FR-015](./FR-015-digest-domain-selection.md) selects from `FR-201`. The two
-preimages differ and the domain does not: `FR-201` records under "Preimage
-selection is per-use, not per-domain" that FR-062's derived result identity "is
-taken over a distinct projection-identity preimage under
-`quire.protocol.e02-projection-identity/v1-draft.1`". No projection-specific
+preimages differ and the domain does not: preimage selection is per-use rather
+than per-domain under `FR-201`, and FR-062's derived result identity is taken
+over its own projection-identity preimage under
+`quire.protocol.e02-projection-identity/v1-draft.1`. No projection-specific
 digest domain label is minted here.
 
 ## Acceptance Criteria
@@ -87,15 +87,14 @@ digest domain label is minted here.
 
 | Noun | Upstream object | Identity kind |
 | --- | --- | --- |
-| Derived portable projection result | `FR-249-derived-projection-result` | derived, keyed (canonical result identity and digest, target obligation and execution-binding identities, target contract version, adapter identity and version) |
-| Canonical protocol result (source) | `FR-240-canonical-protocol-result` | not declared upstream |
-| Digest domain label | `FR-201-canonical-identity-domain` | value |
+| Derived portable projection result | `FR-249` | derived, keyed (canonical result identity and digest, target obligation and execution-binding identities, target contract version, adapter identity and version) |
+| Canonical protocol result (source) | `FR-240` | not declared upstream |
+| Digest domain label | `FR-201` | value |
 
-`FR-249` states the derivation directly: the identity is "distinct from the
-canonical protocol-result identity and stable for the exact tuple of canonical
-result identity and digest, target obligation and execution-binding identities,
-target contract version, and adapter identity and version". That tuple is
-adopted as the key, not restated as a local one.
+`FR-249` owns the derivation. This requirement adopts its key rather than
+restating a local one: the derived identity stays distinct from the canonical
+protocol-result identity and is stable for exactly the tuple `FR-249` fixes,
+named in the table above as the key this requirement consumes.
 
 ### Resolved and opaque source details
 
@@ -105,12 +104,10 @@ source validation to target-context or projection-preimage mismatch. FR-015
 already selects `quire.verification.jcs` for both the canonical result and the
 distinct `quire.protocol.e02-projection-identity/v1-draft.1` preimage.
 
-`FR-240` states that "The prose does not state whether that identity is
-  authored by the producer or derived from the result's own components, so
-  this artifact declares neither." The derived projection identity is fully specified; the
-  source identity it consumes is not. This requirement consumes the source
-  identity as an exact opaque value and declares no kind for it. Owner:
-  `quire-specification`.
+`FR-240` declares no identity kind for the canonical source result, and records
+that gap as open. The derived projection identity is fully specified; the source
+identity it consumes is not. This requirement consumes the source identity as an
+exact opaque value and declares no kind for it. Owner: `quire-specification`.
 
 ## Dependencies
 

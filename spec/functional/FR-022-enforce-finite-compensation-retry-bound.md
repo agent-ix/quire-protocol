@@ -39,15 +39,14 @@ ordering violations of
 
 ## Behavior
 
-`FR-058` states that the evaluator "SHALL refuse attempts beyond the authored
-finite retry bound", and `FR-058-AC-4` that "Unknown or missing population
-membership and attempts beyond the retry bound cannot produce recovery success".
-`FR-239-AC-2` states that "Refusing an attempt beyond the bound leaves the
-previously retained attempts unchanged".
+This requirement adopts the retry-bound obligations of `FR-058` and `FR-239` and
+adds none. An attempt beyond the authored finite retry bound is refused here;
+attempts beyond the bound, and unknown or missing population membership, produce
+no recovery success; and a refusal leaves the attempts already retained for that
+registration unchanged (`FR-058-AC-4`, `FR-239-AC-2`).
 
-The bound counts the first attempt. `FR-049-AC-6` states, verbatim, "Retry bounds
-count the initial attempt". This requirement adopts that counting rule and
-defines no other.
+The bound counts the first attempt. That counting rule is `FR-049-AC-6`'s; this
+requirement adopts it and defines no other.
 
 The bound is not an order. `FR-239` records that no order over retry policies is
 declared and that a larger bound is not to be read as a later or stronger
@@ -67,8 +66,8 @@ policy.
 
 | Noun | Upstream object | Identity kind |
 | --- | --- | --- |
-| Compensation retry policy | `FR-239-compensation-retry-policy` | value, keyed (authored finite retry bound) |
-| Compensation attempt | `FR-235-compensation-attempt` | authored exact FR-287 `compensation-attempt` key |
+| Compensation retry policy | `FR-239` | value, keyed (authored finite retry bound) |
+| Compensation attempt | `FR-235` | authored exact FR-287 `compensation-attempt` key |
 
 ### Accepted owner ruling
 

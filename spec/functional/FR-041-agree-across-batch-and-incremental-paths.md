@@ -81,19 +81,19 @@ divergence refusal.
 
 | Noun | Upstream object | Identity kind |
 | --- | --- | --- |
-| Admitted observation | `FR-260-admitted-observation` | derived under FR-296 |
-| Decision scope and surrounding execution | `FR-258-temporal-decision-scope` | value, keyed (scope role, scope identity) |
-| Assessment-execution disposition | `FR-241-assessment-execution-disposition` | value |
-| Truth disposition | `FR-242-truth-disposition` | value |
-| Settlement basis | `FR-243-settlement-basis` | value |
-| Complete-global-conformance closure state | `FR-247-complete-global-conformance-closure-state` | value |
-| Progress and late-data authority | `FR-268-progress-and-late-data-authority` | value, keyed (progress/assertion definition identity, revision, byte digest) |
-| Canonical protocol result | `FR-240-canonical-protocol-result` | derived under FR-286 |
+| Admitted observation | `FR-260` | derived under FR-296 |
+| Decision scope and surrounding execution | `FR-258` | value, keyed (scope role, scope identity) |
+| Assessment-execution disposition | `FR-241` | value |
+| Truth disposition | `FR-242` | value |
+| Settlement basis | `FR-243` | value |
+| Complete-global-conformance closure state | `FR-247` | value |
+| Progress and late-data authority | `FR-268` | value, keyed (progress/assertion definition identity, revision, byte digest) |
+| Canonical protocol result | `FR-240` | derived under FR-286 |
 
 `FR-258` supplies the exclusion this whole requirement rests on: progress state,
 closure state, input completeness and the exact decision-support set sit outside
 the scope key, so one scope observed at two prefixes is one subject. Without that
-exclusion "the same assessed value on both paths" would not be a comparison at
+exclusion this requirement's agreement obligation would not be a comparison at
 all, because the incremental path observes each scope at several prefixes.
 `FR-268` is why settlement cannot be re-derived locally: a change to the
 progress/assertion definition identity, revision or byte digest is a different

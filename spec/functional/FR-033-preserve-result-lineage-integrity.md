@@ -18,7 +18,7 @@ relationships:
 
 ## Description
 
-When a decision-support record is retained, the result producer SHALL carry exactly one dependence relation from `FR-282-dependence-relation` alongside that record's exact oracle and observation identities.
+When a decision-support record is retained, the result producer SHALL carry exactly one dependence relation from `FR-282` alongside that record's exact oracle and observation identities.
 When later input contradicts a retained premise of a settled result, the result producer SHALL emit a typed superseding or invalidating result identifying the earlier result, the contradicted premise and the corrected input identity.
 When a result has been superseded or invalidated, the result producer SHALL preserve every byte and identity of that earlier result.
 
@@ -37,8 +37,8 @@ linked superseding or invalidating result, or one typed strict-reader refusal.
 
 A `derived` relation identifies its exact predecessor and a `shared` relation
 identifies its dependence group. A strict reader refuses a missing, cyclic or
-self-referential predecessor. FR-061 additionally forbids the reader to "infer
-independence from distinct display names or implementations", so `independent`
+self-referential predecessor. FR-061 additionally forbids inferring
+independence from distinct display names or implementations, so `independent`
 is never reached by omission and an absent relation compares only to absence.
 `shared` and `derived` relations are retained as themselves and are never
 collapsed into `independent` or into each other.
@@ -65,9 +65,9 @@ identity.
 
 | Noun | Upstream object | Identity kind |
 | --- | --- | --- |
-| Decision-support record | `FR-248-decision-support-record` | value, keyed (oracle identity, observation identity, dependence relation, and the predecessor or dependence group that relation requires) |
-| Dependence relation | `FR-282-dependence-relation` | value |
-| Canonical protocol result | `FR-240-canonical-protocol-result` | derived under FR-286 |
+| Decision-support record | `FR-248` | value, keyed (oracle identity, observation identity, dependence relation, and the predecessor or dependence group that relation requires) |
+| Dependence relation | `FR-282` | value |
+| Canonical protocol result | `FR-240` | derived under FR-286 |
 
 `FR-282`'s four members are adopted by reference and not restated. `FR-248`'s
 key is exactly this requirement's lineage rule: the predecessor or dependence

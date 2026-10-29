@@ -37,14 +37,11 @@ as "changed source, dependency, observation, profile, result, or adapter bytes
 retain an accepted identity"
 ([spec/reviews/digest-domain-discrimination.md](../reviews/digest-domain-discrimination.md)).
 
-Upstream had already decided the rule. `FR-201-canonical-identity-domain` is
-`object: enumeration` and states in its Description that "the reader SHALL
-compare the selected identity domain before the bytes, so that an identity
-derived under one domain is unequal to an identity derived under another
-regardless of byte equality", and in its Cross-domain rule that "two identities
-bearing different domain labels are unequal. Byte equality of their digests does
-not make them equal". It publishes nine members and says of itself: "This
-artifact *is* the vocabulary of digest domains".
+Upstream had already decided the rule. `ix://agent-ix/quire-specification/FR-201`
+owns the digest-domain vocabulary and fixes its cross-domain comparison rule.
+This repository therefore states its own obligation and mints nothing: a reader
+here compares the selected identity domain before the bytes, and two identities
+bearing different domain labels are unequal however their digest bytes compare.
 
 ### The defect that produced this decision
 
@@ -142,10 +139,11 @@ protects against a programming mistake on B's side; it does nothing against a
 crafted offer.
 
 **Domain-prefix the digest preimage, so a crossed digest simply does not
-match.** Rejected, and the rejection is upstream's, not this repository's.
-`FR-201` states that "The `sha256-jcs:` textual prefix is a domain label outside
-the hashed bytes. It is not a hash preimage prefix (FR-018)". Adopting preimage
-prefixing locally would change what every digest *is*, not just how it compares,
+match.** Rejected, and the rejection is upstream's, not this repository's:
+`ix://agent-ix/quire-specification/FR-201` settles that the `sha256-jcs:`
+textual prefix is a domain label outside the hashed bytes rather than part of
+the hash preimage. Adopting preimage prefixing locally would change what every
+digest *is*, not just how it compares,
 and would make this repository's digests incomparable with the rest of the
 ecosystem's.
 

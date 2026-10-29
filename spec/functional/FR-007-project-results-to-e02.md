@@ -96,25 +96,23 @@ derived from, not as a second definition.
 
 | Noun | Upstream object | Identity kind |
 | --- | --- | --- |
-| Canonical protocol result (source) | `FR-240-canonical-protocol-result` | exact opaque source identity consumed after strict validation |
-| Derived portable projection result | `FR-249-derived-projection-result` | derived, keyed (canonical result identity and digest, target obligation and execution-binding identities, target contract version, adapter identity and version) |
-| Projection refusal code | `FR-283-projection-refusal-code` | value |
-| Dependence relation | `FR-282-dependence-relation` | value |
-| Execution disposition | `FR-241-assessment-execution-disposition` | value |
-| Truth | `FR-242-truth-disposition` | value |
-| Activation | `FR-244-activation-state` | value |
-| Observation adequacy | `FR-245-observation-adequacy-state` | value |
-| Protocol adequacy | `FR-246-protocol-adequacy-state` | value |
-| Assumptions | `FR-280-assumption-state` | value |
-| Decision support | `FR-248-decision-support-record` | value |
-| Digest domain label | `FR-201-canonical-identity-domain` | value |
+| Canonical protocol result (source) | `FR-240` | exact opaque source identity consumed after strict validation |
+| Derived portable projection result | `FR-249` | derived, keyed (canonical result identity and digest, target obligation and execution-binding identities, target contract version, adapter identity and version) |
+| Projection refusal code | `FR-283` | value |
+| Dependence relation | `FR-282` | value |
+| Execution disposition | `FR-241` | value |
+| Truth | `FR-242` | value |
+| Activation | `FR-244` | value |
+| Observation adequacy | `FR-245` | value |
+| Protocol adequacy | `FR-246` | value |
+| Assumptions | `FR-280` | value |
+| Decision support | `FR-248` | value |
+| Digest domain label | `FR-201` | value |
 
 `FR-249` is the derived result this requirement emits, and its key is exactly
-the derivation tuple `FR-034` adopts: the identity is "distinct from the
-canonical protocol-result identity and stable for the exact tuple of canonical
-result identity and digest, target obligation and execution-binding identities,
-target contract version, and adapter identity and version". The tuple is
-adopted, not restated.
+the derivation tuple [FR-034](./FR-034-derive-e02-projection-identity.md)
+adopts: an identity distinct from the canonical protocol-result identity and
+stable for that tuple alone. The tuple is adopted, not restated.
 
 The E02 target vocabularies belong to `quire-verification` and reach this
 repository only through FR-062's mapping table. No E02 member is spelled here.
@@ -133,10 +131,10 @@ closes progress/closure; FR-285 closes participation; and FR-249 declares the
 mapping total for selected source and target revisions. FR-034 and FR-035 adopt
 those rulings exactly.
 
-- **Canonical source-result identity kind.** `FR-240` states that "The prose does not state whether that identity is
-  authored by the producer or derived from the result's own components, so
-  this artifact declares neither." The projection consumes that identity as an exact
-  opaque value and declares no kind for it. Recorded by
+- **Canonical source-result identity kind.** `FR-240` declares no identity kind
+  for the canonical source result and records the gap as open. The projection
+  consumes that identity as an exact opaque value and declares no kind for it.
+  Recorded by
   [FR-034](./FR-034-derive-e02-projection-identity.md). Owner:
   `quire-specification`.
 - **qverify acceptance.** Issue #32 accepted the strict

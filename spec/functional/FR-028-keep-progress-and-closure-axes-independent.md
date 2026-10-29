@@ -77,15 +77,15 @@ typed by `FR-247`. This requirement adopts it and enumerates no axis member.
 
 | Noun | Upstream object | Identity kind |
 | --- | --- | --- |
-| Complete-global-conformance closure state | `FR-247-complete-global-conformance-closure-state` | value |
-| Decision scope and surrounding execution | `FR-258-temporal-decision-scope` | value, keyed (scope role, scope identity) |
-| Assessment-execution disposition | `FR-241-assessment-execution-disposition` | value |
-| Truth disposition | `FR-242-truth-disposition` | value |
-| Settlement basis | `FR-243-settlement-basis` | value |
-| Observation adequacy state | `FR-245-observation-adequacy-state` | value |
-| Protocol adequacy state | `FR-246-protocol-adequacy-state` | value |
-| Progress and late-data authority | `FR-268-progress-and-late-data-authority` | value, keyed (progress/assertion definition identity, revision, byte digest) |
-| Canonical protocol result | `FR-240-canonical-protocol-result` | derived under FR-286 |
+| Complete-global-conformance closure state | `FR-247` | value |
+| Decision scope and surrounding execution | `FR-258` | value, keyed (scope role, scope identity) |
+| Assessment-execution disposition | `FR-241` | value |
+| Truth disposition | `FR-242` | value |
+| Settlement basis | `FR-243` | value |
+| Observation adequacy state | `FR-245` | value |
+| Protocol adequacy state | `FR-246` | value |
+| Progress and late-data authority | `FR-268` | value, keyed (progress/assertion definition identity, revision, byte digest) |
+| Canonical protocol result | `FR-240` | derived under FR-286 |
 
 `FR-247` carries the whole of this requirement's positive rule and this
 requirement restates none of it: its five members are adopted by reference, its
@@ -106,21 +106,18 @@ no member list anywhere, and that `FR-028-AC-1`'s independent-variation
 obligation was therefore unexecutable because "the value sets it would be
 changed across exist for the fifth axis only".
 
-`FR-284-scope-progress-and-closure-state` closes that gap. Each of
-decision-scope progress, decision-scope closure, surrounding-execution progress
-and surrounding-execution closure carries exactly one of `open` or `closed`, and
-`FR-284` states of the pair: "Both label strings are used by the accepted
-requirements for both scopes and for progress. This artifact mints no new
-spelling."
+`FR-284` closes that gap. Each of decision-scope progress, decision-scope
+closure, surrounding-execution progress and surrounding-execution closure
+carries exactly one of `open` or `closed`. The pair is one vocabulary serving
+both scopes and progress; this requirement selects it and mints no spelling.
 
 `FR-028-AC-1` is executable. The product over the four axes and the fifth
 (`FR-247`, five members) is 2 x 2 x 2 x 2 x 5 = 80 states, each axis
 independently variable, and `TC-004` enumerates all of them.
 
-`FR-284` also names the labels an earlier revision of this repository had
-invented for those axes: "`not-started`, `advanced`, `stalled`, `unobserved` —
-named by no requirement. They are not members here and are not to be
-reintroduced by a consumer." They are withdrawn.
+The labels an earlier revision of this repository had invented for those axes —
+`not-started`, `advanced`, `stalled` and `unobserved` — are members of no
+adopted vocabulary. They are withdrawn and are not reintroduced here.
 
 ### Accepted owner rulings
 

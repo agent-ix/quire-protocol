@@ -43,7 +43,7 @@ typed identity, and composing the evidence a scenario carries to its handoff.
 
 It owns no protocol, temporal or observation semantics. Those are
 `ix://agent-ix/quire-specification`'s, which publishes them as the domain object
-layer under `FR-200-quire-assessment-domain`. This context references that layer
+layer under `FR-200`. This context references that layer
 and never restates it. A noun this context redefines locally would be the "second
 locally authored profile" FR-001 exists to refuse.
 

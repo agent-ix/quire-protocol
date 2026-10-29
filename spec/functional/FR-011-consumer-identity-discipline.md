@@ -19,7 +19,7 @@ relationships:
 
 ## Description
 
-When this repository specifies an object of its own, that object SHALL declare its identity under the same three kinds `FR-200-quire-assessment-domain` establishes.
+When this repository specifies an object of its own, that object SHALL declare its identity under the same three kinds `FR-200` establishes.
 Each such object SHALL declare separately which side authored that identity.
 
 ## Properties
@@ -37,7 +37,7 @@ Each such object SHALL declare separately which side authored that identity.
   per key component where its components originate on different sides.
 - **key** (ordered tuple) — the components that constitute identity under the
   declared kind.
-- **domain** (reference to `FR-201-canonical-identity-domain`) — where a key
+- **domain** (reference to `FR-201`) — where a key
   component is a digest.
 
 ### Reconciliation with the upstream trichotomy
@@ -91,7 +91,7 @@ and therefore inert outside this boundary.
 - **Key** — (`kind`, `authority`). Equality is componentwise over exactly those
   two. A display name, source path, span, message text, locale or rendering never
   participates, and none may reconstruct an absent component
-  (`FR-204-declared-object-identity`).
+  (`FR-204`).
 - **Key order** — lexicographic over (`kind`, `authority`), for collection
   comparison only. It carries no causal meaning and expresses no precedence
   between kinds or between the two authorities.

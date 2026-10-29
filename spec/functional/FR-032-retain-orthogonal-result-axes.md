@@ -34,9 +34,9 @@ relationships:
 
 ## Description
 
-When a canonical protocol result is emitted, the result producer SHALL retain every axis `FR-240-canonical-protocol-result` lists as an independently readable fact.
+When a canonical protocol result is emitted, the result producer SHALL retain every axis `FR-240` lists as an independently readable fact.
 When a canonical protocol result is read, the strict reader SHALL refuse every axis combination the FR-061 result-combination table forbids.
-When a global-conformance claim is reported, the result producer SHALL carry one complete-global-conformance closure state from `FR-247-complete-global-conformance-closure-state` plus the exact required execution, branch and workflow closure-premise identities.
+When a global-conformance claim is reported, the result producer SHALL carry one complete-global-conformance closure state from `FR-247` plus the exact required execution, branch and workflow closure-premise identities.
 
 ## Inputs
 
@@ -57,15 +57,15 @@ Each axis in the **Adopted vocabulary** table below is retained separately. This
 requirement restates none of their member lists; it requires them to stay
 distinct and to be independently mutable.
 
-No axis is populated from another. FR-061 states the prohibition directly: "The
-result producer SHALL NOT use completeness, assessment execution or any other
-progress/closure fact as a substitute for any closure axis." A strict reader
+No axis is populated from another. FR-061 owns the prohibition and this
+requirement adopts it: no completeness, assessment-execution or other
+progress/closure fact substitutes for any closure axis here. A strict reader
 refuses an omitted required axis, a cross-scope substitution, a global premise
 carried under `not-required`, and a global claim without its
 complete-global-conformance closure record.
 
-The two adequacy domains are disjoint. FR-061: the result producer SHALL NOT
-"use either adequacy domain as evidence for the other." Observation adequacy and
+The two adequacy domains are disjoint. Under FR-061 neither adequacy domain is
+used as evidence for the other. Observation adequacy and
 protocol adequacy therefore remain two separately readable facts and neither
 establishes the other.
 
@@ -107,16 +107,16 @@ requirement does not restate their members.
 
 | Axis | Upstream object | Identity kind |
 | --- | --- | --- |
-| Execution disposition | `FR-241-assessment-execution-disposition` | value |
-| Truth | `FR-242-truth-disposition` | value |
-| Settlement basis | `FR-243-settlement-basis` | value |
-| Activation | `FR-244-activation-state` | value |
-| Observation adequacy | `FR-245-observation-adequacy-state` | value |
-| Protocol adequacy | `FR-246-protocol-adequacy-state` | value |
-| Complete-global-conformance closure | `FR-247-complete-global-conformance-closure-state` | value |
-| Assumptions | `FR-280-assumption-state` | value |
-| Claim strength | `FR-281-claim-strength` | value |
-| Result fact set | `FR-240-canonical-protocol-result` | derived under FR-286 |
+| Execution disposition | `FR-241` | value |
+| Truth | `FR-242` | value |
+| Settlement basis | `FR-243` | value |
+| Activation | `FR-244` | value |
+| Observation adequacy | `FR-245` | value |
+| Protocol adequacy | `FR-246` | value |
+| Complete-global-conformance closure | `FR-247` | value |
+| Assumptions | `FR-280` | value |
+| Claim strength | `FR-281` | value |
+| Result fact set | `FR-240` | derived under FR-286 |
 
 `FR-247`'s five members — `closed`, `open`, `incomplete`, `contradicted`,
 `not-required` — are adopted by reference, including the `not-required` rule that

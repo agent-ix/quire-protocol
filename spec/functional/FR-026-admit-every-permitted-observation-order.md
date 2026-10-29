@@ -71,21 +71,21 @@ channel premises. This requirement defines neither.
 
 | Noun | Upstream object | Identity kind |
 | --- | --- | --- |
-| Authored causal (partial) order | `FR-220-causal-control-graph` | derived, keyed (linked protocol identity, authored branches, join rules, iteration maxima) |
-| Node occurrence | `FR-221-protocol-node-occurrence` | derived, keyed (static declaration path, workflow instance identity, iteration identity) |
-| Channel premise (all five components) | `FR-216-channel-premise` | value |
-| Protocol obligation | `FR-230-protocol-obligation` | derived, keyed (clause subject, semantic trigger-event identity) |
-| Temporal semantic profile | `FR-250-temporal-semantic-profile` | value, keyed (label, definition revision, digest) |
-| Temporal clock binding | `FR-252-temporal-clock-binding` | value |
-| Admitted observation | `FR-260-admitted-observation` | derived under FR-296 |
+| Authored causal (partial) order | `FR-220` | derived, keyed (linked protocol identity, authored branches, join rules, iteration maxima) |
+| Node occurrence | `FR-221` | derived, keyed (static declaration path, workflow instance identity, iteration identity) |
+| Channel premise (all five components) | `FR-216` | value |
+| Protocol obligation | `FR-230` | derived, keyed (clause subject, semantic trigger-event identity) |
+| Temporal semantic profile | `FR-250` | value, keyed (label, definition revision, digest) |
+| Temporal clock binding | `FR-252` | value |
+| Admitted observation | `FR-260` | derived under FR-296 |
 
 `FR-220-AC-3` is adopted directly as this requirement's FR-026-AC-3: it requires
 that no key order declared by that artifact or by any object it contains is cited
 as evidence of a causal edge. `FR-216` is why the admitted-order set is not the
 authored order alone — an ordering policy and a delivery cardinality are
-authored channel premises, and FR-216 records that a FIFO premise "orders
-messages only within its declared channel and key scope" and that FIFO order
-across channels is never inferred.
+authored channel premises, and under FR-216 a FIFO premise reaches only its own
+declared channel and key scope, so no FIFO order across channels is inferred
+here.
 
 ### Accepted owner rulings
 

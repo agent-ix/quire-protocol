@@ -23,22 +23,19 @@ relationships:
 
 ## Description
 
-When this repository compares two digests, it SHALL compare them under domain labels selected from `FR-201-canonical-identity-domain`.
+When this repository compares two digests, it SHALL compare them under domain labels selected from `FR-201`.
 This repository SHALL mint no digest domain label of its own.
 
 ## Correction: this requirement previously minted a competing vocabulary
 
 An earlier revision of this artifact declared a closed four-member set —
 `producer-canonical`, `native-raw`, `compiled-artifact`, `protocol-result` — on
-the stated ground that `FR-201` "types the domain label kind" while selecting no
+the stated ground that `FR-201` typed the domain label kind while selecting no
 member. That characterisation was wrong, and the requirement built on it was a
 boundary breach.
 
-`FR-201` is `object: enumeration`. It publishes nine members —
-`ir-canonical`, `ir-bound`, `ir-semantic`, `filament-fingerprint`,
-`package-fingerprint`, `lock-file-digest`, `raw-artifact-digest`,
-`typed-expression-identity`, `quire.verification.jcs` — and states of itself:
-"This artifact *is* the vocabulary of digest domains."
+`ix://agent-ix/quire-specification/FR-201` owns the digest-domain vocabulary
+itself, not merely the kind of a label, and this repository selects from it.
 
 Two of the four minted members re-spelled members upstream already publishes:
 `native-raw` against `raw-artifact-digest`, and `protocol-result` against
@@ -73,17 +70,17 @@ that label is retained exactly and is never re-labelled into another member.
 ### The E02 projection identity needs no additional member
 
 `FR-007` derives a projection identity distinct from the canonical result's own
-identity, and it would be easy to read that as needing a tenth domain member.
-It does not. `FR-201` separates the two concepts under the heading "Preimage
-selection is per-use, not per-domain", and records that `FR-062` takes the
-derived result identity "over a distinct projection-identity preimage under
-`quire.protocol.e02-projection-identity/v1-draft.1`". That identifier names a
+identity, and it would be easy to read that as needing an additional domain
+member. It does not. `FR-201` separates preimage selection from domain
+selection — preimage selection is per-use, not per-domain — and `FR-062`'s
+derived result identity is taken over its own projection-identity preimage under
+`quire.protocol.e02-projection-identity/v1-draft.1`. That identifier names a
 *preimage*, not a domain: the domain stays `quire.verification.jcs` and the
 preimage differs. So `FR-007`'s two digests are distinguished by preimage while
 sharing one selected member, and this table stays at two entries.
 
 This is recorded because the opposite reading was reached independently during
-this campaign, and acting on it would have minted the tenth member -- repeating
+this campaign, and acting on it would have minted a further member -- repeating
 exactly the breach the correction above withdraws.
 
 ## Owner selections consumed by this repository

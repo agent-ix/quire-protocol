@@ -20,7 +20,7 @@ relationships:
 
 ## Description
 
-When a canonical protocol result is emitted, the result producer SHALL bind the contract version, kind and result identity that `FR-240-canonical-protocol-result` states.
+When a canonical protocol result is emitted, the result producer SHALL bind the contract version, kind and result identity that `FR-240` states.
 When a canonical protocol result is emitted, the result producer SHALL carry the enclosing artifact reference's digest over the complete RFC 8785 canonical result bytes and outside those bytes.
 When a canonical protocol result is read, the strict reader SHALL recompute the enclosing artifact reference's digest before accepting the result.
 
@@ -40,7 +40,7 @@ strict-reader refusal.
 ## Behavior
 
 The result producer SHALL emit `contractVersion` and `kind` exactly as
-`FR-240-canonical-protocol-result` records them, and a result identity, without
+`FR-240` records them, and a result identity, without
 restating those values as a local vocabulary.
 
 The enclosing artifact reference's digest is `sha256-jcs` over the complete RFC
@@ -50,7 +50,7 @@ result. A recomputed digest that differs from the carried one refuses the result
 
 The digest domain is the `quire.verification.jcs` member that
 [FR-015](./FR-015-digest-domain-selection.md) selects from
-`FR-201-canonical-identity-domain`'s published vocabulary. This requirement
+`FR-201`'s published vocabulary. This requirement
 selects no member of its own and spells none of its own. RFC 8785
 canonicalization is confined to this preimage: an offered artifact's supplied
 bytes are digested under the `raw-artifact-digest` member FR-015 selects for
@@ -95,13 +95,12 @@ producer identity nor becomes authority at an upstream boundary.
 
 | Noun | Upstream object | Identity kind |
 | --- | --- | --- |
-| Canonical protocol result | `FR-240-canonical-protocol-result` | not declared upstream; see the gap below |
-| Digest domain label | `FR-201-canonical-identity-domain` | value |
+| Canonical protocol result | `FR-240` | not declared upstream; see the gap below |
+| Digest domain label | `FR-201` | value |
 
 The member selection is local and is
 [FR-015](./FR-015-digest-domain-selection.md)'s; the vocabulary selected from is
-`FR-201`'s. `FR-201` states of itself: "This artifact *is* the vocabulary of
-digest domains." Nothing here extends it.
+owned by `FR-201`. Nothing here extends it.
 
 ### Accepted owner ruling
 

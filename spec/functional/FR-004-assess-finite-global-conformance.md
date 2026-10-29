@@ -119,13 +119,13 @@ shared mapping the decomposition was derived from, not as a second definition.
 
 | Noun | Upstream object | Identity kind |
 | --- | --- | --- |
-| Authored causal (partial) order | `FR-220-causal-control-graph` | derived |
-| Protocol obligation | `FR-230-protocol-obligation` | derived, keyed (clause subject, semantic trigger-event identity) |
-| Canonical protocol result | `FR-240-canonical-protocol-result` | derived, exact FR-286 preimage |
-| Assessment-execution disposition | `FR-241-assessment-execution-disposition` | value |
-| Complete-global-conformance closure state | `FR-247-complete-global-conformance-closure-state` | value |
-| Admitted observation | `FR-260-admitted-observation` | derived under FR-296 |
-| Protocol-obligation activation binding | `FR-300-obligation-activation-binding` | value; sole event-triggered bridge |
+| Authored causal (partial) order | `FR-220` | derived |
+| Protocol obligation | `FR-230` | derived, keyed (clause subject, semantic trigger-event identity) |
+| Canonical protocol result | `FR-240` | derived, exact FR-286 preimage |
+| Assessment-execution disposition | `FR-241` | value |
+| Complete-global-conformance closure state | `FR-247` | value |
+| Admitted observation | `FR-260` | derived under FR-296 |
+| Protocol-obligation activation binding | `FR-300` | value; sole event-triggered bridge |
 
 `FR-241`'s five members — `completed`, `refused`, `unsupported`,
 `resource-incomplete`, `failed` — are exactly the non-success causes this

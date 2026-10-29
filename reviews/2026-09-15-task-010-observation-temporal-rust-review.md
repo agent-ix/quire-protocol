@@ -19,7 +19,7 @@ relationships:
 Reviewed the Task-010 completion diff and the two existing real producer-path
 tests it binds to IT-002. The scope adds no production adapter, owner mirror,
 public API, unsafe surface, concurrency surface, or resource loop. It makes the
-already merged QObs/QSL-to-FR-300-to-result path traceable as IT-002 SC-01
+already merged QObs/QSL-to-FR-300 path traceable as IT-002 SC-01
 through SC-04 and records the completed task without claiming later scenarios.
 
 ## Verdict

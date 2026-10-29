@@ -55,10 +55,9 @@ Three requirements carry the intake half:
   with no canonicalization, re-encoding, or normalization of any kind", and the
   verified byte sequence to be the one passed to the consumer.
 - [FR-015](../functional/FR-015-digest-domain-selection.md) selects
-  `raw-artifact-digest` for offered artifact bytes — upstream's own description
-  of that member is that it "Hashes the complete supplied bytes, including
-  layout" — and reserves `quire.verification.jcs` for this repository's
-  protocol-result digest.
+  `raw-artifact-digest` for offered artifact bytes — the published member that
+  covers the complete supplied bytes as delivered — and reserves
+  `quire.verification.jcs` for this repository's protocol-result digest.
 
 IT-001-SC-07 is the negative control, and it was written to be non-vacuous: the
 recanonicalization probe uses a pretty-printed JSON re-encoding of the original
@@ -90,10 +89,10 @@ narrowed to first-party preimages or whether FR-009 and FR-015 are wrong.
 **[FR-007](../functional/FR-007-project-results-to-e02.md) uses JCS in a second
 domain.** It requires the adapter to "compute a distinct RFC 8785 projection
 identity over the complete FR-062 preimage", and FR-007-AC-2 requires that
-identity to remain distinct from the canonical result identity. Upstream
-`FR-201` records the domain that identity is taken under: for FR-062, "the
-derived result identity is taken over a distinct projection-identity preimage
-under `quire.protocol.e02-projection-identity/v1-draft.1`".
+identity to remain distinct from the canonical result identity. The domain that
+identity is taken under is published by
+`ix://agent-ix/quire-specification/FR-201`: the projection identity has its own
+preimage under `quire.protocol.e02-projection-identity/v1-draft.1`.
 
 So JCS is the canonicalisation for at least two distinct output identities, under
 two distinct domain labels, and FR-015's selection table names only one of them.
@@ -105,12 +104,10 @@ selects no member for the E02 projection identity that FR-007 computes. The
 member exists upstream and is named above; selecting it is a correction to
 FR-015, reported rather than made here.
 
-`FR-201` also records that preimage selection is per-use rather than per-domain:
-three upstream requirements independently state what is inside the
-`quire.verification.jcs` preimage and no requirement cross-references the
-others. It states that it "does not reconcile them; the selection of a preimage
-belongs to the requirement that selects it". So even within one domain, "JCS"
-does not name one preimage.
+`ix://agent-ix/quire-specification/FR-201` also settles that preimage selection
+is per-use rather than per-domain: the requirement that selects a preimage owns
+that selection, and the domain vocabulary does not reconcile one preimage with
+another. So even within one domain, "JCS" does not name one preimage.
 
 ## Consequences
 

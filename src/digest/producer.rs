@@ -18,20 +18,18 @@ use std::fmt;
 /// inventory.
 /// The two members selected from the published digest-domain vocabulary.
 ///
-/// The vocabulary is not this crate's. `FR-201-canonical-identity-domain`
-/// publishes nine members and states of itself that it *is* the vocabulary of
-/// digest domains. `FR-015-digest-domain-selection` selects exactly these two
-/// and mints nothing. Spelling is load-bearing: an underscored spelling does
-/// not match a hyphenated one, and a raw `sha256` value cannot substitute for a
-/// `sha256-jcs` one.
+/// The vocabulary is not this crate's. It is owned by
+/// `ix://agent-ix/quire-specification/FR-201`; `FR-015` selects exactly these
+/// two of its published members and mints nothing. Spelling is load-bearing: an
+/// underscored spelling does not match a hyphenated one, and a raw `sha256`
+/// value cannot substitute for a `sha256-jcs` one.
 ///
 /// An earlier revision of this enum declared five members of its own
 /// (`producer-artifact-bytes`, `producer-source`, `producer-model`,
-/// `producer-config`, `protocol-result-jcs`), none of which appears among the
-/// nine. The producer source, model and configuration digests were three
-/// separate local members for what the published vocabulary already calls
-/// `raw-artifact-digest`: "Hashes the complete supplied bytes, including
-/// layout."
+/// `producer-config`, `protocol-result-jcs`), none of which is a published
+/// member. The producer source, model and configuration digests were three
+/// separate local members for one published member, `raw-artifact-digest`,
+/// which this crate now selects instead.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum DigestDomain {
     /// `raw-artifact-digest`. Over the complete supplied bytes of an artifact,

@@ -12,23 +12,24 @@
 //!
 //! # What "permitted" means, and whose rule it is
 //!
-//! Upstream's, in both halves. `quire-specification` FR-052 states "Parallel
-//! branches SHALL admit every interleaving that preserves each branch's causal
-//! edges", and `FR-228` names the admitted join rule as the "all-branch join".
+//! Upstream's, in both halves. `quire-specification` FR-052 fixes which
+//! interleavings of parallel branches are admitted — every one preserving each
+//! branch's causal edges — and `FR-228` owns the admitted join rule, the
+//! all-branch join.
 //! Nothing here decides which orders are permitted; [`interleavings`] computes
 //! the linear extensions of the relation A already derived, validated and
 //! published in the artifact's `causal_edges`.
 //!
 //! Two consequences follow from taking A's edge set *exactly*:
 //!
-//! - **No edge is added.** FR-002 requires causal edges to be derived "only
-//!   from authored control and channel premises", so a control's `enter` is not
+//! - **No edge is added.** FR-002 requires causal edges to be derived only
+//!   from authored control and channel premises, so a control's `enter` is not
 //!   silently ordered before its own `exit` here. A emits that edge itself for
 //!   every control that has it — `sequence` for a leaf check, commit or event —
 //!   and where A emits none, none is assumed.
 //! - **Repeat progress is excluded from the order.** A documents
-//!   `repeat_progress` as "bounded repeat progress as its explicit cyclic
-//!   edge", and FR-052's output is "an acyclic finite control representation".
+//!   `repeat_progress` as its explicit cyclic edge for bounded repeat
+//!   progress, and FR-052's output is an acyclic finite control representation.
 //!   A relation carrying the back edge has no linear extension at all, so
 //!   including it would report zero permitted interleavings for every loop.
 //!

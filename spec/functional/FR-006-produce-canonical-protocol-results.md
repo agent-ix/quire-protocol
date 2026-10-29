@@ -90,7 +90,7 @@ RFC 8785 canonicalization enters this requirement only through
 [FR-031](./FR-031-canonical-result-identity-and-digest.md), and only for the
 protocol-result digest preimage under the `quire.verification.jcs` member that
 [FR-015](./FR-015-digest-domain-selection.md) selects from
-`FR-201-canonical-identity-domain`. This repository selects from that published
+`FR-201`. This repository selects from that published
 vocabulary and mints no digest domain label.
 
 Activation, assumptions, adequacy, participation, claim kind/strength,
@@ -130,33 +130,31 @@ shared mapping the decomposition was derived from, not as a second definition.
 
 | Axis | Upstream object |
 | --- | --- |
-| Result fact set | `FR-240-canonical-protocol-result` |
-| Execution disposition | `FR-241-assessment-execution-disposition` |
-| Truth | `FR-242-truth-disposition` |
-| Settlement basis | `FR-243-settlement-basis` |
-| Activation | `FR-244-activation-state` |
-| Observation adequacy | `FR-245-observation-adequacy-state` |
-| Protocol adequacy | `FR-246-protocol-adequacy-state` |
-| Complete-global-conformance closure | `FR-247-complete-global-conformance-closure-state` |
-| Decision support | `FR-248-decision-support-record` |
-| Assumptions | `FR-280-assumption-state` |
-| Claim strength | `FR-281-claim-strength` |
+| Result fact set | `FR-240` |
+| Execution disposition | `FR-241` |
+| Truth | `FR-242` |
+| Settlement basis | `FR-243` |
+| Activation | `FR-244` |
+| Observation adequacy | `FR-245` |
+| Protocol adequacy | `FR-246` |
+| Complete-global-conformance closure | `FR-247` |
+| Decision support | `FR-248` |
+| Assumptions | `FR-280` |
+| Claim strength | `FR-281` |
 
-`FR-247`'s five members — `closed`, `open`, `incomplete`, `contradicted`,
-`not-required` — match this requirement's previous local enumeration exactly,
-including the rule that a claim which is not global conformance carries no
-global premise set. The local enumeration is therefore replaced by the reference
-rather than reconciled.
+This requirement's previously local complete-global-conformance closure
+enumeration is withdrawn. The vocabulary is `FR-247`'s; this repository selects
+it by reference and mints no member, alias or spelling of its own.
 
 ### Accepted upstream rulings
 
 The implementation consumes the promoted shared object authority rather than
-retaining earlier gap descriptions. FR-286 fixes the complete derived result
-identity preimage and strict-reader order; FR-284 fixes each of the four
-progress/closure axes to independent `open`/`closed`; FR-295 fixes completeness
-to `complete`/`incomplete`/`contradicted`; FR-243 fixes all five settlement
-members; and FR-285 fixes participation to its exact known/unknown form. No
-local aliases or compatibility fallbacks survive these rulings.
+retaining earlier gap descriptions. The derived result identity preimage and
+strict-reader order are settled by `FR-286`, the progress and closure axes by
+`FR-284`, completeness by `FR-295`, settlement basis by `FR-243`, and
+participation by `FR-285`. Each is adopted by reference: this repository states
+no substitute vocabulary for any of them, and no local alias or compatibility
+fallback survives their adoption.
 
 ## Dependencies
 

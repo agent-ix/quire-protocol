@@ -73,24 +73,24 @@ owns is the reporting discipline: attribute, never repair.
 
 | Noun | Upstream object | Identity kind |
 | --- | --- | --- |
-| Protocol obligation | `FR-230-protocol-obligation` | derived, keyed (clause subject, semantic trigger-event identity) |
-| Protocol subject kind discrimination | `FR-210-protocol-subject-vocabulary` | value |
-| Authored causal (partial) order | `FR-220-causal-control-graph` | derived |
-| Workflow instance | `FR-213-workflow-instance` | runtime subject under FR-287 |
-| Delivery | `FR-224-delivery` | runtime subject under FR-287 |
-| Business effect | `FR-226-business-effect` | derived, keyed (static declaration path, workflow instance identity, iteration identity) |
-| Admitted observation | `FR-260-admitted-observation` | derived under FR-296 |
-| Declared instance relationship | `FR-262-declared-instance-relationship` | value |
+| Protocol obligation | `FR-230` | derived, keyed (clause subject, semantic trigger-event identity) |
+| Protocol subject kind discrimination | `FR-210` | value |
+| Authored causal (partial) order | `FR-220` | derived |
+| Workflow instance | `FR-213` | runtime subject under FR-287 |
+| Delivery | `FR-224` | runtime subject under FR-287 |
+| Business effect | `FR-226` | derived, keyed (static declaration path, workflow instance identity, iteration identity) |
+| Admitted observation | `FR-260` | derived under FR-296 |
+| Declared instance relationship | `FR-262` | value |
 
-FR-027-AC-4 is adopted, not authored: `FR-260` records FR-110's rule that "A
-required absent valuation SHALL be incomplete or refused, never false or an
-implicit option-none."
+FR-027-AC-4 is adopted, not authored: under `FR-260` and FR-110 a required
+absent valuation is incomplete or refused here, and is never read as false or as
+an implicit option-none.
 
 ### Accepted owner rulings
 
 QSpec #28/#31/#40 supplies complete FR-287 workflow, delivery and effect keys,
-FR-296 admitted-observation identity, and FR-262's closed `resolved`, `missing`,
-`conflicting`, `ambiguous` relationship outcomes with ordered endpoint keys.
+FR-296 admitted-observation identity, and FR-262's closed relationship-outcome
+vocabulary with ordered endpoint keys.
 A repeated delivery of one send, a replay of one observation, a distinct
 delivery and a duplicate business effect are therefore non-interchangeable.
 Missing is incomplete; conflicting or ambiguous relationships refuse; unknown
