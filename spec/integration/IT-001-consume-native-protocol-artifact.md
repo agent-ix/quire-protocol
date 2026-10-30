@@ -45,7 +45,7 @@ and retains the compiler contract, baseline, producer, native-source,
 model-source and dependency bytes before inspecting the offer, and cannot read
 any full-assessment input. The native compiler publishes both versioned
 compiled-protocol contracts and the `handoff-writer` API that emits their complete
-handoffs at current exact pin `9395be4268e650ca2753204d6d306c9cd7b453ec`.
+handoffs through the QSL dependency recorded in Cargo.
 Version 1 retains its
 `quire.protocol.numeric/1` wire profile.
 
@@ -58,13 +58,12 @@ The version 2 intake is a separate contract with its own published surface:
 - `temporal::{evaluate_v2, evaluate_with_progress_v2, mapping_support_v2}`
 - the existing shared `protocol_artifact::{Limits, Report, Error, Invalid,
   Unsupported}`
-- `protocol_artifact::handoff::{PUBLISHED_HANDOFF, PUBLISHED_OFFER_FILE,
-  PUBLISHED_ARTIFACT_REFERENCE_FILE, PUBLISHED_SELECTION_FILE,
-  PUBLISHED_MUTATION_MANIFEST_FILE, PUBLISHED_CHECKSUMS_FILE,
+- `protocol_artifact::handoff::{PUBLISHED_OFFER_FILE, PUBLISHED_SELECTION_FILE,
+  PUBLISHED_MUTATION_MANIFEST_FILE,
   MUTATION_MANIFEST_FORMAT}`
 
 B constructs `Expected`, `ExpectedDefinition` and `ExpectedTemporal` from A's
-`expected-v2.json` selection sidecar and the digest-checked original inputs,
+`expected-v2.json` identity-selection sidecar and the independently supplied inputs,
 without reading the offered bytes, and submits the exact offered bytes
 through `v2::read`. Temporal selection is therefore an admission-time input on
 this contract; `temporal::evaluate_v2` and its companions remain a separate
@@ -72,10 +71,9 @@ post-admission concern that IT-001 does not exercise. Neither version may
 select, repair, upgrade, or downgrade the other, neither may be detected from
 the offered bytes, and the two mutually refuse.
 
-The handoff is integration evidence owned by the producer. The committed copy
-under `PUBLISHED_HANDOFF` carries no dependency bytes and cannot be admitted, so
-B calls the producer's public `handoff-writer` `write_v1` and `write_v2`
-from the pinned dependency and reads their complete output. No environment variable, copied path, or vendored
+The handoff is integration evidence owned by the producer, so B calls the
+producer's public `handoff-writer` `write_v1` and `write_v2`
+from the dependency selected in Cargo and reads their complete output. No environment variable, copied path, or vendored
 mirror selects it.
 
 ## Inputs
@@ -86,7 +84,7 @@ original native sources, model source, admitted model, and dependency closure.
 For version 2: A's raw emitted package bytes and external artifact reference;
 the original, unrecanonicalized source, model, definition, profile,
 configuration, dependency, producer, artifact, and result selections from A's
-selection sidecar, each checked against its digest; the selected temporal profile, clock alternative, and clock parameter selections
+selection sidecar; the selected temporal profile, clock alternative, and clock parameter selections
 bound by that package, carried as `v2::ExpectedTemporal` over
 `v2::wire::{TemporalBinding, ClockConfiguration}`; and A's typed
 `v2::AdmittedPackage` report and its `Report`/`Error`/`Invalid`/`Unsupported`
@@ -112,26 +110,18 @@ carries no causal meaning". Two bindings on two different declarations compare
 equal under it. The association between a binding and the declaration it binds
 is therefore A's wire concern, not an upstream semantic one.
 
-The sentence above lives in A's `docs/compiled-protocol-v2.md`, published on
-A's `main` and citable at `93c411b287ccf4789879ac4ef3094fc921dada58`. The four
+The sentence above lives in A's `docs/compiled-protocol-v2.md`. The four
 mutations it grounds are in A's published manifest and each refuses with the
 identity A declares.
 
-Both lanes use one-axis mutations of offered wire/version, seal,
+Both lanes use one-axis mutations of offered wire/version,
 producer/source/dependency/baseline identity, feature, a binding actually
-referenced by the package, numeric representation, numeric domain, and digest
-domain. The version 2 lane additionally uses one-axis mutations of the temporal
+referenced by the package, numeric representation and numeric domain. The version 2 lane additionally uses one-axis mutations of the temporal
 profile, clock alternative, and clock parameter selections; temporal binding
 sets that are missing, surplus, duplicated, reordered, owned by a foreign
 owner, or out of the declared range; recanonicalized source, model, dependency
-and configuration inputs; and digest-domain substitution across the domains
-`FR-015-digest-domain-selection` selects from `FR-201`'s published vocabulary --
-`raw-artifact-digest` for offered producer bytes and `quire.verification.jcs`
-for results this repository produces. An earlier revision of this paragraph
-named four local labels (`producer-canonical`, `native-raw`,
-`compiled-artifact`, `protocol-result`) that corresponded to nothing specified
-once FR-015 withdrew its minted vocabulary; the substitution substance is
-unchanged and the labels are now the upstream spellings.
+and configuration inputs. ArtifactRef content-digest substitutions are not a
+reader axis; the result-identity digest remains covered by FR-031.
 Numeric inputs include fields whose declared domains admit `i64::MIN`,
 `i64::MAX`, and reduced exact rationals `(i64::MAX, i64::MAX - 1)` and
 `(i64::MIN, i64::MAX)`. Resource inputs hold one version 2 input constant and
@@ -140,18 +130,18 @@ dimension, one unit short of it, and a fresh budget at the exact value.
 
 ## Test Procedure
 
-1. Construct `Expected` only from A's selection sidecar and the digest-checked
+1. Construct `Expected` only from A's selection sidecar and the independently
    original inputs, before reading the offer, resolve
    `quire.compiled-protocol/1`, then submit the exact producer package through
    `quire_protocol::intake::v1::admit` and
    `quire_protocol::model::v1::link_static`.
    - IT-001-SC-01: admission retains artifact, contract, baseline, producer,
      native-source, model-source, and dependency identities unchanged. B reads
-     A's `expected.json` selection sidecar, a separate handoff member, before
-     the offer; checks every source, model and dependency byte against the
-     sidecar's digests; and re-admits the model through A's reader and compares
+     A's `expected.json` identity-selection sidecar, a separate handoff member,
+     before the offer; compares every source, model and dependency byte against
+     the independently selected original inputs; and re-admits the model through A's reader and compares
      its artifact bytes with the selected model dependency. Independently of
-     the sidecar, each selected source must be its authored file in the pinned
+     the sidecar, each selected source must be its authored file in the
      QSL checkout: the model source byte for byte, and each native unit its
      authored body preceded only by the producer's import header. Nothing is
      read out of the offered bytes.
@@ -159,16 +149,16 @@ dimension, one unit short of it, and a fresh budget at the exact value.
    - IT-001-SC-02: all four source units, every declaration/reference, and the
      actual `Workflow.wide`/`Workflow.exact` binding path agree with the selected
      producer inputs.
-3. Reseal each single-axis mutation and submit it to the same public API.
-   - IT-001-SC-03: a changed wire/version, artifact seal, producer/source/
-     dependency/baseline identity or digest, unknown feature, or referenced
+3. Submit each single-axis mutation to the same public API.
+   - IT-001-SC-03: a changed wire/version, producer/source/dependency/baseline
+     identity, unknown feature, or referenced
      binding returns a typed refusal before a linked package is exposed.
 4. Submit signed-64 and exact-rational endpoint values and invalid or lossy
    representations through their declared fields.
    - IT-001-SC-04: admitted endpoint values canonically round-trip byte for
      byte; bare JSON numbers, non-canonical forms, signed-64 or field-domain
-     overflow, non-positive or unreduced denominators, wrong numeric kinds, and
-     producer/result digest-domain substitution refuse before linking.
+     overflow, non-positive or unreduced denominators, and wrong numeric kinds
+     refuse before linking.
 5. Inspect the resolved direct and transitive consumer path and the public API
    call used by the integration harness.
    - IT-001-SC-05: the evidence positively identifies the A-owned reader as the
@@ -178,11 +168,10 @@ dimension, one unit short of it, and a fresh budget at the exact value.
    sidecar, built as `v2::Expected` and `v2::ExpectedTemporal` without reading A's
    offered bytes, through `quire_protocol::intake::v2::admit` and
    `quire_protocol::model::v2::link`. Load the bundle
-   from a fresh run of A's `write_v2` at the pinned
-   revision and use A's exported
+   from a fresh run of A's `write_v2` and use A's exported
    member-name and manifest-format constants rather than B-owned literals. Submit each
-   version's bytes at the other version's entry point; and reseal one changed
-   version 2 selection axis at a time.
+   version's bytes at the other version's entry point; and change one selected
+   version 2 identity axis at a time.
    - IT-001-SC-06: version 2 retains the exact A-provided artifact bytes and external
      artifact reference through linking and returns A's `v2::AdmittedPackage`
      only for the independently selected version 2 inputs. Version 1 bytes at
@@ -191,7 +180,7 @@ dimension, one unit short of it, and a fresh budget at the exact value.
      contract, baseline, producer, source, model, dependency, definition,
      configuration, result, temporal-profile, clock-alternative, or
      clock-parameter selection refuses before a package is exposed, as does a
-     resealed change to the offered wire/version, seal, feature, referenced
+     change to the offered wire/version, feature, referenced
      binding, numeric representation, or numeric domain. Each refusal is
      distinguishable from the others by its typed identity; one shared cause
      across two axes does not discharge this scenario.
@@ -201,23 +190,14 @@ dimension, one unit short of it, and a fresh budget at the exact value.
      revision that adds version 2 and obtaining the same admitted identities and the
      same typed refusal per axis as at the revision before it, with
      `admit_and_link`'s signature and refusal set unchanged.
-7. Substitute each digest domain for another across the same version 2 selection, and
-   submit recanonicalized source, model, dependency and configuration inputs.
-   - IT-001-SC-07: a `raw-artifact-digest` presented in the
-     `quire.verification.jcs` slot, and a `quire.verification.jcs` digest
-     presented in the `raw-artifact-digest` slot, each return a typed refusal --
-     both ordered directions, so that one domain silently absorbing the other
-     cannot pass. Producer source, binding-definition, Producer-interface,
-     configuration and closure definition bytes use the accepted owner
-     selection `raw-artifact-digest`; derived population and membership-rule
-     identities use `quire.verification.jcs`. The scenario crosses those
-     owner-selected labels without introducing a per-slot domain vocabulary. A
-     producer input that B recanonicalized instead of copying
+7. Submit recanonicalized source, model, dependency and configuration inputs.
+   - IT-001-SC-07: a producer input that B recanonicalized instead of copying
      byte for byte refuses rather than admitting an equivalent form. The
      recanonicalization probe uses a form that is byte-distinguishable from the
      as-delivered form — a pretty-printed JSON re-encoding of the original model
      bytes — so a producer input that is already canonical cannot make the
-     scenario vacuous. Digest-domain crossing is exercised over raw bytes.
+     scenario vacuous. The reader compares the selected original bytes directly;
+     it does not require an ArtifactRef content digest.
 8. Submit version 2 temporal binding sets that are missing, surplus, duplicated,
    reordered, owned by a foreign owner, or out of the declared range.
    - IT-001-SC-08: each returns a typed refusal that names the offending
@@ -260,17 +240,15 @@ or campaign-completion result.
 
 - Priority: P0
 - Target Integration: native compiler artifact to protocol library
-- Automation: Automated local fixture lane reached through the pinned producer
+- Automation: Automated local fixture lane reached through the producer selected in Cargo
   dependency; no hosted execution
 
 ## Dependencies
 
-The A-owned frozen profile and each versioned compiled-protocol artifact contract
-are accepted. `quire-spec-language` release `v0.2.0` is at
-`6eccb05adf58cb2ed0c6092f5ef8e23d55030028`. Its post-release interface PR #92
-exports the handoff paths, all member names, and the mutation-manifest format on
-`main`; this repository pins
-`9395be4268e650ca2753204d6d306c9cd7b453ec`. The version 2 reader, its typed
+The A-owned profile and each versioned compiled-protocol artifact contract are
+accepted. `quire-spec-language` publishes the handoff member names and
+mutation-manifest format on `main`; Cargo selects the dependency version used by
+this repository. The version 2 reader, its typed
 per-axis refusals and the `handoff-writer` API that emits the independent selection
 records, original inputs, dependency bytes and 28-case mutation corpus are all
 present under that dependency source. No environment configuration or copied
@@ -284,20 +262,18 @@ enum's variant and the clock parameters are its fields. Changed-selection axes
 therefore divide into inherited axes, which version 1 already discriminates, and the
 temporal axes this contract adds.
 
-B consumes only A's exported surface. A publishes its selection sidecar
+B consumes only A's exported surface. A publishes its identity-selection sidecar
 (`expected.json` for version 1, `expected-v2.json` for version 2) as its own
 handoff member, separate from the offer. B reads the sidecar before the offer,
-checks every source, model and dependency byte against the sidecar's digests,
+compares every selected source, model and dependency byte with its independently
+selected original input,
 and independently re-admits the model through A's reader and compares its bytes
 with the selected model dependency. B never reads a selection out of the offered
 bytes, because an offer that ships its own acceptance context authorizes itself.
 SC-01 states this for version 1 and it holds identically for version 2.
 
-The version 1 numeric and handoff commits that were previously reachable only from
-`agent-a/handoff-numeric-domains` are contained in A's `main`. QSL #112 added
-the committed version-1 address, and QSL #114 corrected the published package's
-Service/Provider authority collision; both are included by the current
-pin.
+The version 1 numeric and handoff updates are contained in A's `main`, including
+the corrected Service/Provider authority selection.
 
 A prose definition, native source file, emitted sidecar, hand-authored bytes, or
 a version 1 value cannot substitute for either compiled interface because this
@@ -305,34 +281,25 @@ repository owns no parser.
 
 ## Notes
 
-A's committed handoff copies under `PUBLISHED_V1_HANDOFF` and
-`PUBLISHED_HANDOFF` carry no dependency bytes, so they cannot be admitted. Both
-lanes instead call A's `handoff-writer` `write_v1` and `write_v2` in-process,
+Both lanes call A's `handoff-writer` `write_v1` and `write_v2` in-process,
 once per test process, and read their complete output. The version-1 lane reads A's `expected.json` sidecar before the
 offer, using A's published member-name constants, and checks every selected
-source, model and dependency byte against it. The lane runs by default,
+source, model and dependency byte against its independently selected original
+input. The lane runs by default,
 executes the positive parser/reader inventory for SC-05, and reaches the local
 version-1 static linker.
 
-The version 2 lane submits to A's published `/2` reader at the pinned revision.
-It adds no `[features]` entry and no `cfg` attribute, so the crate stays
-single-lane under NFR-004-AC-7. Its integrity mechanism — `SHA256SUMS`
-verification over every published member, and refusal of an unlisted file, an
-escaping path, a symbolic link, a malformed checksum line and a ceiling above
-A's hard maximum — builds synthetic handoffs under `CARGO_TARGET_TMPDIR` and is
-checked on every gate run.
-
-The version 2 lane runs on every local gate from the fresh
-`write_v2` output. Its loader verifies `PUBLISHED_CHECKSUMS_FILE` over every
-published member before decoding, and the lane admits the base offer, checks
-both cross-version submissions, runs all 28 manifest mutations, and probes every
+The version 2 lane submits to A's published `/2` reader. It adds no `[features]`
+entry and no `cfg` attribute, so the crate stays single-lane under NFR-004-AC-7.
+The version 2 lane runs on every local gate from the fresh `write_v2` output;
+the lane admits the base offer, checks both cross-version submissions, runs all
+28 manifest mutations, and probes every
 member of `Dimension::ALL` at exact usage, one-short, and fresh exact usage.
 The superseded B-authored pre-delivery corpus is not retained as a second source
 of protocol vocabulary. The version 1 SC-01 through SC-05 lane runs 24 default
-tests with no ignores. SC-06a additionally ran the identical historical 23-case
-corpus against Protocol `0e5ec292` and `5ce9070e`, using their recorded QSL
-revisions `5690c2b2` and `d03e4ca5`; both runs passed and the fixture/test blobs,
-root facade signature/body and `/1` refusal definitions were unchanged.
+tests with no ignores. SC-06a additionally compares the same historical
+regression corpus across protocol revisions and requires unchanged fixture/test
+blobs, root facade signature/body and `/1` refusal definitions.
 The current paired-reader lane also mutates all eight inherited `Expected`
 fields and requires both explicit readers to refuse each one; temporal-only
 axes remain a separate `/2` corpus.

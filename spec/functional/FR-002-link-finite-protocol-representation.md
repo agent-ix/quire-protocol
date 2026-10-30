@@ -88,7 +88,7 @@ default.
 
 The accepted static binding definition SHALL identify its contract as
 `quire.protocol.binding-definition/1`, retain its independently selected
-artifact identity/revision/digest, and target exactly one admitted protocol
+artifact identity/revision, and target exactly one admitted protocol
 declaration. The runtime binding set SHALL identify its contract as
 `quire.protocol.runtime-binding/1` and target that exact accepted static
 definition. If either binding contract version is absent, unknown or older, the

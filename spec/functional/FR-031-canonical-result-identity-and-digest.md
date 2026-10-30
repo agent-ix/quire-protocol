@@ -1,6 +1,6 @@
 ---
 id: FR-031
-title: "Bind canonical result identity and digest"
+title: "Bind canonical result identity"
 type: FR
 relationships:
   - target: ix://agent-ix/quire-protocol/FR-006
@@ -16,26 +16,23 @@ relationships:
   - target: ix://agent-ix/quire-specification/FR-201
     type: references
 ---
-# FR-031: Bind canonical result identity and digest
+# FR-031: Bind canonical result identity
 
 ## Description
 
 When a canonical protocol result is emitted, the result producer SHALL bind the contract version, kind and result identity that `FR-240-canonical-protocol-result` states.
-When a canonical protocol result is emitted, the result producer SHALL carry the enclosing artifact reference's digest over the complete RFC 8785 canonical result bytes and outside those bytes.
-When a canonical protocol result is read, the strict reader SHALL recompute the enclosing artifact reference's digest before accepting the result.
 
 ## Inputs
 
-One constructed result fact set, the enclosing artifact reference, the selected
+One constructed result fact set, the selected
 digest domain member, and the exact source, profile, model, protocol, request,
 binding, input, backend and producer identities plus the exact deterministic
 seed, toolchain identity and corpus identity carried as reproduction provenance.
 
 ## Outputs
 
-One canonical result bearing its contract version, kind, result identity and a
-non-self-referential `sha256-jcs` enclosing artifact reference, or one typed
-strict-reader refusal.
+One canonical result bearing its contract version, kind and result identity, or
+one typed strict-reader refusal.
 
 ## Behavior
 
@@ -43,18 +40,13 @@ The result producer SHALL emit `contractVersion` and `kind` exactly as
 `FR-240-canonical-protocol-result` records them, and a result identity, without
 restating those values as a local vocabulary.
 
-The enclosing artifact reference's digest is `sha256-jcs` over the complete RFC
-8785 canonical result bytes. The digest is not a field inside those bytes, so it
-is never self-referential, and a strict reader recomputes it before accepting the
-result. A recomputed digest that differs from the carried one refuses the result.
-
 The digest domain is the `quire.verification.jcs` member that
 [FR-015](./FR-015-digest-domain-selection.md) selects from
 `FR-201-canonical-identity-domain`'s published vocabulary. This requirement
 selects no member of its own and spells none of its own. RFC 8785
-canonicalization is confined to this preimage: an offered artifact's supplied
-bytes are digested under the `raw-artifact-digest` member FR-015 selects for
-them and are never recanonicalised for comparison.
+canonicalization is confined to this result-identity preimage. Offered artifact
+bytes are read and compared under their selected input contract; this requirement
+does not attach a content digest to their ArtifactRef.
 
 Every provenance identity the result carries — source, profile, model, protocol,
 request, binding, input, backend and producer — is recomputed or strictly
@@ -84,11 +76,9 @@ producer identity nor becomes authority at an upstream boundary.
 | ID | Criteria | Verification |
 | --- | --- | --- |
 | FR-031-AC-1 | Every emitted result carries the `FR-240` contract version and kind plus a result identity, and a result with a stale identity is refused by the strict reader. | Test (TC-006) |
-| FR-031-AC-2 | The enclosing artifact reference's digest is computed over the complete RFC 8785 canonical result bytes and appears nowhere inside those bytes. | Test (TC-006) |
-| FR-031-AC-3 | A strict reader recomputes the enclosing digest before accepting, and refuses a result whose recomputed digest differs from the carried one. | Test (TC-006) |
-| FR-031-AC-4 | The protocol-result digest carries the `quire.verification.jcs` label exactly as `FR-201` publishes it, and no producer-domain value can substitute for it. | Test (TC-006) |
+| FR-031-AC-4 | The protocol-result identity carries the `quire.verification.jcs` label exactly as `FR-201` publishes it, and no producer-domain value can substitute for it. | Test (TC-006) |
 | FR-031-AC-5 | Every source, profile, model, protocol, request, binding, input, backend and producer identity plus the deterministic seed and exact toolchain and corpus identity bytes on the result is recomputed or strictly matched; changing any one changes the result identity or refuses, and none is inferred from display text or substituted from another identity. | Test (TC-006, TC-008) |
-| FR-031-AC-6 | RFC 8785 canonicalization is applied to the protocol-result digest preimage only; an offered artifact's supplied bytes are copied and digested as delivered under the member FR-015 selects for them. | Test (TC-006) |
+| FR-031-AC-6 | RFC 8785 canonicalization is applied to the protocol-result identity preimage only. | Test (TC-006) |
 | FR-031-AC-7 | Every opaque runtime identity carried in a string-only result field round-trips byte-exactly through `quire.protocol.runtime-reference/1`; wrong prefix, uppercase/odd/non-hex content, non-canonical object bytes, missing authority/kind/identity bytes or a changed decoded byte refuses. | Test (TC-006) |
 
 ## Adopted vocabulary
@@ -119,5 +109,5 @@ own string-only result contract.
   selection.
 - [FR-011](./FR-011-consumer-identity-discipline.md) supplies the identity
   discipline.
-- `ix://agent-ix/quire-specification/FR-061` states the contract version, kind,
-  identity, digest and recomputation rules.
+- `ix://agent-ix/quire-specification/FR-061` states the contract version, kind
+  and identity rules.
