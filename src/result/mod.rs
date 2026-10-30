@@ -71,8 +71,6 @@ pub enum ErrorCode {
     ContractMismatch,
     /// A derived result or mapping identity does not match.
     IdentityMismatch,
-    /// An enclosing result digest does not match the canonical bytes.
-    DigestMismatch,
     /// An execution/truth/settlement/activation combination is forbidden.
     InvalidCombination,
     /// Independent progress, closure, completeness, or authority facts crossed.
@@ -101,7 +99,6 @@ impl ErrorCode {
             Self::NonCanonical => &RESULT_NONCANONICAL,
             Self::ContractMismatch => &RESULT_CONTRACT_MISMATCH,
             Self::IdentityMismatch => &RESULT_IDENTITY_MISMATCH,
-            Self::DigestMismatch => &RESULT_DIGEST_MISMATCH,
             Self::InvalidCombination => &RESULT_INVALID_COMBINATION,
             Self::AxisMismatch => &RESULT_AXIS_MISMATCH,
             Self::GlobalPremiseMismatch => &RESULT_GLOBAL_PREMISE_MISMATCH,
@@ -246,7 +243,6 @@ fn result_cause(code: ErrorCode, identity: Option<&str>) -> ProtocolCause {
             evidence: code_bytes,
         },
         ErrorCode::IdentityMismatch
-        | ErrorCode::DigestMismatch
         | ErrorCode::AxisMismatch
         | ErrorCode::GlobalPremiseMismatch
         | ErrorCode::MappingMismatch => ProtocolCause::IdentityMismatch {
@@ -336,13 +332,6 @@ code_entry!(
     "the derived result identity differs from the carried identity"
 );
 code_entry!(
-    RESULT_DIGEST_MISMATCH,
-    "result.digest-mismatch",
-    RefusalDomain::Result,
-    RetryDecision::Never,
-    "the enclosing digest differs from the canonical result bytes"
-);
-code_entry!(
     RESULT_INVALID_COMBINATION,
     "result.invalid-combination",
     RefusalDomain::Result,
@@ -383,7 +372,6 @@ pub const RESULT_CODES: CodeModule = CodeModule {
         RESULT_NONCANONICAL,
         RESULT_CONTRACT_MISMATCH,
         RESULT_IDENTITY_MISMATCH,
-        RESULT_DIGEST_MISMATCH,
         RESULT_INVALID_COMBINATION,
         RESULT_AXIS_MISMATCH,
         RESULT_GLOBAL_PREMISE_MISMATCH,

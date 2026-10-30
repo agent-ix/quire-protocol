@@ -85,12 +85,5 @@ pub fn corrected_result<'a>(
 
 fn produce_and_read(input: Input<'_>, limits: Limits) -> Result<ValidatedResult> {
     let document = produce(input.clone(), limits)?;
-    read(
-        document.bytes(),
-        Expected {
-            input,
-            enclosing_digest: document.digest(),
-        },
-        limits,
-    )
+    read(document.bytes(), Expected { input }, limits)
 }

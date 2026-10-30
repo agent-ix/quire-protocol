@@ -410,14 +410,13 @@ fn project_e02_unit(
             return BoundedOutcome::ResourceIncomplete(incomplete);
         }
     }
-    let source_affected = source_expected.enclosing_digest;
     let source = match result::read_bounded(source_bytes, source_expected, source_limits, resources)
     {
         BoundedOutcome::Completed(source) => source,
         BoundedOutcome::DomainError(_) => {
             return BoundedOutcome::DomainError(projection_refusal(
                 ProjectionRefusalCode::InvalidSourceResult,
-                source_affected.as_bytes(),
+                context.source_uri.as_bytes(),
             ));
         }
         BoundedOutcome::ResourceIncomplete(incomplete) => {

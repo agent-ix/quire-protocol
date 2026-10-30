@@ -1818,10 +1818,7 @@ fn validated<'a>(input: Input<'a>) -> result::ValidatedResult {
     let document = result::produce(input.clone(), Limits::owner_max()).expect("canonical result");
     result::read(
         document.bytes(),
-        result::Expected {
-            input,
-            enclosing_digest: document.digest(),
-        },
+        result::Expected { input },
         Limits::owner_max(),
     )
     .expect("strict result")
@@ -2051,8 +2048,6 @@ fn tc_009_reproduction_provenance_obeys_result_string_bounds() {
     "TC-015",
     "FR-006-AC-1",
     "FR-031-AC-1",
-    "FR-031-AC-2",
-    "FR-031-AC-3",
     "FR-042-AC-1",
     "FR-042-AC-4",
     "FR-042-AC-5"
@@ -2127,10 +2122,7 @@ fn tc_015_every_result_combination_maps_without_boolean_coercion() {
                                         assert!(expected, "unexpectedly admitted {input:?}");
                                         let source = result::read(
                                             document.bytes(),
-                                            result::Expected {
-                                                input,
-                                                enclosing_digest: document.digest(),
-                                            },
+                                            result::Expected { input },
                                             Limits::owner_max(),
                                         )
                                         .expect("every admitted row strict-reads");
@@ -2459,7 +2451,6 @@ fn tc_015_strict_mutations_lineage_and_limits_fail_closed() {
         unknown.as_bytes(),
         result::Expected {
             input: input.clone(),
-            enclosing_digest: document.digest(),
         },
         Limits::owner_max(),
     )
@@ -2480,7 +2471,6 @@ fn tc_015_strict_mutations_lineage_and_limits_fail_closed() {
             missing_reproduction.as_bytes(),
             result::Expected {
                 input: input.clone(),
-                enclosing_digest: document.digest(),
             },
             Limits::owner_max(),
         )
@@ -2495,17 +2485,11 @@ fn tc_015_strict_mutations_lineage_and_limits_fail_closed() {
         Value::String("00".into());
     let changed_reproduction = quire_protocol::digest::jcs::canonicalize(&changed_reproduction)
         .expect("canonical reproduction mutation");
-    let changed_digest = quire_protocol::digest::jcs::ResultDigest::of_result(
-        &serde_json::from_str(&changed_reproduction).expect("mutated result value"),
-    )
-    .expect("mutated enclosing digest")
-    .text();
     assert_eq!(
         result::read(
             changed_reproduction.as_bytes(),
             result::Expected {
                 input: input.clone(),
-                enclosing_digest: &changed_digest,
             },
             Limits::owner_max(),
         )
@@ -2521,7 +2505,6 @@ fn tc_015_strict_mutations_lineage_and_limits_fail_closed() {
             &trailing,
             result::Expected {
                 input: input.clone(),
-                enclosing_digest: document.digest()
             },
             Limits::owner_max()
         )
@@ -2529,21 +2512,6 @@ fn tc_015_strict_mutations_lineage_and_limits_fail_closed() {
         .code(),
         ErrorCode::NonCanonical
     );
-    assert_eq!(
-        result::read(
-            document.bytes(),
-            result::Expected {
-                input: input.clone(),
-                enclosing_digest:
-                    "sha256-jcs:0000000000000000000000000000000000000000000000000000000000000000"
-            },
-            Limits::owner_max()
-        )
-        .expect_err("digest mismatch")
-        .code(),
-        ErrorCode::DigestMismatch
-    );
-
     let mut missing_global = input.clone();
     missing_global.global_conformance.premises.pop();
     assert_eq!(
@@ -2966,7 +2934,6 @@ fn tc_009_result_output_budget_precedes_canonical_allocation() {
             control.bytes(),
             result::Expected {
                 input: input.clone(),
-                enclosing_digest: control.digest(),
             },
             Limits::owner_max(),
             &mut short_resources,
@@ -2993,7 +2960,6 @@ fn tc_009_result_output_budget_precedes_canonical_allocation() {
             control.bytes(),
             result::Expected {
                 input: input.clone(),
-                enclosing_digest: control.digest(),
             },
             Limits::owner_max(),
             &mut retained_short_resources,
@@ -3013,7 +2979,6 @@ fn tc_009_result_output_budget_precedes_canonical_allocation() {
             control.bytes(),
             result::Expected {
                 input: input.clone(),
-                enclosing_digest: control.digest(),
             },
             Limits::owner_max(),
             &mut exact_resources,
@@ -3030,7 +2995,6 @@ fn tc_009_result_output_budget_precedes_canonical_allocation() {
             control.bytes(),
             result::Expected {
                 input: input.clone(),
-                enclosing_digest: control.digest(),
             },
             Limits::owner_max(),
             &mut read_resources,
@@ -3042,7 +3006,6 @@ fn tc_009_result_output_budget_precedes_canonical_allocation() {
             control.bytes(),
             result::Expected {
                 input: input.clone(),
-                enclosing_digest: control.digest(),
             },
             Limits::owner_max(),
             &mut read_resources,
@@ -3069,7 +3032,6 @@ fn tc_009_result_output_budget_precedes_canonical_allocation() {
         control.bytes(),
         result::Expected {
             input: input.clone(),
-            enclosing_digest: control.digest(),
         },
         Limits::owner_max(),
         &mut short_resources,
@@ -3095,7 +3057,6 @@ fn tc_009_result_output_budget_precedes_canonical_allocation() {
             control.bytes(),
             result::Expected {
                 input: input.clone(),
-                enclosing_digest: control.digest(),
             },
             Limits::owner_max(),
             &mut exact_resources,
@@ -3117,7 +3078,6 @@ fn tc_009_result_output_budget_precedes_canonical_allocation() {
             control.bytes(),
             result::Expected {
                 input: input.clone(),
-                enclosing_digest: control.digest(),
             },
             owner_input_short,
             &mut owner_resources,
@@ -3138,7 +3098,6 @@ fn tc_009_result_output_budget_precedes_canonical_allocation() {
             control.bytes(),
             result::Expected {
                 input: input.clone(),
-                enclosing_digest: control.digest(),
             },
             owner_depth_short,
             &mut owner_resources,
@@ -3159,7 +3118,6 @@ fn tc_009_result_output_budget_precedes_canonical_allocation() {
             control.bytes(),
             result::Expected {
                 input: input.clone(),
-                enclosing_digest: control.digest(),
             },
             owner_string_short,
             &mut owner_resources,
@@ -3180,7 +3138,6 @@ fn tc_009_result_output_budget_precedes_canonical_allocation() {
             control.bytes(),
             result::Expected {
                 input: input.clone(),
-                enclosing_digest: control.digest(),
             },
             owner_field_short,
             &mut owner_resources,
@@ -3765,10 +3722,7 @@ fn project_input<'a>(
     mutate(&mut context);
     project_e02_without_budget(
         document.bytes(),
-        result::Expected {
-            input,
-            enclosing_digest: document.digest(),
-        },
+        result::Expected { input },
         Limits::owner_max(),
         request,
         resolution,
@@ -3793,10 +3747,7 @@ fn project_input_bounded<'a>(
     let mut resources = ResourceAccountant::new(budget, &inventory);
     let outcome = quire_protocol::projection::project_e02(
         document.bytes(),
-        result::Expected {
-            input,
-            enclosing_digest: document.digest(),
-        },
+        result::Expected { input },
         Limits::owner_max(),
         request,
         resolution,
@@ -3856,10 +3807,7 @@ fn tc_007_projection_has_exact_identity_binding_and_retention() {
     let resolution = e02_resolution(&request);
     let projected = projection_result(project_e02_without_budget(
         document.bytes(),
-        result::Expected {
-            input,
-            enclosing_digest: document.digest(),
-        },
+        result::Expected { input },
         Limits::owner_max(),
         &request,
         &resolution,
@@ -4286,10 +4234,7 @@ fn tc_007_identity_mutations_lineage_and_refusals_are_exact() {
     let context = e02_context(&document, &input);
     let refusal = projection_result(project_e02_without_budget(
         b"not-json",
-        result::Expected {
-            input,
-            enclosing_digest: document.digest(),
-        },
+        result::Expected { input },
         Limits::owner_max(),
         &request,
         &resolution,

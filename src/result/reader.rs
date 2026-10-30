@@ -52,8 +52,6 @@ static RESULT_SCHEMA_VALIDATOR: OnceLock<Option<jsonschema::JSONSchema>> = OnceL
 pub struct Expected<'a> {
     /// Complete semantic input from independently validated owner views.
     pub input: Input<'a>,
-    /// Enclosing non-self-referential digest carried outside the result bytes.
-    pub enclosing_digest: &'a str,
 }
 
 #[derive(Clone, Copy)]
@@ -354,24 +352,6 @@ pub fn read(bytes: &[u8], expected: Expected<'_>, limits: Limits) -> Result<Vali
         return Err(Refusal::read(
             ErrorCode::IdentityMismatch,
             "resultId differs from the FR-286 preimage",
-            observed,
-            Some(carried_id),
-        ));
-    }
-    let digest = ResultDigest::of_result(&value)
-        .map_err(|_| {
-            Refusal::read(
-                ErrorCode::DigestMismatch,
-                "result digest preimage cannot be canonicalized",
-                observed,
-                Some(carried_id),
-            )
-        })?
-        .text();
-    if digest != expected.enclosing_digest {
-        return Err(Refusal::read(
-            ErrorCode::DigestMismatch,
-            "enclosing result digest does not match canonical bytes",
             observed,
             Some(carried_id),
         ));

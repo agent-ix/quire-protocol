@@ -2004,10 +2004,7 @@ impl<'a> Engine<'a> {
                             match result::produce_bounded(input.clone(), limits, resources) {
                                 BoundedOutcome::Completed(document) => match result::read_bounded(
                                     document.bytes(),
-                                    result::Expected {
-                                        input,
-                                        enclosing_digest: document.digest(),
-                                    },
+                                    result::Expected { input },
                                     limits,
                                     resources,
                                 ) {
