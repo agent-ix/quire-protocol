@@ -20,33 +20,32 @@ relationships:
 
 ## Description
 
-When a canonical protocol result is emitted, the result producer SHALL bind the contract version, kind and result identity that `FR-240-canonical-protocol-result` states.
+When a canonical protocol result is emitted, the result producer SHALL bind the contract version, kind and structural result key that `FR-240-canonical-protocol-result` and QSpec FR-286 state.
 
 ## Inputs
 
-One constructed result fact set, the selected
-digest domain member, and the exact source, profile, model, protocol, request,
+One constructed result fact set and the exact source, profile, model, protocol, request,
 binding, input, backend and producer identities plus the exact deterministic
 seed, toolchain identity and corpus identity carried as reproduction provenance.
 
 ## Outputs
 
-One canonical result bearing its contract version, kind and result identity, or
+One canonical result bearing its contract version, kind and structural `resultKey`, or
 one typed strict-reader refusal.
 
 ## Behavior
 
 The result producer SHALL emit `contractVersion` and `kind` exactly as
-`FR-240-canonical-protocol-result` records them, and a result identity, without
+`FR-240-canonical-protocol-result` records them, and the supplied `resultKey`, without
 restating those values as a local vocabulary.
 
-The digest domain is the `quire.verification.jcs` member that
-[FR-015](./FR-015-digest-domain-selection.md) selects from
-`FR-201-canonical-identity-domain`'s published vocabulary. This requirement
-selects no member of its own and spells none of its own. RFC 8785
-canonicalization is confined to this result-identity preimage. Offered artifact
-bytes are read and compared under their selected input contract; this requirement
-does not attach a content digest to their ArtifactRef.
+The `resultKey` is the structural `{producer, request, ordinal}` key defined by
+QSpec FR-286. The producer supplies the ordinal for this result in its own
+request-scoped result stream. The reader compares the complete key exactly;
+this requirement derives no result identity and computes no result digest.
+Canonical JSON encoding of the emitted result remains governed by FR-240.
+Offered artifact bytes are read under their selected input contract; this
+requirement does not attach a content digest to their ArtifactRef.
 
 Every provenance identity the result carries — source, profile, model, protocol,
 request, binding, input, backend and producer — is recomputed or strictly
@@ -75,39 +74,26 @@ producer identity nor becomes authority at an upstream boundary.
 
 | ID | Criteria | Verification |
 | --- | --- | --- |
-| FR-031-AC-1 | Every emitted result carries the `FR-240` contract version and kind plus a result identity, and a result with a stale identity is refused by the strict reader. | Test (TC-006) |
-| FR-031-AC-4 | The protocol-result identity carries the `quire.verification.jcs` label exactly as `FR-201` publishes it, and no producer-domain value can substitute for it. | Test (TC-006) |
-| FR-031-AC-5 | Every source, profile, model, protocol, request, binding, input, backend and producer identity plus the deterministic seed and exact toolchain and corpus identity bytes on the result is recomputed or strictly matched; changing any one changes the result identity or refuses, and none is inferred from display text or substituted from another identity. | Test (TC-006, TC-008) |
-| FR-031-AC-6 | RFC 8785 canonicalization is applied to the protocol-result identity preimage only. | Test (TC-006) |
+| FR-031-AC-1 | Every emitted result carries the `FR-240` contract version and kind plus its FR-286 structural `resultKey`; a missing or incomplete key is refused by the strict reader. | Test (TC-006) |
+| FR-031-AC-4 | The emitted `resultKey` is the complete FR-286 structure; the reader compares it exactly and does not derive a digest from it or from result bytes. | Test (TC-006) |
+| FR-031-AC-5 | Every source, profile, model, protocol, request, binding, input, backend and producer identity plus the deterministic seed and exact toolchain and corpus identity bytes on the result is recomputed or strictly matched; the `resultKey` changes only with its FR-286 key members, and no provenance value is inferred from display text or substituted from another identity. | Test (TC-006, TC-008) |
+| FR-031-AC-6 | RFC 8785 canonicalization determines emitted result bytes only; it is not used to derive a result identity or digest. | Test (TC-006) |
 | FR-031-AC-7 | Every opaque runtime identity carried in a string-only result field round-trips byte-exactly through `quire.protocol.runtime-reference/1`; wrong prefix, uppercase/odd/non-hex content, non-canonical object bytes, missing authority/kind/identity bytes or a changed decoded byte refuses. | Test (TC-006) |
 
 ## Adopted vocabulary
 
 | Noun | Upstream object | Identity kind |
 | --- | --- | --- |
-| Canonical protocol result | `FR-240-canonical-protocol-result` | not declared upstream; see the gap below |
-| Digest domain label | `FR-201-canonical-identity-domain` | value |
+| Canonical protocol result | `FR-240-canonical-protocol-result` | `resultKey` per QSpec FR-286 |
 
-The member selection is local and is
-[FR-015](./FR-015-digest-domain-selection.md)'s; the vocabulary selected from is
-`FR-201`'s. `FR-201` states of itself: "This artifact *is* the vocabulary of
-digest domains." Nothing here extends it.
-
-### Accepted owner ruling
-
-Quire Specification #29 / PR #38 defines the FR-240 result identity as derived
-from the complete canonical fact set and exact producer/profile/request tuple.
-Same identity with different canonical bytes is refused. Protocol consumes that
-accepted rule and owns only the reversible runtime-reference carrier used by its
-own string-only result contract.
+QSpec FR-286 defines the result key and its exact comparison. This requirement
+does not restate that key's structure.
 
 ## Dependencies
 
 - [FR-006](./FR-006-produce-canonical-protocol-results.md) is the parent this
   requirement is part of.
-- [FR-015](./FR-015-digest-domain-selection.md) supplies the digest domain
-  selection.
 - [FR-011](./FR-011-consumer-identity-discipline.md) supplies the identity
   discipline.
-- `ix://agent-ix/quire-specification/FR-061` states the contract version, kind
-  and identity rules.
+- `ix://agent-ix/quire-specification/FR-061` states the contract version and kind.
+- `ix://agent-ix/quire-specification/FR-286` states the structural result key.

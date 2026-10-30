@@ -94,7 +94,7 @@ shared mapping the decomposition was derived from, not as a second definition.
 | Assessment-execution disposition | `FR-241-assessment-execution-disposition` | value |
 | Assumption state | `FR-280-assumption-state` | value |
 | Claim strength | `FR-281-claim-strength` | value |
-| Derived portable projection result | `FR-249-derived-projection-result` | derived, keyed (canonical result identity and digest, target obligation and execution-binding identities, target contract version, adapter identity and version) |
+| Derived portable projection result | `FR-249-derived-projection-result` | `resultId` per FR-062 |
 
 The two disposition words this requirement's Outputs use literally,
 `unsupported` and `failed`, are `FR-241` members, and their upstream

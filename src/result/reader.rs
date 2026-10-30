@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Strict bounded hostile-byte reader for canonical protocol results.
 
-use serde_json::{Map, Value};
+use serde_json::Value;
 use std::sync::OnceLock;
 
 use crate::bounds::inventory::{
     BudgetDimension, ChargeError, OperationOutcome, ResourceAccountant, SourceSite,
 };
 use crate::bounds::{SiteId, SiteKind, UnitLabel};
-use crate::digest::jcs::{canonicalize, ResultDigest};
+use crate::digest::jcs::canonicalize;
 use crate::refusal::ProtocolStage;
 
 use super::record::{produce, Input, Limits, Usage, ValidatedResult, CONTRACT, SCHEMA_BYTES};
@@ -318,51 +318,21 @@ pub fn read(bytes: &[u8], expected: Expected<'_>, limits: Limits) -> Result<Vali
             None,
         ));
     }
-    let carried_id = object
-        .get("resultId")
-        .and_then(Value::as_str)
-        .ok_or_else(|| {
-            Refusal::read(
-                ErrorCode::IdentityMismatch,
-                "resultId is missing or not a string",
-                observed,
-                None,
-            )
-        })?;
-    let mut without_id = object.clone();
-    without_id.remove("resultId");
-    let preimage = Value::Object(Map::from_iter([
-        (
-            "identityVersion".to_owned(),
-            Value::String("quire.protocol.result-identity/v1-draft.1".to_owned()),
-        ),
-        ("result".to_owned(), Value::Object(without_id)),
-    ]));
-    let derived_id = ResultDigest::of_result(&preimage)
-        .map_err(|_| {
-            Refusal::read(
-                ErrorCode::IdentityMismatch,
-                "result identity preimage cannot be canonicalized",
-                observed,
-                Some(carried_id),
-            )
-        })?
-        .text();
-    if carried_id != derived_id {
-        return Err(Refusal::read(
-            ErrorCode::IdentityMismatch,
-            "resultId differs from the FR-286 preimage",
-            observed,
-            Some(carried_id),
-        ));
-    }
     let mut expected_document = produce(expected.input, limits)?;
-    if expected_document.result_id() != carried_id {
+    let expected_key = serde_json::to_value(expected_document.result_key()).map_err(|_| {
+        Refusal::read(
+            ErrorCode::IdentityMismatch,
+            "selected FR-286 result key cannot be represented",
+            observed,
+            None,
+        )
+    })?;
+    if object.get("resultKey") != Some(&expected_key) {
         return Err(Refusal::read(
             ErrorCode::IdentityMismatch,
-            "result identity differs from independently selected facts",
+            "resultKey differs from the independently selected FR-286 key",
             observed,
-            Some(carried_id),
+            None,
         ));
     }
     if expected_document.bytes() != bytes {
@@ -370,7 +340,7 @@ pub fn read(bytes: &[u8], expected: Expected<'_>, limits: Limits) -> Result<Vali
             ErrorCode::InvalidSelection,
             "result fields differ from independently selected owner facts",
             observed,
-            Some(carried_id),
+            None,
         ));
     }
     expected_document.usage = observed;

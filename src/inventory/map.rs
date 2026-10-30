@@ -18,7 +18,7 @@ use crate::bounds::inventory::{BudgetDimension, OperationOutcome, ResourceAccoun
 use crate::bounds::{SiteId, SiteKind, UnitLabel};
 use crate::digest::producer::{CrossDomainDigest, DigestSlot};
 use crate::inventory::axis::DivergedSelection;
-use crate::inventory::{DigestClassification, InventoryError, SelectedInventory};
+use crate::inventory::{DigestClassification, SelectedInventory};
 use crate::{intake, wire, AdmittedPackage, Error, Expected, Invalid, Limits};
 
 pub(crate) const ADMISSION_INPUT_SOURCE: SourceSite = SourceSite::new(
@@ -55,9 +55,6 @@ pub enum AdmissionRefusal {
     /// rendering. Callers can match every published nested family directly and
     /// can always read A's stable machine code through [`Self::source_code`].
     Source(Error),
-    /// B's own selections could not be reduced to an inventory. This names B's
-    /// inputs, not the offer, which has not been read when it is raised.
-    UnusableSelections(InventoryError),
 }
 
 impl AdmissionRefusal {
@@ -69,7 +66,7 @@ impl AdmissionRefusal {
     pub const fn source_error(&self) -> Option<&Error> {
         match self {
             Self::Selection { source, .. } | Self::Source(source) => Some(source),
-            Self::CrossDomainDigest(_) | Self::UnusableSelections(_) => None,
+            Self::CrossDomainDigest(_) => None,
         }
     }
 
@@ -90,8 +87,7 @@ pub fn admit_discriminating(
     expected: &Expected<'_>,
     limits: Limits,
 ) -> Result<AdmittedPackage, AdmissionRefusal> {
-    let inventory =
-        SelectedInventory::from_expected(expected).map_err(AdmissionRefusal::UnusableSelections)?;
+    let inventory = SelectedInventory::from_expected(expected);
     // The offer is read for the domain guard only within the caller's own
     // payload ceiling. Beyond it, A's accounting owns the refusal and B does no
     // unbounded work on untrusted bytes.
@@ -278,9 +274,7 @@ fn reference_axis(
     }
     let offered_digest = member_str(offered, &["digest"])?;
     match inventory.classify_offered(slot, offered_digest) {
-        DigestClassification::InSelectedDomain | DigestClassification::UnselectedSlot => {
-            Some(axes.reference)
-        }
+        DigestClassification::InSelectedDomain => Some(axes.reference),
         // A cross-domain value is refused before admission, so reaching this
         // arm means the digest diverges inside the slot's own domain.
         DigestClassification::Divergent | DigestClassification::CrossDomain(_) => Some(axes.digest),

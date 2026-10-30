@@ -109,7 +109,7 @@ FR-281 carries is owned by Engineering Assurance
 `engineering_assurance::claim_strength::ClaimStrength` and parses a
 disposition's strength through its `FromStr`, refusing any other label.
 FR-283 has already resolved source
-digest mismatch to `invalid-source-result` and derived/target identity mismatch
+strict-reader failure to `invalid-source-result` and derived/target identity mismatch
 to `identity-mismatch`.
 
 ## Dependencies

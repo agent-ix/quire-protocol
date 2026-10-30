@@ -50,8 +50,8 @@ pub use record::{
     Activation, Adequacy, Assumption, AssumptionState, AxisView, Claim, ClaimKind,
     CompletenessView, CorrectionInput, CorrectionRelation, CorrectionView, DecisionSupport,
     DependenceRelation, Document, Input, Limitation, Limits, Participation, ProtocolAdequacy,
-    ProvenanceRecord, Settlement, SettlementBasis, SupportRef, Truth, Usage, ValidatedResult,
-    CONTRACT, SCHEMA_BYTES, SCHEMA_SHA256,
+    ProvenanceRecord, ResultKey, ResultProducerKey, Settlement, SettlementBasis, SupportRef, Truth,
+    Usage, ValidatedResult, CONTRACT, SCHEMA_BYTES, SCHEMA_SHA256,
 };
 
 /// Stable result-owner or mapping refusal cause.

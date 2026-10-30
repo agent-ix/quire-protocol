@@ -15,7 +15,7 @@ publish = false
 quire-spec-language = { git = "https://github.com/agent-ix/quire-spec-language", rev = "9395be4268e650ca2753204d6d306c9cd7b453ec" }
 qsl-foundation = { git = "https://github.com/agent-ix/quire-spec-language", rev = "9395be4268e650ca2753204d6d306c9cd7b453ec" }
 quire-observation = { git = "https://github.com/agent-ix/quire-observation", rev = "ab4abe3a03d24ed8430f513b8b695ac2d1471938" }
-quire-verification-contracts = { git = "https://github.com/agent-ix/quire-verification-contracts", rev = "da8d7272051b1cf02768ec459539551414fd6c21" }
+quire-verification-contracts = { git = "https://github.com/agent-ix/quire-verification-contracts", rev = "3bb05b593acf42652f307584476acc5373fa6f7b" }
 # Owner of the claim-strength vocabulary (EA FR-022). Only the serde-only
 # `claim-strength` feature: no serde_json, no arbitrary_precision.
 engineering-assurance = { version = "=0.3.1", git = "https://github.com/agent-ix/engineering-assurance", rev = "712f4ff76c2b1e01d26d10efd97a0eef0235defa", default-features = false, features = ["claim-strength"] }

@@ -1,25 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! The consumer's single RFC 8785 (JCS) result-domain digest layer.
-//!
-//! This domain covers **protocol results only**. Nothing here accepts a
-//! producer-owned reference: [`crate::digest::producer::ProducerDigestRef`]
-//! exposes no value this module will consume, and this module exposes no value
-//! that can be copied back into a producer slot without passing the
-//! cross-domain guard.
+//! RFC 8785 (JCS) canonical encoding utilities used by the protocol reader and
+//! runtime-reference carrier.
 //!
 //! The canonicalisation is deliberately narrow. RFC 8785 number serialisation
 //! is the ECMAScript `Number::toString` algorithm, which this chunk does not
 //! implement; a JSON number is therefore **refused** rather than canonicalised
 //! under an approximation. A silently wrong canonical form would produce a
-//! wrong digest that still looks well formed, which is the exact failure this
-//! crate exists to refuse.
+//! wrong encoding that still looks well formed.
 
 use std::fmt;
 
 use serde_json::{Map, Value};
-
-use crate::digest::producer::DigestDomain;
-use crate::ByteDigest;
 
 /// A value that cannot be canonicalised under this chunk's RFC 8785 subset.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -179,41 +170,4 @@ fn write_string(text: &str, out: &mut String) {
         }
     }
     out.push('"');
-}
-
-/// A digest in the consumer's protocol-result domain.
-///
-/// Constructing one always hashes a canonical form this crate produced. There
-/// is no constructor that adopts an offered text without the cross-domain guard
-/// in [`crate::inventory`] deciding the value belongs to this domain.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct ResultDigest(ByteDigest);
-
-impl ResultDigest {
-    /// The one domain a `ResultDigest` ever belongs to.
-    pub const DOMAIN: DigestDomain = DigestDomain::VerificationJcs;
-
-    /// Digest a protocol result over its RFC 8785 canonical form.
-    pub fn of_result(value: &Value) -> Result<Self, JcsError> {
-        Ok(Self(ByteDigest::of(canonicalize(value)?.as_bytes())))
-    }
-
-    /// The canonical text of this result-domain value.
-    ///
-    /// Prefixed `sha256-jcs:`, which the published vocabulary requires for this
-    /// domain and which a raw `sha256` value may not substitute for. The
-    /// producer's own `Display` renders `sha256:`, so this does not delegate to
-    /// it: rendering both domains identically is what let a cross-domain value
-    /// pass the algorithm-label test as a merely divergent one.
-    pub fn text(&self) -> String {
-        self.to_string()
-    }
-}
-
-impl fmt::Display for ResultDigest {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(DigestDomain::VerificationJcs.algorithm_label())?;
-        formatter.write_str(":")?;
-        fmt::LowerHex::fmt(&self.0, formatter)
-    }
 }

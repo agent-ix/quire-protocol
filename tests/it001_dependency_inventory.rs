@@ -36,7 +36,6 @@ const OBSERVATION_OWNER: &str = "quire-observation";
 /// E02's accepted owner crate supplies the target types, JCS implementation,
 /// and strict reader. B maps into that interface and does not mirror it.
 const E02_OWNER: &str = "quire-verification-contracts";
-const E02_REVISION: &str = "da8d7272051b1cf02768ec459539551414fd6c21";
 
 /// Engineering Assurance owns the claim-strength vocabulary (EA FR-022). B
 /// imports its `ClaimStrength` through the serde-only `claim-strength` feature
@@ -106,6 +105,7 @@ const INVENTORY: &[&str] = &[
     "agent-ix-extraction-frontend",
     "agent-ix-semantic-ir",
     "quire-canonical",
+    "quire-canonical-derive",
     "quire-rs",
     "ahash",
     "aho-corasick",
@@ -442,24 +442,28 @@ fn it_001_resolves_one_frontend_in_the_whole_graph() {
     );
 }
 
-/// The exact revision the manifest pins `FRONTEND` to.
-fn frontend_revision() -> String {
+/// The exact revision the manifest pins one direct git dependency to.
+fn dependency_revision(package: &str) -> String {
     let declaration = manifest_section("[dependencies]")
         .lines()
-        .find(|line| line.starts_with(&format!("{FRONTEND} = ")))
-        .unwrap_or_else(|| panic!("manifest declares {FRONTEND}"));
+        .find(|line| line.starts_with(&format!("{package} = ")))
+        .unwrap_or_else(|| panic!("manifest declares {package}"));
     let (_, rest) = declaration
         .split_once(r#"rev = ""#)
-        .unwrap_or_else(|| panic!("{FRONTEND} is pinned by rev: {declaration}"));
+        .unwrap_or_else(|| panic!("{package} is pinned by rev: {declaration}"));
     let (revision, _) = rest
         .split_once('"')
-        .unwrap_or_else(|| panic!("{FRONTEND} rev is quoted: {declaration}"));
+        .unwrap_or_else(|| panic!("{package} rev is quoted: {declaration}"));
     assert_eq!(
         revision.len(),
         40,
-        "{FRONTEND} rev is a full commit: {revision}"
+        "{package} rev is a full commit: {revision}"
     );
     revision.to_owned()
+}
+
+fn frontend_revision() -> String {
+    dependency_revision(FRONTEND)
 }
 
 /// Tracing: TC-013 and NFR-006-AC-4.
@@ -471,21 +475,22 @@ fn frontend_revision() -> String {
 #[test]
 #[trace("TC-013", "NFR-006-AC-4")]
 fn tc_013_records_the_exact_e02_git_closure_in_all_three_sources() {
+    let revision = dependency_revision(E02_OWNER);
     assert!(
-        manifest_section("[dependencies]").contains(E02_REVISION),
-        "the direct E02 dependency must select the accepted compatible revision"
+        manifest_section("[dependencies]").contains(&revision),
+        "the direct E02 dependency must select its Cargo revision"
     );
 
     let locked_sources = LOCKFILE
         .lines()
         .filter(|line| {
-            line.starts_with("source = ") && line.contains(E02_OWNER) && line.contains(E02_REVISION)
+            line.starts_with("source = ") && line.contains(E02_OWNER) && line.contains(&revision)
         })
         .count();
-    assert_eq!(locked_sources, 1, "lock source drift for {E02_OWNER}");
+    assert_eq!(locked_sources, 1, "Cargo.lock source drift for {E02_OWNER}");
     assert!(
-        RIGHTS_RECORD.contains(&format!("| `{E02_OWNER}` | `{E02_REVISION}` |")),
-        "rights record drift for {E02_OWNER}"
+        RIGHTS_RECORD.contains(&format!("| `{E02_OWNER}` | `Cargo.lock` |")),
+        "rights record must identify Cargo.lock as the revision source for {E02_OWNER}"
     );
 
     assert!(

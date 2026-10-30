@@ -62,7 +62,7 @@ self lineage, and a non-direct correction predecessor.
 
 The mapping selection fixes the exact mapping contract/schema digest and the
 source result contract/schema/revision. Its canonical mapped view contains:
-source result identity/digest, native subject/correspondence identities,
+source result identity, native subject/correspondence identities,
 execution, `value` or `nonValue`, the four independent progress/closure owner
 references and states, completeness owner reference/state/fact identities,
 settlement, exact decision support, and correction relation/direct predecessor.

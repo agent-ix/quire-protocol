@@ -869,16 +869,7 @@ pub struct UnregisteredLiteral {
 /// `tc_011_the_exemption_list_is_not_stale` fails if an entry here stops
 /// appearing in `src/`, so a stale exemption cannot sit here hiding a code that
 /// later takes the same spelling.
-pub const EXEMPT_LITERALS: &[&str] = &[
-    // A published digest-domain member, not a refusal code. `src/digest/
-    // producer.rs` selects two members of the producer-owned vocabulary and
-    // spells them exactly as their owner publishes them; this crate does not
-    // get to rename one to escape a shape test. It is code-shaped by accident
-    // of that spelling, resolves in the digest vocabulary and never in
-    // [`REGISTRY`], and registering it here would be this crate claiming a code
-    // it does not own.
-    "quire.verification.jcs",
-];
+pub const EXEMPT_LITERALS: &[&str] = &[];
 
 /// Every code-shaped literal in one Rust source text that is under a reserved
 /// root and is not registered.

@@ -3,7 +3,7 @@
 
 use serde::Serialize;
 use serde_json::Value;
-use std::sync::OnceLock;
+use std::sync::{LazyLock, OnceLock};
 
 use crate::bounds::inventory::{BudgetDimension, OperationOutcome, ResourceAccountant, SourceSite};
 use crate::bounds::{SiteId, SiteKind, UnitLabel};
@@ -14,8 +14,8 @@ use crate::refusal::{ProtocolStage, RefusalDomain, RetryDecision};
 use crate::ByteDigest;
 
 use super::record::{
-    AxisView, CorrectionView, DecisionSupport, Limits, Settlement, SettlementBasis, Snapshot,
-    Truth, Usage, ValidatedResult, CONTRACT as RESULT_CONTRACT,
+    AxisView, CorrectionView, DecisionSupport, Limits, ResultKey, Settlement, SettlementBasis,
+    Snapshot, Truth, Usage, ValidatedResult, CONTRACT as RESULT_CONTRACT,
     SCHEMA_SHA256 as RESULT_SCHEMA_SHA256,
 };
 use super::{ErrorCode, Refusal, Result};
@@ -99,8 +99,9 @@ pub const CONTRACT: &str = "quire.protocol.contract-ir-result-map/v1";
 /// Immutable schema bytes for [`CONTRACT`].
 pub const SCHEMA_BYTES: &[u8] =
     include_bytes!("../../schemas/contract-ir-result-map-v1.schema.json");
-/// Lowercase SHA-256 digest of [`SCHEMA_BYTES`].
-pub const SCHEMA_SHA256: &str = "c1df7b18d0e93c70a3b1d67c6a71de8d5ff8b9780510265ebdad69cdd14b79bd";
+/// Runtime-derived lowercase SHA-256 digest of [`SCHEMA_BYTES`].
+pub static SCHEMA_SHA256: LazyLock<String> =
+    LazyLock::new(|| format!("{:x}", ByteDigest::of(SCHEMA_BYTES)));
 
 static MAPPING_SCHEMA_VALIDATOR: OnceLock<Option<jsonschema::JSONSchema>> = OnceLock::new();
 
@@ -148,12 +149,12 @@ impl<'a> MappingSelection<'a> {
 
     /// Exact currently published selection.
     #[must_use]
-    pub const fn current() -> Self {
+    pub fn current() -> Self {
         Self::new(
             CONTRACT,
-            SCHEMA_SHA256,
+            SCHEMA_SHA256.as_str(),
             RESULT_CONTRACT,
-            RESULT_SCHEMA_SHA256,
+            RESULT_SCHEMA_SHA256.as_str(),
         )
     }
 }
@@ -322,13 +323,8 @@ impl MappedResultView<'_> {
     }
     /// Exact source result identity.
     #[must_use]
-    pub fn source_result_id(&self) -> &str {
-        self.source.result_id()
-    }
-    /// Exact source result digest.
-    #[must_use]
-    pub fn source_result_digest(&self) -> &str {
-        self.source.digest()
+    pub fn source_result_key(&self) -> &ResultKey {
+        self.source.result_key()
     }
     /// Native temporal-subject identity retained from the validated source.
     #[must_use]
@@ -496,7 +492,7 @@ fn map_bounded_unit<'a>(
                 ErrorCode::MappingMismatch,
                 "mapping cannot determine its canonical output length",
                 Usage::default(),
-                Some(source.result_id()),
+                Some(&source.result_key().request),
             ));
         }
     };
@@ -528,7 +524,7 @@ fn prepare_mapping(source: &ValidatedResult, stage: ProtocolStage) -> Result<Pre
             ErrorCode::MappingMismatch,
             "mapping preimage is outside the JCS subset",
             Usage::default(),
-            Some(source.result_id()),
+            Some(&source.result_key().request),
             stage,
         )
     })?;
@@ -576,7 +572,7 @@ fn finish_mapping(
                 ErrorCode::MappingMismatch,
                 "mapping cannot be canonicalized",
                 Usage::default(),
-                Some(source.result_id()),
+                Some(&source.result_key().request),
                 stage,
             )
         })?
@@ -665,7 +661,7 @@ fn validate_offered(bytes: &[u8], source: &ValidatedResult, limits: Limits) -> R
             ErrorCode::MappingMismatch,
             "mapping is not one valid JSON document",
             observed,
-            Some(source.result_id()),
+            Some(&source.result_key().request),
         )
     })?;
     if !super::reader::schema_accepts(&value, SCHEMA_BYTES, &MAPPING_SCHEMA_VALIDATOR) {
@@ -673,7 +669,7 @@ fn validate_offered(bytes: &[u8], source: &ValidatedResult, limits: Limits) -> R
             ErrorCode::MappingMismatch,
             "mapping is not a closed instance of the selected schema",
             observed,
-            Some(source.result_id()),
+            Some(&source.result_key().request),
         ));
     }
     Ok(observed)
@@ -690,7 +686,7 @@ fn compare_offered<'a>(
             ErrorCode::MappingMismatch,
             "mapping bytes differ from the source-derived canonical view",
             observed,
-            Some(source.result_id()),
+            Some(&source.result_key().request),
         ));
     }
     derived.usage = observed;
@@ -699,9 +695,9 @@ fn compare_offered<'a>(
 
 fn validate_selection(selection: MappingSelection<'_>, stage: ProtocolStage) -> Result<()> {
     if selection.mapping_contract != CONTRACT
-        || selection.mapping_schema_sha256 != SCHEMA_SHA256
+        || selection.mapping_schema_sha256 != SCHEMA_SHA256.as_str()
         || selection.source_contract != RESULT_CONTRACT
-        || selection.source_schema_sha256 != RESULT_SCHEMA_SHA256
+        || selection.source_schema_sha256 != RESULT_SCHEMA_SHA256.as_str()
     {
         return Err(Refusal::at_stage(
             ErrorCode::ContractMismatch,
@@ -738,8 +734,7 @@ struct MappingWire<'a> {
 #[serde(rename_all = "camelCase")]
 struct SourceResultWire<'a> {
     contract: &'static str,
-    digest: &'a str,
-    result_id: &'a str,
+    result_key: &'a ResultKey,
     schema_sha256: &'static str,
 }
 
@@ -818,8 +813,7 @@ struct MappingSupportRefWire<'a> {
 struct MappingCorrectionWire<'a> {
     contradicted_premise_identity: &'a str,
     corrected_input_identity: &'a str,
-    predecessor_digest: &'a str,
-    predecessor_result_id: &'a str,
+    predecessor_result_key: &'a ResultKey,
     relation: &'static str,
 }
 
@@ -850,7 +844,7 @@ fn mapping_value(
             surrounding_execution_closure: mapping_axis_wire(&snapshot.axes[3]),
             surrounding_execution_progress: mapping_axis_wire(&snapshot.axes[2]),
         },
-        schema_sha256: SCHEMA_SHA256,
+        schema_sha256: SCHEMA_SHA256.as_str(),
         settlement: MappingSettlementWire {
             basis: snapshot.settlement.basis.label(),
             supporting_fact_identities: &snapshot.settlement.supporting_fact_identities,
@@ -858,9 +852,8 @@ fn mapping_value(
         },
         source_result: SourceResultWire {
             contract: RESULT_CONTRACT,
-            digest: source.digest(),
-            result_id: source.result_id(),
-            schema_sha256: RESULT_SCHEMA_SHA256,
+            result_key: source.result_key(),
+            schema_sha256: RESULT_SCHEMA_SHA256.as_str(),
         },
         truth: snapshot.truth.label(),
     };
@@ -869,7 +862,7 @@ fn mapping_value(
             ErrorCode::MappingMismatch,
             "typed mapping view cannot be represented as JSON",
             Usage::default(),
-            Some(source.result_id()),
+            Some(&source.result_key().request),
             stage,
         )
     })
@@ -929,8 +922,7 @@ fn mapping_correction_wire(correction: &CorrectionView) -> MappingCorrectionWire
     MappingCorrectionWire {
         contradicted_premise_identity: &correction.contradicted_premise_identity,
         corrected_input_identity: &correction.corrected_input_identity,
-        predecessor_digest: &correction.predecessor_digest,
-        predecessor_result_id: &correction.predecessor_result_id,
+        predecessor_result_key: &correction.predecessor_result_key,
         relation: correction.relation.label(),
     }
 }

@@ -109,8 +109,8 @@ member of its own and defines no E02 finding axis.
 
 Quire Specification's accepted FS02 ruling makes the mapping total for the
 selected source and target revisions: FR-284 closes the four progress/closure
-axes, FR-285 closes source participation, and FR-283 assigns source validation
-and recomputed source-digest failure to `invalid-source-result`. A valid source
+axes, FR-285 closes source participation, and FR-283 assigns strict source
+validation failure to `invalid-source-result`. A valid source
 reaching target-context or derived-identity mismatch yields
 `identity-mismatch`.
 
