@@ -95,10 +95,6 @@ or removing a manifest case changes no obligation stated here.
   offer authorize itself. An absent selected value is never filled from the
   offered side, and an absent offered value is never filled from the selected
   side.
-- **Digest domain** — not applicable to the pair itself. Where a `value` is a
-  digest, its domain membership is
-  [FR-015](./FR-015-digest-domain-selection.md)'s subject, and a digest from one
-  domain presented in another domain's slot is unequal in both directions.
 
 ## Symmetric refusal, asymmetric reason
 

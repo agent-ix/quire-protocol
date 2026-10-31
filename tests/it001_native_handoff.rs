@@ -7,7 +7,6 @@ use ix_trace_rs::trace;
 use qsl_foundation::{Source, SourceIdentity};
 use quire_contract_ir as ir;
 use quire_protocol::{
-    digest::producer::{CrossDomainDigest, DigestDomain, DigestSlot, OfferedDomain},
     inventory::{
         axis::DivergedSelection,
         map::{admit_discriminating, AdmissionRefusal},
@@ -159,7 +158,7 @@ impl Fixture {
 
     /// Offer the same bytes through B's discriminating consumer boundary, which
     /// resolves A's single shared `Invalid::Selection` code against B's own
-    /// independently selected inventory and guards the digest domains first.
+    /// independently selected references before retaining the owner refusal.
     fn discriminate(
         &self,
         selection: &Selection,
@@ -927,8 +926,7 @@ fn it_001_refuses_one_axis_changed_baseline_digest() {
         mutated_baseline_field(&baseline, &selected, &last_character_changed(&selected)).as_bytes(),
     );
     let selection = resealed(&fixture.selection, &changed);
-    // The value diverges inside the baseline's own producer digest domain, so
-    // this is the digest axis and not the cross-domain axis below.
+    // The selected baseline digest differs, so this is the digest axis.
     let error = fixture.discriminate(&selection, &changed).unwrap_err();
     assert_eq!(
         error,
@@ -936,43 +934,6 @@ fn it_001_refuses_one_axis_changed_baseline_digest() {
             axis: DivergedSelection::BaselineDigest,
             source: quire_protocol::Error::Invalid(Invalid::Selection),
         },
-        "got {error:?}"
-    );
-}
-
-/// Tracing: IT-001, Task-009.
-#[test]
-#[trace("IT-001", "Task-009")]
-fn it_001_refuses_one_axis_cross_domain_baseline_digest() {
-    let root = fixture_root();
-    let fixture = Fixture::load(&root);
-    let bytes = offered_bytes(&root);
-    // Only the baseline digest's domain label moves; its hexadecimal body and
-    // every other digest in the offer are unchanged. `sha512:` is not A's
-    // vocabulary and is not claimed to be: it is a well-formed label B chose
-    // precisely because A does not know it.
-    let baseline = baseline_field(&fixture.selection);
-    let selected = fixture.selection.baseline.digest.to_string();
-    let foreign = selected.replacen("sha256:", "sha512:", 1);
-    assert_ne!(foreign, selected, "the selected digest must carry a label");
-    let changed = replace_unique(
-        &bytes,
-        baseline.as_bytes(),
-        mutated_baseline_field(&baseline, &selected, &foreign).as_bytes(),
-    );
-    let selection = resealed(&fixture.selection, &changed);
-    // A parse failure would prove nothing here: it would only say the label is
-    // unknown to A's `ByteDigest`, which a well-formed substitution avoids
-    // entirely. B must refuse this on the digest-domain axis itself.
-    let error = fixture.discriminate(&selection, &changed).unwrap_err();
-    assert_eq!(
-        error,
-        AdmissionRefusal::CrossDomainDigest(CrossDomainDigest {
-            slot: DigestSlot::Baseline,
-            selected: DigestDomain::RawArtifact,
-            offered: OfferedDomain::ForeignLabel("sha512".to_owned()),
-            value: foreign.clone(),
-        }),
         "got {error:?}"
     );
 }

@@ -94,9 +94,7 @@
 //!
 //! [`crate::link::LinkedProtocol`] implements `Eq` and `Hash` over its structural content
 //! with display text excluded, so FR-002-AC-4 is checked by comparing two
-//! linked values. No digest is minted here: a digest would need a domain, and
-//! digest domains belong to `FR-015`'s selected vocabulary rather than to this
-//! module.
+//! linked values. No digest is minted here.
 //!
 //! # Boundary
 //!

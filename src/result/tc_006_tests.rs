@@ -2340,14 +2340,6 @@ fn tc_015_validated_and_mapped_views_expose_every_contract_axis_without_json_par
         source.decision_scope_progress().contract()
     );
     assert_eq!(
-        mapped.decision_scope_progress().schema_sha256(),
-        source.decision_scope_progress().schema_sha256()
-    );
-    assert_eq!(
-        mapped.decision_scope_progress().document_digest(),
-        source.decision_scope_progress().document_digest()
-    );
-    assert_eq!(
         mapped.decision_scope_progress().authority_identity(),
         source.decision_scope_progress().authority_identity()
     );
@@ -3523,23 +3515,6 @@ fn tc_015_correction_is_direct_and_preserves_predecessor_bytes() {
     .expect("corrected mapping");
     let mapped_edge = mapped.correction().expect("mapped direct correction edge");
     assert_eq!(mapped_edge.predecessor_result_key(), &prior_key);
-}
-
-#[test]
-#[trace("TC-015", "FR-042-AC-1", "FR-042-AC-5")]
-fn tc_015_schema_bytes_and_digests_are_immutable_and_closed() {
-    assert_eq!(
-        format!("{:x}", ByteDigest::of(result::SCHEMA_BYTES)),
-        result::SCHEMA_SHA256.as_str()
-    );
-    assert_eq!(
-        format!("{:x}", ByteDigest::of(contract_ir::SCHEMA_BYTES)),
-        contract_ir::SCHEMA_SHA256.as_str()
-    );
-    for schema in [result::SCHEMA_BYTES, contract_ir::SCHEMA_BYTES] {
-        let value: Value = serde_json::from_slice(schema).expect("schema JSON");
-        assert_eq!(value["additionalProperties"], Value::Bool(false));
-    }
 }
 
 /// The string-only canonical-result carrier retains QObs runtime-reference

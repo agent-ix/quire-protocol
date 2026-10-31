@@ -23,7 +23,6 @@ relationships:
 
 ## Description
 
-When this repository compares two digests, it SHALL compare them under domain labels selected from `FR-201-canonical-identity-domain`.
 This repository SHALL mint no digest domain label of its own.
 
 ## Properties
@@ -31,16 +30,6 @@ This repository SHALL mint no digest domain label of its own.
 - **label** (identity component) — one member of `FR-201`'s published
   vocabulary, spelled exactly as published. Spelling is load-bearing: a
   different label compares unequal over identical bytes.
-- **selection** — which member this repository uses for which of its own
-  digests. The selection is this repository's; the vocabulary it selects from is
-  not.
-
-This repository selects only the producer-owned artifact digest member:
-
-| Selected member | Used for |
-| --- | --- |
-| `raw-artifact-digest` | The exact supplied bytes of an offered artifact, including layout, as delivered and never recanonicalised. |
-
 Where a producer reference arrives already carrying an upstream domain label,
 that label is retained exactly and is never re-labelled into another member.
 
@@ -62,20 +51,12 @@ result or projection digest.
   defaulted to a member, and a comparison requiring a domain refuses.
 - **Digest domain** — the label is the domain; it is not itself digested.
 
-## Implemented vocabulary
-
-`digest::producer::DigestDomain` selects only `RawArtifact`, whose published
-spelling is `raw-artifact-digest`. Task-006 carries the selected producer value
-through admission without deriving a result digest.
-
 ## Acceptance Criteria
 
 | ID | Criteria | Verification |
 | --- | --- | --- |
 | FR-015-AC-1 | Every digest domain label this repository uses is a member `FR-201` publishes, spelled exactly as published, and no label originates here. | Inspection |
-| FR-015-AC-2 | A producer reference arriving with an upstream domain label retains that label exactly through admission, linking and result production, and is never re-labelled. | Test (TC-001, TC-006, TC-014) |
-| FR-015-AC-3 | A value carrying a label other than the selected `raw-artifact-digest` label is refused as a foreign domain before source admission. | Test (TC-006, TC-014) |
-| FR-015-AC-4 | An unlabelled digest value is refused before source admission; it is never treated as a raw-artifact digest by default. | Test (TC-006, TC-014) |
+| FR-015-AC-2 | A producer reference arriving with an upstream domain label retains that label exactly through admission, linking and result production, and is never re-labelled. | Test (TC-001, TC-014) |
 | FR-015-AC-5 | No requirement, test or implementation in this repository declares a digest domain vocabulary of its own. | Inspection |
 
 ## Dependencies

@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! TC-006/FR-001-AC-4: producer digest domains stay separate from the
-//! consumer's RFC 8785 protocol-result domain, in both directions.
+//! TC-006: canonical result encoding and typed refusal mapping.
 //!
 //! These cases need no producer fixture, so they run in the default lane rather
 //! than behind `QUIRE_PROTOCOL_A_FIXTURE`.
@@ -10,14 +9,8 @@ use quire_protocol::{
     bounds::inventory::{
         production_inventory, Budget, BudgetDimension, OperationOutcome, ResourceAccountant,
     },
-    digest::{
-        jcs::{canonicalize, JcsError},
-        producer::{DigestSlot, OfferedDomain, ProducerDigestRef},
-    },
-    inventory::{
-        axis::DivergedSelection, map::admit_discriminating_bounded, DigestClassification,
-        SelectedInventory,
-    },
+    digest::jcs::{canonicalize, JcsError},
+    inventory::{axis::DivergedSelection, map::admit_discriminating_bounded},
     wire, ByteDigest, Expected, Limits,
 };
 use serde_json::json;
@@ -100,10 +93,6 @@ impl Selections {
             models: &[],
             domain_packages: &[],
         }
-    }
-
-    fn inventory(&self) -> SelectedInventory {
-        SelectedInventory::from_expected(&self.expected())
     }
 }
 
@@ -201,111 +190,6 @@ fn tc_009_admission_charges_all_input_bytes_before_decode() {
                 && value.consumed() == 1
                 && value.requested() == 1
     ));
-}
-
-/// The selected producer value itself is in domain, for every producer slot.
-///
-/// Tracing: TC-006, FR-001-AC-4.
-#[test]
-#[trace("TC-006", "FR-001-AC-4")]
-fn tc_006_selected_producer_values_are_in_domain() {
-    let selections = Selections::new();
-    let inventory = selections.inventory();
-    for (slot, selected) in [
-        (DigestSlot::Contract, &selections.contract),
-        (DigestSlot::Baseline, &selections.baseline),
-        (DigestSlot::ProducerBinary, &selections.producer.binary),
-    ] {
-        assert_eq!(
-            inventory.classify_offered(slot, &selected.digest.to_string()),
-            DigestClassification::InSelectedDomain,
-            "slot {slot}"
-        );
-    }
-}
-
-/// A wrong value inside the producer's own domain is divergence, not a domain
-/// error. The two must not share a code, or the digest-domain guard would fire
-/// for every ordinary mismatch and prove nothing.
-///
-/// Tracing: TC-006, FR-001-AC-4.
-#[test]
-#[trace("TC-006", "FR-001-AC-4")]
-fn tc_006_same_domain_divergence_is_not_cross_domain() {
-    let selections = Selections::new();
-    let inventory = selections.inventory();
-    let other = ByteDigest::of(b"some other producer artifact bytes").to_string();
-    assert_eq!(
-        inventory.classify_offered(DigestSlot::Baseline, &other),
-        DigestClassification::Divergent
-    );
-}
-
-/// An unselected algorithm label is a foreign domain, refused as such rather
-/// than as a malformed value.
-///
-/// Tracing: TC-006, FR-001-AC-4.
-#[test]
-#[trace("TC-006", "FR-001-AC-4")]
-fn tc_006_foreign_algorithm_label_is_cross_domain() {
-    let selections = Selections::new();
-    let inventory = selections.inventory();
-    let body = selections
-        .baseline
-        .digest
-        .to_string()
-        .strip_prefix("sha256:")
-        .expect("A spells producer references with the sha256 label")
-        .to_owned();
-    match inventory.classify_offered(DigestSlot::Baseline, &format!("sha512:{body}")) {
-        DigestClassification::CrossDomain(violation) => assert_eq!(
-            violation.offered,
-            OfferedDomain::ForeignLabel("sha512".to_owned())
-        ),
-        other => panic!("expected a cross-domain classification, got {other:?}"),
-    }
-}
-
-/// A slot the inventory holds no producer selection for says so, rather than
-/// reporting the offered value as a divergence it never compared.
-///
-/// Tracing: TC-006, FR-001-AC-4.
-#[test]
-#[trace("TC-006", "FR-001-AC-4")]
-fn tc_006_selected_slot_classifies_raw_digest_text() {
-    let selections = Selections::new();
-    let inventory = selections.inventory();
-    assert_eq!(
-        inventory.classify_offered(DigestSlot::Contract, "sha256:00"),
-        DigestClassification::Divergent
-    );
-}
-
-/// A value with no algorithm label is its own outcome, not an empty label.
-///
-/// Tracing: TC-006, FR-001-AC-4.
-#[test]
-#[trace("TC-006", "FR-001-AC-4", "FR-015-AC-4")]
-fn tc_006_unlabelled_value_is_cross_domain() {
-    let selections = Selections::new();
-    let inventory = selections.inventory();
-    match inventory.classify_offered(DigestSlot::Baseline, "6f9cb8bf8521ca51") {
-        DigestClassification::CrossDomain(violation) => {
-            assert_eq!(violation.offered, OfferedDomain::Unlabelled);
-        }
-        other => panic!("expected a cross-domain classification, got {other:?}"),
-    }
-}
-
-/// A producer reference is copied exactly and retains its owner domain.
-///
-/// Tracing: TC-006, FR-006-AC-4.
-#[test]
-#[trace("TC-006", "FR-006-AC-4", "FR-015-AC-2")]
-fn tc_006_producer_reference_is_opaque_and_copied_exactly() {
-    let text = "sha256:0000000000000000000000000000000000000000000000000000000000000001";
-    let reference = ProducerDigestRef::copy_exact(text);
-    assert_eq!(reference.as_producer_text(), text);
 }
 
 /// RFC 8785 canonicalisation is member-order invariant, and refuses a number

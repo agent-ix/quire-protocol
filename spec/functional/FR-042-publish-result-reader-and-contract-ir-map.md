@@ -26,8 +26,8 @@ canonical producer and strict public reader and SHALL publish a separate exact
 
 The implementation SHALL organize the owner surface as
 `result::{record,reader,global,lineage,contract_ir}` while preserving existing
-public paths by re-export. It SHALL publish immutable `SCHEMA_BYTES` and
-`SCHEMA_SHA256` for both contracts and expose:
+public paths by re-export. It SHALL publish immutable `SCHEMA_BYTES` for both
+contracts and expose:
 
 ```text
 result::produce(Input, Limits) -> Result<Document, Refusal>
@@ -60,18 +60,17 @@ self lineage, and a non-direct correction predecessor.
 
 ## Contract-IR mapping contract
 
-The mapping selection fixes the exact mapping contract/schema digest and the
-source result contract/schema/revision. Its canonical mapped view contains:
+The mapping selection fixes the exact mapping and source result contracts. Its
+canonical mapped view contains:
 source result identity, native subject/correspondence identities,
 execution, `value` or `nonValue`, the four independent progress/closure owner
 references and states, completeness owner reference/state/fact identities,
 settlement, exact decision support, and correction relation/direct predecessor.
 Each mapped progress/closure owner reference SHALL expose its selected owner
-contract and schema digest, canonical assertion identity and digest, authority
-identity, revision and digest, scope identity, population identity, and
-independent state through borrowed typed accessors; a downstream structural
-consumer SHALL NOT need to parse the mapping JSON to compare any retained owner
-reference field.
+contract, canonical assertion identity, authority identity, revision and
+authority digest, scope identity, population identity, and independent state
+through borrowed typed accessors; a downstream structural consumer SHALL NOT
+need to parse the mapping JSON to compare any retained owner reference field.
 
 Only a `completed` source result with `satisfied` maps to `value:true`; only a
 `completed` source result with `violated` maps to `value:false`. Every other
@@ -102,7 +101,7 @@ uses fresh accounting; caller limits may lower but not raise owner maxima.
 | FR-042-AC-2 | Omission, duplication, reordering, unknown fields/labels/contracts, trailing/noncanonical bytes and every identity, scope, decision-premise or lineage mutation refuse without partial output. | Test (TC-015) |
 | FR-042-AC-3 | Every independent combination of the four open/closed axes and FR-295 completeness remains representable and no axis supplies another. | Test (TC-015) |
 | FR-042-AC-4 | The exact selected mapping derives true only from completed+satisfied and false only from completed+violated; all other valid rows remain typed non-values with complete source facts. | Test (TC-015) |
-| FR-042-AC-5 | Mapping bytes/read views are fully re-derived from the validated result; every retained progress/closure owner-reference field is available through borrowed typed accessors without JSON parsing; and source/mapping identities, vocabularies and schema digests cannot substitute for one another. | Test (TC-015) |
+| FR-042-AC-5 | Mapping bytes/read views are fully re-derived from the validated result; every retained progress/closure owner-reference field is available through borrowed typed accessors without JSON parsing; and source/mapping identities and vocabularies cannot substitute for one another. | Test (TC-015) |
 | FR-042-AC-6 | Exact and one-over limits cover every bounded dimension and refuse before excess retention; no public constructor, callback, parser, evaluator or trust flag bypasses admission. The one exception is the opt-in `test-support` Cargo feature: its `result::test_support` constructors are compiled only when a dependent enables the feature for testing, they run the canonical producer and the strict reader over their input, and the default build exposes none of them. | Test (TC-015) |
 
 ## Dependencies

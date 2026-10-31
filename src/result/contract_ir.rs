@@ -3,7 +3,7 @@
 
 use serde::Serialize;
 use serde_json::Value;
-use std::sync::{LazyLock, OnceLock};
+use std::sync::OnceLock;
 
 use crate::bounds::inventory::{BudgetDimension, OperationOutcome, ResourceAccountant, SourceSite};
 use crate::bounds::{SiteId, SiteKind, UnitLabel};
@@ -16,7 +16,6 @@ use crate::ByteDigest;
 use super::record::{
     AxisView, CorrectionView, DecisionSupport, Limits, ResultKey, Settlement, SettlementBasis,
     Snapshot, Truth, Usage, ValidatedResult, CONTRACT as RESULT_CONTRACT,
-    SCHEMA_SHA256 as RESULT_SCHEMA_SHA256,
 };
 use super::{ErrorCode, Refusal, Result};
 
@@ -99,10 +98,6 @@ pub const CONTRACT: &str = "quire.protocol.contract-ir-result-map/v1";
 /// Immutable schema bytes for [`CONTRACT`].
 pub const SCHEMA_BYTES: &[u8] =
     include_bytes!("../../schemas/contract-ir-result-map-v1.schema.json");
-/// Runtime-derived lowercase SHA-256 digest of [`SCHEMA_BYTES`].
-pub static SCHEMA_SHA256: LazyLock<String> =
-    LazyLock::new(|| format!("{:x}", ByteDigest::of(SCHEMA_BYTES)));
-
 static MAPPING_SCHEMA_VALIDATOR: OnceLock<Option<jsonschema::JSONSchema>> = OnceLock::new();
 
 pub(crate) const MAPPING_MISMATCH: CodeEntry = CodeEntry {
@@ -125,37 +120,23 @@ pub const MAPPING_CODES: CodeModule = CodeModule {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct MappingSelection<'a> {
     mapping_contract: &'a str,
-    mapping_schema_sha256: &'a str,
     source_contract: &'a str,
-    source_schema_sha256: &'a str,
 }
 
 impl<'a> MappingSelection<'a> {
     /// Construct an explicit mapping selection; [`map`] checks every member.
     #[must_use]
-    pub const fn new(
-        mapping_contract: &'a str,
-        mapping_schema_sha256: &'a str,
-        source_contract: &'a str,
-        source_schema_sha256: &'a str,
-    ) -> Self {
+    pub const fn new(mapping_contract: &'a str, source_contract: &'a str) -> Self {
         Self {
             mapping_contract,
-            mapping_schema_sha256,
             source_contract,
-            source_schema_sha256,
         }
     }
 
     /// Exact currently published selection.
     #[must_use]
     pub fn current() -> Self {
-        Self::new(
-            CONTRACT,
-            SCHEMA_SHA256.as_str(),
-            RESULT_CONTRACT,
-            RESULT_SCHEMA_SHA256.as_str(),
-        )
+        Self::new(CONTRACT, RESULT_CONTRACT)
     }
 }
 
@@ -200,11 +181,6 @@ impl MappedAxisView<'_> {
     pub const fn contract(&self) -> &str {
         self.source.contract()
     }
-    /// Selected owner schema digest.
-    #[must_use]
-    pub const fn schema_sha256(&self) -> &str {
-        self.source.schema_sha256()
-    }
     /// Definition authority identity.
     #[must_use]
     pub fn authority_identity(&self) -> &str {
@@ -219,11 +195,6 @@ impl MappedAxisView<'_> {
     #[must_use]
     pub fn authority_digest(&self) -> &str {
         self.source.authority_digest()
-    }
-    /// Digest of the canonical owner assertion bytes.
-    #[must_use]
-    pub fn document_digest(&self) -> &str {
-        self.source.document_digest()
     }
     /// Canonical owner assertion identity.
     #[must_use]
@@ -258,11 +229,6 @@ impl MappedCompletenessView<'_> {
     #[must_use]
     pub fn boundary_identity(&self) -> &str {
         self.source.boundary_identity()
-    }
-    /// Digest of the canonical completeness assertion bytes.
-    #[must_use]
-    pub fn document_digest(&self) -> &str {
-        self.source.document_digest()
     }
     /// Canonical completeness assertion identity.
     #[must_use]
@@ -694,14 +660,10 @@ fn compare_offered<'a>(
 }
 
 fn validate_selection(selection: MappingSelection<'_>, stage: ProtocolStage) -> Result<()> {
-    if selection.mapping_contract != CONTRACT
-        || selection.mapping_schema_sha256 != SCHEMA_SHA256.as_str()
-        || selection.source_contract != RESULT_CONTRACT
-        || selection.source_schema_sha256 != RESULT_SCHEMA_SHA256.as_str()
-    {
+    if selection.mapping_contract != CONTRACT || selection.source_contract != RESULT_CONTRACT {
         return Err(Refusal::at_stage(
             ErrorCode::ContractMismatch,
-            "mapping or source contract/schema selection differs",
+            "mapping or source contract selection differs",
             Usage::default(),
             None,
             stage,
@@ -724,7 +686,6 @@ struct MappingWire<'a> {
     native_subject_identity: &'a str,
     outcome: OutcomeWire,
     progress_and_closure: ProgressAndClosureWire<'a>,
-    schema_sha256: &'static str,
     settlement: MappingSettlementWire<'a>,
     source_result: SourceResultWire<'a>,
     truth: &'static str,
@@ -735,7 +696,6 @@ struct MappingWire<'a> {
 struct SourceResultWire<'a> {
     contract: &'static str,
     result_key: &'a ResultKey,
-    schema_sha256: &'static str,
 }
 
 #[derive(Serialize)]
@@ -766,7 +726,6 @@ struct ProgressAndClosureWire<'a> {
 struct MappingAxisWire<'a> {
     authority_identity: &'a str,
     authority_revision: &'a str,
-    document_digest: &'a str,
     document_identity: &'a str,
     scope_identity: &'a str,
     state: &'static str,
@@ -776,7 +735,6 @@ struct MappingAxisWire<'a> {
 #[serde(rename_all = "camelCase")]
 struct MappingCompletenessWire<'a> {
     boundary_identity: &'a str,
-    document_digest: &'a str,
     document_identity: &'a str,
     fact_identities: &'a [String],
     population_identity: &'a str,
@@ -844,7 +802,6 @@ fn mapping_value(
             surrounding_execution_closure: mapping_axis_wire(&snapshot.axes[3]),
             surrounding_execution_progress: mapping_axis_wire(&snapshot.axes[2]),
         },
-        schema_sha256: SCHEMA_SHA256.as_str(),
         settlement: MappingSettlementWire {
             basis: snapshot.settlement.basis.label(),
             supporting_fact_identities: &snapshot.settlement.supporting_fact_identities,
@@ -853,7 +810,6 @@ fn mapping_value(
         source_result: SourceResultWire {
             contract: RESULT_CONTRACT,
             result_key: source.result_key(),
-            schema_sha256: RESULT_SCHEMA_SHA256.as_str(),
         },
         truth: snapshot.truth.label(),
     };
@@ -884,7 +840,6 @@ fn mapping_axis_wire(axis: &AxisView) -> MappingAxisWire<'_> {
     MappingAxisWire {
         authority_identity: &axis.authority_identity,
         authority_revision: &axis.authority_revision,
-        document_digest: &axis.document_digest,
         document_identity: &axis.document_identity,
         scope_identity: &axis.scope_identity,
         state: axis.state.label(),
@@ -894,7 +849,6 @@ fn mapping_axis_wire(axis: &AxisView) -> MappingAxisWire<'_> {
 fn mapping_completeness_wire(snapshot: &Snapshot) -> MappingCompletenessWire<'_> {
     MappingCompletenessWire {
         boundary_identity: &snapshot.completeness.boundary_identity,
-        document_digest: &snapshot.completeness.document_digest,
         document_identity: &snapshot.completeness.document_identity,
         fact_identities: &snapshot.completeness.fact_identities,
         population_identity: &snapshot.completeness.population_identity,

@@ -32,7 +32,7 @@ typed non-value, and no refusal exposes a partial view.
 ## Status
 
 Implemented for `quire-protocol#8` in the reviewed FR-042 result-owner
-candidate. Twelve executable tests cover canonical production and strict
+candidate. Eleven executable tests cover canonical production and strict
 reading, complete constructor-private typed views, four independent axes,
-Boolean and typed non-value mapping, schema pins, identity and lineage
-mutations, reproduction provenance, and exact/one-short resource limits.
+Boolean and typed non-value mapping, identity and lineage mutations,
+reproduction provenance, and exact/one-short resource limits.
