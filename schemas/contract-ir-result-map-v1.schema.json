@@ -11,10 +11,10 @@
     "schemaSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "sourceResult": {
       "type": "object", "additionalProperties": false,
-      "required": ["contract", "digest", "resultId", "schemaSha256"],
+      "required": ["contract", "resultKey", "schemaSha256"],
       "properties": {
         "contract": { "const": "quire.protocol.result/v1-draft.1" },
-        "digest": { "$ref": "#/$defs/sha256jcs" }, "resultId": { "$ref": "#/$defs/sha256jcs" },
+        "resultKey": { "$ref": "#/$defs/resultKey" },
         "schemaSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
       }
     },
@@ -31,8 +31,20 @@
   },
   "$defs": {
     "nonempty": { "type": "string", "minLength": 1 },
+    "resultKey": {
+      "type": "object", "additionalProperties": false,
+      "required": ["ordinal", "producer", "request"],
+      "properties": {
+        "ordinal": { "type": "string", "pattern": "^(0|[1-9][0-9]*)$" },
+        "producer": {
+          "type": "object", "additionalProperties": false,
+          "required": ["identity", "version"],
+          "properties": { "identity": { "$ref": "#/$defs/nonempty" }, "version": { "$ref": "#/$defs/nonempty" } }
+        },
+        "request": { "$ref": "#/$defs/nonempty" }
+      }
+    },
     "sha256": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
-    "sha256jcs": { "type": "string", "pattern": "^sha256-jcs:[0-9a-f]{64}$" },
     "value": { "type": "object", "additionalProperties": false, "required": ["kind", "value"], "properties": { "kind": { "const": "value" }, "value": { "type": "boolean" } } },
     "nonValue": {
       "type": "object", "additionalProperties": false,
@@ -82,12 +94,11 @@
     },
     "correction": {
       "type": "object", "additionalProperties": false,
-      "required": ["contradictedPremiseIdentity", "correctedInputIdentity", "predecessorDigest", "predecessorResultId", "relation"],
+      "required": ["contradictedPremiseIdentity", "correctedInputIdentity", "predecessorResultKey", "relation"],
       "properties": {
         "contradictedPremiseIdentity": { "$ref": "#/$defs/nonempty" },
         "correctedInputIdentity": { "$ref": "#/$defs/nonempty" },
-        "predecessorDigest": { "$ref": "#/$defs/sha256jcs" },
-        "predecessorResultId": { "$ref": "#/$defs/sha256jcs" },
+        "predecessorResultKey": { "$ref": "#/$defs/resultKey"},
         "relation": { "enum": ["supersedes", "invalidates"] }
       }
     }

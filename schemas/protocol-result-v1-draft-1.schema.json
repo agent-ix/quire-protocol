@@ -9,7 +9,7 @@
     "correction", "decisionScopeClosure", "decisionScopeProgress", "decisionSupport",
     "execution", "globalConformance", "kind", "limitations",
     "nativeCorrespondenceIdentity", "nativeSubjectIdentity", "observationAdequacy",
-    "participation", "protocolAdequacy", "provenance", "resultId", "settlement",
+    "participation", "protocolAdequacy", "provenance", "resultKey", "settlement",
     "surroundingExecutionClosure", "surroundingExecutionProgress", "truth"
   ],
   "properties": {
@@ -32,7 +32,7 @@
     "participation": { "oneOf": [{ "$ref": "#/$defs/knownParticipation" }, { "$ref": "#/$defs/unknownParticipation" }] },
     "protocolAdequacy": { "enum": ["demonstrated", "not-demonstrated", "inapplicable", "unknown"] },
     "provenance": { "$ref": "#/$defs/provenance" },
-    "resultId": { "$ref": "#/$defs/sha256jcs" },
+    "resultKey": { "$ref": "#/$defs/resultKey" },
     "settlement": { "$ref": "#/$defs/settlement" },
     "surroundingExecutionClosure": { "$ref": "#/$defs/axis" },
     "surroundingExecutionProgress": { "$ref": "#/$defs/axis" },
@@ -41,8 +41,20 @@
   "$defs": {
     "nonempty": { "type": "string", "minLength": 1 },
     "sha256": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
-    "sha256jcs": { "type": "string", "pattern": "^sha256-jcs:[0-9a-f]{64}$" },
     "nullableNonempty": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/nonempty" }] },
+    "resultKey": {
+      "type": "object", "additionalProperties": false,
+      "required": ["ordinal", "producer", "request"],
+      "properties": {
+        "ordinal": { "type": "string", "pattern": "^(0|[1-9][0-9]*)$" },
+        "producer": {
+          "type": "object", "additionalProperties": false,
+          "required": ["identity", "version"],
+          "properties": { "identity": { "$ref": "#/$defs/nonempty" }, "version": { "$ref": "#/$defs/nonempty" } }
+        },
+        "request": { "$ref": "#/$defs/nonempty" }
+      }
+    },
     "stringArray": { "type": "array", "items": { "$ref": "#/$defs/nonempty" } },
     "assumption": {
       "type": "object", "additionalProperties": false,
@@ -120,10 +132,10 @@
     },
     "correction": {
       "type": "object", "additionalProperties": false,
-      "required": ["contradictedPremiseIdentity", "correctedInputIdentity", "predecessorDigest", "predecessorResultId", "relation"],
+      "required": ["contradictedPremiseIdentity", "correctedInputIdentity", "predecessorResultKey", "relation"],
       "properties": {
         "contradictedPremiseIdentity": { "$ref": "#/$defs/nonempty" }, "correctedInputIdentity": { "$ref": "#/$defs/nonempty" },
-        "predecessorDigest": { "$ref": "#/$defs/sha256jcs" }, "predecessorResultId": { "$ref": "#/$defs/sha256jcs" },
+        "predecessorResultKey": { "$ref": "#/$defs/resultKey" },
         "relation": { "enum": ["supersedes", "invalidates"] }
       }
     },

@@ -1251,12 +1251,12 @@ fn it_002_sc_06_each_composed_budget_is_exact_one_short_and_fresh() {
     };
 
     let exercised = [
-        (BudgetDimension::InputByte, 27_836),
+        (BudgetDimension::InputByte, 27_903),
         (BudgetDimension::Node, 8),
         (BudgetDimension::Observation, 2),
         (BudgetDimension::ResultItem, 5),
-        (BudgetDimension::OutputByte, 8_933),
-        (BudgetDimension::Operation, 249),
+        (BudgetDimension::OutputByte, 9_000),
+        (BudgetDimension::Operation, 259),
         (BudgetDimension::AccountedAllocation, 20),
     ];
     let assert_temporal_mismatch = |selected_axes, selected_completeness, selected_execution| {

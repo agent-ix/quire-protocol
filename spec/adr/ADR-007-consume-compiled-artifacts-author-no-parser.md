@@ -107,16 +107,13 @@ repository previously listed. QSpec #57 accepted FR-236's per-attempt,
 effect-only, and recovery-relation outcome partition at `478afa2`. Protocol
 consumes that ruling as distinct domains and does not invent another partition.
 
-**One local vocabulary was minted anyway, and had to be withdrawn.** FR-015
-declared a closed four-member digest-domain set before discovering that upstream
-`FR-201` publishes nine and says of itself that it *is* the vocabulary of digest
-domains. Two of the four local members re-spelled upstream members, and because
-spelling is load-bearing, this repository's own result digest would have compared
-unequal to the same bytes under the ecosystem's own verification label. FR-015
-names it: "That is the \"second locally authored profile\" FR-001 exists to
-refuse, one level below protocol semantics." The prohibition is not
-self-enforcing at the vocabulary level, and a review caught this one rather than
-a checker.
+**One local vocabulary was minted anyway, and had to be withdrawn.** An earlier
+FR-015 declared a closed four-member digest-domain set. The prior FR-201 also
+published a digest-domain vocabulary; two local members re-spelled upstream
+members, so their labels disagreed over identical bytes. QSpec #520 withdrew
+the identity-domain vocabulary, and result identity now uses the structural key
+specified by FR-286. The prohibition is not self-enforcing at the vocabulary
+level, and a review caught this one rather than a checker.
 [ADR-003](./ADR-003-compare-digest-domain-before-bytes.md) carries the detail.
 
 **The refusal path preserves producer authority without guessing.** FR-008 owns

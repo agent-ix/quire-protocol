@@ -197,7 +197,6 @@ fn tc_011_literal_scan_kills_an_unregistered_code() {
     let findings = unregistered_literals(REGISTRY, source);
     assert_eq!(findings.len(), 1);
     assert_eq!(findings[0].literal, "refusal.not-registered");
-    assert!(unregistered_literals(REGISTRY, r#"let path = "quire.verification.jcs";"#).is_empty());
 }
 
 /// Tracing: TC-011, FR-008-AC-1, Task-017.

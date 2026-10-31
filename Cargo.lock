@@ -1337,6 +1337,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "quire-canonical"
+version = "0.3.0"
+source = "git+https://github.com/agent-ix/quire-canonical?branch=main#35987f1dea33edf13bdf8e6a39153a802503f5a0"
+dependencies = [
+ "quire-canonical-derive",
+ "ryu-js",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror",
+]
+
+[[package]]
+name = "quire-canonical-derive"
+version = "0.3.0"
+source = "git+https://github.com/agent-ix/quire-canonical?branch=main#35987f1dea33edf13bdf8e6a39153a802503f5a0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 3.0.6",
+]
+
+[[package]]
 name = "quire-contract-model"
 version = "0.1.0"
 source = "git+https://github.com/agent-ix/quire-contract-ir?rev=7b1ec7a19f031dcea433293a25af57f0bb6a14f8#7b1ec7a19f031dcea433293a25af57f0bb6a14f8"
@@ -1368,7 +1391,7 @@ name = "quire-observation"
 version = "0.1.0"
 source = "git+https://github.com/agent-ix/quire-observation?rev=ab4abe3a03d24ed8430f513b8b695ac2d1471938#ab4abe3a03d24ed8430f513b8b695ac2d1471938"
 dependencies = [
- "quire-canonical 0.3.0",
+ "quire-canonical 0.3.0 (git+https://github.com/agent-ix/quire-canonical?tag=quire-canonical-v0.3.0)",
  "serde",
  "serde_json",
  "sha2",
@@ -1386,7 +1409,7 @@ dependencies = [
  "quire-contract-model",
  "quire-observation",
  "quire-spec-language",
- "quire-verification-contracts 0.1.0 (git+https://github.com/agent-ix/quire-verification-contracts?rev=da8d7272051b1cf02768ec459539551414fd6c21)",
+ "quire-verification-contracts 0.1.0 (git+https://github.com/agent-ix/quire-verification-contracts?rev=3bb05b593acf42652f307584476acc5373fa6f7b)",
  "serde",
  "serde_json",
  "sha2",
@@ -1442,15 +1465,15 @@ dependencies = [
 [[package]]
 name = "quire-verification-contracts"
 version = "0.1.0"
-source = "git+https://github.com/agent-ix/quire-verification-contracts?rev=61f4a44d76d51cc53b2dfe7ed10aba7b23cfa6ef#61f4a44d76d51cc53b2dfe7ed10aba7b23cfa6ef"
+source = "git+https://github.com/agent-ix/quire-verification-contracts?rev=3bb05b593acf42652f307584476acc5373fa6f7b#3bb05b593acf42652f307584476acc5373fa6f7b"
 dependencies = [
  "chrono",
  "jsonschema 0.55.1",
+ "quire-canonical 0.3.0 (git+https://github.com/agent-ix/quire-canonical?branch=main)",
  "regress",
  "schemars",
  "serde",
  "serde_json",
- "serde_json_canonicalizer",
  "sha2",
  "thiserror",
  "typify",
@@ -1459,7 +1482,7 @@ dependencies = [
 [[package]]
 name = "quire-verification-contracts"
 version = "0.1.0"
-source = "git+https://github.com/agent-ix/quire-verification-contracts?rev=da8d7272051b1cf02768ec459539551414fd6c21#da8d7272051b1cf02768ec459539551414fd6c21"
+source = "git+https://github.com/agent-ix/quire-verification-contracts?rev=61f4a44d76d51cc53b2dfe7ed10aba7b23cfa6ef#61f4a44d76d51cc53b2dfe7ed10aba7b23cfa6ef"
 dependencies = [
  "chrono",
  "jsonschema 0.55.1",

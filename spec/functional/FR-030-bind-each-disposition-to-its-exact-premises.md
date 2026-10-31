@@ -78,15 +78,14 @@ The binding rule is this repository's; the components are not.
 | Channel premise (all five components) | `FR-216-channel-premise` | value |
 | Role internality / visibility | `FR-217-role-internality` | value |
 | Protocol subject kind discrimination | `FR-210-protocol-subject-vocabulary` | value |
-| Derived portable projection result | `FR-249-derived-projection-result` | derived, keyed (canonical result identity and digest, target obligation and execution-binding identities, target contract version, adapter identity and version) |
+| Derived portable projection result | `FR-249-derived-projection-result` | `resultId` per FR-062 |
 | Projection refusal code | `FR-283-projection-refusal-code` | value |
 
 `FR-216-AC-4` is the reason FR-030-AC-1 names all five channel-premise
 components: FR-054-AC-4 makes "any channel premise" identity-bearing, so a
 disposition that drops one is a disposition of a different request. `FR-249`
-supplies the only derived-artifact correspondence the specification states in
-full, and FR-030-AC-5 is its identity rule applied at the dispatcher: changing
-any member of the derivation tuple changes the derived identity. `FR-280`
+supplies the derived-artifact correspondence, and FR-030-AC-5 applies its
+identity rule at the dispatcher. `FR-280`
 supplies FR-030-AC-4: each assumption carries its exact identity plus exactly
 one of `met`, `not-met`, `unknown` or `not-assessed`, and an absent state "is
 never defaulted to `not-assessed` or to `unknown`; those are two distinct
@@ -97,10 +96,10 @@ assessed outcomes". FR-030-AC-6 is `FR-011`'s authority rule, not a new one.
 Quire Specification #29/#31/#40 supplies the exact contracts this requirement
 needs: FR-290 claim kind, FR-291 admitted fragment, FR-292 analysis backend,
 FR-217 role internality/participant binding, FR-210/FR-287 subject membership,
-and the FR-283 projection-refusal namespace. A recomputed invalid source digest
-is `invalid-source-result`; target-context or derived-identity mismatch is
+and the FR-283 projection-refusal namespace. A strict source-result read failure
+is `invalid-source-result`; target-context mismatch is
 `identity-mismatch`. Native producer and E02 spellings remain distinct typed
-namespaces and are never normalized across them.
+fields and are never substituted for one another.
 
 ## Dependencies
 

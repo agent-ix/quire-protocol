@@ -1967,7 +1967,11 @@ impl<'a> Engine<'a> {
         };
         let runtime_input = activation.subject;
         let mut rows = Vec::with_capacity(controls.len());
-        for (control, disposition) in controls.into_iter().zip(dispatch.dispositions()) {
+        for (result_ordinal, (control, disposition)) in controls
+            .into_iter()
+            .zip(dispatch.dispositions())
+            .enumerate()
+        {
             let outcome = if let Some(failure) = &disposition.failure {
                 ClaimOutcome::Refused(failure.envelope().clone())
             } else {
@@ -1998,16 +2002,14 @@ impl<'a> Engine<'a> {
                         completeness,
                         global_conformance,
                         selected,
+                        result_ordinal as u64,
                     ) {
                         Err(refusal) => ClaimOutcome::Refused(row_assembly_refusal(refusal)),
                         Ok((input, limits)) => {
                             match result::produce_bounded(input.clone(), limits, resources) {
                                 BoundedOutcome::Completed(document) => match result::read_bounded(
                                     document.bytes(),
-                                    result::Expected {
-                                        input,
-                                        enclosing_digest: document.digest(),
-                                    },
+                                    result::Expected { input },
                                     limits,
                                     resources,
                                 ) {
@@ -3152,6 +3154,7 @@ fn result_input_from_dispatch<'a, 'd>(
     completeness: &'a completeness::View,
     global_conformance: &GlobalConformanceInput,
     selected: CanonicalRowFacts<'a>,
+    result_ordinal: u64,
 ) -> Result<(result::Input<'a>, result::Limits), RowAssemblyRefusal<'d>> {
     let strength = std::str::from_utf8(&disposition.strength)
         .ok()
@@ -3222,6 +3225,7 @@ fn result_input_from_dispatch<'a, 'd>(
             global_conformance: global_conformance.clone(),
             limitations: selected.limitations,
             provenance,
+            result_ordinal,
             correction: None,
         },
         limits,
@@ -3275,6 +3279,7 @@ fn provenance_from_dispatch<'d>(
             RowAssemblyRefusal::NonTextBackendIdentity,
         )?,
         producer_identity: context.definition().producer().bundle_identity.clone(),
+        producer_version: env!("CARGO_PKG_VERSION").to_owned(),
         reproduction: selected.reproduction.clone(),
     })
 }

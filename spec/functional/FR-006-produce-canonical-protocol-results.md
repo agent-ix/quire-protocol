@@ -65,8 +65,8 @@ validated prior result. Production callers SHALL NOT assemble a wire-shaped
 ## Outputs
 
 One ordered `ClaimOutcome` per admitted requested claim: either one canonical
-protocol result plus its non-self-referential RFC 8785 `sha256-jcs` artifact
-reference, or one typed construction/strict-reader refusal for that claim.
+protocol result carrying the structural FR-286 `resultKey`, or one typed
+construction/strict-reader refusal for that claim.
 Independent sibling outcomes remain present.
 
 ## Behavior
@@ -77,7 +77,7 @@ once and independently verifiably, by exactly one of its parts.
 
 | Part | Obligation it owns |
 | --- | --- |
-| [FR-031](./FR-031-canonical-result-identity-and-digest.md) | Contract version, kind, result identity, RFC 8785 canonical bytes, the selected result-identity digest domain, and provenance identity matching. |
+| [FR-031](./FR-031-canonical-result-identity-and-digest.md) | Contract version, kind, structural result key, RFC 8785 canonical bytes, and provenance identity matching. |
 | [FR-032](./FR-032-retain-orthogonal-result-axes.md) | Separate retention of every result axis, the FR-061 result-combination table, adequacy-domain disjointness, open-subject settlement, and the complete-global-conformance closure record with its premise set. |
 | [FR-033](./FR-033-preserve-result-lineage-integrity.md) | Decision-support dependence relations and their lineage refusals, and the superseding or invalidating result that preserves the earlier bytes and identity. |
 
@@ -86,12 +86,10 @@ failures: a result may be byte-canonical and still carry a forbidden axis
 combination, and it may satisfy the combination table and still carry a cyclic
 support lineage. No part's success substitutes for another's.
 
-RFC 8785 canonicalization enters this requirement only through
-[FR-031](./FR-031-canonical-result-identity-and-digest.md), and only for the
-protocol-result digest preimage under the `quire.verification.jcs` member that
-[FR-015](./FR-015-digest-domain-selection.md) selects from
-`FR-201-canonical-identity-domain`. This repository selects from that published
-vocabulary and mints no digest domain label.
+The structural result identity enters this requirement through
+[FR-031](./FR-031-canonical-result-identity-and-digest.md), which consumes the
+FR-286 `resultKey` without deriving a digest. RFC 8785 canonicalization governs
+the emitted bytes as stated by FR-240.
 
 Activation, assumptions, adequacy, participation, claim kind/strength,
 settlement and decision support SHALL be the same domain values consumed or
@@ -165,6 +163,4 @@ local aliases or compatibility fallbacks survive these rulings.
   parts.
 - [FR-004](./FR-004-assess-finite-global-conformance.md).
 - [FR-005](./FR-005-dispatch-independent-protocol-claims.md).
-- [FR-015](./FR-015-digest-domain-selection.md) supplies the digest domain
-  selection.
 - `ix://agent-ix/quire-specification/FR-061`.

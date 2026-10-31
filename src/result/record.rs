@@ -5,7 +5,8 @@ use engineering_assurance::claim_strength::ClaimStrength;
 use quire_observation::authority::{closure as observation_closure, completeness, progress};
 use quire_spec_language::protocol_artifact::{checked_predicate, temporal_subject};
 use serde::Serialize;
-use serde_json::{json, Value};
+use serde_json::Value;
+use std::sync::LazyLock;
 
 use crate::assessment::{AxisInputs, GlobalConformanceInput, GlobalPremise};
 use crate::bounds::inventory::{
@@ -13,7 +14,7 @@ use crate::bounds::inventory::{
 };
 use crate::bounds::{SiteId, SiteKind, UnitLabel};
 use crate::closure::{AssessmentExecution, GlobalConformanceClosure, ScopeState};
-use crate::digest::jcs::{canonical_len, canonicalize, encoded_string_content_len, ResultDigest};
+use crate::digest::jcs::{canonical_len, canonicalize, encoded_string_content_len};
 use crate::repro::ReproductionRecord;
 use crate::ByteDigest;
 
@@ -79,9 +80,9 @@ pub const CONTRACT: &str = "quire.protocol.result/v1-draft.1";
 /// Immutable schema bytes for [`CONTRACT`].
 pub const SCHEMA_BYTES: &[u8] =
     include_bytes!("../../schemas/protocol-result-v1-draft-1.schema.json");
-/// Lowercase SHA-256 digest of [`SCHEMA_BYTES`].
-pub const SCHEMA_SHA256: &str = "8825d5b05edf7aef9e53dd117b4f344b824e1c6fb2757071f6dd14a268079dd2";
-const IDENTITY_VERSION: &str = "quire.protocol.result-identity/v1-draft.1";
+/// Runtime-derived lowercase SHA-256 digest of [`SCHEMA_BYTES`].
+pub static SCHEMA_SHA256: LazyLock<String> =
+    LazyLock::new(|| format!("{:x}", ByteDigest::of(SCHEMA_BYTES)));
 
 /// Immutable owner maxima. Caller limits may lower, never raise, these values.
 pub const OWNER_MAX: Limits = Limits {
@@ -482,8 +483,32 @@ pub struct ProvenanceRecord {
     pub backend_identity: String,
     /// The exact identity of the producer that emitted this result.
     pub producer_identity: String,
+    /// Version of the protocol producer that emits the result key.
+    pub producer_version: String,
     /// Exact local-run inputs needed to reproduce this result.
     pub reproduction: ReproductionRecord,
+}
+
+/// Structural FR-286 result identity. It is never computed from result bytes.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResultKey {
+    /// Identity and version of the protocol producer.
+    pub producer: ResultProducerKey,
+    /// Exact request identity answered by the result.
+    pub request: String,
+    /// Producer-assigned decimal U64String position for this request.
+    pub ordinal: String,
+}
+
+/// Producer component of a structural result key.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResultProducerKey {
+    /// Exact producer identity.
+    pub identity: String,
+    /// Exact producer version.
+    pub version: String,
 }
 
 /// Explicit correction relation to the direct predecessor.
@@ -553,6 +578,8 @@ pub struct Input<'a> {
     pub limitations: Vec<Limitation>,
     /// The complete provenance identity set for this result.
     pub provenance: ProvenanceRecord,
+    /// Producer-assigned position in this request's result stream (FR-286 U64String).
+    pub result_ordinal: u64,
     /// The direct correction this result makes to a predecessor, when it corrects one.
     pub correction: Option<CorrectionInput<'a>>,
 }
@@ -561,8 +588,7 @@ pub struct Input<'a> {
 #[derive(Clone, Debug)]
 pub struct Document {
     bytes: Vec<u8>,
-    result_id: String,
-    digest: String,
+    result_key: ResultKey,
     pub(crate) usage: Usage,
     pub(crate) snapshot: Snapshot,
 }
@@ -573,15 +599,10 @@ impl Document {
     pub fn bytes(&self) -> &[u8] {
         &self.bytes
     }
-    /// FR-286 result identity derived with `resultId` omitted.
+    /// Structural FR-286 result key.
     #[must_use]
-    pub fn result_id(&self) -> &str {
-        &self.result_id
-    }
-    /// Enclosing digest of the complete canonical result.
-    #[must_use]
-    pub fn digest(&self) -> &str {
-        &self.digest
+    pub fn result_key(&self) -> &ResultKey {
+        &self.result_key
     }
     /// Work retained while producing the document.
     #[must_use]
@@ -602,15 +623,10 @@ impl ValidatedResult {
     pub fn bytes(&self) -> &[u8] {
         self.document.bytes()
     }
-    /// Re-derived FR-286 result identity.
+    /// Structural FR-286 result key.
     #[must_use]
-    pub fn result_id(&self) -> &str {
-        self.document.result_id()
-    }
-    /// Re-derived enclosing result digest.
-    #[must_use]
-    pub fn digest(&self) -> &str {
-        self.document.digest()
+    pub fn result_key(&self) -> &ResultKey {
+        self.document.result_key()
     }
     /// Work observed while reading the result.
     #[must_use]
@@ -855,8 +871,7 @@ impl CompletenessView {
 #[derive(Clone, Debug)]
 pub struct CorrectionView {
     pub(crate) relation: CorrectionRelation,
-    pub(crate) predecessor_result_id: String,
-    pub(crate) predecessor_digest: String,
+    pub(crate) predecessor_result_key: ResultKey,
     pub(crate) contradicted_premise_identity: String,
     pub(crate) corrected_input_identity: String,
 }
@@ -867,15 +882,10 @@ impl CorrectionView {
     pub const fn relation(&self) -> CorrectionRelation {
         self.relation
     }
-    /// Direct predecessor result identity.
+    /// Direct predecessor FR-286 result key.
     #[must_use]
-    pub fn predecessor_result_id(&self) -> &str {
-        &self.predecessor_result_id
-    }
-    /// Direct predecessor digest.
-    #[must_use]
-    pub fn predecessor_digest(&self) -> &str {
-        &self.predecessor_digest
+    pub fn predecessor_result_key(&self) -> &ResultKey {
+        &self.predecessor_result_key
     }
     /// Premise contradicted by the correction.
     #[must_use]
@@ -891,6 +901,7 @@ impl CorrectionView {
 
 #[derive(Clone, Debug)]
 pub(crate) struct Snapshot {
+    pub result_key: ResultKey,
     pub native_subject_identity: String,
     pub native_correspondence_identity: String,
     pub execution: AssessmentExecution,
@@ -915,25 +926,14 @@ pub(crate) struct Snapshot {
 struct Prepared {
     snapshot: Snapshot,
     value: Value,
-    result_id: String,
     semantic_usage: Usage,
 }
-
-struct PreparedWithoutIdentity {
-    snapshot: Snapshot,
-    value: Value,
-    semantic_usage: Usage,
-}
-
-// Adding `resultId` to the nonempty root object contributes one comma, the
-// canonical `"resultId":` key, and one quoted 75-byte sha256-jcs identity.
-const RESULT_ID_MEMBER_BYTES: usize = 89;
 
 /// Produce one canonical FR-286 result or one typed refusal with no partial output.
 pub(crate) fn produce(input: Input<'_>, limits: Limits) -> Result<Document> {
     let effective = limits.effective();
     let prepared = prepare_without_identity(input, effective)?;
-    finish(seal_identity(prepared)?, effective)
+    finish(prepared, effective)
 }
 
 /// Produce one canonical result under the shared QProtocol caller budget.
@@ -1017,58 +1017,23 @@ fn produce_bounded_unit(
     {
         return OperationOutcome::from_charge(error);
     }
-    let prepared = match seal_identity(prepared) {
-        Ok(prepared) => prepared,
-        Err(error) => return OperationOutcome::DomainError(error),
-    };
     OperationOutcome::from_domain(finish(prepared, effective))
 }
 
-fn prepare_without_identity(
-    input: Input<'_>,
-    effective: Limits,
-) -> Result<PreparedWithoutIdentity> {
+fn prepare_without_identity(input: Input<'_>, effective: Limits) -> Result<Prepared> {
     validate_input(&input, effective)?;
     let semantic_usage = semantic_usage(&input);
     let snapshot = snapshot(&input);
-    let value = result_value(&snapshot, None)?;
-    Ok(PreparedWithoutIdentity {
+    let value = result_value(&snapshot)?;
+    Ok(Prepared {
         snapshot,
         value,
         semantic_usage,
     })
 }
 
-fn canonical_output_len(
-    value_without_identity: &Value,
-) -> std::result::Result<usize, crate::digest::jcs::JcsError> {
-    canonical_len(value_without_identity)?
-        .checked_add(RESULT_ID_MEMBER_BYTES)
-        .ok_or(crate::digest::jcs::JcsError::LengthOverflow)
-}
-
-fn seal_identity(prepared: PreparedWithoutIdentity) -> Result<Prepared> {
-    let preimage = json!({
-        "identityVersion": IDENTITY_VERSION,
-        "result": &prepared.value,
-    });
-    let result_id = ResultDigest::of_result(&preimage)
-        .map_err(|_| {
-            refusal(
-                ErrorCode::InvalidSelection,
-                "result identity preimage is outside the supported JCS domain",
-                Usage::default(),
-                None,
-            )
-        })?
-        .text();
-    let value = result_value(&prepared.snapshot, Some(&result_id))?;
-    Ok(Prepared {
-        snapshot: prepared.snapshot,
-        value,
-        result_id,
-        semantic_usage: prepared.semantic_usage,
-    })
+fn canonical_output_len(value: &Value) -> std::result::Result<usize, crate::digest::jcs::JcsError> {
+    canonical_len(value)
 }
 
 fn finish(prepared: Prepared, effective: Limits) -> Result<Document> {
@@ -1077,7 +1042,7 @@ fn finish(prepared: Prepared, effective: Limits) -> Result<Document> {
             ErrorCode::InvalidSelection,
             "result contains an unsupported JCS number",
             Usage::default(),
-            Some(&prepared.result_id),
+            Some(&prepared.snapshot.result_key.request),
         )
     })?;
     finish_canonical(prepared, canonical, effective)
@@ -1086,26 +1051,14 @@ fn finish(prepared: Prepared, effective: Limits) -> Result<Document> {
 fn finish_canonical(prepared: Prepared, canonical: String, effective: Limits) -> Result<Document> {
     let Prepared {
         snapshot,
-        value,
-        result_id,
         semantic_usage,
+        ..
     } = prepared;
     let bytes = canonical.into_bytes();
     let usage = super::reader::preflight_output(&bytes, effective, semantic_usage)?;
-    let digest = ResultDigest::of_result(&value)
-        .map_err(|_| {
-            refusal(
-                ErrorCode::InvalidSelection,
-                "result is outside the supported JCS domain",
-                usage,
-                Some(&result_id),
-            )
-        })?
-        .text();
     Ok(Document {
         bytes,
-        result_id,
-        digest,
+        result_key: snapshot.result_key.clone(),
         usage,
         snapshot,
     })
@@ -1151,11 +1104,14 @@ fn base_output_fields(input: &Input<'_>) -> Option<usize> {
         add(total, count.checked_mul(width)?)
     }
 
-    // The final result always contains 24 root members, four ten-member axis
+    // The final result always contains 24 root members. Its structural
+    // `resultKey` adds three key members and two nested producer members.
+    // There are four ten-member axis
     // records, the four-member claim, the eight-member completeness record,
     // the two-member global record, the thirteen provenance/reproduction
     // members and the three-member settlement record.
     let mut fields = 24usize;
+    add(&mut fields, 5)?;
     add_records(&mut fields, input.assumptions.len(), 3)?;
     add(&mut fields, 4 + 8)?;
     add(&mut fields, input.completeness.payload().fact_count())?;
@@ -1238,13 +1194,24 @@ fn charge_output_preflight(
         }
     }
 
-    // The fixed result identity is always a 75-byte string. Reserving it first
-    // means an exhausted output budget refuses before any caller string is
-    // traversed. Each variable string then reserves its O(1) raw byte length
-    // before scanning escapes, and reserves any escape expansion before the
-    // retained snapshot is built.
+    // Reserve the largest FR-286 key member before traversing caller strings.
+    // Each variable string then reserves its O(1) raw byte length before
+    // scanning escapes, and reserves any escape expansion before the retained
+    // snapshot is built.
     let mut string_bytes = 0usize;
-    charge_string_size(resources, effective.max_string_bytes, &mut string_bytes, 75)?;
+    let result_key_string = input
+        .provenance
+        .producer_identity
+        .len()
+        .max(input.provenance.producer_version.len())
+        .max(input.provenance.request_identity.len())
+        .max(decimal_len(input.result_ordinal));
+    charge_string_size(
+        resources,
+        effective.max_string_bytes,
+        &mut string_bytes,
+        result_key_string,
+    )?;
     let reproduction_string = largest_reproduction_string(input)
         .unwrap_or_else(|| effective.max_string_bytes.saturating_add(1));
     charge_string_size(
@@ -1354,6 +1321,7 @@ fn charge_output_preflight(
         input.provenance.input_identity.as_str(),
         input.provenance.backend_identity.as_str(),
         input.provenance.producer_identity.as_str(),
+        input.provenance.producer_version.as_str(),
     ] {
         observe(value)?;
     }
@@ -1366,8 +1334,7 @@ fn charge_output_preflight(
         observe(value)?;
     }
     if let Some(correction) = input.correction {
-        observe(correction.predecessor.result_id())?;
-        observe(correction.predecessor.digest())?;
+        observe(&correction.predecessor.result_key().request)?;
         observe(correction.contradicted_premise_identity)?;
         observe(correction.corrected_input_identity)?;
     }
@@ -1467,6 +1434,7 @@ fn validate_nonempty(input: &Input<'_>, limits: Limits) -> Result<()> {
         p.input_identity.as_str(),
         p.backend_identity.as_str(),
         p.producer_identity.as_str(),
+        p.producer_version.as_str(),
         input.checked_predicate.document().identity(),
         input.temporal_subject.document().identity(),
     ];
@@ -1750,6 +1718,14 @@ fn snapshot(input: &Input<'_>) -> Snapshot {
         })
         .collect();
     Snapshot {
+        result_key: ResultKey {
+            producer: ResultProducerKey {
+                identity: input.provenance.producer_identity.clone(),
+                version: input.provenance.producer_version.clone(),
+            },
+            request: input.provenance.request_identity.clone(),
+            ordinal: input.result_ordinal.to_string(),
+        },
         native_subject_identity: input.temporal_subject.document().identity().to_owned(),
         native_correspondence_identity: input.checked_predicate.document().identity().to_owned(),
         execution: input.execution,
@@ -1781,8 +1757,7 @@ fn snapshot(input: &Input<'_>) -> Snapshot {
         provenance: input.provenance.clone(),
         correction: input.correction.map(|value| CorrectionView {
             relation: value.relation,
-            predecessor_result_id: value.predecessor.result_id().to_owned(),
-            predecessor_digest: value.predecessor.digest().to_owned(),
+            predecessor_result_key: value.predecessor.result_key().clone(),
             contradicted_premise_identity: value.contradicted_premise_identity.to_owned(),
             corrected_input_identity: value.corrected_input_identity.to_owned(),
         }),
@@ -1848,8 +1823,7 @@ struct ResultWire<'a> {
     participation: ParticipationWire<'a>,
     protocol_adequacy: &'static str,
     provenance: ProvenanceWire<'a>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    result_id: Option<&'a str>,
+    result_key: &'a ResultKey,
     settlement: SettlementWire<'a>,
     surrounding_execution_closure: AxisWire<'a>,
     surrounding_execution_progress: AxisWire<'a>,
@@ -1904,8 +1878,7 @@ struct CompletenessWire<'a> {
 struct CorrectionWire<'a> {
     contradicted_premise_identity: &'a str,
     corrected_input_identity: &'a str,
-    predecessor_digest: &'a str,
-    predecessor_result_id: &'a str,
+    predecessor_result_key: &'a ResultKey,
     relation: &'static str,
 }
 
@@ -1999,7 +1972,7 @@ struct SettlementWire<'a> {
     supporting_progress_identities: &'a [String],
 }
 
-fn result_value(snapshot: &Snapshot, result_id: Option<&str>) -> Result<Value> {
+fn result_value(snapshot: &Snapshot) -> Result<Value> {
     let axes = &snapshot.axes;
     let wire = ResultWire {
         activation: snapshot.activation.label(),
@@ -2024,7 +1997,7 @@ fn result_value(snapshot: &Snapshot, result_id: Option<&str>) -> Result<Value> {
         participation: participation_wire(&snapshot.participation),
         protocol_adequacy: snapshot.protocol_adequacy.label(),
         provenance: provenance_wire(&snapshot.provenance)?,
-        result_id,
+        result_key: &snapshot.result_key,
         settlement: settlement_wire(&snapshot.settlement),
         surrounding_execution_closure: axis_wire(&axes[3]),
         surrounding_execution_progress: axis_wire(&axes[2]),
@@ -2035,7 +2008,7 @@ fn result_value(snapshot: &Snapshot, result_id: Option<&str>) -> Result<Value> {
             ErrorCode::InvalidSelection,
             "typed result record cannot be represented as JSON",
             Usage::default(),
-            result_id,
+            Some(&snapshot.result_key.request),
         )
     })
 }
@@ -2088,8 +2061,7 @@ fn correction_wire(correction: &CorrectionView) -> CorrectionWire<'_> {
     CorrectionWire {
         contradicted_premise_identity: &correction.contradicted_premise_identity,
         corrected_input_identity: &correction.corrected_input_identity,
-        predecessor_digest: &correction.predecessor_digest,
-        predecessor_result_id: &correction.predecessor_result_id,
+        predecessor_result_key: &correction.predecessor_result_key,
         relation: correction.relation.label(),
     }
 }

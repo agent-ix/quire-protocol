@@ -56,10 +56,10 @@ use quire_spec_language::protocol_artifact::{
     native_temporal::{self, request as temporal_request, v2 as temporal_v2},
     occurrence_key_schema, temporal_subject, v3, WorkflowInstanceIdentity,
 };
+use quire_verification_contracts as contracts;
 use quire_verification_contracts::wire::{
     ObservationReference, OracleReference, SharedArtifactEnvelope,
 };
-use quire_verification_contracts::{self as contracts, jcs_sha256};
 use serde_json::{json, Value};
 use std::time::Duration;
 
@@ -734,6 +734,7 @@ fn base_input<'a>(fixture: &'a Fixture) -> Input<'a> {
             input_identity: "input:one".into(),
             backend_identity: "backend:model-checker".into(),
             producer_identity: "producer:one".into(),
+            producer_version: "test-version".into(),
             reproduction: reproduction(
                 0x5eed_0000_0000_0001,
                 b"rustc-1.98.0-x86_64-unknown-linux-gnu",
@@ -741,6 +742,7 @@ fn base_input<'a>(fixture: &'a Fixture) -> Input<'a> {
                 "local reproduction inputs",
             ),
         },
+        result_ordinal: 0,
         correction: None,
     }
 }
@@ -1818,10 +1820,7 @@ fn validated<'a>(input: Input<'a>) -> result::ValidatedResult {
     let document = result::produce(input.clone(), Limits::owner_max()).expect("canonical result");
     result::read(
         document.bytes(),
-        result::Expected {
-            input,
-            enclosing_digest: document.digest(),
-        },
+        result::Expected { input },
         Limits::owner_max(),
     )
     .expect("strict result")
@@ -1830,11 +1829,12 @@ fn validated<'a>(input: Input<'a>) -> result::ValidatedResult {
 fn assert_result_mutation(label: &str, baseline: &result::Document, input: Input<'_>) {
     match result::produce(input, Limits::owner_max()) {
         Ok(mutant) => {
-            assert_ne!(
-                mutant.result_id(),
-                baseline.result_id(),
-                "{label} did not affect the result identity"
-            );
+            let key_changes = matches!(label, "request" | "producer" | "producer version");
+            if key_changes {
+                assert_ne!(mutant.result_key(), baseline.result_key());
+            } else {
+                assert_eq!(mutant.result_key(), baseline.result_key());
+            }
             assert_ne!(
                 mutant.bytes(),
                 baseline.bytes(),
@@ -1882,8 +1882,7 @@ fn tc_008_result_bytes_ignore_allocation_layout_and_localized_rendering() {
     );
     let second = result::produce(second_input, Limits::owner_max()).expect("second result");
 
-    assert_eq!(first.result_id(), second.result_id());
-    assert_eq!(first.digest(), second.digest());
+    assert_eq!(first.result_key(), second.result_key());
     assert_eq!(first.bytes(), second.bytes());
 
     let json: Value = serde_json::from_slice(first.bytes()).expect("owner JSON");
@@ -1900,6 +1899,41 @@ fn tc_008_result_bytes_ignore_allocation_layout_and_localized_rendering() {
 }
 
 #[test]
+#[trace("TC-006", "FR-286-AC-2", "FR-286-AC-4")]
+fn tc_006_result_key_uses_the_owner_assigned_ordinal_without_hashing() {
+    let fixture = fixture();
+    let mut first_input = base_input(&fixture);
+    first_input.result_ordinal = 7;
+    let first = result::produce(first_input.clone(), Limits::owner_max()).expect("first key");
+    let first_value: Value = serde_json::from_slice(first.bytes()).expect("first result JSON");
+    assert_eq!(
+        first_value["resultKey"],
+        json!({
+            "producer": {
+                "identity": first_input.provenance.producer_identity,
+                "version": first_input.provenance.producer_version,
+            },
+            "request": first_input.provenance.request_identity,
+            "ordinal": "7",
+        })
+    );
+
+    let mut second_input = first_input.clone();
+    second_input.result_ordinal = 8;
+    let second = result::produce(second_input.clone(), Limits::owner_max()).expect("second key");
+    assert_ne!(first.result_key(), second.result_key());
+    let read = result::read(
+        second.bytes(),
+        result::Expected {
+            input: second_input,
+        },
+        Limits::owner_max(),
+    )
+    .expect("reader compares the owner-assigned key exactly");
+    assert_eq!(read.result_key(), second.result_key());
+}
+
+#[test]
 #[trace("TC-008", "NFR-001-AC-1")]
 fn tc_008_process_locale_does_not_change_canonical_result() {
     const CHILD: &str = "QUIRE_TC008_LOCALE_CHILD";
@@ -1908,7 +1942,10 @@ fn tc_008_process_locale_does_not_change_canonical_result() {
         let owner = fixture();
         let document =
             result::produce(base_input(&owner), Limits::owner_max()).expect("locale result");
-        println!("{MARKER}{}:{}", document.result_id(), document.digest());
+        println!(
+            "{MARKER}{}",
+            serde_json::to_string(document.result_key()).expect("key JSON")
+        );
         return;
     }
 
@@ -1982,6 +2019,9 @@ fn tc_008_every_named_semantic_identity_is_discriminated() {
     mutate!("producer", |input| {
         input.provenance.producer_identity = "producer:two".into();
     });
+    mutate!("producer version", |input| {
+        input.provenance.producer_version = "producer-version:two".into();
+    });
     mutate!("backend", |input| {
         input.provenance.backend_identity = "backend:two".into();
         input.claim.backend_identity = Some("backend:two".into());
@@ -2051,8 +2091,6 @@ fn tc_009_reproduction_provenance_obeys_result_string_bounds() {
     "TC-015",
     "FR-006-AC-1",
     "FR-031-AC-1",
-    "FR-031-AC-2",
-    "FR-031-AC-3",
     "FR-042-AC-1",
     "FR-042-AC-4",
     "FR-042-AC-5"
@@ -2127,10 +2165,7 @@ fn tc_015_every_result_combination_maps_without_boolean_coercion() {
                                         assert!(expected, "unexpectedly admitted {input:?}");
                                         let source = result::read(
                                             document.bytes(),
-                                            result::Expected {
-                                                input,
-                                                enclosing_digest: document.digest(),
-                                            },
+                                            result::Expected { input },
                                             Limits::owner_max(),
                                         )
                                         .expect("every admitted row strict-reads");
@@ -2459,7 +2494,6 @@ fn tc_015_strict_mutations_lineage_and_limits_fail_closed() {
         unknown.as_bytes(),
         result::Expected {
             input: input.clone(),
-            enclosing_digest: document.digest(),
         },
         Limits::owner_max(),
     )
@@ -2480,7 +2514,6 @@ fn tc_015_strict_mutations_lineage_and_limits_fail_closed() {
             missing_reproduction.as_bytes(),
             result::Expected {
                 input: input.clone(),
-                enclosing_digest: document.digest(),
             },
             Limits::owner_max(),
         )
@@ -2495,23 +2528,17 @@ fn tc_015_strict_mutations_lineage_and_limits_fail_closed() {
         Value::String("00".into());
     let changed_reproduction = quire_protocol::digest::jcs::canonicalize(&changed_reproduction)
         .expect("canonical reproduction mutation");
-    let changed_digest = quire_protocol::digest::jcs::ResultDigest::of_result(
-        &serde_json::from_str(&changed_reproduction).expect("mutated result value"),
-    )
-    .expect("mutated enclosing digest")
-    .text();
     assert_eq!(
         result::read(
             changed_reproduction.as_bytes(),
             result::Expected {
                 input: input.clone(),
-                enclosing_digest: &changed_digest,
             },
             Limits::owner_max(),
         )
         .expect_err("changed reproduction identity")
         .code(),
-        ErrorCode::IdentityMismatch
+        ErrorCode::InvalidSelection
     );
 
     let mut trailing = document.bytes().to_vec();
@@ -2521,7 +2548,6 @@ fn tc_015_strict_mutations_lineage_and_limits_fail_closed() {
             &trailing,
             result::Expected {
                 input: input.clone(),
-                enclosing_digest: document.digest()
             },
             Limits::owner_max()
         )
@@ -2529,21 +2555,6 @@ fn tc_015_strict_mutations_lineage_and_limits_fail_closed() {
         .code(),
         ErrorCode::NonCanonical
     );
-    assert_eq!(
-        result::read(
-            document.bytes(),
-            result::Expected {
-                input: input.clone(),
-                enclosing_digest:
-                    "sha256-jcs:0000000000000000000000000000000000000000000000000000000000000000"
-            },
-            Limits::owner_max()
-        )
-        .expect_err("digest mismatch")
-        .code(),
-        ErrorCode::DigestMismatch
-    );
-
     let mut missing_global = input.clone();
     missing_global.global_conformance.premises.pop();
     assert_eq!(
@@ -2713,8 +2724,8 @@ fn tc_009_result_output_budget_precedes_canonical_allocation() {
         owner_clamped_resources
             .usage()
             .consumed(BudgetDimension::OutputByte),
-        control.result_id().len(),
-        "only the fixed result-identity string is admitted before oversized caller text refuses"
+        control.usage().string_bytes,
+        "only the largest retained output string is admitted before oversized caller text refuses"
     );
 
     let structural = control.usage();
@@ -2966,7 +2977,6 @@ fn tc_009_result_output_budget_precedes_canonical_allocation() {
             control.bytes(),
             result::Expected {
                 input: input.clone(),
-                enclosing_digest: control.digest(),
             },
             Limits::owner_max(),
             &mut short_resources,
@@ -2993,7 +3003,6 @@ fn tc_009_result_output_budget_precedes_canonical_allocation() {
             control.bytes(),
             result::Expected {
                 input: input.clone(),
-                enclosing_digest: control.digest(),
             },
             Limits::owner_max(),
             &mut retained_short_resources,
@@ -3013,7 +3022,6 @@ fn tc_009_result_output_budget_precedes_canonical_allocation() {
             control.bytes(),
             result::Expected {
                 input: input.clone(),
-                enclosing_digest: control.digest(),
             },
             Limits::owner_max(),
             &mut exact_resources,
@@ -3030,7 +3038,6 @@ fn tc_009_result_output_budget_precedes_canonical_allocation() {
             control.bytes(),
             result::Expected {
                 input: input.clone(),
-                enclosing_digest: control.digest(),
             },
             Limits::owner_max(),
             &mut read_resources,
@@ -3042,7 +3049,6 @@ fn tc_009_result_output_budget_precedes_canonical_allocation() {
             control.bytes(),
             result::Expected {
                 input: input.clone(),
-                enclosing_digest: control.digest(),
             },
             Limits::owner_max(),
             &mut read_resources,
@@ -3069,7 +3075,6 @@ fn tc_009_result_output_budget_precedes_canonical_allocation() {
         control.bytes(),
         result::Expected {
             input: input.clone(),
-            enclosing_digest: control.digest(),
         },
         Limits::owner_max(),
         &mut short_resources,
@@ -3095,7 +3100,6 @@ fn tc_009_result_output_budget_precedes_canonical_allocation() {
             control.bytes(),
             result::Expected {
                 input: input.clone(),
-                enclosing_digest: control.digest(),
             },
             Limits::owner_max(),
             &mut exact_resources,
@@ -3117,7 +3121,6 @@ fn tc_009_result_output_budget_precedes_canonical_allocation() {
             control.bytes(),
             result::Expected {
                 input: input.clone(),
-                enclosing_digest: control.digest(),
             },
             owner_input_short,
             &mut owner_resources,
@@ -3138,7 +3141,6 @@ fn tc_009_result_output_budget_precedes_canonical_allocation() {
             control.bytes(),
             result::Expected {
                 input: input.clone(),
-                enclosing_digest: control.digest(),
             },
             owner_depth_short,
             &mut owner_resources,
@@ -3159,7 +3161,6 @@ fn tc_009_result_output_budget_precedes_canonical_allocation() {
             control.bytes(),
             result::Expected {
                 input: input.clone(),
-                enclosing_digest: control.digest(),
             },
             owner_string_short,
             &mut owner_resources,
@@ -3180,7 +3181,6 @@ fn tc_009_result_output_budget_precedes_canonical_allocation() {
             control.bytes(),
             result::Expected {
                 input: input.clone(),
-                enclosing_digest: control.digest(),
             },
             owner_field_short,
             &mut owner_resources,
@@ -3490,8 +3490,9 @@ fn tc_015_correction_is_direct_and_preserves_predecessor_bytes() {
     let fixture = fixture();
     let predecessor = validated(base_input(&fixture));
     let prior_bytes = predecessor.bytes().to_vec();
-    let prior_id = predecessor.result_id().to_owned();
+    let prior_key = predecessor.result_key().clone();
     let mut corrected = base_input(&fixture);
+    corrected.result_ordinal = 1;
     corrected.execution = AssessmentExecution::Unsupported;
     corrected.truth = Truth::Unavailable;
     corrected.settlement.basis = SettlementBasis::Unavailable;
@@ -3503,15 +3504,14 @@ fn tc_015_correction_is_direct_and_preserves_predecessor_bytes() {
         corrected_input_identity: "input:corrected",
     });
     let correction = validated(corrected);
-    assert_ne!(correction.result_id(), prior_id);
-    assert_eq!(predecessor.result_id(), prior_id);
+    assert_ne!(correction.result_key(), &prior_key);
+    assert_eq!(predecessor.result_key(), &prior_key);
     assert_eq!(predecessor.bytes(), prior_bytes);
     let edge = correction
         .correction()
         .expect("typed direct correction edge");
     assert_eq!(edge.relation(), CorrectionRelation::Invalidates);
-    assert_eq!(edge.predecessor_result_id(), prior_id);
-    assert_eq!(edge.predecessor_digest(), predecessor.digest());
+    assert_eq!(edge.predecessor_result_key(), &prior_key);
     assert_eq!(edge.contradicted_premise_identity(), "premise:branch");
     assert_eq!(edge.corrected_input_identity(), "input:corrected");
 
@@ -3522,8 +3522,7 @@ fn tc_015_correction_is_direct_and_preserves_predecessor_bytes() {
     )
     .expect("corrected mapping");
     let mapped_edge = mapped.correction().expect("mapped direct correction edge");
-    assert_eq!(mapped_edge.predecessor_result_id(), prior_id);
-    assert_eq!(mapped_edge.predecessor_digest(), predecessor.digest());
+    assert_eq!(mapped_edge.predecessor_result_key(), &prior_key);
 }
 
 #[test]
@@ -3531,11 +3530,11 @@ fn tc_015_correction_is_direct_and_preserves_predecessor_bytes() {
 fn tc_015_schema_bytes_and_digests_are_immutable_and_closed() {
     assert_eq!(
         format!("{:x}", ByteDigest::of(result::SCHEMA_BYTES)),
-        result::SCHEMA_SHA256
+        result::SCHEMA_SHA256.as_str()
     );
     assert_eq!(
         format!("{:x}", ByteDigest::of(contract_ir::SCHEMA_BYTES)),
-        contract_ir::SCHEMA_SHA256
+        contract_ir::SCHEMA_SHA256.as_str()
     );
     for schema in [result::SCHEMA_BYTES, contract_ir::SCHEMA_BYTES] {
         let value: Value = serde_json::from_slice(schema).expect("schema JSON");
@@ -3624,7 +3623,6 @@ fn e02_artifact(kind: &str, identity: &str) -> SharedArtifactEnvelope {
             "kind": kind,
             "authority": "agent-ix/quire-protocol",
             "identity": identity,
-            "revision": {"namespace": "quire-protocol", "value": "r1"},
             "digest": format!("sha256:{:064x}", ByteDigest::of(identity.as_bytes())),
             "wire": {"identity": "quire.protocol/e02-test-reference/1", "version": "1"}
         }
@@ -3706,16 +3704,12 @@ fn project_e02_without_budget(
     }
 }
 
-fn e02_context(document: &result::Document, input: &Input<'_>) -> ProjectionContext {
+fn e02_context(input: &Input<'_>) -> ProjectionContext {
     ProjectionContext {
         source_contract_version: result::CONTRACT.into(),
         target_contract_version: contracts::contract_version().into(),
         required_features: Vec::new(),
-        source_uri: format!(
-            "ix://agent-ix/quire-protocol/result/{}",
-            document.result_id()
-        ),
-        source_digest: document.digest().into(),
+        source_uri: "ix://agent-ix/quire-protocol/result/tc-007-ordinal-0".into(),
         expected_result_id: None,
         plan_id: "Plan-001-finite-protocol-rust-slice".into(),
         task_id: "Task-007-project-e02".into(),
@@ -3761,14 +3755,11 @@ fn project_input<'a>(
     mutate: impl FnOnce(&mut ProjectionContext),
 ) -> quire_protocol::OperationOutcome<ProjectedTechniqueResult> {
     let document = result::produce(input.clone(), Limits::owner_max()).expect("canonical source");
-    let mut context = e02_context(&document, &input);
+    let mut context = e02_context(&input);
     mutate(&mut context);
     project_e02_without_budget(
         document.bytes(),
-        result::Expected {
-            input,
-            enclosing_digest: document.digest(),
-        },
+        result::Expected { input },
         Limits::owner_max(),
         request,
         resolution,
@@ -3787,16 +3778,13 @@ fn project_input_bounded<'a>(
     quire_protocol::bounds::inventory::Usage,
 ) {
     let document = result::produce(input.clone(), Limits::owner_max()).expect("canonical source");
-    let mut context = e02_context(&document, &input);
+    let mut context = e02_context(&input);
     mutate(&mut context);
     let inventory = production_inventory().expect("production inventory");
     let mut resources = ResourceAccountant::new(budget, &inventory);
     let outcome = quire_protocol::projection::project_e02(
         document.bytes(),
-        result::Expected {
-            input,
-            enclosing_digest: document.digest(),
-        },
+        result::Expected { input },
         Limits::owner_max(),
         request,
         resolution,
@@ -3831,7 +3819,7 @@ fn projected_id_after_context_mutation(
     request: &ProjectionRequestId,
     resolution: &E02Resolution,
     mutate: fn(&mut ProjectionContext),
-) -> String {
+) -> Value {
     projection_result(project_input(
         base_input(fixture),
         request,
@@ -3851,15 +3839,12 @@ fn tc_007_projection_has_exact_identity_binding_and_retention() {
     let owner = fixture();
     let input = base_input(&owner);
     let document = result::produce(input.clone(), Limits::owner_max()).expect("canonical source");
-    let context = e02_context(&document, &input);
+    let context = e02_context(&input);
     let request = ProjectionRequestId::new(b"tc-007:exact-projection").expect("request id");
     let resolution = e02_resolution(&request);
     let projected = projection_result(project_e02_without_budget(
         document.bytes(),
-        result::Expected {
-            input,
-            enclosing_digest: document.digest(),
-        },
+        result::Expected { input },
         Limits::owner_max(),
         &request,
         &resolution,
@@ -3868,38 +3853,16 @@ fn tc_007_projection_has_exact_identity_binding_and_retention() {
     .expect("projection completes");
 
     assert_eq!(projected.source_bytes(), document.bytes());
-    assert_ne!(projected.result_id(), document.result_id());
-    assert!(projected.result_id().starts_with("sha256-jcs:"));
-    assert!(projected.result_id()["sha256-jcs:".len()..]
-        .bytes()
-        .all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f')));
     let value: Value = serde_json::from_slice(projected.bytes()).expect("projected JSON");
-    let identity_preimage = json!({
-        "identityVersion": quire_protocol::projection::IDENTITY_VERSION,
-        "sourceResultRef": {
-            "identity": document.result_id(),
-            "digest": document.digest(),
-        },
-        "targetContractVersion": context.target_contract_version,
-        "targetBinding": {
-            "propertyRef": context.property_ref,
-            "planId": context.plan_id,
-            "taskId": context.task_id,
-            "runRef": context.run_ref,
-            "profile": context.profile,
-            "bindingRefs": context.binding_refs,
-            "dependencyClosure": context.dependency_closure,
-            "executionScope": context.execution_scope,
-        },
+    let expected_result_id = json!({
+        "sourceResultKey": document.result_key(),
         "adapter": {
             "identity": context.adapter_identity,
             "version": context.adapter_version,
-        },
+        }
     });
-    assert_eq!(
-        projected.result_id(),
-        jcs_sha256(&identity_preimage).expect("qverify-owned RFC 8785 identity")
-    );
+    assert_eq!(projected.result_id(), &expected_result_id);
+    assert_eq!(value["resultId"], expected_result_id);
     assert_eq!(value["contractVersion"], contracts::contract_version());
     assert_eq!(value["planId"], context.plan_id);
     assert_eq!(value["taskId"], context.task_id);
@@ -3935,7 +3898,8 @@ fn tc_007_projection_has_exact_identity_binding_and_retention() {
     );
     assert_eq!(value["nativeArtifacts"].as_array().unwrap().len(), 1);
     assert_eq!(value["nativeArtifacts"][0]["uri"], context.source_uri);
-    assert_eq!(value["nativeArtifacts"][0]["digest"], document.digest());
+    assert!(value["nativeArtifacts"][0].get("digest").is_none());
+    assert!(value["provenance"].get("sourceRevision").is_none());
     assert_eq!(
         value["nativeArtifacts"][0]["mediaType"],
         quire_protocol::projection::SOURCE_MEDIA_TYPE
@@ -4140,7 +4104,7 @@ fn tc_007_identity_mutations_lineage_and_refusals_are_exact() {
         |_| {},
     ))
     .expect("source identity mutation projects");
-    assert_ne!(baseline_id, source_changed.result_id());
+    assert_eq!(baseline_id, source_changed.result_id().clone());
 
     let target_mutations: [fn(&mut ProjectionContext); 10] = [
         |context| context.property_ref = e02_artifact("property", "property:mutated"),
@@ -4158,11 +4122,13 @@ fn tc_007_identity_mutations_lineage_and_refusals_are_exact() {
         |context| context.adapter_identity = "adapter:mutated".into(),
         |context| context.adapter_version = "adapter-version:mutated".into(),
     ];
-    for mutate in target_mutations {
-        assert_ne!(
-            baseline_id,
-            projected_id_after_context_mutation(&owner, &request, &resolution, mutate)
-        );
+    for (index, mutate) in target_mutations.into_iter().enumerate() {
+        let mutated_id = projected_id_after_context_mutation(&owner, &request, &resolution, mutate);
+        if index < 8 {
+            assert_eq!(baseline_id, mutated_id);
+        } else {
+            assert_ne!(baseline_id, mutated_id);
+        }
     }
 
     let changed = projection_result(project_input(
@@ -4174,18 +4140,8 @@ fn tc_007_identity_mutations_lineage_and_refusals_are_exact() {
         },
     ))
     .expect("semantic-order mutation remains a valid distinct projection");
-    assert_ne!(baseline.result_id(), changed.result_id());
+    assert_eq!(baseline.result_id(), changed.result_id());
 
-    let refusal = projection_result(project_input(
-        base_input(&owner),
-        &request,
-        &resolution,
-        |context| {
-            context.source_digest = "sha256-jcs:deadbeef".into();
-        },
-    ))
-    .expect_err("wrong source digest refuses");
-    assert_eq!(refusal.code().as_str(), "invalid-source-result");
     let refusal = projection_result(project_input(
         base_input(&owner),
         &request,
@@ -4231,7 +4187,10 @@ fn tc_007_identity_mutations_lineage_and_refusals_are_exact() {
         &request,
         &resolution,
         |context| {
-            context.expected_result_id = Some("sha256-jcs:wrong".into());
+            context.expected_result_id = Some(json!({
+                "sourceResultKey": {"request": "wrong"},
+                "adapter": {"identity": "wrong", "version": "wrong"}
+            }));
         },
     ))
     .expect_err("wrong asserted projection identity refuses");
@@ -4282,14 +4241,10 @@ fn tc_007_identity_mutations_lineage_and_refusals_are_exact() {
     assert_eq!(refusal.code().as_str(), "identity-mismatch");
 
     let input = base_input(&owner);
-    let document = result::produce(input.clone(), Limits::owner_max()).expect("canonical source");
-    let context = e02_context(&document, &input);
+    let context = e02_context(&input);
     let refusal = projection_result(project_e02_without_budget(
         b"not-json",
-        result::Expected {
-            input,
-            enclosing_digest: document.digest(),
-        },
+        result::Expected { input },
         Limits::owner_max(),
         &request,
         &resolution,
@@ -4297,6 +4252,10 @@ fn tc_007_identity_mutations_lineage_and_refusals_are_exact() {
     ))
     .expect_err("malformed source bytes refuse");
     assert_eq!(refusal.code().as_str(), "invalid-source-result");
+    assert_eq!(
+        refusal.identity(),
+        &quire_protocol::refusal::AffectedIdentity::retained(context.source_uri.as_bytes())
+    );
 
     let mut input = base_input(&owner);
     let observation = input.decision_support[0].observation_identity.clone();
@@ -4349,7 +4308,7 @@ fn tc_007_identity_mutations_lineage_and_refusals_are_exact() {
     );
     assert_eq!(
         value["oracleContributions"][2]["derivedFrom"]["resultId"],
-        projected.result_id()
+        projected.result_id().clone()
     );
     assert_eq!(value["oracleContributions"][3]["relation"], "unknown");
 }
@@ -4539,15 +4498,14 @@ fn tc_015_test_support_constructor_matches_canonical_production_and_refuses_what
         result::test_support::validated_result(base_input(&fixture), Limits::owner_max())
             .expect("test-support result");
     assert_eq!(constructed.bytes(), canonical.bytes());
-    assert_eq!(constructed.result_id(), canonical.result_id());
-    assert_eq!(constructed.digest(), canonical.digest());
+    assert_eq!(constructed.result_key(), canonical.result_key());
 
     let mut violated = base_input(&fixture);
     violated.truth = Truth::Violated;
     let violated =
         result::test_support::validated_result(violated, Limits::owner_max()).expect("violated");
     assert_eq!(violated.truth(), Truth::Violated);
-    assert_ne!(violated.result_id(), canonical.result_id());
+    assert_eq!(violated.result_key(), canonical.result_key());
 
     // The canonical producer refuses a closed-scope settlement over open
     // decision progress; the test-support constructor refuses it identically.
@@ -4634,8 +4592,7 @@ fn tc_015_test_support_corrected_result_is_direct_and_validated() {
     assert_eq!(predecessor.bytes(), prior_bytes);
     let edge = constructed.correction().expect("direct correction edge");
     assert_eq!(edge.relation(), CorrectionRelation::Invalidates);
-    assert_eq!(edge.predecessor_result_id(), predecessor.result_id());
-    assert_eq!(edge.predecessor_digest(), predecessor.digest());
+    assert_eq!(edge.predecessor_result_key(), predecessor.result_key());
     assert_eq!(edge.contradicted_premise_identity(), "premise:branch");
     assert_eq!(edge.corrected_input_identity(), "input:corrected");
 

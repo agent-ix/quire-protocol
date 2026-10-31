@@ -14,7 +14,7 @@ use quire_verification_contracts::wire::{
     ObservationReference, OracleReference, SharedArtifactEnvelope, TechniqueResult,
 };
 use quire_verification_contracts::{
-    self as contracts, jcs_canonicalize, jcs_sha256, PublicContract, VerificationErrorCode,
+    self as contracts, jcs_canonicalize, PublicContract, VerificationErrorCode,
 };
 use serde::Serialize;
 use serde_json::{json, Map, Value};
@@ -45,11 +45,9 @@ use crate::version_lock::{
 
 /// Exact revision of `quire-verification-contracts` that owns the accepted public E02 Rust
 /// interface (PLAT-861; previously the private `quire-verification` revision directly).
-pub const QVERIFY_E02_REVISION: &str = "da8d7272051b1cf02768ec459539551414fd6c21";
+pub const QVERIFY_E02_REVISION: &str = env!("QVERIFY_E02_REVISION");
 /// Owner of the selected E02 interface.
 pub const QVERIFY_OWNER: &str = "agent-ix/quire-verification-contracts";
-/// Projection-identity preimage version selected by FR-034.
-pub const IDENTITY_VERSION: &str = "quire.protocol.e02-projection-identity/v1-draft.1";
 /// Media type of the one retained canonical-result native artifact.
 pub const SOURCE_MEDIA_TYPE: &str =
     "application/vnd.agent-ix.quire-protocol-result+json;version=1-draft.1";
@@ -300,10 +298,8 @@ pub struct ProjectionContext {
     pub required_features: Vec<String>,
     /// URI that dereferences to the unchanged canonical source bytes.
     pub source_uri: String,
-    /// Independently selected digest of those source bytes.
-    pub source_digest: String,
     /// Optional independently asserted projection identity.
-    pub expected_result_id: Option<String>,
+    pub expected_result_id: Option<Value>,
     /// Exact E02 plan identity.
     pub plan_id: String,
     /// Exact E02 task identity.
@@ -340,6 +336,7 @@ pub struct ProjectionContext {
 #[derive(Clone, Debug)]
 pub struct ProjectedTechniqueResult {
     result: TechniqueResult,
+    result_id: Value,
     bytes: Box<[u8]>,
     source_bytes: Box<[u8]>,
 }
@@ -363,10 +360,10 @@ impl ProjectedTechniqueResult {
         &self.source_bytes
     }
 
-    /// Derived projection identity.
+    /// Exact structural projection identity selected from the source key and adapter.
     #[must_use]
-    pub fn result_id(&self) -> &str {
-        &self.result.result_id
+    pub fn result_id(&self) -> &Value {
+        &self.result_id
     }
 }
 
@@ -410,14 +407,13 @@ fn project_e02_unit(
             return BoundedOutcome::ResourceIncomplete(incomplete);
         }
     }
-    let source_affected = source_expected.enclosing_digest;
     let source = match result::read_bounded(source_bytes, source_expected, source_limits, resources)
     {
         BoundedOutcome::Completed(source) => source,
         BoundedOutcome::DomainError(_) => {
             return BoundedOutcome::DomainError(projection_refusal(
                 ProjectionRefusalCode::InvalidSourceResult,
-                source_affected.as_bytes(),
+                context.source_uri.as_bytes(),
             ));
         }
         BoundedOutcome::ResourceIncomplete(incomplete) => {
@@ -474,63 +470,22 @@ fn project_validated(
     ])?;
     validate_versions(context)?;
     validate_nonempty_context(context)?;
-    let source_value: Value = serde_json::from_slice(source.bytes()).map_err(|_| {
-        affected(
-            ProjectionRefusalCode::InvalidSourceResult,
-            source.result_id(),
-        )
-    })?;
-    let recomputed_digest = jcs_sha256(&source_value).map_err(|_| {
-        affected(
-            ProjectionRefusalCode::InvalidSourceResult,
-            source.result_id(),
-        )
-    })?;
-    if recomputed_digest != source.digest() || recomputed_digest != context.source_digest {
-        return Err(affected(
-            ProjectionRefusalCode::InvalidSourceResult,
-            &context.source_digest,
-        )
-        .into());
-    }
 
-    let target_binding = json!({
-        "propertyRef": value(&context.property_ref)?,
-        "planId": context.plan_id,
-        "taskId": context.task_id,
-        "runRef": value(&context.run_ref)?,
-        "profile": context.profile,
-        "bindingRefs": values(&context.binding_refs)?,
-        "dependencyClosure": context.dependency_closure,
-        "executionScope": context.execution_scope,
-    });
-    let identity_preimage = json!({
-        "identityVersion": IDENTITY_VERSION,
-        "sourceResultRef": {
-            "identity": source.result_id(),
-            "digest": recomputed_digest,
-        },
-        "targetContractVersion": context.target_contract_version,
-        "targetBinding": target_binding,
+    let result_id = json!({
+        "sourceResultKey": source.result_key(),
         "adapter": {
             "identity": context.adapter_identity,
             "version": context.adapter_version,
         },
     });
-    let result_id = jcs_sha256(&identity_preimage)
-        .map_err(|_| affected(ProjectionRefusalCode::IdentityMismatch, source.result_id()))?;
-    if result_id == source.result_id()
-        || context
-            .expected_result_id
-            .as_ref()
-            .is_some_and(|expected| expected != &result_id)
+    if context
+        .expected_result_id
+        .as_ref()
+        .is_some_and(|expected| expected != &result_id)
     {
         return Err(affected(
             ProjectionRefusalCode::IdentityMismatch,
-            context
-                .expected_result_id
-                .as_deref()
-                .unwrap_or(source.result_id()),
+            source.result_key().request.as_str(),
         )
         .into());
     }
@@ -550,7 +505,7 @@ fn project_validated(
     let candidate = json!({
         "contractVersion": context.target_contract_version,
         "kind": "TechniqueResult",
-        "resultId": result_id,
+        "resultId": result_id.clone(),
         "planId": context.plan_id,
         "taskId": context.task_id,
         "runRef": value(&context.run_ref)?,
@@ -582,11 +537,9 @@ fn project_validated(
             "producerVersion": context.producer_version,
             "adapter": context.adapter_identity,
             "adapterVersion": context.adapter_version,
-            "sourceRevision": source.digest(),
         },
         "nativeArtifacts": [{
             "uri": context.source_uri,
-            "digest": recomputed_digest,
             "mediaType": SOURCE_MEDIA_TYPE,
         }],
         "oracleContributions": contributions,
@@ -594,24 +547,37 @@ fn project_validated(
     });
     verify_projection(source, context, &candidate)?;
 
-    let required = canonical_len(&candidate)
-        .map_err(|_| affected(ProjectionRefusalCode::FindingLoss, source.result_id()))?;
+    let required = canonical_len(&candidate).map_err(|_| {
+        affected(
+            ProjectionRefusalCode::FindingLoss,
+            source.result_key().request.as_str(),
+        )
+    })?;
     resources.charge_all(&[
         (OUTPUT_ALLOCATION_SOURCE.id(), 1),
         (OUTPUT_SOURCE.id(), required),
     ])?;
-    let bytes = jcs_canonicalize(&candidate)
-        .map_err(|_| affected(ProjectionRefusalCode::FindingLoss, source.result_id()))?;
+    let bytes = jcs_canonicalize(&candidate).map_err(|_| {
+        affected(
+            ProjectionRefusalCode::FindingLoss,
+            source.result_key().request.as_str(),
+        )
+    })?;
     resources.charge(TARGET_READ_ALLOCATION_SOURCE.id(), 1)?;
     let reread = contracts::parse_bounded_json(&bytes)
         .and_then(contracts::validate_contract)
-        .map_err(|error| map_target_error(error.code(), source.result_id()))?;
+        .map_err(|error| map_target_error(error.code(), source.result_key().request.as_str()))?;
     let PublicContract::TechniqueResult(result) = reread else {
-        return Err(affected(ProjectionRefusalCode::FindingLoss, source.result_id()).into());
+        return Err(affected(
+            ProjectionRefusalCode::FindingLoss,
+            source.result_key().request.as_str(),
+        )
+        .into());
     };
     resources.charge(SOURCE_COPY_ALLOCATION_SOURCE.id(), 1)?;
     Ok(ProjectedTechniqueResult {
         result: *result,
+        result_id,
         bytes: bytes.into_boxed_slice(),
         source_bytes: source.bytes().into(),
     })
@@ -644,7 +610,6 @@ fn validate_nonempty_context(
 ) -> Result<(), (ProjectionRefusalCode, String)> {
     for (field, value) in [
         ("sourceUri", context.source_uri.as_str()),
-        ("sourceDigest", context.source_digest.as_str()),
         ("planId", context.plan_id.as_str()),
         ("taskId", context.task_id.as_str()),
         ("techniqueId", context.technique_id.as_str()),
@@ -759,7 +724,7 @@ fn map_participation(participation: &Participation) -> Value {
 fn map_contributions(
     source: &ValidatedResult,
     context: &ProjectionContext,
-    result_id: &str,
+    result_id: &Value,
 ) -> Result<Vec<Value>, (ProjectionRefusalCode, String)> {
     let support = source.decision_support();
     if support.len() != context.decision_support_bindings.len() {
@@ -902,7 +867,7 @@ fn verify_projection(
     {
         return Err(affected(
             ProjectionRefusalCode::FindingLoss,
-            source.result_id(),
+            source.result_key().request.as_str(),
         ));
     }
     Ok(())
@@ -986,7 +951,7 @@ fn affected(code: ProjectionRefusalCode, identity: &str) -> (ProjectionRefusalCo
 /// FR-283 projection refusal codes, in requirement order.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum ProjectionRefusalCode {
-    /// Source strict reading or source digest validation failed.
+    /// Strict reading of the selected source result failed.
     InvalidSourceResult,
     /// The selected source revision is unknown.
     UnsupportedSourceVersion,
@@ -1086,7 +1051,7 @@ projection_code!(
     INVALID_SOURCE_RESULT,
     "invalid-source-result",
     RetryDecision::Never,
-    "the canonical source failed strict reading or source digest validation"
+    "the canonical source failed strict reading"
 );
 projection_code!(
     UNSUPPORTED_SOURCE_VERSION,
