@@ -70,7 +70,6 @@ specified individually. Summarised:
 | `FR-012` | A version-lock entry pinning one producer at one contract version |
 | `FR-013` | The discrimination between what was offered and what was selected |
 | `FR-014` | A typed outcome identity — the refusal envelope's key |
-| `FR-015` | The digest domain membership this context distinguishes |
 | `FR-016` | A resource budget dimension |
 | `FR-017` | A scenario evidence record |
 | `FR-018` | A delivery index — evidence about what a producer delivered |

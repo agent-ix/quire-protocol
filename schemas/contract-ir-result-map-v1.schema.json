@@ -4,18 +4,16 @@
   "title": "Protocol Result to Contract IR Mapping v1",
   "type": "object",
   "additionalProperties": false,
-  "required": ["completeness", "contract", "correction", "decisionSupport", "execution", "identity", "nativeCorrespondenceIdentity", "nativeSubjectIdentity", "outcome", "progressAndClosure", "schemaSha256", "settlement", "sourceResult", "truth"],
+  "required": ["completeness", "contract", "correction", "decisionSupport", "execution", "identity", "nativeCorrespondenceIdentity", "nativeSubjectIdentity", "outcome", "progressAndClosure", "settlement", "sourceResult", "truth"],
   "properties": {
     "contract": { "const": "quire.protocol.contract-ir-result-map/v1" },
     "identity": { "$ref": "#/$defs/sha256" },
-    "schemaSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "sourceResult": {
       "type": "object", "additionalProperties": false,
-      "required": ["contract", "resultKey", "schemaSha256"],
+      "required": ["contract", "resultKey"],
       "properties": {
         "contract": { "const": "quire.protocol.result/v1-draft.1" },
-        "resultKey": { "$ref": "#/$defs/resultKey" },
-        "schemaSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+        "resultKey": { "$ref": "#/$defs/resultKey" }
       }
     },
     "nativeCorrespondenceIdentity": { "$ref": "#/$defs/nonempty" },
@@ -58,8 +56,8 @@
     },
     "axis": {
       "type": "object", "additionalProperties": false,
-      "required": ["authorityIdentity", "authorityRevision", "documentDigest", "documentIdentity", "scopeIdentity", "state"],
-      "properties": { "authorityIdentity": { "$ref": "#/$defs/nonempty" }, "authorityRevision": { "$ref": "#/$defs/nonempty" }, "documentDigest": { "$ref": "#/$defs/sha256" }, "documentIdentity": { "$ref": "#/$defs/nonempty" }, "scopeIdentity": { "$ref": "#/$defs/nonempty" }, "state": { "enum": ["open", "closed"] } }
+      "required": ["authorityIdentity", "authorityRevision", "documentIdentity", "scopeIdentity", "state"],
+      "properties": { "authorityIdentity": { "$ref": "#/$defs/nonempty" }, "authorityRevision": { "$ref": "#/$defs/nonempty" }, "documentIdentity": { "$ref": "#/$defs/nonempty" }, "scopeIdentity": { "$ref": "#/$defs/nonempty" }, "state": { "enum": ["open", "closed"] } }
     },
     "axes": {
       "type": "object", "additionalProperties": false,
@@ -68,8 +66,8 @@
     },
     "completeness": {
       "type": "object", "additionalProperties": false,
-      "required": ["boundaryIdentity", "documentDigest", "documentIdentity", "factIdentities", "populationIdentity", "state"],
-      "properties": { "boundaryIdentity": { "$ref": "#/$defs/nonempty" }, "documentDigest": { "$ref": "#/$defs/sha256" }, "documentIdentity": { "$ref": "#/$defs/nonempty" }, "factIdentities": { "type": "array", "items": { "$ref": "#/$defs/nonempty" } }, "populationIdentity": { "$ref": "#/$defs/nonempty" }, "state": { "enum": ["complete", "incomplete", "contradicted"] } }
+      "required": ["boundaryIdentity", "documentIdentity", "factIdentities", "populationIdentity", "state"],
+      "properties": { "boundaryIdentity": { "$ref": "#/$defs/nonempty" }, "documentIdentity": { "$ref": "#/$defs/nonempty" }, "factIdentities": { "type": "array", "items": { "$ref": "#/$defs/nonempty" } }, "populationIdentity": { "$ref": "#/$defs/nonempty" }, "state": { "enum": ["complete", "incomplete", "contradicted"] } }
     },
     "settlement": {
       "type": "object", "additionalProperties": false,

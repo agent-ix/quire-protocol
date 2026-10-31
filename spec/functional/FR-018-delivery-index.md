@@ -164,12 +164,6 @@ supplies no upstream key of its own.
   bindings. An absent index compares only to absence; it is never defaulted to an
   empty index, and a lane without one reports its absence rather than reporting
   an outcome.
-- **Digest domain** — the index carries no digest of its own and synthesizes
-  none. Where a digest is computed over an indexed member's bytes, its domain is
-  selected under [FR-015](./FR-015-digest-domain-selection.md), and a digest from
-  one domain is unequal to one from another over identical bytes. A digest an
-  index carried would still not satisfy a version-lock entry's recorded digest,
-  which `FR-009` recomputes over the exact delivered bytes.
 
 ## Ordering obligation over the index's collections
 
@@ -207,8 +201,6 @@ or names the owner that has not:
   key this index does not carry and must not supply.
 - [FR-011](./FR-011-consumer-identity-discipline.md) supplies the kind and
   authority axes and the ordering obligation applied above.
-- [FR-015](./FR-015-digest-domain-selection.md) selects the domain of any digest
-  computed over an indexed member's bytes.
 - [FR-016](./FR-016-resource-budget-dimension.md) consumes the indexed limit
   bounds as the exact values its probe is run at.
 - [FR-001](./FR-001-admit-selected-protocol-profile.md) admits the offered bytes

@@ -26,7 +26,7 @@ pub enum DivergedSelection {
     ContractIdentity,
     /// The offered contract revision is not the selected revision.
     ContractRevision,
-    /// The offered contract digest diverges within the selected domain.
+    /// The offered contract digest differs from the selected value.
     ContractDigest,
     /// The offered contract reference diverges outside identity/revision/digest.
     ContractReference,
@@ -41,7 +41,7 @@ pub enum DivergedSelection {
     /// The offered baseline is a different selection state of the same baseline
     /// identity — a superseded, draft or otherwise unselected revision.
     BaselineSelectionState,
-    /// The offered baseline digest diverges within the selected domain.
+    /// The offered baseline digest differs from the selected value.
     BaselineDigest,
     /// The offered baseline reference diverges outside identity/revision/digest.
     BaselineReference,

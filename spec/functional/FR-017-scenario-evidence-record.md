@@ -130,10 +130,6 @@ disposition state, and nothing in this repository reads one back.
   resolution state plus its causing entry is a *present* state, not absence. An
   absent budget grant on a dimension compares only to absence and is not a grant
   of zero.
-- **Digest domain** — the record carries no digest of its own. Every digest
-  inside the resolution state it retains keeps the domain it was selected under,
-  [FR-015](./FR-015-digest-domain-selection.md), and a digest from one domain is
-  unequal to one from another over identical bytes.
 
 ## Acceptance Criteria
 
@@ -161,8 +157,6 @@ disposition state, and nothing in this repository reads one back.
   identities the outcome may take.
 - [FR-016](./FR-016-resource-budget-dimension.md) supplies the declared
   dimensions the budget figures are retained on.
-- [FR-015](./FR-015-digest-domain-selection.md) selects the domain of every
-  digest inside a retained resolution state.
 - [FR-006](./FR-006-produce-canonical-protocol-results.md) supplies the canonical
   result a scenario's outcome refers to.
 - [NFR-001](../non-functional/NFR-001-reproduce-semantic-results.md) requires the

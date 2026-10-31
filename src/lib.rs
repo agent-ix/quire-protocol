@@ -39,7 +39,7 @@ pub mod compensation;
 pub mod conformance;
 /// Consumer-authored evidence index for one pinned producer delivery.
 pub mod delivery_index;
-/// Producer-domain and result-domain digests. Owner chunks: C-10, C-11.
+/// Canonical JCS encoding for structured protocol values.
 pub mod digest;
 /// Protocol identity newtypes. Owner chunk: C-07.
 pub mod ids;
