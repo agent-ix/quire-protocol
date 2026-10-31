@@ -2363,11 +2363,6 @@ fn tc_015_validated_and_mapped_views_expose_every_contract_axis_without_json_par
         mapped.decision_scope_progress().state(),
         source.decision_scope_progress().state()
     );
-    assert_ne!(
-        source.decision_scope_progress().document_digest(),
-        source.decision_scope_progress().authority_digest(),
-        "the fixture must kill a swapped digest delegation"
-    );
     assert_eq!(
         mapped.decision_scope_closure().scope_identity(),
         source.decision_scope_closure().scope_identity()

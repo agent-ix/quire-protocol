@@ -73,31 +73,27 @@
     },
     "axis": {
       "type": "object", "additionalProperties": false,
-      "required": ["authorityDigest", "authorityIdentity", "authorityRevision", "contract", "documentDigest", "documentIdentity", "populationIdentity", "schemaSha256", "scopeIdentity", "state"],
+      "required": ["authorityDigest", "authorityIdentity", "authorityRevision", "contract", "documentIdentity", "populationIdentity", "scopeIdentity", "state"],
       "properties": {
         "authorityDigest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
         "authorityIdentity": { "$ref": "#/$defs/nonempty" },
         "authorityRevision": { "$ref": "#/$defs/nonempty" },
         "contract": { "enum": ["quire.observation.progress-assertion/v1", "quire.observation.closure-assertion/v1"] },
-        "documentDigest": { "$ref": "#/$defs/sha256" },
         "documentIdentity": { "$ref": "#/$defs/nonempty" },
         "populationIdentity": { "$ref": "#/$defs/nonempty" },
-        "schemaSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
         "scopeIdentity": { "$ref": "#/$defs/nonempty" },
         "state": { "enum": ["open", "closed"] }
       }
     },
     "completeness": {
       "type": "object", "additionalProperties": false,
-      "required": ["boundaryIdentity", "contract", "documentDigest", "documentIdentity", "factIdentities", "populationIdentity", "schemaSha256", "state"],
+      "required": ["boundaryIdentity", "contract", "documentIdentity", "factIdentities", "populationIdentity", "state"],
       "properties": {
         "boundaryIdentity": { "$ref": "#/$defs/nonempty" },
         "contract": { "const": "quire.observation.completeness-assertion/v1" },
-        "documentDigest": { "$ref": "#/$defs/sha256" },
         "documentIdentity": { "$ref": "#/$defs/nonempty" },
         "factIdentities": { "$ref": "#/$defs/stringArray" },
         "populationIdentity": { "$ref": "#/$defs/nonempty" },
-        "schemaSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
         "state": { "enum": ["complete", "incomplete", "contradicted"] }
       }
     },
