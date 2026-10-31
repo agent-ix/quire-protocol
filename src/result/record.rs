@@ -759,9 +759,7 @@ impl ValidatedResult {
 #[derive(Clone, Debug)]
 pub struct AxisView {
     pub(crate) contract: &'static str,
-    pub(crate) schema_sha256: &'static str,
     pub(crate) document_identity: String,
-    pub(crate) document_digest: String,
     pub(crate) authority_identity: String,
     pub(crate) authority_revision: String,
     pub(crate) authority_digest: String,
@@ -776,20 +774,10 @@ impl AxisView {
     pub const fn contract(&self) -> &str {
         self.contract
     }
-    /// Selected owner schema digest.
-    #[must_use]
-    pub const fn schema_sha256(&self) -> &str {
-        self.schema_sha256
-    }
     /// Canonical assertion-document identity.
     #[must_use]
     pub fn document_identity(&self) -> &str {
         &self.document_identity
-    }
-    /// Digest of the canonical assertion bytes.
-    #[must_use]
-    pub fn document_digest(&self) -> &str {
-        &self.document_digest
     }
     /// Definition authority identity.
     #[must_use]
@@ -827,7 +815,6 @@ impl AxisView {
 #[derive(Clone, Debug)]
 pub struct CompletenessView {
     pub(crate) document_identity: String,
-    pub(crate) document_digest: String,
     pub(crate) population_identity: String,
     pub(crate) boundary_identity: String,
     pub(crate) fact_identities: Vec<String>,
@@ -839,11 +826,6 @@ impl CompletenessView {
     #[must_use]
     pub fn document_identity(&self) -> &str {
         &self.document_identity
-    }
-    /// Digest of the canonical completeness bytes.
-    #[must_use]
-    pub fn document_digest(&self) -> &str {
-        &self.document_digest
     }
     /// Exact population identity.
     #[must_use]
@@ -1740,7 +1722,6 @@ fn snapshot(input: &Input<'_>) -> Snapshot {
         completeness: CompletenessView {
             state: input.completeness.payload().state(),
             document_identity: input.completeness.identity().as_str().to_owned(),
-            document_digest: raw_digest(input.completeness.bytes()),
             population_identity: input
                 .completeness
                 .payload()
@@ -1767,9 +1748,7 @@ fn snapshot(input: &Input<'_>) -> Snapshot {
 fn progress_axis(view: &progress::View) -> AxisView {
     AxisView {
         contract: progress::CONTRACT,
-        schema_sha256: progress::SCHEMA_SHA256,
         document_identity: view.identity().as_str().to_owned(),
-        document_digest: raw_digest(view.bytes()),
         authority_identity: view.authority().definition_identity.as_str().to_owned(),
         authority_revision: view.authority().definition_revision.as_str().to_owned(),
         authority_digest: digest_hex(view.authority().definition_digest.as_bytes()),
@@ -1782,9 +1761,7 @@ fn progress_axis(view: &progress::View) -> AxisView {
 fn closure_axis(view: &observation_closure::View) -> AxisView {
     AxisView {
         contract: observation_closure::CONTRACT,
-        schema_sha256: observation_closure::SCHEMA_SHA256,
         document_identity: view.identity().as_str().to_owned(),
-        document_digest: raw_digest(view.bytes()),
         authority_identity: view.authority().definition_identity.as_str().to_owned(),
         authority_revision: view.authority().definition_revision.as_str().to_owned(),
         authority_digest: digest_hex(view.authority().definition_digest.as_bytes()),
@@ -1852,10 +1829,8 @@ struct AxisWire<'a> {
     authority_identity: &'a str,
     authority_revision: &'a str,
     contract: &'static str,
-    document_digest: &'a str,
     document_identity: &'a str,
     population_identity: &'a str,
-    schema_sha256: &'static str,
     scope_identity: &'a str,
     state: &'static str,
 }
@@ -1865,11 +1840,9 @@ struct AxisWire<'a> {
 struct CompletenessWire<'a> {
     boundary_identity: &'a str,
     contract: &'static str,
-    document_digest: &'a str,
     document_identity: &'a str,
     fact_identities: &'a [String],
     population_identity: &'a str,
-    schema_sha256: &'static str,
     state: &'static str,
 }
 
@@ -2035,10 +2008,8 @@ fn axis_wire(axis: &AxisView) -> AxisWire<'_> {
         authority_identity: &axis.authority_identity,
         authority_revision: &axis.authority_revision,
         contract: axis.contract,
-        document_digest: &axis.document_digest,
         document_identity: &axis.document_identity,
         population_identity: &axis.population_identity,
-        schema_sha256: axis.schema_sha256,
         scope_identity: &axis.scope_identity,
         state: axis.state.label(),
     }
@@ -2048,11 +2019,9 @@ fn completeness_wire(completeness: &CompletenessView) -> CompletenessWire<'_> {
     CompletenessWire {
         boundary_identity: &completeness.boundary_identity,
         contract: completeness::CONTRACT,
-        document_digest: &completeness.document_digest,
         document_identity: &completeness.document_identity,
         fact_identities: &completeness.fact_identities,
         population_identity: &completeness.population_identity,
-        schema_sha256: completeness::SCHEMA_SHA256,
         state: completeness_label(completeness.state),
     }
 }
@@ -2206,9 +2175,6 @@ fn semantic_usage(input: &Input<'_>) -> Usage {
         lineage_nodes,
         ..Usage::default()
     }
-}
-fn raw_digest(bytes: &[u8]) -> String {
-    format!("sha256:{:x}", ByteDigest::of(bytes))
 }
 fn digest_hex(bytes: &[u8]) -> String {
     let mut out = String::with_capacity(bytes.len() * 2);
