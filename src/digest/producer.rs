@@ -3,10 +3,10 @@
 
 use std::fmt;
 
-/// The selected member from the published digest-domain vocabulary.
+/// The producer artifact digest label selected by protocol FR-015.
 ///
-/// The vocabulary is published by `FR-201`; this repository selects only
-/// `raw-artifact-digest`. Spelling is load-bearing.
+/// Result identities use structural keys and have no digest domain. This
+/// label applies only to supplied artifact bytes.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum DigestDomain {
     /// `raw-artifact-digest`. Over the complete supplied bytes of an artifact,

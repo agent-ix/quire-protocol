@@ -17,34 +17,27 @@ relationships:
 
 ## Status
 
-Accepted as a rule. The vocabulary the rule selects from is upstream's and
-settled; this repository's implementation enum does not yet conform (see
-Consequences).
+Accepted for producer-owned artifact digests consumed by this repository.
+Result identities are structural under FR-286; this repository does not
+select or compute a digest domain for them.
 
 ## Context
 
-This repository holds digests it did not compute alongside digests it did. A
-producer's artifact digest, a producer's source digest, a producer's model
-digest and this repository's own protocol-result digest are all 32 bytes of
-SHA-256 rendered as hex. Nothing in the bytes says which of those a value is.
+This repository holds producer-owned artifact digests it did not compute.
+Nothing in the bytes says which artifact domain a value belongs to.
 
-If equality is byte equality, then a producer's model digest presented in the
-slot that holds a protocol-result digest compares equal to a protocol-result
-digest over the same bytes, and an identity substitution survives every check
-this repository performs. `AP-001`'s
+If equality is byte equality, then a producer's model digest presented in an
+artifact slot compares equal to an artifact digest over the same bytes, and an
+identity substitution survives every check this repository performs. `AP-001`'s
 `impact-identity-substitution` scenario is exactly this impact: SR-027 states it
 as "changed source, dependency, observation, profile, result, or adapter bytes
 retain an accepted identity"
 ([spec/reviews/digest-domain-discrimination.md](../reviews/digest-domain-discrimination.md)).
 
-Upstream had already decided the rule. `FR-201-canonical-identity-domain` is
-`object: enumeration` and states in its Description that "the reader SHALL
-compare the selected identity domain before the bytes, so that an identity
-derived under one domain is unequal to an identity derived under another
-regardless of byte equality", and in its Cross-domain rule that "two identities
-bearing different domain labels are unequal. Byte equality of their digests does
-not make them equal". It publishes nine members and says of itself: "This
-artifact *is* the vocabulary of digest domains".
+The earlier `FR-201-canonical-identity-domain` contract supplied that rule and
+vocabulary. QSpec #520 withdrew its digest-domain criteria and now defines
+structural identities; this ADR's remaining selection concerns only the
+producer-owned artifact digest described by QP FR-015.
 
 ### The defect that produced this decision
 
@@ -77,9 +70,7 @@ local four-member set — `producer-canonical`, `native-raw`, `compiled-artifact
 kind while selecting no member. FR-015 now records that this was wrong, and why
 it was worse than redundant: two of the four re-spelled members upstream already
 publishes, and because both vocabularies make spelling load-bearing, a local
-label compares unequal to the upstream label over identical bytes. This
-repository's own result digest would have compared unequal to the same bytes
-under the ecosystem's own verification label. That is the "second locally
+label compares unequal to the upstream label over identical bytes. That is the "second locally
 authored profile" FR-001 exists to refuse, applied to identity domains rather
 than to protocol semantics. The local set was withdrawn in commit `802e81d`.
 
@@ -90,13 +81,12 @@ digest under one domain is unequal to a digest over identical bytes under
 another, in both directions. A digest with no selected domain compares only to
 absence and is never defaulted to a member.
 
-The labels are `FR-201`'s, spelled exactly as upstream publishes them. This
-repository mints none. It selects two:
+This repository mints no digest-domain label. Its current artifact selection
+is:
 
 | Selected member | Used for |
 | --- | --- |
 | `raw-artifact-digest` | The exact supplied bytes of an offered artifact, as delivered, never recanonicalised. |
-| `quire.verification.jcs` | This repository's own protocol-result digest. |
 
 A producer reference arriving already carrying an upstream label retains that
 label exactly and is never re-labelled into another member.
@@ -104,25 +94,22 @@ label exactly and is never re-labelled into another member.
 FR-015 states the rule and the selection. FR-001 carries the intake half — it
 "SHALL NOT reinterpret a producer-owned model/configuration digest through this
 artifact's numeric or JCS domain". IT-001-SC-07 is the evidence: a
-producer-canonical, native-raw, compiled-artifact or protocol-result digest
-presented in another domain's slot returns a typed refusal, and the crossing is
-exercised over raw bytes.
+producer digest presented under an unselected label returns a typed refusal,
+and the crossing is exercised over raw bytes.
 
 ## Consequences
 
-**The implementation now conforms to the selected vocabulary.**
-`src/digest/producer.rs` exposes only `RawArtifact` and `VerificationJcs`, with
-the exact `FR-201` labels `raw-artifact-digest` and
-`quire.verification.jcs`. The earlier five-member local enum and version-2 test
-mirror were deleted, and IT-001-SC-07 names only the accepted owner selections.
+**The implementation selects only the upstream artifact domain.**
+`src/digest/producer.rs` exposes `RawArtifact` with the exact `FR-015` label
+`raw-artifact-digest`. Result identities use the structural key required by
+FR-286; no result digest is derived.
 
-**Owner-side digest selections are explicit.** Accepted QSpec #40 / PR #44
-selects `raw-artifact-digest` for native source, bridge-definition,
-binding-contract definition, Producer-interface, configuration and closure
-definition bytes through FR-259, FR-261 and FR-263. FR-263 selects
-`quire.verification.jcs` for population and membership-rule identities. A
-future genuinely unselected slot still refuses rather than borrowing one of
-these selections.
+**The remaining digest selection is upstream-owned.** This repository selects
+`raw-artifact-digest` only for offered artifact bytes. Result identities and
+other semantic identities follow their current upstream contracts; this
+repository does not assign them a local digest domain. An unselected artifact
+digest slot still refuses rather than borrowing the `raw-artifact-digest`
+selection.
 
 **Every digest slot now needs a per-slot guard, and they are not all written.**
 SR-027 FND-003 is open: "Per-source, per-dependency and per-model digest slots
@@ -143,11 +130,9 @@ crafted offer.
 
 **Domain-prefix the digest preimage, so a crossed digest simply does not
 match.** Rejected, and the rejection is upstream's, not this repository's.
-`FR-201` states that "The `sha256-jcs:` textual prefix is a domain label outside
-the hashed bytes. It is not a hash preimage prefix (FR-018)". Adopting preimage
-prefixing locally would change what every digest *is*, not just how it compares,
-and would make this repository's digests incomparable with the rest of the
-ecosystem's.
+The digest's domain label is distinct from its bytes; locally prefixing a label
+into the preimage would change the selected digest contract. The adopted rule
+compares the selected label before comparing bytes.
 
 **Mint a local domain vocabulary fitted to this repository's slots.** Tried, and
 withdrawn — see "The second defect" above. It is recorded here as an alternative

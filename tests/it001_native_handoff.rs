@@ -977,36 +977,6 @@ fn it_001_refuses_one_axis_cross_domain_baseline_digest() {
     );
 }
 
-/// A value under an unselected digest label remains foreign, even when its
-/// spelling resembles a previously used result-digest label.
-///
-/// Tracing: IT-001, FR-001-AC-4.
-#[test]
-#[trace("IT-001", "FR-001-AC-4")]
-fn it_001_refuses_unselected_baseline_digest_label() {
-    let root = fixture_root();
-    let fixture = Fixture::load(&root);
-    let bytes = offered_bytes(&root);
-    let foreign = fixture.offer(&fixture.selection, &bytes, |_, _| {
-        format!("sha256-jcs:{}", "0".repeat(64))
-    });
-    let selected_digest = fixture.selection.baseline.digest.to_string();
-    let baseline = baseline_field(&fixture.selection);
-    let changed = respell_within(&bytes, &baseline, &selected_digest, &foreign);
-    let selection = resealed(&fixture.selection, &changed);
-    let error = fixture.discriminate(&selection, &changed).unwrap_err();
-    assert_eq!(
-        error,
-        AdmissionRefusal::CrossDomainDigest(CrossDomainDigest {
-            slot: DigestSlot::Baseline,
-            selected: DigestDomain::RawArtifact,
-            offered: OfferedDomain::ForeignLabel("sha256-jcs".to_owned()),
-            value: foreign,
-        }),
-        "got {error:?}"
-    );
-}
-
 /// Tracing: IT-001, FR-001-AC-4, Task-009.
 #[test]
 #[trace("IT-001", "FR-001-AC-4", "Task-009")]

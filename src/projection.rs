@@ -951,7 +951,7 @@ fn affected(code: ProjectionRefusalCode, identity: &str) -> (ProjectionRefusalCo
 /// FR-283 projection refusal codes, in requirement order.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum ProjectionRefusalCode {
-    /// Source strict reading or source digest validation failed.
+    /// Strict reading of the selected source result failed.
     InvalidSourceResult,
     /// The selected source revision is unknown.
     UnsupportedSourceVersion,
@@ -1051,7 +1051,7 @@ projection_code!(
     INVALID_SOURCE_RESULT,
     "invalid-source-result",
     RetryDecision::Never,
-    "the canonical source failed strict reading or source digest validation"
+    "the canonical source failed strict reading"
 );
 projection_code!(
     UNSUPPORTED_SOURCE_VERSION,

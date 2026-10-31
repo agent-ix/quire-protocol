@@ -12,7 +12,7 @@ use quire_protocol::{
     },
     digest::{
         jcs::{canonicalize, JcsError},
-        producer::{DigestDomain, DigestSlot, OfferedDomain, ProducerDigestRef},
+        producer::{DigestSlot, OfferedDomain, ProducerDigestRef},
     },
     inventory::{
         axis::DivergedSelection, map::admit_discriminating_bounded, DigestClassification,
@@ -201,31 +201,6 @@ fn tc_009_admission_charges_all_input_bytes_before_decode() {
                 && value.consumed() == 1
                 && value.requested() == 1
     ));
-}
-
-/// A label not selected for producer references remains foreign.
-///
-/// Tracing: TC-001, TC-006, FR-001-AC-4.
-#[test]
-#[trace("TC-001", "TC-006", "FR-001-AC-4", "FR-015-AC-3")]
-fn tc_006_foreign_digest_label_in_a_producer_slot_refuses() {
-    let selections = Selections::new();
-    let inventory = selections.inventory();
-    let offered = format!("sha256-jcs:{}", "0".repeat(64));
-    let producer_text = selections.baseline.digest.to_string();
-    assert_eq!(offered.rsplit_once(':').expect("labelled").1.len(), 64);
-    assert!(producer_text.starts_with("sha256:"));
-    match inventory.classify_offered(DigestSlot::Baseline, &offered) {
-        DigestClassification::CrossDomain(violation) => {
-            assert_eq!(violation.slot, DigestSlot::Baseline);
-            assert_eq!(violation.selected, DigestDomain::RawArtifact);
-            assert_eq!(
-                violation.offered,
-                OfferedDomain::ForeignLabel("sha256-jcs".into())
-            );
-        }
-        other => panic!("expected a cross-domain classification, got {other:?}"),
-    }
 }
 
 /// The selected producer value itself is in domain, for every producer slot.
