@@ -14,9 +14,9 @@ relationships:
 ## Description
 
 When the library reads the checked package, it SHALL stop using the retired
-compiler surfaces that QSL's requirements list, and it SHALL remove the IT-001
-checksum and seal lanes with `ArtifactRef.digest` and `revision`, **pending an
-owner ruling** recorded below.
+compiler surfaces that QSL's requirements list. If the owner rules for removal,
+it SHALL also remove the IT-001 checksum and seal lanes with `ArtifactRef.digest`
+and `revision`; until the owner rules, that removal is planned and not in force.
 
 ## Behavior
 
@@ -33,21 +33,23 @@ owner ruling** recorded below.
   `ArtifactRef.digest` and `revision`, and `qsl_foundation::ByteDigest` on
   admitted packages is the owner's to decide, and this requirement does not
   decide it. Option A, remove them: an admitted package is identified by its
-  canonical bytes, and no digest or seal is verified or carried, the
-  precedent being the removal of source-integrity digests where trust is not the
-  feature. Option B, keep them: the lanes stay as integrity checks of the
-  handoff and depend on Contract IR's source-byte integrity requirement (QSL
-  FR-518 row 28m). Recommendation: option A. Option A is the planned behavior
-  and FR-047-AC-4 states it; it stays unexecuted until the owner rules.
+  canonical bytes, and no integrity digest or seal of the checked package is
+  verified or carried, the precedent being the removal of source-integrity
+  digests where trust is not the feature. Option B, keep them: the lanes stay as
+  integrity checks of the handoff and depend on Contract IR's source-byte
+  integrity requirement (QSL FR-518 row 28m). Recommendation: option A.
+  FR-047-AC-4 states option A and is not in force until the owner rules. The
+  protocol-result and version-lock content digests of FR-009 and FR-015 are other
+  items and are not affected by this ruling.
 
 ## Acceptance Criteria
 
 | ID | Criteria | Verification |
 | --- | --- | --- |
 | FR-047-AC-1 | After the repoint, no source file or manifest names `quire_spec_language::number`; before it, the import exists and a build with it removed fails. | Test (TC-153) |
-| FR-047-AC-2 | The crate's `Cargo.toml` has no `handoff-writer` feature, and no source names `quire.compiled-protocol/1`, `quire.compiled-protocol/2` or `quire.protocol.v2-mutations/1`. | Inspection (TC-153) |
+| FR-047-AC-2 | The crate's `Cargo.toml` has no `handoff-writer` feature, and no production source or public API names `quire.compiled-protocol/1`, `quire.compiled-protocol/2` or `quire.protocol.v2-mutations/1`; the refusal fixtures of FR-043-AC-5, which offer retired-format bytes, are the one named exception. | Inspection (TC-153) |
 | FR-047-AC-3 | The IT-001 and IT-002 tests run against **R** through the checked-package route and every scenario of the retired recipe has a counterpart row or a stated reason it ends. | Test (TC-153) |
-| FR-047-AC-4 | Owner ruling pending (option A is the plan): no checksum or seal lane, no `ArtifactRef.digest` or `revision` and no digest of an admitted package exists in the crate, and an admitted package is identified by its canonical bytes. | Inspection (TC-153) |
+| FR-047-AC-4 | Pending owner ruling, not in force: if the owner rules option A, no checksum or seal lane, no `ArtifactRef.digest` or `revision` and no integrity digest of an admitted checked package exists in the crate, and an admitted package is identified by its canonical bytes; the result and version-lock content digests of FR-009 and FR-015 remain. | Inspection (TC-153) |
 
 ## Dependencies
 

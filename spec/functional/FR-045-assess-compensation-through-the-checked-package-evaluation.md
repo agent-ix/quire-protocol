@@ -15,16 +15,18 @@ relationships:
 ## Description
 
 When compensation is assessed, the library SHALL evaluate each guard, retry
-relation, recovery predicate and capture through qsl-eval's
-`evaluate_protocol_slot` over the strictly read checked package, SHALL map each
+relation, recovery predicate and capture through the checked-package evaluation
+entry that evaluates from a `CheckedPackageV2` alone (qsl-eval's protocol-slot
+evaluation), SHALL map each
 outcome as QSL FR-520's outcome map states, and SHALL keep the compensation state
 machine (registration, ordering, attempts, retry bound as a count, recovery
 decision) in this library.
 
 ## Inputs
 
-The `CheckedPackageEvaluation` over the admitted package, a `ProtocolSlot`, a
-`ProtocolSupply` built from the observation views, and a `Meter`.
+The admitted `CheckedPackageV2` (FR-043), a `ProtocolSlot`, a `ProtocolSupply`
+built from the observation views, and a `Meter`. The evaluation entry takes no
+source package and no emission: it evaluates from the package alone.
 
 ## Outputs
 
@@ -56,11 +58,14 @@ of the retired `graph.rs` outcome.
 | FR-045-AC-4 | A retry bound of `n` read from `attempts maximum` admits exactly `n` attempts, counting the initial attempt, and `n + 1` is the retry-bound refusal. | Test (TC-151) |
 | FR-045-AC-5 | The compensation module performs no I/O: a run under a denied-syscall harness completes, and the dependency tree of the module names no I/O crate. | Test (TC-151) |
 | FR-045-AC-6 | No source file of the crate names `StateView`, `EvaluationReport`, `state::evaluate_v2` or `ACCOUNTING_VERSION` from the retired module. | Inspection (TC-151) |
-| FR-045-AC-7 | Per-binder charge attribution is read from the `Meter` charge log once Contract IR provides it; until then the assessment records the call's total charge and names the missing attribution as an unsupported result, not as a zero. | Test (TC-151) |
+| FR-045-AC-7 | While QSL provides no per-binder charge attribution, the assessment records the call's total charge and reports the per-binder attribution as `unsupported` (an `Unsupported` result of the assessment's own result type, never a zero entry); this holds until AC-8's gate is met. | Test (TC-151) |
+| FR-045-AC-8 | Once QSL's per-binder charge log with its accounting version exists, as QSL FR-520-AC-11 states it and where that criterion puts it, the assessment consumes it: each binder read has its own entry, an unread binder has none, and the entries with the unattributed entry equal the call's total. | Test (TC-151) |
 
 ## Dependencies
 
 - QSL FR-520 and QSL FR-390 (`evaluate_protocol_slot`), QSL FR-519
-  (`protocol_view`), FR-044.
+  (`protocol_view`), FR-044. QSL provides the evaluation entry that evaluates from a
+  `CheckedPackageV2` alone; this requirement depends on it and assumes no source
+  package in this repository.
 - [FR-003](FR-003-assess-compensation-state.md) states the assessment contract;
   this requirement changes only its evaluation source.

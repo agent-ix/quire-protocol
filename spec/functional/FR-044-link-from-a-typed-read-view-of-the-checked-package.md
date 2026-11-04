@@ -57,8 +57,8 @@ output.
 | FR-044-AC-2 | No function of the crate constructs an `EdgeKind` or `CausalEdge` value or derives an edge from a node: the edge set comes only from `qsl_package::protocol_view::causal_relation`. | Inspection (TC-150) |
 | FR-044-AC-3 | Over views edited so that an iteration makes no progress, two roles claim one authority, and two channels hold conflicting premises, linking returns the consumer's own located refusal for each and no representation. | Test (TC-150) |
 | FR-044-AC-4 | An absent node id, the id of a `protocol_reference` carrier and the id of a non-protocol node each return a typed refusal naming the cause and no partial representation. | Test (TC-150) |
-| FR-044-AC-5 | The signature of the link entry names `CheckedPackageV2` and `CheckedNodeId` and names no `wire::Package`, `Handle` or `wire::Declaration`; a compile-fail use of each retired type through the crate's public surface fails to resolve. | Test (TC-150) |
-| FR-044-AC-6 | A window binding is read through the retained `wire.rs` spelling, and the crate imports no window view from QSL. | Test (TC-150) |
+| FR-044-AC-5 | The signature of the link entry names `CheckedPackageV2` and `CheckedNodeId` and names no `wire::Package`, `Handle` or `wire::Declaration`; a compile-fail use of each of those retired types through the crate's public surface fails to resolve, while `BindingKind::Window` (AC-6) still resolves. | Test (TC-150) |
+| FR-044-AC-6 | A window binding is read through the retained `wire.rs` `BindingKind::Window` spelling, the one `wire.rs` item that stays public, and the crate imports no window view from QSL. | Test (TC-150) |
 | FR-044-AC-7 | The criteria FR-002-AC-1 to FR-002-AC-5 hold over **R**'s package: concurrent instances stay distinct, every permitted interleaving keeps the causal edges and joins, each consumer-owned refusal refuses, reordering equal-time input adds no edge, and a changed temporal-profile or clock selection changes the result. | Test (TC-150) |
 
 ## Dependencies

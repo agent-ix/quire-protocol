@@ -66,9 +66,9 @@ paths and work that remains planned or blocked. The accepted frozen source basel
 Assurance producer, license, implementation plan, and retained corpus remain
 explicit gates.
 
-The repository carries 44 functional requirements, 8 non-functional
-requirements, 3 integration tests and 19 test cases, and 315 acceptance criteria
-across the 44 FRs and the 8 NFRs. The functional set divides into 9 aggregate or
+The repository carries 49 functional requirements, 8 non-functional
+requirements, 3 integration tests and 24 test cases, and 345 acceptance criteria
+across the 49 FRs and the 8 NFRs. The functional set divides into 9 aggregate or
 behavioural parents (FR-001..FR-009), 9 object requirements (FR-010..FR-018),
 24 atomic behavioural parts (FR-019..FR-042) that the parents aggregate
 through `contains`, and 2 independent behavioural requirements (FR-301, FR-302)
@@ -340,8 +340,8 @@ in Domain Object Coverage instead.
 | FR-302 | FR-302-AC-1..AC-5 | TC-148 (AC-1..AC-5) | 🚧 Planned — the witness carrier is admitted in spec pending `agent-ix/quire-specification#114`'s `native-run-result/2`; TC-148 binds all 5 criteria and no implementation has landed yet. |
 | FR-043 | FR-043-AC-1..AC-6 | TC-149 (AC-1..AC-6) | 🚧 Planned — the checked-package handoff is read with the Contract IR reader. |
 | FR-044 | FR-044-AC-1..AC-7 | TC-150 (AC-1..AC-7) | 🚧 Planned — linking over a typed read view and QSL's causal relation. |
-| FR-045 | FR-045-AC-1..AC-7 | TC-151 (AC-1..AC-7) | 🚧 Planned — compensation through qsl-eval's slot evaluation. |
-| FR-046 | FR-046-AC-1..AC-6 | TC-152 (AC-1..AC-6) | 🚧 Planned — temporal evidence through the in-memory evidence types. |
+| FR-045 | FR-045-AC-1..AC-8 | TC-151 (AC-1..AC-8) | 🚧 Planned — compensation through qsl-eval's slot evaluation. |
+| FR-046 | FR-046-AC-1..AC-7 | TC-152 (AC-1..AC-7) | 🚧 Planned — temporal evidence through the in-memory evidence types. |
 | FR-047 | FR-047-AC-1..AC-4 | TC-153 (AC-1..AC-4) | 🚧 Planned — AC-4 is pending the owner ruling on the digest and seal lanes. |
 
 Behavioural totals across these 35 rows: 198 acceptance criteria, of which 193

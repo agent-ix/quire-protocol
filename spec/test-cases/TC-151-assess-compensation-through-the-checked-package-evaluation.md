@@ -14,7 +14,7 @@ Verify the compensation assessment over qsl-eval's slot evaluation.
 
 ## Test Procedure
 
-Run QSL FR-520-AC-1's outcome rows over **R**'s `Full` and `Partial` compensations; keep `tc_003`'s assertions, restating the report-based ones on the outcome map; supply an incomplete population, a missing target and a missing achieved state and an unavailable binder; run a retry bound of `n` and `n + 1`; run under a denied-syscall harness; scan the source for the retired names and for Boolean coercion; read the charge log before and after the per-binder attribution exists. Tag the tests `#[trace("TC-151", "FR-045-AC-n")]`.
+Run QSL FR-520-AC-1's outcome rows over **R**'s `Full` and `Partial` compensations; keep `tc_003`'s assertions, restating the report-based ones on the outcome map; supply an incomplete population, a missing target and a missing achieved state and an unavailable binder; run a retry bound of `n` and `n + 1`; run under a denied-syscall harness; scan the source for the retired names and for Boolean coercion; read the charge log while per-binder attribution is absent (total recorded, attribution unsupported) and, once QSL provides it, with the attribution entries. Tag the tests `#[trace("TC-151", "FR-045-AC-n")]`.
 
 ## Expected Results
 
