@@ -65,7 +65,8 @@ of the retired `graph.rs` outcome.
 
 - QSL FR-520 and QSL FR-390 (`evaluate_protocol_slot`), QSL FR-519
   (`protocol_view`), FR-044. QSL provides the evaluation entry that evaluates from a
-  `CheckedPackageV2` alone; this requirement depends on it and assumes no source
-  package in this repository.
+  `CheckedPackageV2` alone; this requirement depends on it. That entry is a QSL
+  capability not yet specified in QSL, so this requirement is blocked until QSL
+  specifies and delivers it. It assumes no source package in this repository.
 - [FR-003](FR-003-assess-compensation-state.md) states the assessment contract;
   this requirement changes only its evaluation source.

@@ -33,11 +33,12 @@ refusal vocabulary for the checked package.
 
 ## Outputs
 
-One admitted `CheckedPackageV2`, or one typed refusal of one of two kinds: a
-reader refusal carrying Contract IR's `CheckedPackageRefusalCode` (with its
-optional cause and JSON pointer) unchanged, or a selection refusal carrying
-QSL's `SelectionRefusal` with its `SelectionAxis` unchanged (QSL FR-517,
-FR-518).
+One admitted `CheckedPackageV2`, or one of three non-admitted results: a reader
+refusal carrying Contract IR's `CheckedPackageRefusalCode` with its loci, cause
+and node locus unchanged; an incomplete read,
+`CheckedPackageDispatchResult::Incomplete(CheckedPackageIncomplete)`, when a read
+limit is exhausted, carried unchanged; or a selection refusal carrying QSL's
+`SelectionRefusal` with its `SelectionAxis` unchanged (QSL FR-517, FR-518).
 
 ## Behavior
 
@@ -47,8 +48,8 @@ FR-518).
   package `read_checked_package` has admitted, so a defect the reader refuses is
   a reader refusal and a defect only the selection can see is a selection
   refusal.
-- The library shall return the reader's refusal code or the selection's axis
-  exactly as returned and shall add no code or axis of its own for a
+- The library shall return the reader's refusal, incomplete result or the
+  selection's axis exactly as returned and shall add no code or axis of its own for a
   checked-package defect.
 - The library shall admit the format `quire.checked-package/v2` through its one
   explicit entry point and shall not infer a format or version from the offered
@@ -64,11 +65,12 @@ FR-518).
 | ID | Criteria | Verification |
 | --- | --- | --- |
 | FR-043-AC-1 | Over the three packages of **R** (QSL FR-517: event position, fixed sample, timestamped event), the handoff is admitted with every selection identity unchanged and the admitted package is the value `read_checked_package` returned. | Test (TC-149) |
-| FR-043-AC-2 | Each `reader` case of the handoff's standard mutation corpus (`quire.checked-handoff.mutations/1`, QSL FR-518) returns the code, cause and pointer its manifest row names from `read_checked_package`, carried unchanged, and no linked representation is exposed. | Test (TC-149) |
+| FR-043-AC-2 | Each `reader` case of the handoff's standard mutation corpus (`quire.checked-handoff.mutations/1`, QSL FR-518) returns the code, loci, cause and node locus its manifest row names from `read_checked_package`, carried unchanged, and no linked representation is exposed. | Test (TC-149) |
 | FR-043-AC-3 | Each `selection` case is admitted by `read_checked_package` and refused by `Selection::check` with the `SelectionAxis` its manifest row names, carried unchanged, and a changed caller selection identity over unchanged offered bytes returns a selection refusal and no admitted package. | Test (TC-149) |
 | FR-043-AC-4 | No source file of the crate parses checked-package bytes or declares a refusal code or format string for the checked package: the only call that reads them is `read_checked_package`, and the refusal vocabulary is imported. | Inspection (TC-149) |
 | FR-043-AC-5 | Bytes of `quire.compiled-protocol/1` or `/2` offered at the checked-package entry point return a typed refusal; no version is detected, upgraded or repaired. Checked-package bytes offered at a retired entry point return a typed refusal for as long as a retired entry point exists, which is until FR-047's end conditions are met. | Test (TC-149) |
 | FR-043-AC-6 | A bare JSON number outside the safe-integer interval, a non-canonical rational and a signed-64 overflow in a package field each return the reader's refusal unchanged, and the library holds no numeric decoder. | Test (TC-149) |
+| FR-043-AC-7 | A read whose limit is one below the package's measured usage returns `CheckedPackageDispatchResult::Incomplete(CheckedPackageIncomplete)` naming the exhausted limit, carried unchanged; it is neither an admitted package nor a refusal, no linked representation is exposed, and the same read at the exact limit is admitted. | Test (TC-149) |
 
 ## Dependencies
 

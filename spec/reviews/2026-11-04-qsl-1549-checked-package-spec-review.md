@@ -28,6 +28,29 @@ Ticket: QSL-1549. Head bd361459f0fa20d1646b8ca5532137db9922bd51, checked against
 | FND-006 | medium | AC-7 does not contradict QSL FR-520-AC-11, which is gated on IR-1280, but it fixes that attribution is 'read from the Meter charge log', where FR-520's text says IR-1280 decides where it lives, and one AC holds two states (before and after the attribution exists), so the 'until then' branch is untestable once it lands. Split it: an AC for the current state (record the total charge, report attribution as unsupported, not zero) and an AC mirroring FR-520-AC-11 for when the per-binder log and `accounting_version` exist, both naming the gate. The 'unsupported result' has no named owner type; say which owner's type it is (AGENTS.md: find the owner). | spec/functional/FR-045-assess-compensation-through-the-checked-package-evaluation.md | wrong-requirement |
 | FND-007 | low | Small gaps: tests.md still says 'Behavioural totals across these 35 rows: 198 acceptance criteria' after five rows and 31 criteria were added; QSL FR-521 row 5 (keep the `temporal::{Closure, Completeness, ...}` surface until the repoint and IR-1005, and fix the `Position.instance_valuations` break in the consumer) has no requirement in FR-045 to FR-047; FR-044-AC-5 forbids retired types on the public surface while AC-6 keeps a window binding on the `wire.rs` spelling, so say which `wire.rs` item stays public. Process: AGENTS.md requires `/spec-review` and `/spec-to-plan` before implementation; neither was run for this batch. | spec/tests.md | wrong-requirement |
 
+## New findings (disposition pass 1)
+
+| ID | Severity | Summary | Refs | Escape Cause |
+| --- | --- | --- | --- | --- |
+| FND-008 | low | FR-043's Outputs give two outcomes, admitted or one of two refusal kinds, but `read_checked_package` has a third result, `CheckedPackageDispatchResult::Incomplete(CheckedPackageIncomplete)` (the first exhausted read limit, with `limit_kind`, `limit`, `consumed` and a pointer), which is neither admitted nor a refusal. State how the library carries it (a typed non-conclusive outcome, unchanged) and give it a criterion; the `CheckedPackageRefusal` also holds `loci` (nonempty list, each with a pointer and source region), `cause` and a node `locus`, so 'its optional cause and JSON pointer' should say loci. SelectionRefusal and SelectionAxis (src/checked_handoff/selection.rs: `Selection::check(&self, &CheckedPackageV2) -> Result<(), SelectionRefusal>`, `SelectionRefusal { axis, clause }`) match the text. | spec/functional/FR-043-admit-the-checked-package-handoff.md | missing-requirement |
+| FND-009 | low | FR-045 and FR-046 now depend on a QSL entry that evaluates from a `CheckedPackageV2` alone, but QSL main has no requirement for it (QSL FR-515 still calls an evaluator over `formula_graph()` alone 'a separate future capability'), so the dependency names no requirement id. Name the QSL requirement when it exists, and mark FR-045 and FR-046 as blocked on it in spec/tests.md; the wording is abstract and invents no API, which is right. | spec/functional/FR-045-assess-compensation-through-the-checked-package-evaluation.md | missing-requirement |
+
+## Dispositions
+
+| FND | Outcome | Reason |
+| --- | --- | --- |
+| FND-001 | fixed | Verified in fix commit 3d9f8dccc against the current text. |
+| FND-002 | fixed | Verified in fix commit 3d9f8dccc against the current text. |
+| FND-003 | fixed | Verified in fix commit 3d9f8dccc against the current text. |
+| FND-004 | fixed | Verified in fix commit 3d9f8dccc against the current text. |
+| FND-005 | fixed | Verified in fix commit 3d9f8dccc against the current text. |
+| FND-006 | fixed | Verified in fix commit 3d9f8dccc against the current text. |
+| FND-007 | still-open | Partly fixed: FR-046-AC-7 and the keep-the-temporal-surface Behavior bullet cover FR-521 row 5, FR-044-AC-5 and AC-6 now name `BindingKind::Window` as the one public `wire.rs` item, and the tests.md rows and the intro (49 FRs, 24 test cases) are updated. Still open: the intro's acceptance-criteria count reads 345 (315 + 30) but the five new requirements hold 6, 7, 8, 7 and 4 criteria, 32 in all, so the author's own method gives 347; and 'Behavioural totals across these 35 rows: 198 acceptance criteria' is unchanged although five rows were added. Process note: no /spec-review artifact existed before this review and no plan is written. |
+| FND-008 | still-open | new this round. |
+| FND-009 | still-open | new this round. |
+
 ## Verdict
 
 Not mergeable until FND-001 and FND-002 are resolved; FND-003 to FND-006 are medium.
+
+Round 1: FND-001 to FND-006 fixed; FND-007 (count arithmetic) still open; FND-008 and FND-009 new, low. Not mergeable until FND-007 and FND-008 are fixed.

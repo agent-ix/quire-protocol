@@ -67,7 +67,7 @@ support, joined to the library's result record; or the call's typed refusal.
 
 ## Dependencies
 
-- QSL FR-516, FR-515 (the evidence package), FR-521 rows 3, 4 and 5, FR-044. QSL provides the entry that evaluates from a `CheckedPackageV2` alone; this requirement depends on it.
+- QSL FR-516, FR-515 (the evidence package), FR-521 rows 3, 4 and 5, FR-044. QSL provides the entry that evaluates from a `CheckedPackageV2` alone; this requirement depends on it. That entry is a QSL capability not yet specified in QSL, so this requirement is blocked until QSL specifies and delivers it.
 - [FR-003](FR-003-assess-compensation-state.md) and
   [FR-004](FR-004-assess-finite-global-conformance.md) state the assessment
   contracts; this requirement changes only their temporal evidence source.
