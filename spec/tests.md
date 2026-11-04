@@ -45,6 +45,11 @@ relationships:
   - { target: ix://agent-ix/quire-protocol/FR-040, type: references }
   - { target: ix://agent-ix/quire-protocol/FR-041, type: references }
   - { target: ix://agent-ix/quire-protocol/FR-042, type: references }
+  - { target: ix://agent-ix/quire-protocol/FR-043, type: references }
+  - { target: ix://agent-ix/quire-protocol/FR-044, type: references }
+  - { target: ix://agent-ix/quire-protocol/FR-045, type: references }
+  - { target: ix://agent-ix/quire-protocol/FR-046, type: references }
+  - { target: ix://agent-ix/quire-protocol/FR-047, type: references }
   - { target: ix://agent-ix/quire-protocol/NFR-001, type: references }
   - { target: ix://agent-ix/quire-protocol/NFR-002, type: references }
   - { target: ix://agent-ix/quire-protocol/NFR-003, type: references }
@@ -61,9 +66,9 @@ paths and work that remains planned or blocked. The accepted frozen source basel
 Assurance producer, license, implementation plan, and retained corpus remain
 explicit gates.
 
-The repository carries 44 functional requirements, 8 non-functional
-requirements, 3 integration tests and 19 test cases, and 315 acceptance criteria
-across the 44 FRs and the 8 NFRs. The functional set divides into 9 aggregate or
+The repository carries 49 functional requirements, 8 non-functional
+requirements, 3 integration tests and 24 test cases, and 348 acceptance criteria
+across the 49 FRs and the 8 NFRs. The functional set divides into 9 aggregate or
 behavioural parents (FR-001..FR-009), 9 object requirements (FR-010..FR-018),
 24 atomic behavioural parts (FR-019..FR-042) that the parents aggregate
 through `contains`, and 2 independent behavioural requirements (FR-301, FR-302)
@@ -73,12 +78,20 @@ obligations once each through those parts; the parent row and the part rows are
 therefore two views of one obligation and must not be added together as
 separate work.
 
-The 315 counts rows of a `## Acceptance Criteria` table on an FR or an NFR, and
-nothing else. `quire properties` reports 335 criteria over the same tree: the
+The 348 counts rows of a `## Acceptance Criteria` table on an FR or an NFR, and
+nothing else. `quire properties` reports 368 criteria over the same tree: the
 extra 20 are the `StR-0NN-VC-n` validation criteria of StR-001 through StR-005,
 which are stakeholder validation rather than FR/NFR acceptance and which this
 matrix carries no table for. NFR-005's five metrics are outside that figure;
 its six acceptance criteria are included.
+
+### Row status symbols
+
+- ✅ Implemented or Complete: the row's tests are authored and pass.
+- 🚧 Planned or In progress: the row is specified; its tests are not all authored
+  or not all passing.
+- ⛔ Blocked: the row is specified but cannot be implemented or tested until a
+  named dependency owned elsewhere is delivered; the row names the dependency.
 
 ### What each status word in this matrix means
 
@@ -333,12 +346,17 @@ in Domain Object Coverage instead.
 | FR-042 | FR-042-AC-1..AC-6 | TC-015 (AC-1..AC-6) | ✅ Implemented — all six criteria carry direct traced tests; the current engine reports 3 of 6 criterion rows bound and no FR-042 unbacked or untracked record, so the direct trace inventory and engine rollup remain stated separately |
 | FR-301 | FR-301-AC-1..AC-5 | TC-147 (AC-1..AC-5) | 🚧 Planned — refinement is admitted in spec once `agent-ix/quire-protocol#81` lands FR-176/FR-177; TC-147 binds all 5 criteria and no implementation has landed yet. |
 | FR-302 | FR-302-AC-1..AC-5 | TC-148 (AC-1..AC-5) | 🚧 Planned — the witness carrier is admitted in spec pending `agent-ix/quire-specification#114`'s `native-run-result/2`; TC-148 binds all 5 criteria and no implementation has landed yet. |
+| FR-043 | FR-043-AC-1..AC-7 | TC-149 (AC-1..AC-7) | 🚧 Planned — the checked-package handoff is read with the Contract IR reader. |
+| FR-044 | FR-044-AC-1..AC-7 | TC-150 (AC-1..AC-7) | 🚧 Planned — linking over a typed read view and QSL's causal relation. |
+| FR-045 | FR-045-AC-1..AC-8 | TC-151 (AC-1..AC-8) | ⛔ Blocked — until QSL specifies and delivers the evaluation entry that works from a `CheckedPackageV2` alone; compensation through qsl-eval's slot evaluation. |
+| FR-046 | FR-046-AC-1..AC-7 | TC-152 (AC-1..AC-7) | ⛔ Blocked — until QSL specifies and delivers the evaluation entry that works from a `CheckedPackageV2` alone; temporal evidence through the in-memory evidence types. |
+| FR-047 | FR-047-AC-1..AC-4 | TC-153 (AC-1..AC-4) | 🚧 Planned — AC-4 is pending the owner ruling on the digest and seal lanes. |
 
-Behavioural totals across these 35 rows: 198 acceptance criteria, of which 193
-are backed by a test case, 2 are backed only by an integration scenario
+Behavioural totals across these 40 rows: 231 acceptance criteria, of which 226
+are backed by a test case (the 33 of FR-043 to FR-047 are bound to TC-149 to TC-153 and none is implemented yet), 2 are backed only by an integration scenario
 (FR-002-AC-5 and FR-001-AC-5 pass), and 3 are
 unbacked — 2 by Inspection and 1 by Analysis.
-193 + 2 + 3 = 198.
+226 + 2 + 3 = 231.
 
 ## Domain Object Coverage
 
@@ -429,6 +447,11 @@ a coverage claim in this matrix.
 | TC-015 | Produce, read and map canonical protocol results | Integration | P0 | FR-042-AC-1..FR-042-AC-6 | ✅ Implemented — 9 executable tests carry the TC-015 trace and cover canonical production/strict reading, the `test-support` constructors, complete typed views, all four independent axes, Boolean/non-value mapping, identity/lineage mutations, reproduction and exact/one-short resource limits |
 | TC-016 | Compose complete scenario evidence without storing it | Property | P0 | FR-017, NFR-005 | 🚧 Planned — final outcome/resource types, deterministic partial resolution, per-axis distinctness and transient-value containment |
 | TC-017 | Validate the consumer-owned delivery index | Property | P0 | FR-018, NFR-006 | ✅ Implemented — five executable index tests cover exact identity/state, bytes, typed absence, temporal/input/mutation/limit controls, bounded retention and version-lock non-authority. |
+| TC-149 | Admit the checked-package handoff | Property | P0 | FR-043 | 🚧 Planned |
+| TC-150 | Link from a typed read view of the checked package | Property | P0 | FR-044 | 🚧 Planned |
+| TC-151 | Assess compensation through the checked-package evaluation | Property | P0 | FR-045 | ⛔ Blocked — until QSL delivers the evaluation entry that works from a `CheckedPackageV2` alone |
+| TC-152 | Consume temporal evidence through the in-memory evidence types | Property | P0 | FR-046 | ⛔ Blocked — until QSL delivers the evaluation entry that works from a `CheckedPackageV2` alone |
+| TC-153 | End the retired compiler surfaces and the integrity lanes | Static | P0 | FR-047 | 🚧 Planned — AC-4 pending the owner ruling |
 | TC-147 | Admit protocol refinement dispatch | Property | P0 | FR-301 | 🚧 Planned — binds all 5 FR-301 criteria; awaits `agent-ix/quire-protocol#81` landing FR-176/FR-177. |
 | TC-148 | Carry a trace-position witness on the protocol result wire | Property | P0 | FR-302 | 🚧 Planned — binds all 5 FR-302 criteria; awaits `agent-ix/quire-specification#114`'s `native-run-result/2`. |
 

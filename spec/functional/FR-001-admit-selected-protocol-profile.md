@@ -81,6 +81,10 @@ already-published version's admission behaviour unchanged.
 | FR-001-AC-4 | Every declared numeric minimum and maximum, the signed-64 extrema in fields whose source domains admit them, and every normalized exact-rational boundary round-trip without loss under the selected numeric wire profile; an unsafe bare JSON number, non-canonical integer/rational form, field-domain or signed-64 overflow refuses before semantic evaluation. | Test (TC-001, TC-006) |
 | FR-001-AC-5 | Each published compiled-artifact contract version is admitted only through its own explicit entry point: bytes of one version offered at another version's entry point return a typed refusal with no version detection, upgrade, downgrade, or repair, and the admission behaviour of an already-published version is unchanged by the addition of a later one. | Test (IT-001) |
 
+## Checked-package successor
+
+[FR-043](FR-043-admit-the-checked-package-handoff.md) states the admission contract for the checked-package handoff and replaces this requirement for the retired `quire.compiled-protocol/2` wire once the repoint merges. FR-001-AC-1 to AC-3 and AC-5 are restated as FR-043-AC-1, AC-3, AC-2 and AC-5, and the numeric decoding of AC-4 belongs to the Contract IR reader (FR-043-AC-6). Until the repoint merges, this requirement stays in force for the retired wire.
+
 ## Dependencies
 
 - `ix://agent-ix/quire-specification/FR-050` through `FR-062` define the source semantics.
