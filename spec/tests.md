@@ -45,6 +45,11 @@ relationships:
   - { target: ix://agent-ix/quire-protocol/FR-040, type: references }
   - { target: ix://agent-ix/quire-protocol/FR-041, type: references }
   - { target: ix://agent-ix/quire-protocol/FR-042, type: references }
+  - { target: ix://agent-ix/quire-protocol/FR-043, type: references }
+  - { target: ix://agent-ix/quire-protocol/FR-044, type: references }
+  - { target: ix://agent-ix/quire-protocol/FR-045, type: references }
+  - { target: ix://agent-ix/quire-protocol/FR-046, type: references }
+  - { target: ix://agent-ix/quire-protocol/FR-047, type: references }
   - { target: ix://agent-ix/quire-protocol/NFR-001, type: references }
   - { target: ix://agent-ix/quire-protocol/NFR-002, type: references }
   - { target: ix://agent-ix/quire-protocol/NFR-003, type: references }
@@ -333,6 +338,11 @@ in Domain Object Coverage instead.
 | FR-042 | FR-042-AC-1..AC-6 | TC-015 (AC-1..AC-6) | ✅ Implemented — all six criteria carry direct traced tests; the current engine reports 3 of 6 criterion rows bound and no FR-042 unbacked or untracked record, so the direct trace inventory and engine rollup remain stated separately |
 | FR-301 | FR-301-AC-1..AC-5 | TC-147 (AC-1..AC-5) | 🚧 Planned — refinement is admitted in spec once `agent-ix/quire-protocol#81` lands FR-176/FR-177; TC-147 binds all 5 criteria and no implementation has landed yet. |
 | FR-302 | FR-302-AC-1..AC-5 | TC-148 (AC-1..AC-5) | 🚧 Planned — the witness carrier is admitted in spec pending `agent-ix/quire-specification#114`'s `native-run-result/2`; TC-148 binds all 5 criteria and no implementation has landed yet. |
+| FR-043 | FR-043-AC-1..AC-6 | TC-149 (AC-1..AC-6) | 🚧 Planned — the checked-package handoff is read with the Contract IR reader. |
+| FR-044 | FR-044-AC-1..AC-7 | TC-150 (AC-1..AC-7) | 🚧 Planned — linking over a typed read view and QSL's causal relation. |
+| FR-045 | FR-045-AC-1..AC-7 | TC-151 (AC-1..AC-7) | 🚧 Planned — compensation through qsl-eval's slot evaluation. |
+| FR-046 | FR-046-AC-1..AC-6 | TC-152 (AC-1..AC-6) | 🚧 Planned — temporal evidence through the in-memory evidence types. |
+| FR-047 | FR-047-AC-1..AC-4 | TC-153 (AC-1..AC-4) | 🚧 Planned — AC-4 is pending the owner ruling on the digest and seal lanes. |
 
 Behavioural totals across these 35 rows: 198 acceptance criteria, of which 193
 are backed by a test case, 2 are backed only by an integration scenario

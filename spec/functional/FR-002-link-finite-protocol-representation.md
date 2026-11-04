@@ -190,6 +190,10 @@ Quire Observation PR #20 publishes the accepted FR-287 and FR-262 Rust values.
 This repository imports those values and implements the linker-owned binding;
 it does not redeclare their wire records or infer their missing members.
 
+## Checked-package successor
+
+[FR-044](FR-044-link-from-a-typed-read-view-of-the-checked-package.md) states the linking contract over a typed read view of the checked package and replaces this requirement's `wire::Package` input once the repoint merges; FR-002-AC-1 to AC-5 are kept over recipe **R** as FR-044-AC-7. Until the repoint merges, this requirement stays in force for the retired wire.
+
 ## Dependencies
 
 - [FR-001](./FR-001-admit-selected-protocol-profile.md).
