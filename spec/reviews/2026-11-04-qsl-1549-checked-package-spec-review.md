@@ -49,8 +49,25 @@ Ticket: QSL-1549. Head bd361459f0fa20d1646b8ca5532137db9922bd51, checked against
 | FND-008 | still-open | new this round. |
 | FND-009 | still-open | new this round. |
 
+## New findings (disposition pass 2)
+
+| ID | Severity | Summary | Refs | Escape Cause |
+| --- | --- | --- | --- | --- |
+| FND-010 | low | Checked against the Contract IR reader (quire-contract-model checked_package): `exceeds(consumed, limit)` is `consumed > limit`, so one below usage returns `Incomplete` and the exact limit admits, and `CheckedPackageIncomplete` carries `limit_kind` (Bytes, Nodes, Edges, Occurrences, Diagnostics, Work), `limit` and `consumed`, so AC-7 matches the code. TC-149 says it reads 'with each read limit one below and at its exact usage', but a limit whose measured usage on an admitted package is 0 (the diagnostic budget on R, probably) has no representable one-below; say 'each limit with nonzero measured usage'. The `⛔ Blocked` status is new to tests.md, which has no status legend; non-blocking. | spec/functional/FR-043-admit-the-checked-package-handoff.md | wrong-requirement |
+
+## Dispositions (round 2)
+
+| FND | Outcome | Reason |
+| --- | --- | --- |
+| FND-007 | fixed | Round 2: 348 and 231 recomputed as 315 + 33 and 198 + 33; 40 rows; 226 test-backed. |
+| FND-008 | fixed | Round 2: FR-043 Outputs add the incomplete read, FR-043-AC-7, TC-149; matches CheckedPackageIncomplete and exceeds(consumed, limit). |
+| FND-009 | fixed | Round 2: FR-045 and FR-046 and TC-151 and TC-152 marked Blocked; TC-150 stays Planned. |
+| FND-010 | still-open | new this round, low, non-blocking. |
+
 ## Verdict
 
 Not mergeable until FND-001 and FND-002 are resolved; FND-003 to FND-006 are medium.
 
 Round 1: FND-001 to FND-006 fixed; FND-007 (count arithmetic) still open; FND-008 and FND-009 new, low. Not mergeable until FND-007 and FND-008 are fixed.
+
+Round 2: FND-007, FND-008 and FND-009 fixed; FND-010 is new, low, non-blocking. Mergeable.

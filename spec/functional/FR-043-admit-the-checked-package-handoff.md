@@ -70,7 +70,7 @@ limit is exhausted, carried unchanged; or a selection refusal carrying QSL's
 | FR-043-AC-4 | No source file of the crate parses checked-package bytes or declares a refusal code or format string for the checked package: the only call that reads them is `read_checked_package`, and the refusal vocabulary is imported. | Inspection (TC-149) |
 | FR-043-AC-5 | Bytes of `quire.compiled-protocol/1` or `/2` offered at the checked-package entry point return a typed refusal; no version is detected, upgraded or repaired. Checked-package bytes offered at a retired entry point return a typed refusal for as long as a retired entry point exists, which is until FR-047's end conditions are met. | Test (TC-149) |
 | FR-043-AC-6 | A bare JSON number outside the safe-integer interval, a non-canonical rational and a signed-64 overflow in a package field each return the reader's refusal unchanged, and the library holds no numeric decoder. | Test (TC-149) |
-| FR-043-AC-7 | A read whose limit is one below the package's measured usage returns `CheckedPackageDispatchResult::Incomplete(CheckedPackageIncomplete)` naming the exhausted limit, carried unchanged; it is neither an admitted package nor a refusal, no linked representation is exposed, and the same read at the exact limit is admitted. | Test (TC-149) |
+| FR-043-AC-7 | A read whose limit, for a limit with nonzero measured usage, is one below the package's measured usage returns `CheckedPackageDispatchResult::Incomplete(CheckedPackageIncomplete)` naming the exhausted limit, carried unchanged; it is neither an admitted package nor a refusal, no linked representation is exposed, and the same read at the exact limit is admitted. | Test (TC-149) |
 
 ## Dependencies
 

@@ -85,6 +85,14 @@ which are stakeholder validation rather than FR/NFR acceptance and which this
 matrix carries no table for. NFR-005's five metrics are outside that figure;
 its six acceptance criteria are included.
 
+### Row status symbols
+
+- ✅ Implemented or Complete: the row's tests are authored and pass.
+- 🚧 Planned or In progress: the row is specified; its tests are not all authored
+  or not all passing.
+- ⛔ Blocked: the row is specified but cannot be implemented or tested until a
+  named dependency owned elsewhere is delivered; the row names the dependency.
+
 ### What each status word in this matrix means
 
 The five words below are not interchangeable, and no total mixes them.
