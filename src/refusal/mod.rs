@@ -373,6 +373,7 @@ impl Prerequisite {
 pub struct RefusalAxis(RetainedBytes);
 
 impl RefusalAxis {
+    #[cfg(test)]
     /// Retain one non-empty refusal-axis identity byte-exactly.
     ///
     /// # Errors
@@ -402,16 +403,19 @@ impl RefusalAxis {
     }
 }
 
+#[cfg(test)]
 /// A refusal envelope was offered without its required refusal axis.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub(crate) struct EmptyRefusalAxis;
 
+#[cfg(test)]
 impl fmt::Display for EmptyRefusalAxis {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str("refusal axis is empty")
     }
 }
 
+#[cfg(test)]
 impl std::error::Error for EmptyRefusalAxis {}
 
 /// The identity a refusal is about.
@@ -740,6 +744,7 @@ impl ResourceUsage {
     }
 }
 
+#[cfg(test)]
 /// A refusal that retained independent results FR-005 authorises to survive.
 ///
 /// The two fields are separate by construction, and the only constructor
@@ -751,6 +756,7 @@ pub(crate) struct RefusedWithIndependent<T> {
     retained: Vec<T>,
 }
 
+#[cfg(test)]
 impl<T> RefusedWithIndependent<T> {
     /// The refusal itself.
     #[must_use]
@@ -945,18 +951,6 @@ impl ProtocolRefusal {
         rendered
     }
 
-    /// Retain this exact refusal while recording that an enclosing assessment
-    /// kept independently authorized sibling results.
-    ///
-    /// Only the enclosing assessment may make this transition: it does not
-    /// mint a cause, change the originating stage, or make a failed operation
-    /// appear completed.
-    #[must_use]
-    pub(crate) fn with_independent_results_retained(mut self) -> Self {
-        self.0.partial_output = PartialOutput::IndependentResultsRetained;
-        self
-    }
-
     /// Whether two refusals carry the same producer-supplied interior.
     ///
     /// The refusal axis and rendering are deliberately excluded. Integrations
@@ -1074,6 +1068,7 @@ pub(crate) struct RefusalBuilder {
 }
 
 impl RefusalBuilder {
+    #[cfg(test)]
     /// Record a prerequisite of the originating stage.
     #[must_use]
     pub(crate) fn prerequisite(mut self, prerequisite: Prerequisite) -> Self {
@@ -1112,6 +1107,7 @@ impl RefusalBuilder {
         self
     }
 
+    #[cfg(test)]
     /// Append a cause at the end of the declared order.
     #[must_use]
     pub(crate) fn cause(mut self, cause: impl Into<RefusalCause>) -> Self {
@@ -1139,6 +1135,7 @@ impl RefusalBuilder {
         self.finish(PartialOutput::NoneEmitted)
     }
 
+    #[cfg(test)]
     /// Finish a refusal that retained independent results FR-005 authorises to
     /// survive another claim's failure.
     ///

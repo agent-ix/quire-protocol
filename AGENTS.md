@@ -46,18 +46,14 @@ version they ran.
 - Run local checks only. Set `CARGO_BUILD_JOBS=1` and use
   `flock /tmp/quire-heavy-check.lock` for heavy Cargo work. Do not dispatch hosted CI.
 - The local gate is defined by [NFR-004](spec/non-functional/NFR-004-define-local-verification-gate.md).
-  It is exactly these seven commands, in this order, over one unchanged head.
-  The first four are the default Cargo-feature lane; the last three are the
-  opposing `test-support` lane:
+  It is exactly these four commands, in this order, over one unchanged head,
+  in the one Cargo-feature lane of a crate that declares no feature:
 
   ```console
   CARGO_BUILD_JOBS=1 flock /tmp/quire-heavy-check.lock cargo fmt --all -- --check
   CARGO_BUILD_JOBS=1 flock /tmp/quire-heavy-check.lock cargo clippy --locked --all-targets --target-dir target-codex-backends -- -D warnings
   CARGO_BUILD_JOBS=1 flock /tmp/quire-heavy-check.lock cargo test --locked --target-dir target-codex-backends
   CARGO_BUILD_JOBS=1 flock /tmp/quire-heavy-check.lock env RUSTDOCFLAGS="-D warnings" cargo doc --locked --no-deps --target-dir target-codex-backends
-  CARGO_BUILD_JOBS=1 flock /tmp/quire-heavy-check.lock cargo clippy --locked --all-targets --features test-support --target-dir target-codex-backends -- -D warnings
-  CARGO_BUILD_JOBS=1 flock /tmp/quire-heavy-check.lock cargo test --locked --features test-support --target-dir target-codex-backends
-  CARGO_BUILD_JOBS=1 flock /tmp/quire-heavy-check.lock env RUSTDOCFLAGS="-D warnings" cargo doc --locked --no-deps --features test-support --target-dir target-codex-backends
   ```
 
   The formatting command detects formatting drift. The Clippy command detects
@@ -73,13 +69,8 @@ version they ran.
   builds rustdoc output, so neither can reach it. A command without a named
   risk is not part of the gate.
 
-  This crate has two **Cargo-feature lanes**. It declares one feature,
-  `test-support`, and one `cfg(any(test, feature = "test-support"))` site in
-  `src/result/mod.rs`, which compiles `result::test_support` — validated-result
-  constructors for dependents' test suites. The default lane builds without it,
-  so the default build exposes nothing new; the `test-support` lane lints, tests
-  and documents it as a dependent sees it. The feature is for a dependent's
-  `[dev-dependencies]` entry only. Separately, the current Unix host selects the
+  This crate declares no Cargo feature and no optional dependency, so it has
+  one **Cargo-feature lane**. Separately, the current Unix host selects the
   tracked `#[cfg(test)]` sites through `clippy --all-targets` and `test`, and one
   tracked `#[cfg(unix)]` integration test through the admitted
   `x86_64-unknown-linux-gnu` target. This is not a claim about another target.

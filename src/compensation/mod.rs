@@ -4,12 +4,11 @@
 //! The subsystem is deliberately split by authority rather than by workflow
 //! step: [`crate::compensation::activate`] owns obligation activation,
 //! [`crate::compensation::algebra`] owns established
-//! effects/registration/authored order/retry, [`crate::compensation::graph`] owns production
-//! request-state transitions and exact QSL evaluation reports, and [`crate::compensation::purity`]
+//! effects/registration/authored order/retry, and [`crate::compensation::purity`]
 //! constructs the capability-free witness required by every operation. The
 //! retained [`crate::compensation::recovery`] kernel exposes output vocabulary and crate-private
-//! test seams; production recovery is evaluated directly by the assessment
-//! Engine. This facade neither runs a business operation nor infers one fact
+//! test seams; production recovery returns with the checked-package evaluation
+//! (FR-045). This facade neither runs a business operation nor infers one fact
 //! from another.
 
 #![deny(clippy::wildcard_enum_match_arm)]
@@ -18,15 +17,10 @@
 pub mod activate;
 /// Replay-idempotent registration, causal commit ordering, and finite retry.
 pub mod algebra;
-/// Stateful graph-owned compensation facts and exact source outcomes.
-pub mod graph;
 /// Constructor-checked capability boundary for assessment purity.
 pub mod purity;
 /// Recovery output vocabulary and crate-private legacy assessment seam.
 pub mod recovery;
-/// Derived registration keys over QSL and QObs owner values.
-pub mod registration;
-
 use crate::bounds::inventory::{BudgetDimension, OperationOutcome, ResourceAccountant, SourceSite};
 use crate::bounds::{SiteId, SiteKind, UnitLabel};
 

@@ -516,16 +516,6 @@ pub(crate) struct InterfaceRequirement {
     immutability_assertion: ExactBytes,
 }
 
-impl InterfaceRequirement {
-    pub(crate) fn new(key: EntryKey, revision: &[u8], immutability_assertion: &[u8]) -> Self {
-        Self {
-            key,
-            revision: ExactBytes::new(revision),
-            immutability_assertion: ExactBytes::new(immutability_assertion),
-        }
-    }
-}
-
 impl<C> InterfaceSelection<C> {
     /// Compile an adapter's exact interface owner/version/revision selection.
     pub(crate) fn new(key: EntryKey, revision: &[u8]) -> Self {
@@ -658,27 +648,6 @@ impl ResolvedRequest {
     /// Resource use retained for this completed resolution.
     pub(crate) fn usage(&self) -> Usage {
         self.usage
-    }
-
-    /// Prove that a resolved capability is being used only for its original
-    /// fixed-size request selection.
-    pub(crate) fn authorize_request(
-        &self,
-        request: &ResolutionRequestIdentity,
-    ) -> OperationOutcome<()> {
-        if request != &self.request {
-            let key = self
-                .entries
-                .first()
-                .map(ManifestEntry::key)
-                .expect("completed resolution retains at least one required entry");
-            return refused_key(
-                ResolutionRefusalCode::CapabilityRequestMismatch,
-                key,
-                identity_mismatch(&self.request.0, &request.0),
-            );
-        }
-        OperationOutcome::Completed(())
     }
 
     /// Validate an adapter-compiled interface selection without cloning or
@@ -1319,84 +1288,6 @@ pub(crate) fn resolve<C: Clock + 'static>(
         None::<(usize, SiteId, fn() -> ())>,
     )
     .map(|(resolved, _)| resolved)
-}
-
-/// Resolve and validate a closed interface inventory under the same entry,
-/// byte and deadline accountant as manifest resolution.
-#[must_use]
-pub(crate) fn resolve_interfaces<C: Clock + 'static>(
-    request: ResolutionRequestIdentity,
-    manifest: &VersionLockManifest,
-    required: &[InterfaceRequirement],
-    budget: ResolutionBudget,
-    clock: C,
-) -> OperationOutcome<ResolvedRequest> {
-    let keys = required
-        .iter()
-        .map(|selection| selection.key.clone())
-        .collect::<Vec<_>>();
-    resolve_selected(
-        request,
-        manifest,
-        &keys,
-        SelectedResolution {
-            deliveries: &[],
-            interfaces: required,
-        },
-        budget,
-        clock,
-        None::<(usize, SiteId, fn() -> ())>,
-    )
-    .map(|(resolved, _)| resolved)
-}
-
-/// Resolve a closed interface inventory, then verify request-selected producer
-/// values while the same byte accountant and monotonic deadline remain live.
-/// The declared byte count is charged before `verify` can read those values.
-pub(crate) struct InterfaceVerification<F> {
-    /// Exact bytes charged before verification begins.
-    pub(crate) bytes: usize,
-    /// Independently inventoried source of that work.
-    pub(crate) source: SiteId,
-    /// Loaded-selection verification to run inside the deadline unit.
-    pub(crate) run: F,
-}
-
-/// Resolve interfaces and run the supplied loaded-selection verification.
-#[must_use]
-pub(crate) fn resolve_interfaces_then<C, T>(
-    request: ResolutionRequestIdentity,
-    manifest: &VersionLockManifest,
-    required: &[InterfaceRequirement],
-    budget: ResolutionBudget,
-    clock: C,
-    verification: InterfaceVerification<impl FnOnce() -> T>,
-) -> OperationOutcome<(ResolvedRequest, T)>
-where
-    C: Clock + 'static,
-{
-    let keys = required
-        .iter()
-        .map(|selection| selection.key.clone())
-        .collect::<Vec<_>>();
-    resolve_selected(
-        request,
-        manifest,
-        &keys,
-        SelectedResolution {
-            deliveries: &[],
-            interfaces: required,
-        },
-        budget,
-        clock,
-        Some((verification.bytes, verification.source, verification.run)),
-    )
-    .map(|(resolved, verified)| {
-        (
-            resolved,
-            verified.expect("the selected verification callback always runs on completion"),
-        )
-    })
 }
 
 struct SelectedResolution<'a> {

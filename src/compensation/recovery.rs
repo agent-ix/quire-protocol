@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Recovery decisions retained from exact authored relations.
 //!
-//! Production recovery evaluation is owned by
-//! [`crate::assessment::ResolvedAssessmentEngine::evaluate_compensation_recovery`] and walks the
-//! selected admitted QSL expression. The former relation double is retained
-//! only as a crate-private test seam and is not importable by consumers:
+//! Production recovery evaluation returns with the checked-package evaluation
+//! (FR-045); until then only the output vocabulary is retained. The former
+//! relation double is a crate-private test seam and is not importable by
+//! consumers:
 //!
 //! ```compile_fail
 //! use quire_protocol::compensation::recovery::RecoveryRelation;

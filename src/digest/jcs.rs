@@ -97,15 +97,6 @@ fn string_len(text: &str) -> Result<usize, JcsError> {
     Ok(length)
 }
 
-/// Compute the exact number of UTF-8 bytes retained inside one canonical JSON
-/// string, excluding the surrounding quote bytes and without allocating the
-/// encoded string.
-pub(crate) fn encoded_string_content_len(text: &str) -> Result<usize, JcsError> {
-    string_len(text)?
-        .checked_sub(2)
-        .ok_or(JcsError::LengthOverflow)
-}
-
 fn checked_add(left: usize, right: usize) -> Result<usize, JcsError> {
     left.checked_add(right).ok_or(JcsError::LengthOverflow)
 }

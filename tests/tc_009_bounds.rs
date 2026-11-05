@@ -299,10 +299,35 @@ fn tc_009_every_production_site_has_below_at_above_boundary() {
         .iter()
         .map(|site| site.dimension())
         .collect();
+    // Stage 1 of the checked-package repoint (QSL-1549) deleted the link, result,
+    // projection and conformance work sites. Their dimensions are listed here
+    // until the successor stages charge them again; a dimension is either
+    // charged by a production site or named in this list, never neither.
+    let awaiting_successor: BTreeSet<_> = [
+        BudgetDimension::Definition,
+        BudgetDimension::Node,
+        BudgetDimension::Edge,
+        BudgetDimension::Role,
+        BudgetDimension::Message,
+        BudgetDimension::Branch,
+        BudgetDimension::Iteration,
+        BudgetDimension::ActiveInstance,
+        BudgetDimension::Lineage,
+        BudgetDimension::DerivedArtifact,
+        BudgetDimension::OutputByte,
+        BudgetDimension::Operation,
+    ]
+    .into_iter()
+    .collect();
     let required: BTreeSet<_> = BudgetDimension::ALL.into_iter().collect();
+    assert!(covered.is_disjoint(&awaiting_successor));
     assert_eq!(
-        covered, required,
-        "every NFR-002 caller dimension has a real production charge point"
+        covered
+            .union(&awaiting_successor)
+            .copied()
+            .collect::<BTreeSet<_>>(),
+        required,
+        "every NFR-002 caller dimension has a production charge point or awaits its successor"
     );
 
     for source in production_sources() {

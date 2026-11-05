@@ -53,11 +53,8 @@ Does not apply to the exact Rust review, or QUOIN semantic gap analysis, which r
 workflow triggers or to whether a hosted run may serve as local evidence, both of
 which remain owned by [NFR-003-AC-1](NFR-003-preserve-rust-assurance-boundary.md).
 
-On the current admitted local Unix target, twenty tracked test-kind sites (thirteen
-`#[cfg(test)]` and seven `cfg_attr(not(test), ...)` attributes) are selected by
-`cargo clippy --all-targets` and `cargo test`, one tracked
-`cfg(any(test, feature = "test-support"))` site is selected by the `test-support`
-lane, and one tracked `#[cfg(unix)]` integration test is selected by that target. This establishes no
+On the current admitted local Unix target, the tracked test-kind sites (`#[cfg(test)]` and `cfg_attr(not(test), ...)` attributes) are selected by
+`cargo clippy --all-targets` and `cargo test`. This establishes no
 Windows or other-target support. A future condition that is false in every
 declared gate execution is unexecuted until an opposing target lane is added or
 the target is explicitly excluded from the supported scope.
@@ -79,23 +76,18 @@ While a crate declares no `[features]` table, no optional dependency and no
 `cfg(feature = ...)` condition, `--no-default-features`, `--all-features` and
 the default feature selection resolve to the identical unit graph. Running all
 three covers no additional Cargo-feature configuration; it only multiplies
-build time and creates the appearance of coverage. This crate now declares one
-feature, `test-support`, which compiles `result::test_support` — validated-result
-constructors for dependents' test suites — behind one
-`cfg(any(test, feature = "test-support"))` site, so AC-7 obligates its opposing
-lane: the gate runs clippy, test and doc in both the default and the
-`test-support` selection. The existing `cfg(test)` and
-`cfg(unix)` sites do not change that fact: one varies target kind and the other
-varies target platform. Declaring a feature to make
+build time and creates the appearance of coverage. This crate declares no
+feature (the `test-support` feature went with the result module it exposed), so
+the gate runs one lane. The existing `cfg(test)` sites do not change that fact:
+they vary target kind. Declaring a feature to make
 `--features quire-extraction` stop erroring would be worse still: a feature with
 no gated code behind it reports a green second lane while protecting nothing,
 which is an untrue assurance claim under
 [NFR-003](NFR-003-preserve-rust-assurance-boundary.md).
 
-The honest definition is therefore two lanes now: the default lane and the
-`test-support` lane that the crate's one declared feature obligates. The same
-trigger applies to any later feature: the opposing lane is obligated at the moment
-the crate acquires something for it to protect.
+The honest definition is therefore one lane now. The same trigger applies to any
+later feature: the opposing lane is obligated at the moment the crate acquires
+something for it to protect.
 
 ## Measurement and Evaluation
 
@@ -129,7 +121,7 @@ and any future automation of it is Rust under
 
 | ID | Criteria | Verification |
 | --- | --- | --- |
-| NFR-004-AC-1 | The local gate is exactly seven commands: `cargo fmt --all -- --check`, `cargo clippy --locked --all-targets --target-dir target-codex-backends -- -D warnings`, `cargo test --locked --target-dir target-codex-backends`, `env RUSTDOCFLAGS="-D warnings" cargo doc --locked --no-deps --target-dir target-codex-backends`, then the opposing `test-support` lane: `cargo clippy --locked --all-targets --features test-support --target-dir target-codex-backends -- -D warnings`, `cargo test --locked --features test-support --target-dir target-codex-backends`, and `env RUSTDOCFLAGS="-D warnings" cargo doc --locked --no-deps --features test-support --target-dir target-codex-backends`, run in that order over one unchanged worktree state, and every command is executed rather than assumed. | Test (TC-012) |
+| NFR-004-AC-1 | The local gate is exactly four commands: `cargo fmt --all -- --check`, `cargo clippy --locked --all-targets --target-dir target-codex-backends -- -D warnings`, `cargo test --locked --target-dir target-codex-backends`, `env RUSTDOCFLAGS="-D warnings" cargo doc --locked --no-deps --target-dir target-codex-backends`, run in that order over one unchanged worktree state, and every command is executed rather than assumed. | Test (TC-012) |
 | NFR-004-AC-2 | Each enumerated command is recorded with the risk it detects: formatting drift for `fmt`; lint violations and, because `--all-targets` covers tests, fixtures and examples as well as the library, dead code and unused imports outside the library target for `clippy`; behavioural regression against the bound acceptance obligations for `test`; undocumented public API (`missing_docs`) — already caught by `clippy`, since `missing_docs` is a plain rustc lint, not a rustdoc-only one — and broken intra-doc links (`rustdoc::broken_intra_doc_links`) for `doc`, which is rustdoc-only and is the actual reason `doc` belongs in the gate: neither `clippy` nor `cargo check` builds rustdoc output, so neither selects it. A command with no recorded risk is not part of the gate. | Inspection (TC-012) |
 | NFR-004-AC-3 | The gate runs serially with `CARGO_BUILD_JOBS=1` and under `flock /tmp/quire-heavy-check.lock`, so that concurrent sessions on the shared workstation cannot interleave heavy Cargo work. | Test (TC-012) |
 | NFR-004-AC-4 | Warnings are denied on two independent channels — the crate's `[lints.rust]` and `[lints.clippy]` tables and the `-D warnings` command-line argument — and removing either channel alone still causes an introduced warning to fail the gate. | Test (TC-012) |

@@ -12,7 +12,6 @@ use quire_observation::{
     ResourceLimits, ScopeKind, ScopeSelection, SubjectIdentity, SubjectKind, ValueState,
     Visibility, NATIVE_LINKED_PACKAGE_FORMAT,
 };
-use quire_spec_language::protocol_artifact::native_temporal;
 
 const ORDER_KIND: &str = "ix://agent-ix/commerce/type/Order";
 
@@ -38,100 +37,6 @@ pub struct OrderingViews {
     pub closure_closed: authority::closure::View,
     pub completeness_complete: authority::completeness::View,
     pub completeness_incomplete: authority::completeness::View,
-}
-
-fn digest_hex(bytes: &[u8]) -> String {
-    bytes.iter().fold(
-        String::with_capacity(bytes.len() * 2),
-        |mut encoded, byte| {
-            use core::fmt::Write as _;
-            write!(&mut encoded, "{byte:02x}").expect("writing to String cannot fail");
-            encoded
-        },
-    )
-}
-
-fn owner_evidence(
-    contract: &str,
-    evidence_scope: &str,
-    schema_sha256: &str,
-    identity: &str,
-    bytes: &[u8],
-    authority: &AuthoritySelection,
-    population: usize,
-) -> native_temporal::EvidenceRef {
-    native_temporal::EvidenceRef::new(
-        contract,
-        schema_sha256,
-        identity,
-        format!("{:x}", qsl_foundation::ByteDigest::of(bytes)),
-        authority.definition_identity.as_str(),
-        authority.definition_revision.as_str(),
-        digest_hex(authority.definition_digest.as_bytes()),
-        evidence_scope,
-        u64::try_from(population).expect("fixture evidence population fits u64"),
-    )
-}
-
-/// Project one strict QObs progress view into QSL's opaque evidence tuple.
-pub fn progress_evidence(
-    view: &authority::progress::View,
-    evidence_scope: &str,
-) -> native_temporal::EvidenceRef {
-    owner_evidence(
-        authority::progress::CONTRACT,
-        evidence_scope,
-        authority::progress::SCHEMA_SHA256,
-        view.identity().as_str(),
-        view.bytes(),
-        view.authority(),
-        view.payload().required_sources().len(),
-    )
-}
-
-/// Project one strict QObs closure view into QSL's opaque evidence tuple.
-pub fn closure_evidence(
-    view: &authority::closure::View,
-    evidence_scope: &str,
-) -> native_temporal::EvidenceRef {
-    owner_evidence(
-        authority::closure::CONTRACT,
-        evidence_scope,
-        authority::closure::SCHEMA_SHA256,
-        view.identity().as_str(),
-        view.bytes(),
-        view.authority(),
-        view.payload().required_sources().len(),
-    )
-}
-
-/// Project one strict QObs completeness view into QSL's opaque evidence tuple.
-pub fn completeness_evidence(view: &authority::completeness::View) -> native_temporal::EvidenceRef {
-    owner_evidence(
-        authority::completeness::CONTRACT,
-        "completeness",
-        authority::completeness::SCHEMA_SHA256,
-        view.identity().as_str(),
-        view.bytes(),
-        view.authority(),
-        view.payload().fact_count(),
-    )
-}
-
-/// Project one strict QObs observation view into QSL's opaque evidence tuple.
-pub fn observation_evidence(
-    view: &authority::observation::View,
-    evidence_scope: &str,
-) -> native_temporal::EvidenceRef {
-    owner_evidence(
-        authority::observation::CONTRACT,
-        evidence_scope,
-        authority::observation::SCHEMA_SHA256,
-        view.identity().as_str(),
-        view.bytes(),
-        view.authority(),
-        1,
-    )
 }
 
 /// Return the exact QObs progress watermark in QSL's signed carrier.
