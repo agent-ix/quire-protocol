@@ -25,10 +25,9 @@ use these results and do not read protocol files.
 
 ## Features
 
-- **Reads compiled protocols strictly.** It accepts QSL's
-  `quire.compiled-protocol/1` and `/2` handoffs through the exact QSL readers.
-  You choose the version by choosing the module. The version-1 and version-2
-  readers refuse each other's files and do not translate them.
+- **Reads the checked package strictly.** It admits QSL's checked-package
+  handoff through Contract IR's reader and QSL's selection, identity and
+  equality checks, and carries each owner's refusal unchanged.
 - **Selects independently.** The caller names the artifact, its dependency
   closure, profile and version-lock entries. A producer's own statement of what
   it emitted is evidence only.
@@ -150,13 +149,14 @@ orchestration tools.
 </picture>
 
 It depends on [quire-spec-language](https://github.com/agent-ix/quire-spec-language)
-(the compiled-protocol readers and their `handoff-writer` test producer),
+(the checked-package read view and the evaluation entries, and its
+`checked_handoff` writer for tests),
 [quire-observation](https://github.com/agent-ix/quire-observation) (qualified
 observation values),
 [quire-verification-contracts](https://github.com/agent-ix/quire-verification-contracts)
 (the evidence format it projects into) and
 [engineering-assurance](https://github.com/agent-ix/engineering-assurance) (the
-claim-strength vocabulary), all pinned by Git revision in `Cargo.toml`.
+claim-strength vocabulary), all followed on `main` in `Cargo.toml`, with the commit held by `Cargo.lock`.
 [quire-contract-ir](https://github.com/agent-ix/quire-contract-ir) is a
 dev-dependency used only by tests.
 

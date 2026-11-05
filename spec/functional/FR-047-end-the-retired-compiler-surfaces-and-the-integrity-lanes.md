@@ -16,7 +16,8 @@ relationships:
 When the library reads the checked package, it SHALL stop using the retired
 compiler surfaces that QSL's requirements list. If the owner rules for removal,
 it SHALL also remove the IT-001 checksum and seal lanes with `ArtifactRef.digest`
-and `revision`; the planner has ruled for removal (QSL-1549).
+and `revision`. The planner ruled for removal (QSL-1549), and the lanes are
+removed.
 
 ## Behavior
 

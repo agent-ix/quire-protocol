@@ -4,6 +4,7 @@
 
 mod support {
     pub mod handoff;
+    pub mod limits;
 }
 
 use ix_trace_rs::trace;
@@ -15,7 +16,7 @@ use qsl_package::{BarePackage, BareSupply, ProtocolSlotDescriptor};
 use qsl_semantics::check::wire_id::WireGraph;
 use quire_contract_model::CheckedPackageReadLimits;
 use quire_eval::CallFailure;
-use quire_exact::{FieldValue, LimitKind, Meter, NodeKey, ScalarLimits, Value, ValueType};
+use quire_exact::{FieldValue, LimitKind, Meter, NodeKey, Value, ValueType};
 use quire_protocol::checked_package::{admit, AdmittedHandoff, HandoffFiles};
 use quire_protocol::compensation::algebra::{
     AttemptAdmission, AttemptFact, AttemptLedger, AttemptOutcome, Definition, ForwardFact,
@@ -26,19 +27,7 @@ use quire_protocol::ids::{AttemptId, DefinitionId, EffectId};
 use quire_protocol::slot::{attempts_maximum, evaluate, SlotEvaluation, SlotOutcome};
 use quire_spec_language::checked_handoff::Corpus;
 use support::handoff::written;
-
-const UNLIMITED: ScalarLimits = ScalarLimits {
-    integer_bits: u64::MAX,
-    decimal_digits: u64::MAX,
-    scale_expansion: u64::MAX,
-    text_input_bytes: u64::MAX,
-    text_scalars: u64::MAX,
-    normalized_scalars: u64::MAX,
-    unit_edges: u64::MAX,
-    value_occurrences: u64::MAX,
-    work_units: u64::MAX,
-    result_units: u64::MAX,
-};
+use support::limits::UNLIMITED;
 
 fn handoff() -> AdmittedHandoff {
     let handoff = written("event_position", Corpus::None);
@@ -193,7 +182,7 @@ fn retry(
 ) -> SlotEvaluation {
     let bare = bare(admitted);
     let node = compensation_key(admitted, name);
-    let values = vec![
+    let values = [
         (format!("target{name}"), Some(int(target))),
         (format!("activated{name}"), Some(Value::Boolean(false))),
         (
@@ -224,7 +213,7 @@ fn holds(evaluation: &SlotEvaluation) -> bool {
 /// FR-045-AC-1: the outcome-map rows over R's `Full` and `Partial`
 /// compensations that evaluate today: true and false `trigger.guard` and
 /// `retry.relation`, an unavailable binder, a wrongly typed value and a meter
-/// one below measured usage. R's `recovery.predicate` rows are owed (QSL-1741).
+/// one below measured usage. R's `recovery.predicate` rows are owed: QSL's bare projection faults on its comprehension binder.
 #[test]
 #[trace("FR-045-AC-1", "TC-151")]
 fn every_outcome_row_has_its_successor_outcome() {
@@ -318,7 +307,7 @@ fn every_outcome_row_has_its_successor_outcome() {
 
 /// FR-045-AC-3 (the part that runs today): an unavailable binder of the retry
 /// relation is never a true result, and no source converts an evaluation to
-/// `bool`. The recovery supplies of the criterion are owed (QSL-1741).
+/// `bool`. The recovery supplies of the criterion are owed (the same QSL projection fault).
 #[test]
 #[trace("FR-045-AC-3", "TC-151")]
 fn an_unavailable_binder_is_never_a_true_result() {

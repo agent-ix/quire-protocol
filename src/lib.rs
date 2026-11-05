@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! FR-001/FR-002: strict native compiled-protocol admission and linking.
+//! The protocol consumer of the checked package.
 //!
 //! This crate deliberately owns no native parser, source frontend, wire decoder,
-//! numeric interpretation, or formal profile. It exposes the accepted public
-//! Rust reader from the A-owned `quire.compiled-protocol/1` contract through a
-//! named B-consumer boundary.
+//! numeric interpretation, or formal profile. It admits the checked-package
+//! handoff through Contract IR's reader (FR-043), links a protocol clause over
+//! QSL's read view (FR-044), evaluates compensation slots and temporal evidence
+//! through QSL's checked-package evaluation entries (FR-045, FR-046), and keeps
+//! the compensation state machine and the claim and closure vocabulary.
 
 #![forbid(unsafe_code)]
 
@@ -36,6 +38,7 @@ pub mod compensation;
 pub mod delivery_index;
 /// Canonical JCS encoding for structured protocol values.
 pub mod digest;
+pub mod evidence;
 /// Protocol identity newtypes. Owner chunk: C-07.
 pub mod ids;
 pub mod link;
