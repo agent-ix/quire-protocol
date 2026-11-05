@@ -5,7 +5,7 @@
 //! consumer holds the one carrier its own version-lock and result digests need.
 //! It is not an integrity digest of a checked package (FR-047).
 
-use std::{fmt, str::FromStr};
+use std::fmt;
 
 use sha2::{Digest, Sha256};
 
@@ -19,39 +19,6 @@ impl ByteDigest {
     pub fn of(bytes: &[u8]) -> Self {
         Self(Sha256::digest(bytes).into())
     }
-
-    /// The raw 32-byte digest.
-    #[must_use]
-    pub const fn as_bytes(&self) -> [u8; 32] {
-        self.0
-    }
-
-    /// Parse exactly 64 lowercase hexadecimal digits with no prefix.
-    ///
-    /// # Errors
-    ///
-    /// [`InvalidDigest`] for any other text.
-    pub fn from_hex(hex: &str) -> Result<Self, InvalidDigest> {
-        if hex.len() != 64
-            || !hex
-                .bytes()
-                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
-        {
-            return Err(InvalidDigest);
-        }
-        let mut bytes = [0; 32];
-        for (i, byte) in bytes.iter_mut().enumerate() {
-            *byte = u8::from_str_radix(&hex[2 * i..2 * i + 2], 16).map_err(|_| InvalidDigest)?;
-        }
-        Ok(Self(bytes))
-    }
-}
-
-impl fmt::Display for ByteDigest {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("sha256:")?;
-        fmt::LowerHex::fmt(self, f)
-    }
 }
 
 impl fmt::LowerHex for ByteDigest {
@@ -60,25 +27,5 @@ impl fmt::LowerHex for ByteDigest {
             write!(f, "{byte:02x}")?;
         }
         Ok(())
-    }
-}
-
-/// Refusal of a noncanonical or malformed textual byte digest.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct InvalidDigest;
-
-impl fmt::Display for InvalidDigest {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("expected sha256: followed by 64 lowercase hexadecimal digits")
-    }
-}
-
-impl std::error::Error for InvalidDigest {}
-
-impl FromStr for ByteDigest {
-    type Err = InvalidDigest;
-
-    fn from_str(text: &str) -> Result<Self, Self::Err> {
-        Self::from_hex(text.strip_prefix("sha256:").ok_or(InvalidDigest)?)
     }
 }

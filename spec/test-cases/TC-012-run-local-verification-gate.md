@@ -46,7 +46,7 @@ statuses for the unchanged candidate.
 All enumerated commands execute and pass over one unchanged clean worktree
 state, each recorded with its covering risk, and the one lane is built,
 linted, tested and documented.
-Every current conditional site are selected without misclassifying target
+Every current conditional site is selected without misclassifying target
 kind or platform as a Cargo feature. Each negative policy fixture returns its
 own refusal: missing warning channel, missing all-target coverage, undeclared or
 phantom feature, missing opposing feature lane, unexecuted target condition,
