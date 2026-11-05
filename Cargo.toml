@@ -15,6 +15,12 @@ quire-spec-language = { git = "https://github.com/agent-ix/quire-spec-language",
 qsl-foundation = { git = "https://github.com/agent-ix/quire-spec-language", branch = "main" }
 # The bytes-only identity and equality files (QSL FR-531, FR-533).
 qsl-package = { git = "https://github.com/agent-ix/quire-spec-language", branch = "main" }
+# The checked-package evaluation entries (QSL FR-390, FR-520, FR-531, FR-533).
+qsl-eval = { git = "https://github.com/agent-ix/quire-spec-language", branch = "main" }
+qsl-semantics = { git = "https://github.com/agent-ix/quire-spec-language", branch = "main" }
+quire-eval = { git = "https://github.com/agent-ix/quire-eval", branch = "main" }
+quire-exact = { git = "https://github.com/agent-ix/quire-exact", branch = "main" }
+quire-semantic-value = { git = "https://github.com/agent-ix/quire-semantic-value", branch = "main" }
 # Contract IR's checked-package reader (FR-043); the one reader of the format.
 quire-contract-model = { git = "https://github.com/agent-ix/quire-contract-ir", branch = "main" }
 quire-observation = { git = "https://github.com/agent-ix/quire-observation", branch = "main" }

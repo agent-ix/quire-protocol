@@ -45,6 +45,7 @@ pub mod outcome;
 pub mod refusal;
 /// Seed, toolchain and corpus reproduction record. Owner chunk: C-31.
 pub mod repro;
+pub mod slot;
 /// B-owned version-lock manifest resolution and exact-byte delivery guard.
 pub mod version_lock;
 
