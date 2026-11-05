@@ -111,7 +111,7 @@ as passing by this stage.
 ### What each status word in this matrix means
 
 - **Living-test** — the criterion carries a `#[trace(...)]` attribute on a test in
-  the current tree. 122 of 344 criteria. This is the only claim
+  the current tree. 123 of 344 criteria. This is the only claim
   of passing this matrix makes, and it is read from the tree, not from a
   `Verification` cell.
 - **Designated** — the criterion's `Verification` cell names a test case or an
@@ -181,12 +181,12 @@ in Domain Object Coverage instead.
 | FR-301 | FR-301-AC-1..AC-5 | TC-147 (AC-1..AC-5) | 🚧 Planned — refinement is admitted in spec once `agent-ix/quire-protocol#81` lands FR-176/FR-177; TC-147 binds all 5 criteria and no implementation has landed yet. |
 | FR-302 | FR-302-AC-1..AC-5 | TC-148 (AC-1..AC-5) | 🚧 Planned — the witness carrier is admitted in spec pending `agent-ix/quire-specification#114`'s `native-run-result/2`; TC-148 binds all 5 criteria and no implementation has landed yet. |
 | FR-043 | FR-043-AC-1..AC-8 | TC-149 (AC-1..AC-8) | ✅ Implemented — TC-149's eight tests admit the three packages of recipe R, replay the 30-case standard mutation corpus, and carry the reader's, the selection's and the identity and equality files' refusals unchanged. |
-| FR-044 | FR-044-AC-1..AC-7 | TC-150 (AC-1, AC-2, AC-4); AC-5 partly; no living test for AC-3, AC-6, AC-7 | 🚧 In progress — 3 of 7 criteria have a living traced test (AC-1 lists and edges equal `protocol_view` and `causal_relation`, AC-2 no source builds an edge, AC-4 the owner's refusals for an absent node, a `protocol_reference` carrier and a non-protocol node). AC-5 is covered only for the entry signature and the compile-fail doctests of the retired types; its clause that `BindingKind::Window` still resolves is owed to QSL-1740 and is not claimed. AC-3, AC-6 and AC-7 are owed to QSL-1740 (stage 2b): the crate has no `wire.rs` and QSL main has no `BindingKind` (QSL FR-519-AC-13 gives a window binding no view), and the AC-3 and AC-7 linker needs node content the spec does not yet say how to read. |
+| FR-044 | FR-044-AC-1..AC-7 | TC-150 (AC-1, AC-2, AC-4, AC-5); no living test for AC-3, AC-6, AC-7 | 🚧 In progress — 4 of 7 criteria have a living traced test (AC-1 lists and edges equal `protocol_view` and `causal_relation`, AC-2 no source builds an edge, AC-4 the owner's refusals for an absent node, a `protocol_reference` carrier and a non-protocol node, AC-5 the entry signature and the compile-fail doctests of the retired types). AC-5 carries a trace tag but its clause that `BindingKind::Window` still resolves is owed to QSL-1740 and is not claimed. AC-3, AC-6 and AC-7 are owed to QSL-1740 (stage 2b): the crate has no `wire.rs` and QSL main has no `BindingKind` (QSL FR-519-AC-13 gives a window binding no view), and the AC-3 and AC-7 linker needs node content the spec does not yet say how to read. |
 | FR-045 | FR-045-AC-1..AC-8 | TC-151 (AC-1..AC-8) | ⛔ Blocked — until QSL specifies and delivers the evaluation entry that works from a `CheckedPackageV2` alone; compensation through qsl-eval's slot evaluation. |
 | FR-046 | FR-046-AC-1..AC-7 | TC-152 (AC-1..AC-7) | ⛔ Blocked — until QSL specifies and delivers the evaluation entry that works from a `CheckedPackageV2` alone; temporal evidence through the in-memory evidence types. |
 | FR-047 | FR-047-AC-1..AC-4 | TC-153 (AC-1..AC-4) | 🚧 Planned — AC-4 is in force: the planner ruled for removal of the digest and seal lanes (stage 3). |
 
-Behavioural totals across these 40 rows: 229 acceptance criteria. 74 carry a living traced test, 106 belong to retired rows (their tests were deleted in QSL-1549 stage 1), 15 are blocked and 34 are planned or verify by Inspection or Analysis only. 74 + 106 + 15 + 34 = 229.
+Behavioural totals across these 40 rows: 229 acceptance criteria. 75 carry a living traced test, 106 belong to retired rows (their tests were deleted in QSL-1549 stage 1), 15 are blocked and 33 are planned or verify by Inspection or Analysis only. 75 + 106 + 15 + 33 = 229.
 
 ## Domain Object Coverage
 
@@ -303,10 +303,10 @@ criterion is a zero inside it rather than a row removed from it.
 
 | Category | Total | Passed | Failed | Blocked | Planned | Retired |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Overall owed criteria | 344 | 122 | 0 | 15 | 74 | 133 |
+| Overall owed criteria | 344 | 123 | 0 | 15 | 73 | 133 |
 
 Passed means the criterion carries a living traced test in the current tree
-(122 of 344). Retired means the criterion's row lost every test in QSL-1549
+(123 of 344). Retired means the criterion's row lost every test in QSL-1549
 stage 1 (133). Blocked is the criteria of FR-045 and FR-046 (15). Planned
-(74) includes the criteria that verify by Inspection or Analysis only and
+(73) includes the criteria that verify by Inspection or Analysis only and
 FR-014-AC-6, which waits on IT-003's Quoin scenario-record handoff.
