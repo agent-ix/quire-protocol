@@ -96,15 +96,27 @@ A refusal carries the owner's value unchanged: the reader's refusal code, loci
 and cause, the reader's incomplete result when a read limit is exhausted, QSL's
 selection axis, or QSL's identity-file or equality-file refusal.
 
-The link layer, the compensation assessment over the checked-package
-evaluation and the temporal evidence route return in the next stages of the
-repoint (FR-044 to FR-047).
+## Linking a protocol
+
+`link(&package, &clause)` returns a `LinkedProtocol`: the clause's roles,
+channels, queues, controls, compensations, required temporal clauses,
+`terminal`, `scheduling` and activation rows as node ids from QSL's
+`protocol_view`, and the causal edges exactly as QSL's `causal_relation`
+returns them. It builds no edge. An absent node, a non-protocol node or a
+`protocol_reference` carrier returns QSL's `ViewRefusal`. The consumer-owned
+refusals, the window binding and the FR-002 criteria over recipe R are owed
+to QSL-1740.
+
+The compensation assessment over the checked-package evaluation and the
+temporal evidence route return in the next stage of the repoint (FR-045 to
+FR-047).
 
 ## Modules
 
 | Module | What it holds |
 | --- | --- |
 | `checked_package` | Admission of the checked-package handoff (FR-043). |
+| `link` | The linked protocol over QSL's read view and causal relation (FR-044). |
 | `version_lock` | Version-lock resolution and the exact-byte delivery guard. |
 | `compensation` | Activation, registration, ordering and retry facts. |
 | `closure`, `outcome` | The five-axis closure and the closed operation and claim outcomes. |
