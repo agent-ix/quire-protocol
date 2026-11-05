@@ -511,3 +511,177 @@ fn the_charge_log_attributes_each_binder_read() {
         );
     }
 }
+
+#[derive(Debug)]
+struct Unsupported;
+
+impl quire_semantic_value::catalog::CatalogCoded for Unsupported {
+    fn catalog_code(&self) -> quire_semantic_value::catalog::CatalogCode {
+        quire_semantic_value::catalog::CatalogCode::new("unsupported_construct", "unsupported")
+    }
+
+    fn catalog_fields(&self) -> Option<std::collections::BTreeMap<&'static str, String>> {
+        None
+    }
+}
+
+/// FR-045-AC-1 and AC-3: each owner outcome maps to its own row and none to
+/// a Boolean. A non-Boolean completion, an undefined, a refusal, an
+/// incomplete and a family result are each carried with the owner's value;
+/// no admitted input of R reaches them through a slot (R's slots complete
+/// with a Boolean or stop on the meter), so the mapping is called directly.
+#[test]
+#[trace("FR-045-AC-1", "FR-045-AC-3", "TC-151")]
+fn each_owner_outcome_maps_to_its_row_and_none_to_a_boolean() {
+    use quire_eval::{FamilyOutcome, FamilyResult};
+    use quire_exact::{Incomplete, InexactTarget, IntegerInterval, Outcome, Refusal, Undefined};
+    use quire_protocol::slot::outcome_of;
+
+    let evaluated = |outcome| FamilyOutcome::Evaluated(outcome);
+    assert!(matches!(
+        outcome_of(evaluated(Outcome::Completed(Value::Boolean(true)))),
+        SlotOutcome::Holds
+    ));
+    assert!(matches!(
+        outcome_of(evaluated(Outcome::Completed(Value::Boolean(false)))),
+        SlotOutcome::DoesNotHold
+    ));
+    let SlotOutcome::NotBoolean(Value::Integer(seven)) =
+        outcome_of(evaluated(Outcome::Completed(int(7))))
+    else {
+        panic!("a non-Boolean completion is NotBoolean");
+    };
+    assert_eq!(seven, 7_i64.into());
+    let SlotOutcome::Undefined(undefined) =
+        outcome_of(evaluated(Outcome::Undefined(Undefined::DivisionByZero)))
+    else {
+        panic!("an undefined result is Undefined");
+    };
+    assert_eq!(undefined, Undefined::DivisionByZero);
+    let interval = IntegerInterval::new(0_i64.into(), 3_i64.into()).expect("interval");
+    let refusal = Refusal::InexactDecimal {
+        target: InexactTarget::Integer(Box::new(interval)),
+    };
+    let SlotOutcome::Refused(held) = outcome_of(evaluated(Outcome::Refused(refusal.clone())))
+    else {
+        panic!("a refusal is Refused");
+    };
+    assert_eq!(held, refusal);
+    let stopped = Incomplete {
+        limit_kind: LimitKind::WorkUnits,
+        limit: 4,
+        consumed: 4,
+        next_charge: 1_i64.into(),
+        charge_point: quire_exact::ChargePoint::CollectionElement,
+    };
+    let SlotOutcome::Incomplete(held) = outcome_of(evaluated(Outcome::Incomplete(stopped.clone())))
+    else {
+        panic!("an incomplete is Incomplete");
+    };
+    assert_eq!(held, stopped);
+    let SlotOutcome::Family(FamilyResult::Refused(family)) = outcome_of(
+        FamilyOutcome::FamilyEvaluated(FamilyResult::Refused(Box::new(Unsupported))),
+    ) else {
+        panic!("a family result is Family");
+    };
+    assert_eq!(format!("{family:?}"), "Unsupported");
+}
+
+/// FR-045-AC-4: a node that authors no bound reads as no bound, a node that
+/// is no application is the typed refusal naming it, and the authored
+/// maximum is read exactly. The reader refuses a zero `maximum` and an
+/// `attempts` argument with no `maximum`, so no admitted package reaches
+/// those two refusals.
+#[test]
+#[trace("FR-045-AC-4", "TC-151")]
+fn a_bound_that_is_absent_or_malformed_is_read_exactly() {
+    use quire_contract_model::{read_checked_package, CheckedPackageDispatchResult};
+    use quire_protocol::slot::BoundRefusal;
+
+    let admitted = handoff();
+    let nodes = &admitted.package().graph().nodes;
+    let role = nodes
+        .iter()
+        .find(|node| &*node.node_tag == "protocol" && &*node.semantic_form == "role")
+        .expect("a role node");
+    assert_eq!(attempts_maximum(role), Ok(None), "no authored bound");
+    let model = nodes
+        .iter()
+        .find(|node| &*node.node_tag == "model")
+        .expect("a model node");
+    assert_eq!(
+        attempts_maximum(model),
+        Err(BoundRefusal {
+            node: model.node_id.clone()
+        }),
+        "a node that is no application"
+    );
+
+    let written = written("event_position", Corpus::None);
+    let edited = |edit: &dyn Fn(&mut serde_json::Value)| {
+        let mut json: serde_json::Value =
+            serde_json::from_slice(&written.files["checked-package.json"]).expect("JSON");
+        for node in json["semantic_graph"]["nodes"]
+            .as_array_mut()
+            .expect("nodes")
+        {
+            if node["semantic_form"] == "compensation" {
+                let arguments = node["body"]["arguments"].as_array_mut().expect("arguments");
+                let attempts = arguments
+                    .iter_mut()
+                    .find(|argument| argument["name"] == "attempts")
+                    .expect("attempts");
+                edit(&mut attempts["value"]);
+            }
+        }
+        let bytes = serde_json::to_vec(&json).expect("bytes");
+        match read_checked_package(
+            &bytes,
+            CheckedPackageReadLimits::bounded(),
+            &written.evidence,
+        ) {
+            CheckedPackageDispatchResult::AdmittedV2(read) => Some(read),
+            CheckedPackageDispatchResult::Refused(_) => None,
+            other => panic!("neither admitted nor refused: {other:?}"),
+        }
+    };
+    let bounds = |package: &quire_contract_model::CheckedPackageV2| {
+        package
+            .graph()
+            .nodes
+            .iter()
+            .filter(|node| &*node.semantic_form == "compensation")
+            .map(|node| attempts_maximum(node).map_err(|refusal| refusal.node == node.node_id))
+            .collect::<Vec<_>>()
+    };
+    let zero = edited(&|value| {
+        for member in value["members"].as_array_mut().expect("members") {
+            if member["name"] == "maximum" {
+                member["value"]["value"] = serde_json::Value::from("0");
+            }
+        }
+    });
+    assert!(zero.is_none(), "the reader refuses a zero maximum");
+    let absent = edited(&|value| {
+        value["members"]
+            .as_array_mut()
+            .expect("members")
+            .retain(|member| member["name"] != "maximum");
+    });
+    assert!(
+        absent.is_none(),
+        "the reader refuses an attempts argument with no maximum"
+    );
+    let seven = edited(&|value| {
+        for member in value["members"].as_array_mut().expect("members") {
+            if member["name"] == "maximum" {
+                member["value"]["value"] = serde_json::Value::from("7");
+            }
+        }
+    });
+    assert_eq!(
+        bounds(&seven.expect("seven admitted")),
+        [Ok(NonZeroU32::new(7)), Ok(NonZeroU32::new(7))],
+        "the authored seven is read"
+    );
+}

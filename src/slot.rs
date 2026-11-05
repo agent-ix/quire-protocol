@@ -49,7 +49,8 @@ pub enum SlotOutcome {
     Family(FamilyResult),
 }
 
-fn of_family(outcome: FamilyOutcome<Value>) -> SlotOutcome {
+/// Map one owner outcome into the slot outcome, carrying its value unchanged.
+pub fn outcome_of(outcome: FamilyOutcome<Value>) -> SlotOutcome {
     match outcome {
         FamilyOutcome::Evaluated(Outcome::Completed(Value::Boolean(true))) => SlotOutcome::Holds,
         FamilyOutcome::Evaluated(Outcome::Completed(Value::Boolean(false))) => {
@@ -92,7 +93,7 @@ pub fn evaluate(
 ) -> Result<SlotEvaluation, CallFailure> {
     Ok(match package.evaluate_protocol_slot(slot, supply, meter)? {
         ProtocolSlotEvaluation::Evaluated(evaluation, charges) => SlotEvaluation {
-            outcome: of_family(evaluation.outcome),
+            outcome: outcome_of(evaluation.outcome),
             charges,
         },
         ProtocolSlotEvaluation::Unavailable {
