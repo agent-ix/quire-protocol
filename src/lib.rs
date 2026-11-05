@@ -38,6 +38,7 @@ pub mod delivery_index;
 pub mod digest;
 /// Protocol identity newtypes. Owner chunk: C-07.
 pub mod ids;
+pub mod link;
 /// Closed public operation and claim outcome algebras.
 pub mod outcome;
 /// B-owned typed refusal envelope. Owner chunk: C-01 (submodules: C-02, C-03).
