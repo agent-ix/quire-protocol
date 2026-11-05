@@ -1,76 +1,31 @@
 # Dependency and rights record
 
-This record states what the build actually consumes. Every revision and license
-below was read out of the pinned revision's own `Cargo.toml`, not out of a
-release note, and every revision matches `Cargo.toml` and `Cargo.lock` in this
-repository. `NFR-006-fix-the-consumed-dependency-set` states the obligation this
-record discharges.
+This record states what the build consumes and under which license. Every
+first-party dependency follows `branch = "main"` in `Cargo.toml`; `Cargo.lock`
+holds the commit Cargo selected and is the one place a revision is recorded.
+`NFR-006-fix-the-consumed-dependency-set` states the obligation this record
+discharges.
 
-## Consumed revisions
+## Consumed crates
 
-Revisions of transitive crates below are informational; `Cargo.lock` is the
-authority for them.
-
-| Crate | Pinned revision | Declared license | Role |
+| Crate | Source | Declared license | Role |
 | --- | --- | --- | --- |
-| `quire-spec-language`, `qsl-attrs`, `qsl-cst`, `qsl-forms`, `qsl-package`, `qsl-semantics`, `qsl-eval`, `qsl-replay`, `quire-exact` | `9395be4268e650ca2753204d6d306c9cd7b453ec` | `AGPL-3.0-or-later` | Supplies the accepted `quire.compiled-protocol/1`, `/2`, and strict `/3` control-to-temporal mapping readers, the `handoff-writer` feature (`protocol_artifact::handoff::{write_v1, write_v2}`) the IT-001 lanes call in-process for complete handoffs, owner-exported constants, the FR-051 checked temporal activation-guard selection, the FR-052 temporal owner authority, FR-053 opaque native-temporal v2 trigger identity and exact borrowed temporal-axis/completeness evidence views, and the shared exact bounded `state::evaluate_v2` compensation-expression evaluator, including immutable authored-initializer resolution and exact compensation forward-effect admission for capture sources. The `/1` handoff retains distinct Service/Provider model authorities. Release `v0.2.0` is its ancestor at `6eccb05`. |
-| `qsl-foundation` | `9395be4268e650ca2753204d6d306c9cd7b453ec` | `AGPL-3.0-or-later` | A's foundation crate (ADR-011 layer F), from the same repository and revision as `quire-spec-language`. Owns `ByteDigest`, `Source` and `SourceIdentity`, which A's reader returns; the two must resolve one commit for those types to unify. |
-| `quire-observation` | `ab4abe3a03d24ed8430f513b8b695ac2d1471938` | `AGPL-3.0-or-later` | Direct observation authority dependency used by the current compensation, conformance and result kernels. The contracts it consumes were accepted at owner PR #27 merge `9240063` (`QOBS_REVISION`, informational); this pin publishes the partial-fact, activation-scope-authority, authority-bundle v1/v2 and bounded-lineage contracts/schema bytes Task-020 recognizes. This revision replaces the owner's former `agent-ix-baseline-producer` (`filament-core-data`) admission dependency with a locally owned `producer` module of its own; B still imports owner constants and bytes rather than mirroring their wire vocabulary; repair and aggregate-query remain explicit unsupported consumer capabilities. |
-| `quire-verification-contracts` | `Cargo.lock` | `AGPL-3.0-or-later` | Direct E02 owner dependency (PLAT-861). Cargo.toml/Cargo.lock select the generated `quire-verification/e02-draft-2` types, strict reader and RFC 8785/JCS operations used by Task-007 without a local target-contract mirror. Extracted from private `quire-verification`, which previously supplied this interface directly and is no longer in this build's dependency graph. |
-| `engineering-assurance` | `712f4ff76c2b1e01d26d10efd97a0eef0235defa` | `AGPL-3.0-or-later` | Direct owner of the claim-strength vocabulary (EA FR-022, TL-206). Consumed with default features off and only the serde-only `claim-strength` feature, which adds no dependency beyond `serde`. Protocol imports `ClaimStrength` and declares no strength enum of its own. |
-| `sha2` | `0.10.9` | `MIT OR Apache-2.0` | Direct digest carrier used to stream bounded producer-value request identities without allocating a caller-sized preimage. It supplies no schema, parser, semantics, or producer authority. |
-| `agent-ix-extraction-frontend`, `agent-ix-semantic-ir` | `1572ba4ba8fad0e94e9a0b19a569f82a5181b488` | `AGPL-3.0-or-later` | Transitive crates from `agent-ix/filament-core-data`, reached through `quire-spec-language` `5124587`. B does not call them. |
-| `quire-canonical` | `0143a2b76be9a51941e95ee2613f2d5608d756fe` | `AGPL-3.0-or-later` | Transitive, reached through `quire-spec-language` `5124587`. |
-| `quire-rs` | `2823a93bd3797c970c1d389afae9b893dea6f232` | `AGPL-3.0-or-later` | Transitive, reached through `quire-spec-language` `5124587`. |
-| `quire-verification-contracts` (transitive package) | `Cargo.lock` | `AGPL-3.0-or-later` | Transitive, reached through the `quire-contract-model` dependency selected by `quire-spec-language`. B's own E02 types come from the direct Cargo dependency above. |
-| `quire-contract-ir` | `dc03aa4ecfbce9958efe6d766497d44c44e1200a` | `MIT OR Apache-2.0` | Direct test type and the exact transitive contract-IR revision selected by `quire-spec-language` `5124587`; one identity type is present in the resolved graph. |
-| `ix-trace-rs` | `2ce4ebf47f726b9d76388220545cd0abda8a5cfb` | `AGPL-3.0-or-later` | Test-only trace attributes binding tests to acceptance criteria. |
+| `quire-spec-language` | `agent-ix/quire-spec-language`, `main`, feature `checked-handoff` | `AGPL-3.0-or-later` | Publishes `checked_handoff::Selection` (QSL FR-517), compared with an admitted package, and the in-process handoff writer the tests call. |
+| `qsl-package` | `agent-ix/quire-spec-language`, `main` | `AGPL-3.0-or-later` | Publishes the bytes-only identity and equality file readers (QSL FR-531, FR-533) and, in later stages, `protocol_view`. |
+| `qsl-foundation` | `agent-ix/quire-spec-language`, `main` | `AGPL-3.0-or-later` | QSL's foundation crate. |
+| `quire-contract-model` | `agent-ix/quire-contract-ir`, `main` | `MIT OR Apache-2.0` | Owns `read_checked_package`, the admitted `CheckedPackageV2` and the refusal, incomplete-read and read-limit types. The one reader of the checked-package format. |
+| `quire-observation` | `agent-ix/quire-observation`, `main` | `AGPL-3.0-or-later` | Observation authority views used by the compensation kernel. |
+| `quire-verification-contracts` | `agent-ix/quire-verification-contracts`, `main` | `AGPL-3.0-or-later` | E02 owner types. `build.rs` reads the commit Cargo selected from `Cargo.lock`. |
+| `engineering-assurance` | `agent-ix/engineering-assurance`, `main`, `=0.7.1`, feature `claim-strength` only | `AGPL-3.0-or-later` | Owner of the claim-strength vocabulary (EA FR-022). This crate declares no strength enum of its own. |
+| `sha2` | crates.io `=0.10.9` | `MIT OR Apache-2.0` | Carrier of the exact-byte SHA-256 of the FR-009 and FR-015 content digests. It supplies no schema, parser or authority. |
+| `serde`, `serde_json`, `jsonschema` | crates.io | `MIT OR Apache-2.0` | Serialisation and closed-schema validation carriers. |
+| `ix-trace-rs` | `agent-ix/ix-trace-rs`, `main` | `AGPL-3.0-or-later` | Test-only trace attributes binding tests to acceptance criteria. |
+| `tempfile` | crates.io | `MIT OR Apache-2.0` | Test-only temporary directories for the handoff the tests write. |
 
-All twenty-one crates in the table (twelve rows; two rows name several crates)
-are compatible with this repository's `AGPL-3.0-or-later` decision: nineteen
-are `AGPL-3.0-or-later`, and the two permissive `MIT OR Apache-2.0` grants may be
-consumed under it. `publish =
-false` on the QObs crate is the required delivery policy, not a compatibility
-or availability failure for an exact git dependency.
+The permissive `MIT OR Apache-2.0` grants may be consumed under this
+repository's `AGPL-3.0-or-later` decision.
 
-This crate adds no copied parser, encoder, formal semantics, or fixture corpus.
-
-## Correction: this record previously named a superseded revision
-
-An earlier revision of this file recorded `quire-spec-language` at
-`84975dd687d38d9b24eae84b7356e3f24cdc7b42`, described as "A's merged four-unit
-native producer handoff, PR #58", while `Cargo.toml` and `Cargo.lock` both
-pinned `5690c2b`. The two were not alternatives: `git merge-base --is-ancestor`
-confirms `84975dd` is an ancestor of `5690c2b` ("Record numeric producer handoff
-review", 2026-09-11), so this record named a superseded commit and the build
-consumed a later one. The build was correct and the prose was stale. It is
-corrected here rather than rewritten silently, because a rights record that has
-ever misstated the consumed revision should say so.
-
-`quire-contract-ir` was pinned in `Cargo.toml` but absent from this record
-entirely. That is the closure gap `NFR-006` names: `FR-009` pins the producers
-and nothing pinned this repository's own consumed set.
-
-`quire-observation` was also a direct `Cargo.toml`/lockfile dependency while
-absent from this record. The row above now records the accepted FR-287/FR-262
-revision the build actually consumes.
-
-## Correction: the record trailed the version 2 pin, and omitted a transitive
-
-This record named `5690c2b` while `Cargo.toml` and `Cargo.lock` pinned
-`04254a3`, A's promoted `main` carrying the `/2` contract. It also omitted
-`agent-ix-baseline-producer`, which `quire-spec-language` `04254a3` pins from
-`agent-ix/filament-core-data` and which the lockfile therefore resolves into
-this build. Both are corrected above: the same closure gap `NFR-006` names,
-recurring on the transitive edge rather than the direct one.
-
-## What this record does not establish
-
-- It asserts no immutability of any pinned revision. `FR-009` takes an
-  owner-supplied assertion for that; `AD-001` and `NFR-003` forbid this
-  repository from reaching a network or a version-control system to check it.
-- It does not turn the producer's handoff into consumer-owned bytes.
-  `quire-spec-language` `9395be4` supplies both contracts and the
-  `handoff-writer` feature's `write_v1`/`write_v2`. The version 1 and version 2
-  scenarios call those functions in-process into the build's target directory
-  under the default local gate; this repository vendors no copy.
+This crate adds no copied parser, encoder, formal semantics or reader. The
+recipe inputs under `tests/fixtures/checked-handoff/` are copies of QSL's
+`examples/checked-handoff/` files, which QSL does not publish through its
+crate; they are test inputs only.

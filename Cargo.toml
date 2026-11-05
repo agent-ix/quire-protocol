@@ -8,43 +8,29 @@ description = "Strict consumer boundary for accepted native Quire protocol packa
 publish = false
 
 [dependencies]
-# QSL-250: pinned to current QSL main. `qsl-foundation` is A's foundation crate
-# (ADR-011 layer F); A's reader returns its `ByteDigest`/`Source`/
-# `SourceIdentity`, so both pins must name the same commit for those types to
-# unify.
-quire-spec-language = { git = "https://github.com/agent-ix/quire-spec-language", rev = "9395be4268e650ca2753204d6d306c9cd7b453ec" }
-qsl-foundation = { git = "https://github.com/agent-ix/quire-spec-language", rev = "9395be4268e650ca2753204d6d306c9cd7b453ec" }
-quire-observation = { git = "https://github.com/agent-ix/quire-observation", rev = "ab4abe3a03d24ed8430f513b8b695ac2d1471938" }
-quire-verification-contracts = { git = "https://github.com/agent-ix/quire-verification-contracts", rev = "3bb05b593acf42652f307584476acc5373fa6f7b" }
+# QSL main, followed by branch; Cargo.lock holds the commit. `checked-handoff`
+# is the feature that publishes `Selection` (QSL FR-517), which the admission
+# compares an admitted package with.
+quire-spec-language = { git = "https://github.com/agent-ix/quire-spec-language", branch = "main", features = ["checked-handoff"] }
+qsl-foundation = { git = "https://github.com/agent-ix/quire-spec-language", branch = "main" }
+# The bytes-only identity and equality files (QSL FR-531, FR-533).
+qsl-package = { git = "https://github.com/agent-ix/quire-spec-language", branch = "main" }
+# Contract IR's checked-package reader (FR-043); the one reader of the format.
+quire-contract-model = { git = "https://github.com/agent-ix/quire-contract-ir", branch = "main" }
+quire-observation = { git = "https://github.com/agent-ix/quire-observation", branch = "main" }
+quire-verification-contracts = { git = "https://github.com/agent-ix/quire-verification-contracts", branch = "main" }
 # Owner of the claim-strength vocabulary (EA FR-022). Only the serde-only
 # `claim-strength` feature: no serde_json, no arbitrary_precision.
-engineering-assurance = { version = "=0.3.1", git = "https://github.com/agent-ix/engineering-assurance", rev = "712f4ff76c2b1e01d26d10efd97a0eef0235defa", default-features = false, features = ["claim-strength"] }
-# Reading the offer's already-published members and serialising B's own
-# selections through A's `Serialize` impls. B adds no schema, grammar or wire
-# decoder of its own: every record shape used here is A's.
+engineering-assurance = { version = "=0.7.1", git = "https://github.com/agent-ix/engineering-assurance", branch = "main", default-features = false, features = ["claim-strength"] }
 serde_json = "=1.0.151"
 serde = { version = "=1.0.228", features = ["derive"] }
 jsonschema = { version = "=0.17.1", default-features = false, features = ["draft202012"] }
-# Streams bounded producer-value request identities without allocating a
-# caller-sized preimage. This is a digest carrier, not a semantic owner.
 sha2 = "=0.10.9"
 
 [dev-dependencies]
-# QSL-251: the test producer calls QSL's in-process handoff writer
-# (`protocol_artifact::handoff::{write_v1, write_v2}`); the feature is
-# test-only, so the production dependency above does not embed the recipe.
-quire-spec-language = { git = "https://github.com/agent-ix/quire-spec-language", rev = "9395be4268e650ca2753204d6d306c9cd7b453ec", features = ["handoff-writer"] }
-ix-trace-rs = { git = "https://github.com/agent-ix/ix-trace-rs", rev = "2ce4ebf47f726b9d76388220545cd0abda8a5cfb" }
-# The exact contract-IR revision QSL's own manifest pins, so this test-only
-# identity type unifies with the one `quire-spec-language` resolves internally.
-quire-contract-ir = { package = "quire-contract-model", git = "https://github.com/agent-ix/quire-contract-ir", rev = "7b1ec7a19f031dcea433293a25af57f0bb6a14f8" }
+ix-trace-rs = { git = "https://github.com/agent-ix/ix-trace-rs", branch = "main" }
 serde_json = "=1.0.151"
-
-[features]
-# Exposes `result::test_support`: validated-result constructors for dependents'
-# test suites only. Enable it on a development dependency, never on a
-# production dependency. The default build compiles none of it.
-test-support = []
+tempfile = "3"
 
 [lints.rust]
 unsafe_code = "forbid"

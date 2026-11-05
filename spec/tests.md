@@ -85,6 +85,19 @@ which are stakeholder validation rather than FR/NFR acceptance and which this
 matrix carries no table for. NFR-005's five metrics are outside that figure;
 its six acceptance criteria are included.
 
+### Stage 1 of the checked-package repoint (QSL-1549)
+
+QSL main removed the `wire::Package` admission, the compiled-protocol readers,
+`native_temporal`, `state` and `ByteDigest`. The first repoint stage therefore
+deleted every consumer of them and their tests: the link layer, the version-2
+model, the assessment, the conformance kernel, the claim dispatch, the result
+record and its reader, the E02 projection, the producer-contract registry, the
+inventory map and the compensation graph, with TC-002, TC-004, TC-005, TC-006
+and the IT-001/IT-002 procedures. The status of the FR rows 001 to 042 below
+describes the implementation that stage retired; their successors are FR-044 to
+FR-047 (stages 2 and 3), and no row of the retired implementation is claimed
+as passing by this stage.
+
 ### Row status symbols
 
 - ✅ Implemented or Complete: the row's tests are authored and pass.
@@ -346,17 +359,17 @@ in Domain Object Coverage instead.
 | FR-042 | FR-042-AC-1..AC-6 | TC-015 (AC-1..AC-6) | ✅ Implemented — all six criteria carry direct traced tests; the current engine reports 3 of 6 criterion rows bound and no FR-042 unbacked or untracked record, so the direct trace inventory and engine rollup remain stated separately |
 | FR-301 | FR-301-AC-1..AC-5 | TC-147 (AC-1..AC-5) | 🚧 Planned — refinement is admitted in spec once `agent-ix/quire-protocol#81` lands FR-176/FR-177; TC-147 binds all 5 criteria and no implementation has landed yet. |
 | FR-302 | FR-302-AC-1..AC-5 | TC-148 (AC-1..AC-5) | 🚧 Planned — the witness carrier is admitted in spec pending `agent-ix/quire-specification#114`'s `native-run-result/2`; TC-148 binds all 5 criteria and no implementation has landed yet. |
-| FR-043 | FR-043-AC-1..AC-7 | TC-149 (AC-1..AC-7) | 🚧 Planned — the checked-package handoff is read with the Contract IR reader. |
+| FR-043 | FR-043-AC-1..AC-8 | TC-149 (AC-1..AC-8) | 🚧 In progress — the checked-package handoff is read with the Contract IR reader; AC-1..AC-7 have traced tests, AC-8 is added with the identity and equality files. |
 | FR-044 | FR-044-AC-1..AC-7 | TC-150 (AC-1..AC-7) | 🚧 Planned — linking over a typed read view and QSL's causal relation. |
 | FR-045 | FR-045-AC-1..AC-8 | TC-151 (AC-1..AC-8) | ⛔ Blocked — until QSL specifies and delivers the evaluation entry that works from a `CheckedPackageV2` alone; compensation through qsl-eval's slot evaluation. |
 | FR-046 | FR-046-AC-1..AC-7 | TC-152 (AC-1..AC-7) | ⛔ Blocked — until QSL specifies and delivers the evaluation entry that works from a `CheckedPackageV2` alone; temporal evidence through the in-memory evidence types. |
-| FR-047 | FR-047-AC-1..AC-4 | TC-153 (AC-1..AC-4) | 🚧 Planned — AC-4 is pending the owner ruling on the digest and seal lanes. |
+| FR-047 | FR-047-AC-1..AC-4 | TC-153 (AC-1..AC-4) | 🚧 Planned — AC-4 is in force: the planner ruled for removal of the digest and seal lanes. |
 
-Behavioural totals across these 40 rows: 231 acceptance criteria, of which 226
-are backed by a test case (the 33 of FR-043 to FR-047 are bound to TC-149 to TC-153 and none is implemented yet), 2 are backed only by an integration scenario
+Behavioural totals across these 40 rows: 232 acceptance criteria, of which 227
+are backed by a test case (the 34 of FR-043 to FR-047 are bound to TC-149 to TC-153 and none is implemented yet), 2 are backed only by an integration scenario
 (FR-002-AC-5 and FR-001-AC-5 pass), and 3 are
 unbacked — 2 by Inspection and 1 by Analysis.
-226 + 2 + 3 = 231.
+227 + 2 + 3 = 232.
 
 ## Domain Object Coverage
 
@@ -487,10 +500,10 @@ criterion is a zero inside it rather than a row removed from it.
 
 | Category | Total | Passed | Failed | Blocked | Planned |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Criteria backed by a test case | 275 | 35 | 0 | 0 | 240 |
+| Criteria backed by a test case | 276 | 35 | 0 | 0 | 241 |
 | Criteria backed only by an integration scenario | 8 | 4 | 0 | 1 | 3 |
 | Criteria with no test case and no integration scenario | 32 | 0 | 0 | 0 | 32 |
-| Overall owed criteria | 315 | 39 | 0 | 1 | 275 |
+| Overall owed criteria | 316 | 39 | 0 | 1 | 276 |
 
 Task-013 adds eleven completed criteria to this table: all eight FR-012 object
 criteria, FR-016-AC-8, and NFR-006-AC-6/AC-7. FR-009's nine resolver controls

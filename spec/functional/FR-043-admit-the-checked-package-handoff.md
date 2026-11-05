@@ -25,7 +25,9 @@ refusal vocabulary for the checked package.
 
 - The handoff directory that `quire_spec_language::checked_handoff` writes
   (QSL FR-517): `checked-package.json`, `sources/<label>`, `models/<n>.json`,
-  `inventory.json`, `selection.json` and, for a mutation corpus, `mutations/`.
+  `inventory.json`, `selection.json`, `identities.json`
+  (`quire.checked-handoff.identities/1`), `equality.json`
+  (`quire.checked-handoff.equality/1`) and, for a mutation corpus, `mutations/`.
 - The evidence assembled from the handoff's own files, as QSL FR-517 states.
 - The selection (`selection.json`, `quire.checked-handoff.selection/1`), whose
   identities were derived from the source before any bytes were emitted, read
@@ -33,12 +35,16 @@ refusal vocabulary for the checked package.
 
 ## Outputs
 
-One admitted `CheckedPackageV2`, or one of three non-admitted results: a reader
+One admitted `CheckedPackageV2` together with the identity rows and equality
+rows read from `identities.json` and `equality.json` against it, or one of five
+non-admitted results: a reader
 refusal carrying Contract IR's `CheckedPackageRefusalCode` with its loci, cause
 and node locus unchanged; an incomplete read,
 `CheckedPackageDispatchResult::Incomplete(CheckedPackageIncomplete)`, when a read
 limit is exhausted, carried unchanged; or a selection refusal carrying QSL's
-`SelectionRefusal` with its `SelectionAxis` unchanged (QSL FR-517, FR-518).
+`SelectionRefusal` with its `SelectionAxis` unchanged (QSL FR-517, FR-518); an
+identity-file refusal or an equality-file refusal, carrying QSL's
+`IdentityFileRefusal` or `EqualityFileRefusal` unchanged (QSL FR-531).
 
 ## Behavior
 
@@ -48,6 +54,10 @@ limit is exhausted, carried unchanged; or a selection refusal carrying QSL's
   package `read_checked_package` has admitted, so a defect the reader refuses is
   a reader refusal and a defect only the selection can see is a selection
   refusal.
+- The library shall read `identities.json` and `equality.json` with QSL's
+  `ReadIdentityRows::read` and `ReadEqualityRows::read` against the admitted
+  package, after the selection check, and expose the rows only with the admitted
+  package.
 - The library shall return the reader's refusal, incomplete result or the
   selection's axis exactly as returned and shall add no code or axis of its own for a
   checked-package defect.
@@ -71,6 +81,7 @@ limit is exhausted, carried unchanged; or a selection refusal carrying QSL's
 | FR-043-AC-5 | Bytes of `quire.compiled-protocol/1` or `/2` offered at the checked-package entry point return a typed refusal; no version is detected, upgraded or repaired. Checked-package bytes offered at a retired entry point return a typed refusal for as long as a retired entry point exists, which is until FR-047's end conditions are met. | Test (TC-149) |
 | FR-043-AC-6 | A bare JSON number outside the safe-integer interval, a non-canonical rational and a signed-64 overflow in a package field each return the reader's refusal unchanged, and the library holds no numeric decoder. | Test (TC-149) |
 | FR-043-AC-7 | A read whose limit, for a limit with nonzero measured usage, is one below the package's measured usage returns `CheckedPackageDispatchResult::Incomplete(CheckedPackageIncomplete)` naming the exhausted limit, carried unchanged; it is neither an admitted package nor a refusal, no linked representation is exposed, and the same read at the exact limit is admitted. | Test (TC-149) |
+| FR-043-AC-8 | An `identities.json` or `equality.json` whose format string is another, or whose row names a node the package does not hold, returns QSL's file refusal unchanged and no admitted handoff. | Test (TC-149) |
 
 ## Dependencies
 

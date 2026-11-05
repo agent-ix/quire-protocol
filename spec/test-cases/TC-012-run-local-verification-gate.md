@@ -11,8 +11,7 @@ relationships:
 ## Description
 
 Verify that the enumerated local gate commands execute over one unchanged clean
-worktree state in each Cargo-feature lane this crate currently expresses — the
-default lane and the opposing `test-support` lane —
+worktree state in the one Cargo-feature lane this crate expresses —
 that every tracked conditional-compilation site is selected by a named command
 or admitted target, and that an undeclared, phantom or unexecuted configuration
 is refused rather than skipped or approximated.
@@ -22,22 +21,14 @@ is refused rather than skipped or approximated.
 Over one unchanged commit and clean tracked state in a worktree using the
 literal `target-codex-backends` directory, inspect `Cargo.toml` for a
 `[features]` table and `optional = true` dependencies, and inventory every
-tracked Rust `cfg` attribute and `cfg!` macro. Confirm that the one declared
-feature, `test-support`, is referenced by a tracked `cfg(feature = ...)`
-condition and is selected by its own clippy, test and doc commands beside the
-default lane's, and that a crate with no declared feature would run exactly one
-lane. Confirm that the current `cfg(test)` sites are selected by `clippy --all-targets` and `test`, and
+tracked Rust `cfg` attribute and `cfg!` macro. Confirm that the crate declares no feature and runs exactly one lane. Confirm that the current `cfg(test)` sites are selected by `clippy --all-targets` and `test`, and
 that the current `cfg(unix)` test is selected on the admitted local Unix target;
 claim no unexecuted target. With `CARGO_BUILD_JOBS=1` under
 `flock /tmp/quire-heavy-check.lock`, run `cargo fmt --all -- --check`,
 `cargo clippy --locked --all-targets --target-dir target-codex-backends -- -D
 warnings`, `cargo test --locked --target-dir target-codex-backends` and
 `env RUSTDOCFLAGS="-D warnings" cargo doc --locked --no-deps --target-dir
-target-codex-backends`, then the `test-support` lane: `cargo clippy --locked
---all-targets --features test-support --target-dir target-codex-backends -- -D
-warnings`, `cargo test --locked --features test-support --target-dir
-target-codex-backends` and `env RUSTDOCFLAGS="-D warnings" cargo doc --locked
---no-deps --features test-support --target-dir target-codex-backends`, recording
+target-codex-backends`, recording
 each exit status, commit, tracked state and covering risk.
 
 Then exercise independent Rust policy fixtures for every negative control.
@@ -53,9 +44,9 @@ statuses for the unchanged candidate.
 ## Expected Results
 
 All enumerated commands execute and pass over one unchanged clean worktree
-state, each recorded with its covering risk, and the default and `test-support`
-lanes are both built, linted, tested and documented.
-All 22 current conditional sites (20 test-kind, one feature, one `unix`) are selected without misclassifying target
+state, each recorded with its covering risk, and the one lane is built,
+linted, tested and documented.
+Every current conditional site are selected without misclassifying target
 kind or platform as a Cargo feature. Each negative policy fixture returns its
 own refusal: missing warning channel, missing all-target coverage, undeclared or
 phantom feature, missing opposing feature lane, unexecuted target condition,

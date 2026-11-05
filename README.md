@@ -71,59 +71,49 @@ violation.
 
 ## Admitting a protocol
 
-Admission takes the offered bytes, what the caller independently expects, and
-resource limits. The following version-2 case is from
-[`tests/it001_v2_handoff.rs`](tests/it001_v2_handoff.rs), which runs QSL's
-published handoff through admission:
+Admission takes the four files of a checked-package handoff directory (QSL
+FR-517), the evidence assembled from that directory, and read limits. It reads
+`checked-package.json` with Contract IR's `read_checked_package`, compares the
+admitted package with `selection.json`, and reads `identities.json` and
+`equality.json` against it. The case below is from
+[`tests/tc_149_admit_checked_handoff.rs`](tests/tc_149_admit_checked_handoff.rs):
 
 ```rust
-let loaded = configured();
-let declarations = loaded.declarations();
-let inventories = loaded.inventories(&declarations);
-let expected = loaded.expected(&inventories);
-
-let report = quire_protocol::intake::v2::admit(loaded.offer(), &expected, loaded.limits());
-match report.result() {
-    Ok(package) => {
-        assert_eq!(package.digest(), loaded.reference().digest);
-        assert_eq!(package.package().inherited.wire, v2::WIRE);
-        assert_eq!(
-            package.package().temporal_bindings.len(),
-            loaded.selection().temporal.len()
-        );
-    }
-    Err(error) => panic!(
-        "the published handoff was refused with {}: {error}",
-        handoff::reported_code(error)
-    ),
-}
+let admitted = admit(
+    &HandoffFiles {
+        checked_package: &files["checked-package.json"],
+        selection: &files["selection.json"],
+        identities: &files["identities.json"],
+        equality: &files["equality.json"],
+    },
+    &evidence,
+    CheckedPackageReadLimits::bounded(),
+)?;
+assert_eq!(admitted.package().name(), "r");
 ```
 
-`configured()` and the other helpers load the handoff fixtures in
-[`tests/support`](tests/support). The compensation path has runnable examples in [`tests/tc_003_compensation.rs`](tests/tc_003_compensation.rs).
+A refusal carries the owner's value unchanged: the reader's refusal code, loci
+and cause, the reader's incomplete result when a read limit is exhausted, QSL's
+selection axis, or QSL's identity-file or equality-file refusal.
+
+The link layer, the compensation assessment over the checked-package
+evaluation and the temporal evidence route return in the next stages of the
+repoint (FR-044 to FR-047).
 
 ## Modules
 
 | Module | What it holds |
 | --- | --- |
-| `intake` | Version-explicit admission: `intake::v1` and `intake::v2`. The root `admit_and_link` is a narrow `/1` compatibility facade. |
-| `inventory`, `version_lock` | The independently selected inventory and version-lock resolution that admission is checked against. |
-| `link` | The finite linked-protocol graph and its located diagnostics. |
-| `model` | Version-explicit full-assessment models. |
-| `compensation` | Activation, registration, ordering, retry, recovery and the composed snapshot. |
-| `conformance` | Batch and settled-incremental conformance. |
+| `checked_package` | Admission of the checked-package handoff (FR-043). |
+| `version_lock` | Version-lock resolution and the exact-byte delivery guard. |
+| `compensation` | Activation, registration, ordering and retry facts. |
 | `closure`, `outcome` | The five-axis closure and the closed operation and claim outcomes. |
-| `claims` | Independent claim dispositions. |
 | `bounds` | Count, allocation and deadline guards. |
-| `digest`, `result` | Digest domains and the canonical protocol result. |
-| `projection` | The projection of a result into `quire-verification/e02-draft-2`. |
-| `refusal` | The typed refusal envelope and its catalog
-. |
-| `repro`, `delivery_index`, `producer_contracts` | Reproduction record, evidence index for one pinned delivery, and the producer-contract inventory. |
+| `digest` | Canonical JCS encoding and the exact-byte SHA-256 carrier. |
+| `refusal` | The typed refusal envelope and its catalog. |
+| `repro`, `delivery_index` | Reproduction record and the evidence index for one pinned delivery. |
 
-The crate has one feature, `test-support`, which exposes validated-result
-constructors for a dependent crate's own tests. Enable it only on a
-`[dev-dependencies]` entry; the default build exposes none of it.
+The crate declares no Cargo feature.
 
 ## Out of scope
 
@@ -160,12 +150,11 @@ dev-dependency used only by tests.
 
 ## Building and testing
 
-All first-party code and tests are Rust. The local gate is seven commands run in
+All first-party code and tests are Rust. The local gate is four commands run in
 order over one unchanged head, defined by
 [`spec/non-functional/NFR-004-define-local-verification-gate.md`](spec/non-functional/NFR-004-define-local-verification-gate.md)
 and listed in [`AGENTS.md`](AGENTS.md): `cargo fmt --check`, clippy with
-warnings denied, tests and rustdoc in the default lane, then clippy, tests and
-rustdoc again in the `test-support` lane. Tests bind to requirements with
+warnings denied, tests and rustdoc. Tests bind to requirements with
 `ix-trace-rs` attributes. No hosted CI runs from this repository.
 
 ## Contributing

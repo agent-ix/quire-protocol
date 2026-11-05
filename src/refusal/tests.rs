@@ -598,28 +598,28 @@ fn tc_011_each_refusal_identity_component_changes_equality() {
     .emitting_nothing();
     assert_ne!(other_catalog, base, "catalog is part of identity");
 
-    let result_code = lookup("result.invalid-json").expect("result code is registered");
-    let at_assembly = ProtocolRefusal::builder(
+    let result_code = lookup("closure.axis.omitted").expect("assessment code is registered");
+    let at_compensation = ProtocolRefusal::builder(
         result_code,
         CatalogSelection::local(),
-        ProtocolStage::ResultAssembly,
+        ProtocolStage::Compensation,
         axis(b"axis-a"),
         missing_definition(b"definition/7"),
         usage(),
     )
-    .expect("result assembly belongs to result")
+    .expect("compensation belongs to assessment")
     .emitting_nothing();
-    let at_read = ProtocolRefusal::builder(
+    let at_conformance = ProtocolRefusal::builder(
         result_code,
         CatalogSelection::local(),
-        ProtocolStage::ResultRead,
+        ProtocolStage::Conformance,
         axis(b"axis-a"),
         missing_definition(b"definition/7"),
         usage(),
     )
-    .expect("result read belongs to result")
+    .expect("conformance belongs to assessment")
     .emitting_nothing();
-    assert_ne!(at_assembly, at_read, "stage is part of identity");
+    assert_ne!(at_compensation, at_conformance, "stage is part of identity");
 
     let other_usage = ProtocolRefusal::builder(
         code,
@@ -783,46 +783,4 @@ fn tc_011_mapping_preserves_both_non_success_variants() {
         OperationOutcome::ResourceIncomplete(value)
             if value.dimension() == BudgetDimension::InputByte
     ));
-}
-
-/// Tracing: TC-011, FR-008-AC-1, FR-008-AC-5, FR-036-AC-1, FR-039-AC-1.
-#[test]
-#[trace("TC-011", "FR-008-AC-1", "FR-008-AC-5", "FR-036-AC-1", "FR-039-AC-1")]
-fn tc_011_result_constructors_retain_the_actual_local_stage() {
-    let assembly = crate::result::Refusal::assembly(
-        crate::result::ErrorCode::InvalidSelection,
-        "assembly fixture",
-        crate::result::Usage::default(),
-        None,
-    );
-    let read = crate::result::Refusal::read(
-        crate::result::ErrorCode::InvalidJson,
-        "read fixture",
-        crate::result::Usage::default(),
-        None,
-    );
-    assert_eq!(assembly.envelope().stage(), ProtocolStage::ResultAssembly);
-    assert_eq!(read.envelope().stage(), ProtocolStage::ResultRead);
-    assert!(matches!(
-        assembly.envelope().causes().declared_order(),
-        [RefusalCause::Protocol(cause)] if cause.kind() == ProtocolCauseKind::IncompleteEvidence
-    ));
-    assert!(matches!(
-        read.envelope().causes().declared_order(),
-        [RefusalCause::Protocol(cause)] if cause.kind() == ProtocolCauseKind::IncompleteEvidence
-    ));
-    assert_eq!(
-        assembly.envelope().prerequisites(),
-        [Prerequisite::new(
-            ProtocolStage::ClaimDispatch,
-            PrerequisiteState::Established
-        )]
-    );
-    assert_eq!(
-        read.envelope().prerequisites(),
-        [Prerequisite::new(
-            ProtocolStage::ResultAssembly,
-            PrerequisiteState::Unavailable
-        )]
-    );
 }

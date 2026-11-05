@@ -11,9 +11,6 @@ const FORMAT_COMMAND: &str =
 const CLIPPY_COMMAND: &str = "CARGO_BUILD_JOBS=1 flock /tmp/quire-heavy-check.lock cargo clippy --locked --all-targets --target-dir target-codex-backends -- -D warnings";
 const TEST_COMMAND: &str = "CARGO_BUILD_JOBS=1 flock /tmp/quire-heavy-check.lock cargo test --locked --target-dir target-codex-backends";
 const DOC_COMMAND: &str = "CARGO_BUILD_JOBS=1 flock /tmp/quire-heavy-check.lock env RUSTDOCFLAGS=\"-D warnings\" cargo doc --locked --no-deps --target-dir target-codex-backends";
-const FEATURE_CLIPPY_COMMAND: &str = "CARGO_BUILD_JOBS=1 flock /tmp/quire-heavy-check.lock cargo clippy --locked --all-targets --features test-support --target-dir target-codex-backends -- -D warnings";
-const FEATURE_TEST_COMMAND: &str = "CARGO_BUILD_JOBS=1 flock /tmp/quire-heavy-check.lock cargo test --locked --features test-support --target-dir target-codex-backends";
-const FEATURE_DOC_COMMAND: &str = "CARGO_BUILD_JOBS=1 flock /tmp/quire-heavy-check.lock env RUSTDOCFLAGS=\"-D warnings\" cargo doc --locked --no-deps --features test-support --target-dir target-codex-backends";
 const ADMITTED_TARGET: &str = "x86_64-unknown-linux-gnu";
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -210,20 +207,9 @@ impl GatePolicy {
             CommandKind::Clippy,
             CommandKind::Test,
             CommandKind::Doc,
-            CommandKind::Clippy,
-            CommandKind::Test,
-            CommandKind::Doc,
         ];
         let actual_kinds: Vec<_> = self.commands.iter().map(|command| command.kind).collect();
-        let expected_text = [
-            FORMAT_COMMAND,
-            CLIPPY_COMMAND,
-            TEST_COMMAND,
-            DOC_COMMAND,
-            FEATURE_CLIPPY_COMMAND,
-            FEATURE_TEST_COMMAND,
-            FEATURE_DOC_COMMAND,
-        ];
+        let expected_text = [FORMAT_COMMAND, CLIPPY_COMMAND, TEST_COMMAND, DOC_COMMAND];
 
         let actual_text: Vec<_> = self
             .commands
@@ -238,8 +224,8 @@ impl GatePolicy {
         {
             defects.insert(GateDefect::CommandSet);
         } else if actual_kinds != expected_kinds || actual_text != expected_text {
-            // Text-for-text and in order: a feature lane replaced by a copy of
-            // its default lane, or two lanes swapped, is not the documented gate.
+            // Text-for-text and in order: two commands swapped is not the
+            // documented gate.
             defects.insert(GateDefect::CommandOrder);
         }
         if self.commands.iter().any(|command| !command.risk_bound) {
@@ -548,15 +534,8 @@ fn tc_012_the_current_command_set_and_risks_are_exact() {
         GateDefect::MissingRisk
     );
 
-    // A feature lane replaced by a copy of its default lane, or the default
-    // and feature lanes swapped, is not the documented gate.
-    for (feature, default) in [(4, 1), (6, 3)] {
-        let mut replaced = policy.clone();
-        replaced.commands[feature].text = replaced.commands[default].text.clone();
-        assert_eq!(replaced.defects(), [GateDefect::CommandOrder].into());
-    }
     let mut swapped = policy;
-    swapped.commands.swap(1, 4);
+    swapped.commands.swap(1, 2);
     assert_eq!(swapped.defects(), [GateDefect::CommandOrder].into());
 }
 
@@ -631,30 +610,9 @@ fn tc_012_an_undeclared_feature_is_its_own_defect() {
 #[trace("NFR-004-AC-7", "Task-014")]
 fn tc_012_a_new_feature_surface_requires_opposing_lanes() {
     let repository = GatePolicy::repository();
-    assert_eq!(
-        repository.declared_features,
-        ["test-support".to_owned()].into_iter().collect()
-    );
-    assert_eq!(
-        repository.feature_lanes,
-        [
-            BTreeSet::new(),
-            ["test-support".to_owned()].into_iter().collect()
-        ]
-    );
+    assert!(repository.declared_features.is_empty());
+    assert_eq!(repository.feature_lanes, [BTreeSet::new()]);
     assert!(repository.defects().is_empty());
-    let mut without_opposing_lane = repository.clone();
-    without_opposing_lane.feature_lanes.truncate(1);
-    assert_eq!(
-        without_opposing_lane.defects(),
-        [GateDefect::MissingFeatureLane].into()
-    );
-    let mut without_minimal_lane = repository;
-    without_minimal_lane.feature_lanes.remove(0);
-    assert_eq!(
-        without_minimal_lane.defects(),
-        [GateDefect::MissingFeatureLane].into()
-    );
 
     let mut policy = GatePolicy::repository();
     policy.declared_features.insert("fast-path".to_owned());
@@ -669,7 +627,7 @@ fn tc_012_a_new_feature_surface_requires_opposing_lanes() {
         .push(["fast-path".to_owned()].into_iter().collect());
     assert!(policy.defects().is_empty());
 
-    let mut optional = featureless();
+    let mut optional = GatePolicy::repository();
     optional.optional_dependency = true;
     optional.feature_lanes.push(BTreeSet::new());
     assert_eq!(
@@ -691,36 +649,6 @@ fn tc_012_every_conditional_site_is_selected_and_phantom_features_refuse() {
         policy.conditions,
         [
             Condition::Test {
-                path: "src/assessment.rs".to_owned(),
-            },
-            Condition::Test {
-                path: "src/claims/dispatch.rs".to_owned(),
-            },
-            Condition::Test {
-                path: "src/claims/mod.rs".to_owned(),
-            },
-            Condition::Test {
-                path: "src/conformance/kernel.rs".to_owned(),
-            },
-            Condition::Test {
-                path: "src/conformance/mod.rs".to_owned(),
-            },
-            Condition::Test {
-                path: "src/link/interleaving.rs".to_owned(),
-            },
-            Condition::Test {
-                path: "src/link/mod.rs".to_owned(),
-            },
-            Condition::Test {
-                path: "src/link/mod.rs".to_owned(),
-            },
-            Condition::Test {
-                path: "src/producer_contracts.rs".to_owned(),
-            },
-            Condition::Test {
-                path: "src/projection.rs".to_owned(),
-            },
-            Condition::Test {
                 path: "src/refusal/cause.rs".to_owned(),
             },
             Condition::Test {
@@ -741,22 +669,38 @@ fn tc_012_every_conditional_site_is_selected_and_phantom_features_refuse() {
             Condition::Test {
                 path: "src/refusal/mod.rs".to_owned(),
             },
-            Condition::Feature {
-                path: "src/result/mod.rs".to_owned(),
-                name: "test-support".to_owned(),
+            Condition::Test {
+                path: "src/refusal/mod.rs".to_owned(),
             },
             Condition::Test {
-                path: "src/result/mod.rs".to_owned(),
+                path: "src/refusal/mod.rs".to_owned(),
+            },
+            Condition::Test {
+                path: "src/refusal/mod.rs".to_owned(),
+            },
+            Condition::Test {
+                path: "src/refusal/mod.rs".to_owned(),
+            },
+            Condition::Test {
+                path: "src/refusal/mod.rs".to_owned(),
+            },
+            Condition::Test {
+                path: "src/refusal/mod.rs".to_owned(),
+            },
+            Condition::Test {
+                path: "src/refusal/mod.rs".to_owned(),
+            },
+            Condition::Test {
+                path: "src/refusal/mod.rs".to_owned(),
+            },
+            Condition::Test {
+                path: "src/refusal/mod.rs".to_owned(),
             },
             Condition::Test {
                 path: "src/version_lock.rs".to_owned(),
             },
             Condition::Test {
                 path: "src/version_lock.rs".to_owned(),
-            },
-            Condition::Target {
-                path: "tests/it001_v2_handoff.rs".to_owned(),
-                predicate: "unix".to_owned(),
             },
         ]
     );
