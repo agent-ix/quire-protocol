@@ -11,7 +11,10 @@ discharges.
 | Crate | Source | Declared license | Role |
 | --- | --- | --- | --- |
 | `quire-spec-language` | `agent-ix/quire-spec-language`, `main`, feature `checked-handoff` | `AGPL-3.0-or-later` | Publishes `checked_handoff::Selection` (QSL FR-517), compared with an admitted package, and the in-process handoff writer the tests call. |
-| `qsl-package` | `agent-ix/quire-spec-language`, `main` | `AGPL-3.0-or-later` | Publishes the bytes-only identity and equality file readers (QSL FR-531, FR-533) and, in later stages, `protocol_view`. |
+| `qsl-package` | `agent-ix/quire-spec-language`, `main` | `AGPL-3.0-or-later` | Publishes the bytes-only identity and equality file readers (QSL FR-531, FR-533), `protocol_view` and `causal_relation` (QSL FR-519), and `BarePackage` (QSL FR-531). |
+| `qsl-eval` | `agent-ix/quire-spec-language`, `main` | `AGPL-3.0-or-later` | Owns the slot evaluation `CheckedPackageEvaluation` (QSL FR-390, FR-520, FR-533) and the temporal `EvidencePackage` (QSL FR-532). |
+| `qsl-semantics` | `agent-ix/quire-spec-language`, `main` | `AGPL-3.0-or-later` | Test-only: the wire graph that keys protocol nodes, used to name a slot's node. |
+| `quire-eval`, `quire-exact`, `quire-semantic-value` | `agent-ix/quire-eval`, `agent-ix/quire-exact`, `agent-ix/quire-semantic-value`, `main` | `AGPL-3.0-or-later` | The evaluation outcome, meter and value types that the slot and evidence calls take and return. |
 | `qsl-foundation` | `agent-ix/quire-spec-language`, `main` | `AGPL-3.0-or-later` | QSL's foundation crate. |
 | `quire-contract-model` | `agent-ix/quire-contract-ir`, `main` | `MIT OR Apache-2.0` | Owns `read_checked_package`, the admitted `CheckedPackageV2` and the refusal, incomplete-read and read-limit types. The one reader of the checked-package format. |
 | `quire-observation` | `agent-ix/quire-observation`, `main` | `AGPL-3.0-or-later` | Observation authority views used by the compensation kernel. |
