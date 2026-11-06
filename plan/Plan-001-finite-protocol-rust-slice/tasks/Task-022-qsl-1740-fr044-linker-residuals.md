@@ -2,7 +2,7 @@
 id: Task-022
 title: "QSL-1740 — complete the checked-package linker residuals"
 type: Task
-status: not_started
+status: in_progress
 track: Core
 priority: P0
 relationships:

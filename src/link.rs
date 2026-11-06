@@ -27,11 +27,11 @@
 
 use qsl_package::protocol_view::{
     causal_relation, control_operation, delivery, locus, protocol_view, temporal_binding,
-    CausalEdge, ControlOperation, Delivery, ProtocolView, Scheduling, ViewRefusal,
+    CausalEdge, ControlOperation, ProtocolView, Scheduling, ViewRefusal,
 };
 use quire_contract_model::{
     CheckedNodeId, CheckedPackageV2, CheckedProtocolActivationRow, CheckedSemanticNodeV2,
-    CheckedSourceMapEntry, CheckedTerm, LiteralKind,
+    CheckedSourceMapEntry, CheckedTerm, LiteralKind, TemporalBinding,
 };
 use serde_json::Value;
 
@@ -56,7 +56,7 @@ pub enum LinkRefusal {
         /// The available source-map entries for the later role.
         locus: Vec<CheckedSourceMapEntry>,
     },
-    /// Two channel nodes with the same name state different delivery premises.
+    /// Two channel nodes with the same route and payload state conflicting premises.
     ConflictingChannelPremise {
         /// The later channel node in the protocol view.
         channel: CheckedNodeId,
@@ -67,8 +67,23 @@ pub enum LinkRefusal {
     },
 }
 
-fn argument<'a>(node: &'a CheckedSemanticNodeV2, name: &str) -> Option<&'a CheckedTerm> {
-    let CheckedTerm::Application { arguments, .. } = &node.body else {
+fn node<'a>(
+    package: &'a CheckedPackageV2,
+    id: &CheckedNodeId,
+) -> Option<&'a CheckedSemanticNodeV2> {
+    package
+        .graph()
+        .nodes
+        .iter()
+        .find(|node| &node.node_id == id)
+}
+
+fn argument<'a>(
+    package: &'a CheckedPackageV2,
+    node: &CheckedNodeId,
+    name: &str,
+) -> Option<&'a CheckedTerm> {
+    let CheckedTerm::Application { arguments, .. } = package.term(node)? else {
         return None;
     };
     arguments.iter().find_map(|argument| match argument {
@@ -84,24 +99,23 @@ fn reference(term: &CheckedTerm) -> Option<&CheckedNodeId> {
     }
 }
 
-fn text(term: &CheckedTerm) -> Option<&str> {
-    match term {
-        CheckedTerm::Literal {
-            value_kind: LiteralKind::Text,
-            value: Value::String(value),
-            ..
-        } => Some(value),
-        _ => None,
-    }
-}
-
 fn integer(term: &CheckedTerm) -> Option<u64> {
-    match term {
-        CheckedTerm::Literal {
-            value_kind: LiteralKind::Integer,
-            value: Value::String(value),
-            ..
-        } if !value.is_empty() && value.bytes().all(|byte| byte.is_ascii_digit()) => {
+    let CheckedTerm::Aggregate { members } = term else {
+        return None;
+    };
+    let [CheckedTerm::Literal {
+        value_kind: LiteralKind::Integer,
+        value,
+        ..
+    }] = members.as_slice()
+    else {
+        return None;
+    };
+    match value {
+        Value::Number(number) => number.as_u64(),
+        Value::String(value)
+            if !value.is_empty() && value.bytes().all(|byte| byte.is_ascii_digit()) =>
+        {
             value.parse().ok()
         }
         _ => None,
@@ -114,21 +128,25 @@ fn source_locus(package: &CheckedPackageV2, node: &CheckedNodeId) -> Vec<Checked
         .unwrap_or_default()
 }
 
-fn has_zero_repeat_maximum(node: &CheckedSemanticNodeV2) -> bool {
+fn has_zero_repeat_maximum(package: &CheckedPackageV2, node: &CheckedSemanticNodeV2) -> bool {
     control_operation(node) == Ok(ControlOperation::Repeat)
-        && argument(node, "maximum").and_then(integer) == Some(0)
+        && argument(package, &node.node_id, "maximum").and_then(integer) == Some(0)
 }
 
 fn same_channel_premises(
+    package: &CheckedPackageV2,
     left: &CheckedSemanticNodeV2,
     right: &CheckedSemanticNodeV2,
 ) -> Result<bool, ViewRefusal> {
     let left_delivery = delivery(left)?;
     let right_delivery = delivery(right)?;
-    let same = ["ordering", "capacity", "overflow"]
-        .into_iter()
-        .all(|name| argument(left, name) == argument(right, name));
-    Ok(same && left_delivery == right_delivery)
+    let same_channel = ["from", "to", "carries"].into_iter().all(|name| {
+        argument(package, &left.node_id, name) == argument(package, &right.node_id, name)
+    });
+    let same_premise = argument(package, &left.node_id, "ordering")
+        == argument(package, &right.node_id, "ordering")
+        && left_delivery == right_delivery;
+    Ok(!same_channel || same_premise)
 }
 
 /// The nodes and causal edges of one protocol clause.
@@ -141,6 +159,8 @@ pub struct LinkedProtocol {
     controls: Vec<CheckedNodeId>,
     compensations: Vec<CheckedNodeId>,
     requirements: Vec<CheckedNodeId>,
+    requirement_terms: Vec<CheckedTerm>,
+    temporal_bindings: Vec<TemporalBinding>,
     run: CheckedNodeId,
     finish: CheckedNodeId,
     terminal: Option<CheckedNodeId>,
@@ -154,7 +174,12 @@ fn owned(ids: &[&CheckedNodeId]) -> Vec<CheckedNodeId> {
 }
 
 impl LinkedProtocol {
-    fn of(view: &ProtocolView<'_>, edges: &[CausalEdge]) -> Self {
+    fn of(
+        view: &ProtocolView<'_>,
+        edges: &[CausalEdge],
+        requirement_terms: Vec<CheckedTerm>,
+        temporal_bindings: Vec<TemporalBinding>,
+    ) -> Self {
         Self {
             clause: view.clause().clone(),
             roles: owned(view.roles()),
@@ -163,6 +188,8 @@ impl LinkedProtocol {
             controls: owned(view.controls()),
             compensations: owned(view.compensations()),
             requirements: owned(view.requirements()),
+            requirement_terms,
+            temporal_bindings,
             run: view.run().clone(),
             finish: view.finish().clone(),
             terminal: view.terminal().cloned(),
@@ -207,6 +234,16 @@ impl LinkedProtocol {
         &self.requirements
     }
 
+    /// The admitted typed bodies of the required temporal clauses.
+    pub fn requirement_terms(&self) -> &[CheckedTerm] {
+        &self.requirement_terms
+    }
+
+    /// The selected clock bindings for required temporal clauses, in view order.
+    pub fn temporal_bindings(&self) -> &[TemporalBinding] {
+        &self.temporal_bindings
+    }
+
     /// The root `run` control.
     pub fn run(&self) -> &CheckedNodeId {
         &self.run
@@ -245,19 +282,19 @@ impl LinkedProtocol {
 /// An owner [`ViewRefusal`] wrapped in [`LinkRefusal::View`] for an absent
 /// node or a node that is not a `protocol` node, `NotAProtocolClause` for a
 /// `protocol_reference` carrier, and the member-naming refusals for a node
-/// that lacks a member its layout states. Consumer refusals identify zero
-/// progress repeats, duplicate authorities, and conflicting channel premises.
+/// that lacks a member its layout states. Consumer refusals identify
+/// zero-progress repeats, duplicate authorities, and conflicting channel
+/// premises.
 /// No representation is returned with a refusal.
 pub fn link(
     package: &CheckedPackageV2,
     protocol: &CheckedNodeId,
 ) -> Result<LinkedProtocol, LinkRefusal> {
     let view = protocol_view(package, protocol).map_err(LinkRefusal::View)?;
-    for id in view.controls() {
-        let node = package
-            .node(id)
+    for id in view.controls().iter().copied() {
+        let node = node(package, id)
             .ok_or_else(|| LinkRefusal::View(ViewRefusal::UnknownProtocol { node: id.clone() }))?;
-        if has_zero_repeat_maximum(node) {
+        if has_zero_repeat_maximum(package, node) {
             return Err(LinkRefusal::ZeroProgressIteration {
                 control: id.clone(),
                 locus: source_locus(package, id),
@@ -266,16 +303,17 @@ pub fn link(
     }
 
     let mut authorities: Vec<(&CheckedNodeId, &CheckedNodeId)> = Vec::new();
-    for id in view.roles() {
-        let node = package
-            .node(id)
+    for id in view.roles().iter().copied() {
+        node(package, id)
             .ok_or_else(|| LinkRefusal::View(ViewRefusal::UnknownProtocol { node: id.clone() }))?;
-        let authority = argument(node, "model").and_then(reference).ok_or_else(|| {
-            LinkRefusal::View(ViewRefusal::MissingMember {
-                node: id.clone(),
-                member: "model",
-            })
-        })?;
+        let authority = argument(package, id, "model")
+            .and_then(reference)
+            .ok_or_else(|| {
+                LinkRefusal::View(ViewRefusal::MissingMember {
+                    node: id.clone(),
+                    member: "model",
+                })
+            })?;
         if authorities
             .iter()
             .any(|(_, previous)| *previous == authority)
@@ -289,21 +327,12 @@ pub fn link(
         authorities.push((id, authority));
     }
 
-    let mut channels: Vec<(&CheckedNodeId, &str, &CheckedSemanticNodeV2)> = Vec::new();
-    for id in view.channels() {
-        let node = package
-            .node(id)
+    let mut channels: Vec<(&CheckedNodeId, &CheckedSemanticNodeV2)> = Vec::new();
+    for id in view.channels().iter().copied() {
+        let node = node(package, id)
             .ok_or_else(|| LinkRefusal::View(ViewRefusal::UnknownProtocol { node: id.clone() }))?;
-        let name = argument(node, "name").and_then(text).ok_or_else(|| {
-            LinkRefusal::View(ViewRefusal::MissingMember {
-                node: id.clone(),
-                member: "name",
-            })
-        })?;
-        for (other_id, other_name, other_node) in &channels {
-            if name == *other_name
-                && !same_channel_premises(other_node, node).map_err(LinkRefusal::View)?
-            {
+        for (other_id, other_node) in &channels {
+            if !same_channel_premises(package, other_node, node).map_err(LinkRefusal::View)? {
                 let mut entries = source_locus(package, id);
                 entries.extend(source_locus(package, other_id));
                 return Err(LinkRefusal::ConflictingChannelPremise {
@@ -313,20 +342,34 @@ pub fn link(
                 });
             }
         }
-        channels.push((id, name, node));
+        channels.push((id, node));
     }
 
-    if let Some(rows) = package.temporal_bindings() {
-        for id in view.requirements() {
-            temporal_binding(rows, id).map_err(LinkRefusal::View)?;
-        }
-    } else if let Some(id) = view.requirements().first() {
-        return Err(LinkRefusal::View(ViewRefusal::MissingMember {
-            node: id.clone(),
-            member: "temporal_bindings",
-        }));
+    let mut requirement_terms = Vec::with_capacity(view.requirements().len());
+    let mut temporal_bindings = Vec::with_capacity(view.requirements().len());
+    for id in view.requirements().iter().copied() {
+        let term = package.term(id).ok_or_else(|| {
+            LinkRefusal::View(ViewRefusal::MissingMember {
+                node: id.clone(),
+                member: "body",
+            })
+        })?;
+        let rows = package.temporal_bindings().ok_or_else(|| {
+            LinkRefusal::View(ViewRefusal::MissingMember {
+                node: id.clone(),
+                member: "temporal_bindings",
+            })
+        })?;
+        let binding = temporal_binding(rows, id).map_err(LinkRefusal::View)?;
+        requirement_terms.push(term.clone());
+        temporal_bindings.push(binding.clone());
     }
 
     let relation = causal_relation(package, protocol).map_err(LinkRefusal::View)?;
-    Ok(LinkedProtocol::of(&view, relation.edges()))
+    Ok(LinkedProtocol::of(
+        &view,
+        relation.edges(),
+        requirement_terms,
+        temporal_bindings,
+    ))
 }

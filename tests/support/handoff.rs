@@ -100,6 +100,21 @@ pub fn written(kind: &str, corpus: Corpus) -> Handoff {
     let holder = tempfile::tempdir().expect("temporary directory");
     let out = holder.path().join("handoff");
     let asked = request(kind, corpus);
+    finish(holder, out, asked)
+}
+
+/// Write a handoff from `source` while retaining the other inputs of `kind`.
+pub fn written_source(kind: &str, source: &str, corpus: Corpus) -> Handoff {
+    let holder = tempfile::tempdir().expect("temporary directory");
+    let source_path = holder.path().join("unit.native");
+    std::fs::write(&source_path, source).expect("write source fixture");
+    let mut asked = request(kind, corpus);
+    asked.emit.source = source_path;
+    let out = holder.path().join("handoff");
+    finish(holder, out, asked)
+}
+
+fn finish(holder: tempfile::TempDir, out: PathBuf, asked: CheckedHandoffRequest) -> Handoff {
     write(&asked, &out).expect("the handoff is written");
     let files = tree(&out);
     let evidence = evidence(&asked).expect("evidence");

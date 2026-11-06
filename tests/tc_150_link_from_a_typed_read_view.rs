@@ -11,16 +11,16 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 use ix_trace_rs::trace;
-use qsl_package::protocol_view::{causal_relation, protocol_view, ViewRefusal};
+use qsl_package::protocol_view::{causal_relation, protocol_view, temporal_binding, ViewRefusal};
 use quire_contract_model::{
     read_checked_package, CheckedNodeId, CheckedPackageDispatchResult, CheckedPackageReadLimits,
-    CheckedPackageV2, CheckedSemanticNodeV2,
+    CheckedPackageV2, CheckedSemanticNodeV2, CheckedTerm,
 };
 use quire_protocol::checked_package::{admit, HandoffFiles};
 use quire_protocol::link::{link, LinkRefusal, LinkedProtocol};
 use quire_spec_language::checked_handoff::Corpus;
 use serde_json::Value;
-use support::handoff::{written, Handoff};
+use support::handoff::{written, written_source, Handoff};
 
 fn admitted(handoff: &Handoff, bytes: &[u8]) -> Box<CheckedPackageV2> {
     let files = HandoffFiles {
@@ -76,6 +76,8 @@ fn linked_lists_and_edges_equal_the_owners_view_and_relation() {
     assert_eq!(linked.controls(), ids(view.controls()));
     assert_eq!(linked.compensations(), ids(view.compensations()));
     assert_eq!(linked.requirements(), ids(view.requirements()));
+    assert_eq!(linked.requirement_terms().len(), view.requirements().len());
+    assert_eq!(linked.temporal_bindings().len(), view.requirements().len());
     assert_eq!(linked.run(), view.run());
     assert_eq!(linked.finish(), view.finish());
     assert_eq!(linked.terminal(), view.terminal());
@@ -175,7 +177,7 @@ fn no_source_constructs_a_causal_edge() {
         .find(|(path, _)| path.ends_with("src/link.rs"))
         .map(|(_, text)| text.as_str())
         .expect("the link source");
-    assert!(link.contains("causal_relation(package, protocol)?"));
+    assert!(link.contains("causal_relation(package, protocol)"));
     assert!(link.contains("relation.edges()"));
 }
 
@@ -321,6 +323,289 @@ fn window_is_an_evaluation_input_not_a_package_binding() {
         .expect("link module source");
     assert!(!source.contains("protocol_view::Window"));
     assert!(!source.contains("window_binding"));
+}
+
+/// FR-044-AC-7: recipe R carries the selected temporal content through the
+/// link result, while its causal edges remain exactly QSL's authored relation.
+#[test]
+#[trace("FR-044-AC-7", "TC-150")]
+fn recipe_r_retains_selected_clock_and_owner_causal_edges() {
+    let (_event_handoff, event_package) = recipe("event_position");
+    let event_clause = form_node(&event_package, "protocol_clause").node_id.clone();
+    let event_link = link(&event_package, &event_clause).expect("event-position recipe links");
+    let event_relation = causal_relation(&event_package, &event_clause).expect("owner relation");
+    assert_eq!(event_link.edges(), event_relation.edges());
+    assert!(!event_link.temporal_bindings().is_empty());
+    assert_eq!(
+        event_link.temporal_bindings().len(),
+        event_link.requirement_terms().len()
+    );
+    let rows = event_package.temporal_bindings().expect("clock rows");
+    for (requirement, selected) in event_link
+        .requirements()
+        .iter()
+        .zip(event_link.temporal_bindings())
+    {
+        assert_eq!(
+            temporal_binding(rows, requirement).expect("owner-selected clock"),
+            selected
+        );
+    }
+}
+
+/// FR-044-AC-3: duplicate role authorities are detected from typed role terms.
+#[test]
+#[trace("FR-044-AC-3", "TC-150")]
+fn duplicate_role_authority_is_refused_at_the_later_role() {
+    let (handoff, package) = recipe("event_position");
+    let clause = form_node(&package, "protocol_clause").node_id.clone();
+    let view = protocol_view(&package, &clause).expect("owner view");
+    let [first, second, ..] = view.roles() else {
+        panic!("recipe R has at least two roles");
+    };
+    let mut json: Value =
+        serde_json::from_slice(&handoff.files["checked-package.json"]).expect("package JSON");
+    let nodes = json["semantic_graph"]["nodes"]
+        .as_array_mut()
+        .expect("nodes");
+    let first_wire = nodes
+        .iter()
+        .find(|node| node["node_id"] == serde_json::to_value(first).expect("role id"))
+        .expect("first role wire node");
+    let first_model = first_wire["body"]["arguments"]
+        .as_array()
+        .expect("role arguments")
+        .iter()
+        .find(|argument| argument["name"] == "model")
+        .expect("model argument")["value"]["target"]
+        .clone();
+    let second_wire = nodes
+        .iter_mut()
+        .find(|node| node["node_id"] == serde_json::to_value(second).expect("role id"))
+        .expect("second role wire node");
+    let arguments = second_wire["body"]["arguments"]
+        .as_array_mut()
+        .expect("role arguments");
+    let model_argument = arguments
+        .iter_mut()
+        .find(|argument| argument["name"] == "model")
+        .expect("model argument");
+    let old_model = model_argument["value"]["target"].clone();
+    model_argument["value"]["target"] = first_model.clone();
+    let dependencies = second_wire["dependencies"]
+        .as_array_mut()
+        .expect("role dependencies");
+    dependencies.retain(|dependency| *dependency != old_model);
+    if !dependencies.contains(&first_model) {
+        dependencies.push(first_model.clone());
+    }
+    dependencies.sort_by_key(|dependency| serde_json::to_string(dependency).expect("node id"));
+
+    let bytes = serde_json::to_vec(&json).expect("mutated package");
+    let CheckedPackageDispatchResult::AdmittedV2(mutated) = read_checked_package(
+        &bytes,
+        CheckedPackageReadLimits::bounded(),
+        &handoff.evidence,
+    ) else {
+        panic!("the checked reader admits two roles over one authority");
+    };
+    let refusal = link(&mutated, &clause).expect_err("duplicate authority must be refused");
+    let LinkRefusal::DuplicateRoleAuthority {
+        role,
+        authority,
+        locus,
+    } = refusal
+    else {
+        panic!("expected duplicate authority refusal, got {refusal:?}");
+    };
+    assert_eq!(role, (*second).clone());
+    assert_eq!(
+        authority,
+        serde_json::from_value(first_model).expect("authority id")
+    );
+    assert!(!locus.is_empty(), "the refusal retains available locations");
+}
+
+/// FR-044-AC-3: a zero maximum repeat receives a consumer refusal with its
+/// source locus and no linked representation.
+#[test]
+#[trace("FR-044-AC-3", "TC-150")]
+fn zero_maximum_repeat_is_refused_at_its_control() {
+    use qsl_package::protocol_view::{control_operation, ControlOperation};
+
+    let (handoff, package) = recipe("event_position");
+    let sequence = package
+        .graph()
+        .nodes
+        .iter()
+        .find(|node| control_operation(node) == Ok(ControlOperation::Choice))
+        .expect("recipe R includes a choice control");
+    let CheckedTerm::Application { arguments, .. } =
+        package.term(&sequence.node_id).expect("sequence term")
+    else {
+        panic!("sequence has an application body");
+    };
+    let argument = |name: &str| {
+        arguments
+            .iter()
+            .find_map(|term| match term {
+                CheckedTerm::Binding { name: found, value } if found.as_ref() == name => {
+                    Some(value.as_ref())
+                }
+                _ => None,
+            })
+            .expect("sequence argument")
+    };
+    let owner = serde_json::to_value(argument("owner")).expect("owner term");
+    let visible = serde_json::to_value(argument("visible")).expect("visible term");
+    let CheckedTerm::Aggregate { members } = argument("cases") else {
+        panic!("choice cases are an aggregate");
+    };
+    let case_body = |index: usize| {
+        let Some(CheckedTerm::Aggregate { members: case }) = members.get(index) else {
+            panic!("choice has case {index}");
+        };
+        let Some(CheckedTerm::Binding { value, .. }) = case.iter().find(
+            |member| matches!(member, CheckedTerm::Binding { name, .. } if name.as_ref() == "body"),
+        ) else {
+            panic!("choice case has a body");
+        };
+        let CheckedTerm::Reference { target } = value.as_ref() else {
+            panic!("choice case body is a reference");
+        };
+        target
+    };
+    let target = case_body(0);
+    let exhausted_target = case_body(1);
+    let body = serde_json::json!({"term": "reference", "target": target});
+    let type_id = |form: &str| {
+        package
+            .graph()
+            .nodes
+            .iter()
+            .find(|node| &*node.node_tag == "scalar_type" && &*node.semantic_form == form)
+            .map(|node| serde_json::to_value(&node.node_id).expect("type id"))
+            .expect("built-in scalar type")
+    };
+    let integer_type = type_id("integer");
+    let boolean_type = type_id("boolean");
+    let sequence_id = serde_json::to_value(&sequence.node_id).expect("choice id");
+    let mut json: Value =
+        serde_json::from_slice(&handoff.files["checked-package.json"]).expect("package JSON");
+    let nodes = json["semantic_graph"]["nodes"]
+        .as_array_mut()
+        .expect("nodes");
+    let repeat = nodes
+        .iter_mut()
+        .find(|node| node["node_id"] == sequence_id)
+        .expect("choice wire node");
+    repeat["body"]["operation"]["member"]["operator"] = Value::from("repeat");
+    repeat["body"]["arguments"] = serde_json::json!([
+        {"term": "binding", "name": "owner", "value": owner},
+        {"term": "binding", "name": "visible", "value": visible},
+        {"term": "binding", "name": "maximum", "value": {
+            "term": "aggregate", "members": [{
+                "term": "literal", "type": integer_type, "value_kind": "integer", "value": "0"
+            }]
+        }},
+        {"term": "binding", "name": "proof", "value": {"term": "aggregate", "members": []}},
+        {"term": "binding", "name": "guard", "value": {
+            "term": "literal", "type": boolean_type, "value_kind": "boolean", "value": true
+        }},
+        {"term": "binding", "name": "body", "value": body},
+        {"term": "binding", "name": "exhausted", "value": {
+            "term": "aggregate", "members": [{"term": "reference", "target": exhausted_target}]
+        }}
+    ]);
+    fn collect_term_dependencies(term: &Value, found: &mut Vec<Value>) {
+        if term["term"] == "reference" {
+            found.push(term["target"].clone());
+        }
+        match term {
+            Value::Array(items) => {
+                for item in items {
+                    collect_term_dependencies(item, found);
+                }
+            }
+            Value::Object(items) => {
+                for item in items.values() {
+                    collect_term_dependencies(item, found);
+                }
+            }
+            _ => {}
+        }
+    }
+    let mut dependencies = Vec::new();
+    collect_term_dependencies(&repeat["body"], &mut dependencies);
+    dependencies.sort_by(|left, right| {
+        let left: CheckedNodeId = serde_json::from_value(left.clone()).expect("node id");
+        let right: CheckedNodeId = serde_json::from_value(right.clone()).expect("node id");
+        left.cmp(&right)
+    });
+    dependencies.dedup();
+    repeat["dependencies"] = Value::Array(dependencies);
+
+    let bytes = serde_json::to_vec(&json).expect("mutated package");
+    let result = read_checked_package(
+        &bytes,
+        CheckedPackageReadLimits::bounded(),
+        &handoff.evidence,
+    );
+    let CheckedPackageDispatchResult::AdmittedV2(mutated) = result else {
+        panic!("the checked reader admits a progressing repeat with maximum zero: {result:?}");
+    };
+    let clause = form_node(&mutated, "protocol_clause").node_id.clone();
+    let refusal = link(&mutated, &clause).expect_err("zero maximum must be refused");
+    let LinkRefusal::ZeroProgressIteration { control, locus } = refusal else {
+        panic!("expected zero-progress refusal, got {refusal:?}");
+    };
+    assert_eq!(control, sequence.node_id);
+    assert!(
+        !locus.is_empty(),
+        "the refusal retains source-map locations"
+    );
+}
+
+/// FR-044-AC-3: two admitted channels with one route and payload but different
+/// delivery premises are refused with both source loci.
+#[test]
+#[trace("FR-044-AC-3", "TC-150")]
+fn conflicting_channel_premises_are_refused_at_both_nodes() {
+    let source_path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/checked-handoff/unit-event-position.native");
+    let source = std::fs::read_to_string(source_path).expect("recipe R source");
+    let declaration = "channel Decisions from Provider to Service carries M::Notice\n        ordering unordered delivery at-least-once capacity 4 overflow reject;";
+    let source = source.replace(
+        declaration,
+        &format!(
+            "{declaration}\n    channel DecisionsAlternative from Provider to Service carries M::Notice\n        ordering unordered delivery unknown capacity 4 overflow reject;"
+        ),
+    );
+    assert!(
+        source.contains("channel DecisionsAlternative"),
+        "the fixture receives a second channel declaration"
+    );
+    let handoff = written_source("event_position", &source, Corpus::None);
+    let package = admitted(&handoff, &handoff.files["checked-package.json"]);
+    let clause = form_node(&package, "protocol_clause").node_id.clone();
+    let view = protocol_view(&package, &clause).expect("owner view");
+    assert_eq!(view.channels().len(), 2, "both declarations are admitted");
+
+    let refusal = link(&package, &clause).expect_err("conflicting delivery premises");
+    let LinkRefusal::ConflictingChannelPremise {
+        channel,
+        other,
+        locus,
+    } = refusal
+    else {
+        panic!("expected channel-premise refusal, got {refusal:?}");
+    };
+    assert!(view.channels().contains(&&channel));
+    assert!(view.channels().contains(&&other));
+    assert!(
+        locus.len() >= 2,
+        "both channels' available loci are retained"
+    );
 }
 
 /// FR-044-AC-5: the link entry takes `CheckedPackageV2` and `CheckedNodeId`
