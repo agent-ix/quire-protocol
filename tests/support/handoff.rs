@@ -115,6 +115,14 @@ pub fn written_source(kind: &str, source: &str, corpus: Corpus) -> Handoff {
     finish(holder, out, asked)
 }
 
+/// Write a handoff from an explicitly adjusted request.
+#[allow(dead_code)] // Only TC-150 needs an alternate temporal selection; other test binaries include this module.
+pub fn written_request(asked: CheckedHandoffRequest) -> Handoff {
+    let holder = tempfile::tempdir().expect("temporary directory");
+    let out = holder.path().join("handoff");
+    finish(holder, out, asked)
+}
+
 fn finish(holder: tempfile::TempDir, out: PathBuf, asked: CheckedHandoffRequest) -> Handoff {
     write(&asked, &out).expect("the handoff is written");
     let files = tree(&out);

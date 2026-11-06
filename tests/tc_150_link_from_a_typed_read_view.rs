@@ -14,13 +14,13 @@ use ix_trace_rs::trace;
 use qsl_package::protocol_view::{causal_relation, protocol_view, temporal_binding, ViewRefusal};
 use quire_contract_model::{
     read_checked_package, CheckedNodeId, CheckedPackageDispatchResult, CheckedPackageReadLimits,
-    CheckedPackageV2, CheckedSemanticNodeV2, CheckedTerm,
+    CheckedPackageV2, CheckedSemanticNodeV2, CheckedTerm, ClockConfiguration,
 };
 use quire_protocol::checked_package::{admit, HandoffFiles};
 use quire_protocol::link::{link, LinkRefusal, LinkedProtocol};
 use quire_spec_language::checked_handoff::Corpus;
 use serde_json::Value;
-use support::handoff::{written, written_source, Handoff};
+use support::handoff::{request, written, written_request, written_source, Handoff};
 
 fn admitted(handoff: &Handoff, bytes: &[u8]) -> Box<CheckedPackageV2> {
     let files = HandoffFiles {
@@ -351,6 +351,43 @@ fn recipe_r_retains_selected_clock_and_owner_causal_edges() {
             selected
         );
     }
+}
+
+/// FR-044-AC-7: changing the selected clock authority changes the linked
+/// temporal binding while leaving the owner-supplied causal relation intact.
+#[test]
+#[trace("FR-044-AC-7", "TC-150")]
+fn changing_the_selected_clock_changes_the_linked_temporal_binding() {
+    let (_event_handoff, event_package) = recipe("event_position");
+    let event_clause = form_node(&event_package, "protocol_clause").node_id.clone();
+    let event_link = link(&event_package, &event_clause).expect("event-position recipe links");
+
+    let mut asked = request("event_position", Corpus::None);
+    for selection in &mut asked.emit.temporal_selections {
+        if let ClockConfiguration::EventPosition { sequence_authority } = &mut selection.clock {
+            *sequence_authority = "events-authority-alternative".into();
+        }
+    }
+    let alternate_handoff = written_request(asked);
+    let alternate_package = admitted(
+        &alternate_handoff,
+        &alternate_handoff.files["checked-package.json"],
+    );
+    let alternate_clause = form_node(&alternate_package, "protocol_clause")
+        .node_id
+        .clone();
+    let alternate_link =
+        link(&alternate_package, &alternate_clause).expect("alternate clock selection links");
+    let alternate_relation =
+        causal_relation(&alternate_package, &alternate_clause).expect("owner relation");
+
+    assert_ne!(
+        event_link.temporal_bindings(),
+        alternate_link.temporal_bindings(),
+        "the selected clock authority is retained in the linked result"
+    );
+    assert_eq!(event_link.edges(), alternate_link.edges());
+    assert_eq!(alternate_link.edges(), alternate_relation.edges());
 }
 
 /// FR-044-AC-3: duplicate role authorities are detected from typed role terms.
