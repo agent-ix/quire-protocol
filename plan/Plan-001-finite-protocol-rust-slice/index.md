@@ -9,6 +9,7 @@ okf_version: "0.1"
 ## Contents
 
 * [Plan-001: Finite native Quire protocol Rust slice](./plan.md) - Plan overview, dependency graph, tests, tracks, and gates.
+* [Task-022: QSL-1740 checked-package linker residuals](./tasks/Task-022-qsl-1740-fr044-linker-residuals.md) - Planned: test-first completion of FR-044 consumer refusals, the window-input boundary, and recipe-R behavior.
 * [Implementation chunk register](./chunk-register.md) - Recovered landed, partial, blocked, planned, and not-landed chunk status with pull-request and ticket evidence.
 * [Task-001: Admit the selected profile and establish the Rust crate](./tasks/Task-001-admit-profile-establish-crate.md) - Done: exact admission, owner mutation refusal, independent baseline selection and numeric boundaries execute against the pinned published handoff; Task-009 has since closed FR-001-AC-5.
 * [Task-002: Link the finite protocol representation](./tasks/Task-002-link-finite-representation.md) - Done under PR #67: exact versioned graph/runtime linking, componentwise FR-288 identity, owner-typed bindings and complete mutation coverage.

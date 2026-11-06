@@ -17,7 +17,7 @@ use quire_contract_model::{
     CheckedPackageV2, CheckedSemanticNodeV2,
 };
 use quire_protocol::checked_package::{admit, HandoffFiles};
-use quire_protocol::link::{link, LinkedProtocol};
+use quire_protocol::link::{link, LinkRefusal, LinkedProtocol};
 use quire_spec_language::checked_handoff::Corpus;
 use serde_json::Value;
 use support::handoff::{written, Handoff};
@@ -206,11 +206,16 @@ fn absent_carrier_and_non_protocol_nodes_return_the_owners_refusal() {
     let refused = link(&package, &absent).expect_err("absent node");
     assert_eq!(
         refused,
-        ViewRefusal::UnknownProtocol {
+        LinkRefusal::View(ViewRefusal::UnknownProtocol {
             node: absent.clone()
-        }
+        })
     );
-    assert_eq!(Some(refused), protocol_view(&package, &absent).err());
+    assert_eq!(
+        Some(refused),
+        protocol_view(&package, &absent)
+            .err()
+            .map(LinkRefusal::View)
+    );
 
     // Non-protocol: the model node that heads the graph.
     let model = package
@@ -224,11 +229,14 @@ fn absent_carrier_and_non_protocol_nodes_return_the_owners_refusal() {
     let refused = link(&package, &model).expect_err("non-protocol node");
     assert_eq!(
         refused,
-        ViewRefusal::UnknownProtocol {
+        LinkRefusal::View(ViewRefusal::UnknownProtocol {
             node: model.clone()
-        }
+        })
     );
-    assert_eq!(Some(refused), protocol_view(&package, &model).err());
+    assert_eq!(
+        Some(refused),
+        protocol_view(&package, &model).err().map(LinkRefusal::View)
+    );
 
     // A protocol node of the carrier form: R's clause respelled as a
     // `protocol_reference`.
@@ -280,23 +288,48 @@ fn absent_carrier_and_non_protocol_nodes_return_the_owners_refusal() {
     let refused = link(&carrier, &carrier_id).expect_err("carrier");
     assert_eq!(
         refused,
-        ViewRefusal::NotAProtocolClause {
+        LinkRefusal::View(ViewRefusal::NotAProtocolClause {
             node: carrier_id.clone()
-        }
+        })
     );
-    assert_eq!(Some(refused), protocol_view(&carrier, &carrier_id).err());
+    assert_eq!(
+        Some(refused),
+        protocol_view(&carrier, &carrier_id)
+            .err()
+            .map(LinkRefusal::View)
+    );
 
     // The control: the unedited package still links the same node.
     assert!(link(&package, &clause).is_ok());
 }
 
+/// FR-044-AC-6: recipe R links without a package window binding, and the
+/// linker module does not import or look up a window view.
+#[test]
+#[trace("FR-044-AC-6", "TC-150")]
+fn window_is_an_evaluation_input_not_a_package_binding() {
+    let (_handoff, package) = recipe("event_position");
+    let clause = form_node(&package, "protocol_clause").node_id.clone();
+    assert!(link(&package, &clause).is_ok());
+    assert!(package
+        .graph()
+        .nodes
+        .iter()
+        .all(|node| node.semantic_form.as_ref() != "window"));
+
+    let source = std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("src/link.rs"))
+        .expect("link module source");
+    assert!(!source.contains("protocol_view::Window"));
+    assert!(!source.contains("window_binding"));
+}
+
 /// FR-044-AC-5: the link entry takes `CheckedPackageV2` and `CheckedNodeId`
-/// and answers `LinkedProtocol` or the owner's `ViewRefusal`; the retired wire
+/// and answers `LinkedProtocol` or `LinkRefusal`; the retired wire
 /// types are compile-fail doctests of `quire_protocol::link`.
 #[test]
 #[trace("FR-044-AC-5", "TC-150")]
 fn the_link_entry_names_the_checked_package_types() {
-    let entry: fn(&CheckedPackageV2, &CheckedNodeId) -> Result<LinkedProtocol, ViewRefusal> = link;
+    let entry: fn(&CheckedPackageV2, &CheckedNodeId) -> Result<LinkedProtocol, LinkRefusal> = link;
     let (_handoff, package) = recipe("event_position");
     let clause = form_node(&package, "protocol_clause").node_id.clone();
     assert_eq!(entry(&package, &clause).expect("links").clause(), &clause);

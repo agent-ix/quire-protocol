@@ -15,6 +15,7 @@ relationships:
   - { target: ix://agent-ix/quire-protocol/FR-008, type: references }
   - { target: ix://agent-ix/quire-protocol/FR-009, type: references }
   - { target: ix://agent-ix/quire-protocol/FR-042, type: references }
+  - { target: ix://agent-ix/quire-protocol/FR-044, type: references }
   - { target: ix://agent-ix/quire-protocol/NFR-001, type: references }
   - { target: ix://agent-ix/quire-protocol/NFR-002, type: references }
   - { target: ix://agent-ix/quire-protocol/NFR-003, type: references }
@@ -45,6 +46,7 @@ relationships:
 - [ ] **FR-008**: Route every public failure through the shared exact-stage envelope.
 - [ ] **FR-009**: Resolve every consumed external contract before its value is read.
 - [x] **FR-042**: Strict canonical-result reader and complete borrowed Contract-IR map are implemented.
+- [ ] **FR-044**: Complete checked-package linking, consumer-owned refusals, and the window-input boundary.
 
 ### Non-Functional Requirements
 
@@ -76,6 +78,9 @@ relationships:
   dispositions and canonical result assembly form the serial semantic core.
 - `Task-002 -> Task-009`
   Reason: the `/1` integration must execute the real local linker, not admission alone.
+- `Task-002 -> Task-022 -> Task-003`
+  Reason: QSL-1740 completes the checked-package linker surface after the
+  original finite linker; compensation consumes the final linked view.
 - `Task-006 -> Task-007, Task-010`
   Reason: both E02 projection and observation/native-temporal integration require
   validated canonical result assembly; Task-010 consumes QSL/QObs, not QCI.
@@ -140,6 +145,10 @@ shared result-domain values. Each has one Protocol owner and no adapter-local co
 
 ### Integration tests
 
+- [ ] **TC-150**: checked-package link view agrees with QSL and covers owner
+  refusals, consumer refusals, the no-window boundary, and recipe-R
+  identity/interleaving/temporal-selection controls (FR-044-AC-1..7).
+
 - [x] **IT-001 `/1` SC-01..SC-05 and SC-06a**: default-running admission plus
   local-link regression and before/after compatibility comparison. The `/2`
   SC-06..SC-09 handoff is already complete under Task-012.
@@ -172,6 +181,9 @@ shared result-domain values. Each has one Protocol owner and no adapter-local co
   version-lock entry. It may run in parallel with Core-2 after Task-013.
 - **Core-2 = Task-002** Exact finite linker — exit: `/2` produces one complete
   typed graph or an exact fatal refusal with no approximate identity/content.
+- **Core-2b = Task-022** Checked-package linker residuals — exit: TC-150 proves
+  owner-view parity, each located consumer refusal, no package window member,
+  and recipe-R invariants through the checked-package path.
 - **Core-3 = Task-003** Compensation bridge — exit: compensation consumes only
   linked/runtime values and commits replay-safe state transactionally.
 - **Core-4 = Task-004** Conformance bridge — exit: batch and incremental frontends
@@ -210,7 +222,7 @@ shared result-domain values. Each has one Protocol owner and no adapter-local co
 ## Parallel Execution Summary
 
 ```text
-Task-016 -> Task-017 -> Task-013 -> Task-002 -> Task-003 -> Task-004 -> Task-005 -> Task-006
+Task-016 -> Task-017 -> Task-013 -> Task-002 -> Task-022 -> Task-003 -> Task-004 -> Task-005 -> Task-006
                             |       |                          |          |
                             |       `-> Task-009               |          +-> Task-007
                             `-> Task-019                       `-> Task-010
@@ -248,12 +260,13 @@ track names are subsystems and are not agent assignments; Agent B remains on TL.
 | Task-019 | Producer Integration | FR-018, NFR-006 | TC-017 | done; exact transactional bounded consumer index cannot affect version-lock resolution; SR-108/SR-109 pass |
 | Task-020 | Producer Integration | FR-009, NFR-006 | IT-002 | done; SC-08's independent 21-entry inventory and the request-bound pre-loader resolver with accounted loaded-selection verification pass at exact accepted QObs merge `9240063`; SR-127/SR-128 pass |
 | Task-021 | Producer Integration | FR-004, NFR-002 | IT-002 | done; SC-05/SC-06 exact QSL/QObs evidence correlation, replay/permutation agreement and seven active composed-budget dimensions pass |
+| Task-022 | Core | FR-044 | TC-150 | not_started; QSL-1740 checked-package linker residuals |
 
 ## Coordination Rules
 
-- AD-001 and its whole-scope review are the architecture authority for all
-  remaining tasks. No later ticket-scoped `/specify` or `/spec-review` is owed
-  for this unchanged scope.
+- AD-001 and its whole-scope review remain the architecture authority. QSL-1740
+  updates FR-044 under the existing architecture; this scoped spec review and
+  plan update are required for the changed linker behavior.
 - Consume only accepted owner types and merged revisions. Missing or incompatible
   contracts yield an exact blocker/refusal, never a local mirror.
 - QObs facts flow into Protocol; Protocol leaf-result views flow into QCI's
