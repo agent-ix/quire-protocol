@@ -39,7 +39,8 @@ support, joined to the library's result record; or the call's typed refusal.
 ## Behavior
 
 - The assessment, result record, conformance kernel and the IT-001 and IT-002
-  procedures shall use the evidence types and no retired type.
+  procedures shall pass `EvidenceRequest`, `EvidenceResult` and typed call
+  refusals through the public temporal-evidence boundary.
 - The library shall carry a call refusal (`CallFailure::Admission` with its cause
   name) into its own typed refusal unchanged and shall reinterpret none.
 - The library shall carry a construction refusal (`PackageMismatch`) as a typed
@@ -61,7 +62,7 @@ support, joined to the library's result record; or the call's typed refusal.
 | --- | --- | --- |
 | FR-046-AC-1 | Over **R**'s four temporal clauses, the caller supplies an `EvidenceRequest` built from observation evidence; the assessment passes it to QSL and returns the `EvidenceResult`'s activation state, truth, settlement and decision support in its result record, equal to the values QSL's evidence call reports. | Test |
 | FR-046-AC-2 | `EvidenceRequest` and `EvidenceResult` cross the QSL call as in-memory values; the consumer neither serializes them as request/result documents nor assigns them document contract identifiers. | Test |
-| FR-046-AC-3 | The temporal evidence boundary accepts QSL's current `EvidenceRequest` and checked clause identity and returns QSL's `EvidenceResult` or typed call refusal; it does not accept the retired request/result value types. | Test |
+| FR-046-AC-3 | The temporal evidence boundary accepts QSL's current `EvidenceRequest` and checked clause identity and returns QSL's `EvidenceResult` or typed call refusal. | Test |
 | FR-046-AC-4 | For the six call-refusal causes reachable from a caller-built request over an admitted package in **R**—`trigger-required`, `trigger-unknown`, `occurrence-unknown`, `activation-mapping-missing`, `clause-root-unresolved`, and `binding-mismatch`—the library returns the typed refusal naming the unchanged cause, charges nothing, and leaves caller ledgers unchanged. Causes requiring a package or request state that R cannot admit are outside this criterion. | Test |
 | FR-046-AC-5 | The bytes reader refuses duplicate temporal-clause name rows as `AmbiguousName`; because such rows cannot occur in an admitted package, no admitted **R** package reaches a `PackageMismatch` construction refusal. This criterion therefore has no post-admission test input; reader refusal is covered by FR-043. | Analysis |
 | FR-046-AC-6 | The IT-002 scenarios defined against recipe **R** pass on the evidence route, and an unavailable or withdrawn anchor settles as a missing non-value and never as a Boolean. The caller supplies the `EvidenceRequest`; IT-002 asserts the request passed to QSL and does not assert an observation-to-request mapping owned by this library. | Test |

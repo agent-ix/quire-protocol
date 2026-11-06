@@ -45,8 +45,8 @@ of the retired `graph.rs` outcome.
   I/O (FR-025).
 - The engine shall read a retry bound as the node's `attempts maximum` argument
   through `protocol_view`.
-- The engine shall name no `StateView`, `EvaluationReport`, `state::evaluate_v2`
-  or `ACCOUNTING_VERSION` of the retired `state` module.
+- The engine shall consume the checked-package slot result through the typed
+  protocol evaluation boundary described by QSL FR-520.
 
 ## Acceptance Criteria
 
@@ -57,7 +57,7 @@ of the retired `graph.rs` outcome.
 | FR-045-AC-3 | A recovery supply with an incomplete population, a missing target state, a missing achieved state or an unavailable binder never yields a true recovery, and no engine function converts an evaluation result to a Boolean (no `unwrap_or(false)`, no `as_bool`). | Test |
 | FR-045-AC-4 | A retry bound of `n` read from `attempts maximum` admits exactly `n` attempts, counting the initial attempt, and `n + 1` is the retry-bound refusal. | Test |
 | FR-045-AC-5 | The compensation assessment performs no I/O: execute it under a denied-syscall harness and inspect the compensation module's dependency tree for I/O crates; the assessment completes and the module names no I/O crate. | Test |
-| FR-045-AC-6 | Compensation assessment consumes QSL's package-only checked-slot result as the typed slot outcome; the consumer boundary does not expose the retired report-based evaluation API. | Test |
+| FR-045-AC-6 | Compensation assessment consumes QSL's package-only checked-slot result as the typed slot outcome through the public evaluation boundary. | Test |
 | FR-045-AC-7 | Once AC-8's per-binder charge-log gate is met, each compensation assessment reports attribution as supported; it returns no `unsupported` attribution result and substitutes no zero entry for a missing binder charge. | Test |
 | FR-045-AC-8 | Once QSL's per-binder charge log with its accounting version exists, as QSL FR-520-AC-11 states it and where that criterion puts it, the assessment consumes it: each binder read has its own entry, an unread binder has none, and the entries with the unattributed entry equal the call's total. | Test |
 
