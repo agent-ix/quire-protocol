@@ -104,6 +104,7 @@ pub fn written(kind: &str, corpus: Corpus) -> Handoff {
 }
 
 /// Write a handoff from `source` while retaining the other inputs of `kind`.
+#[allow(dead_code)] // Only TC-150 needs a second handoff; other test binaries include this module.
 pub fn written_source(kind: &str, source: &str, corpus: Corpus) -> Handoff {
     let holder = tempfile::tempdir().expect("temporary directory");
     let source_path = holder.path().join("unit.native");
