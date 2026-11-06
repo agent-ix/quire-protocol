@@ -10,12 +10,26 @@ relationships:
 
 ## Description
 
-Verify the compensation assessment over qsl-eval's slot evaluation.
+Verify the compensation assessment over qsl-eval's package-only slot
+evaluation, including the supported per-binder charge log.
 
 ## Test Procedure
 
-Run QSL FR-520-AC-1's outcome rows over **R**'s `Full` and `Partial` compensations; keep `tc_003`'s assertions, restating the report-based ones on the outcome map; supply an incomplete population, a missing target and a missing achieved state and an unavailable binder; run a retry bound of `n` and `n + 1`; run under a denied-syscall harness; scan the source for the retired names and for Boolean coercion; read the charge log while per-binder attribution is absent (total recorded, attribution unsupported) and, once QSL provides it, with the attribution entries. Tag the tests `#[trace("TC-151", "FR-045-AC-n")]`.
+Run QSL FR-520's reachable outcome-map rows over **R**'s `Full` and `Partial`
+compensations; keep `tc_003`'s assertions, restating report-based assertions on
+the outcome map; supply an incomplete population, a missing target and a
+missing achieved state and an unavailable binder; run a retry bound of `n` and
+`n + 1`; run under a denied-syscall harness; scan the source for the retired
+names and Boolean coercion; and inspect the per-binder charge log for each
+binder read, an unread binder, the unattributed entry and the call total. Do
+not construct a local input for the unsupported-construct row or recovery
+predicate rows that recipe **R** cannot reach. Tag each test with the exact
+acceptance criterion using `#[trace("FR-045-AC-n", "TC-151")]`.
 
 ## Expected Results
 
-Each outcome row maps to its successor; tc_003's assertions hold; no true recovery from incomplete evidence; `n` attempts admitted and `n + 1` refused; no I/O; no retired name; total charge recorded with attribution reported unsupported until it exists.
+Each reachable outcome row maps to its successor; `tc_003`'s assertions hold;
+incomplete recovery evidence never yields true; exactly `n` attempts are
+admitted and `n + 1` is refused; the assessment performs no I/O and exposes no
+retired API; every binder read has its own charge, unread binders have none,
+and the binder entries plus unattributed entry equal the call's total.
