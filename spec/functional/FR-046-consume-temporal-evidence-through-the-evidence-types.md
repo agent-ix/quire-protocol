@@ -14,20 +14,22 @@ relationships:
 
 ## Description
 
-When the library assesses a temporal obligation, it SHALL build a
-`qsl_eval::temporal::evidence::EvidenceRequest`, call the temporal-evidence entry
-that evaluates from a `CheckedPackageV2` alone and read the `EvidenceResult`, in
+When the library assesses a temporal obligation, it SHALL accept the caller's
+`qsl_eval::temporal::evidence::EvidenceRequest`, call the temporal-evidence
+entry that evaluates from the checked package alone and read the
+`EvidenceResult`, in
 place of the retired `native_temporal::v2::ValidatedRequest`,
 `native_temporal::v2::ValidatedResult`, `native_temporal::v2::EvidenceRef` and
 `native_temporal::v2::ActivationState` and their four producer contracts.
 
 ## Inputs
 
-The admitted `CheckedPackageV2` (FR-043) through QSL's evidence entry that
-evaluates from the package alone, a `CheckedNodeId` naming a temporal clause, an
-`EvidenceRequest` built from the observation evidence (QSL FR-516), and a
-`Meter`. No source package, emission or admitted-read value of QSL's emit side is
-an input.
+The admitted checked package from recipe **R** (FR-043), a `CheckedNodeId`
+naming a temporal clause, an `EvidenceRequest` constructed by the caller from
+observation evidence under QSL FR-516, and a `Meter`. This library accepts and
+passes the request to QSL; it does not define or perform a mapping from
+observation evidence to `EvidenceRequest`. No source package, emission or
+admitted-read value of QSL's emit side is an input.
 
 ## Outputs
 
@@ -42,14 +44,14 @@ support, joined to the library's result record; or the call's typed refusal.
   name) into its own typed refusal unchanged and shall reinterpret none.
 - The library shall carry a construction refusal (`PackageMismatch`) as a typed
   refusal before any call and charge nothing for it.
+- The caller constructs the `EvidenceRequest` from observation evidence; this
+  requirement does not assign that mapping to this library.
 - The library shall keep using QSL's public `temporal::` surface (`Closure`,
   `Completeness`, `Execution`, `Evidence`, `Position`, `OrderKey`) until QSL
   retires it (QSL FR-521 row 5), and shall fix its own use of
   `Position.instance_valuations` for the QSL revision it consumes.
-- The producer-contract registry shall hold none of the four contract strings
-  `quire.native-temporal-request/v1`, `/v2`, `quire.native-temporal-result/v1`
-  and `/v2`; the request and result are in-memory values with no document and no
-  contract identifier.
+- The request and result are in-memory values; the consumer does not serialize
+  them as request/result documents or assign them document contract identifiers.
 - The result record shall be the same for two evidence results that QSL reports
   as equal.
 
@@ -57,13 +59,13 @@ support, joined to the library's result record; or the call's typed refusal.
 
 | ID | Criteria | Verification |
 | --- | --- | --- |
-| FR-046-AC-1 | Over **R**'s four temporal clauses, the assessment builds an `EvidenceRequest` from observation evidence and returns the `EvidenceResult`'s activation state, truth, settlement and decision support in its result record, equal to the values QSL's evidence call reports. | Test (TC-152) |
-| FR-046-AC-2 | The producer-contract registry holds none of the four contract strings, and a test that reads the registry fails when one is present. | Test (TC-152) |
-| FR-046-AC-3 | No source file names `native_temporal`, `native_temporal::v2::ValidatedRequest`, `native_temporal::v2::ValidatedResult`, `native_temporal::v2::EvidenceRef` or `native_temporal::v2::ActivationState`; the evidence types' own `EvidenceRef` and `ActivationState` are not these names. | Inspection (TC-152) |
-| FR-046-AC-4 | A call refusal with each cause of QSL FR-516's cause table returns the library's typed refusal naming that cause, with no charge and the caller's ledgers unchanged; no cause is renamed or merged. | Test (TC-152) |
-| FR-046-AC-5 | A `PackageMismatch` of each variant that QSL's evidence entry returns is carried as a typed construction refusal and no assessment is attempted. | Test (TC-152) |
-| FR-046-AC-6 | The IT-002 scenarios (QSL FR-517's recipe **R**) pass on the evidence route, and an unavailable or withdrawn anchor settles as a missing non-value and never as a Boolean. | Test (TC-152) |
-| FR-046-AC-7 | The library builds against the retained `temporal::` surface and reads `Position.instance_valuations` in the form of the consumed QSL revision; a build with the surface removed fails, and the position values the assessment passes equal the ones the evaluation reads. | Test (TC-152) |
+| FR-046-AC-1 | Over **R**'s four temporal clauses, the caller supplies an `EvidenceRequest` built from observation evidence; the assessment passes it to QSL and returns the `EvidenceResult`'s activation state, truth, settlement and decision support in its result record, equal to the values QSL's evidence call reports. | Test (TC-152) |
+| FR-046-AC-2 | `EvidenceRequest` and `EvidenceResult` cross the QSL call as in-memory values; the consumer neither serializes them as request/result documents nor assigns them document contract identifiers. | Test (TC-152) |
+| FR-046-AC-3 | The temporal evidence boundary accepts QSL's current `EvidenceRequest` and checked clause identity and returns QSL's `EvidenceResult` or typed call refusal; it does not accept the retired request/result value types. | Test (TC-152) |
+| FR-046-AC-4 | For the six call-refusal causes reachable from a caller-built request over an admitted package in **R**—`trigger-required`, `trigger-unknown`, `occurrence-unknown`, `activation-mapping-missing`, `clause-root-unresolved`, and `binding-mismatch`—the library returns the typed refusal naming the unchanged cause, charges nothing, and leaves caller ledgers unchanged. Causes requiring a package or request state that R cannot admit are outside this criterion. | Test (TC-152) |
+| FR-046-AC-5 | The bytes reader refuses duplicate temporal-clause name rows as `AmbiguousName`; because such rows cannot occur in an admitted package, no admitted **R** package reaches a `PackageMismatch` construction refusal. This criterion therefore has no post-admission test input; reader refusal is covered by FR-043. | Analysis (TC-152) |
+| FR-046-AC-6 | The IT-002 scenarios defined against recipe **R** pass on the evidence route, and an unavailable or withdrawn anchor settles as a missing non-value and never as a Boolean. The caller supplies the `EvidenceRequest`; IT-002 asserts the request passed to QSL and does not assert an observation-to-request mapping owned by this library. | Test (TC-152) |
+| FR-046-AC-7 | On the consumed QSL revision, the library builds against the retained `temporal::` surface and passes the `Position.instance_valuations` values that the evaluation reads. The integration verifies this positively; removal of the retained surface is not a supported build configuration. | Test (TC-152) |
 
 ## Dependencies
 
