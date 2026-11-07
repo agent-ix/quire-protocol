@@ -6,12 +6,11 @@ use quire_protocol::bounds::inventory::{
     production_inventory, Budget, BudgetDimension, OperationOutcome, ResourceAccountant,
 };
 use quire_protocol::delivery_index::{
-    DeliveryIndex, DeliveryIndexContents, DeliveryIndexError, DeliveryIndexKey, DeliveryRoot,
-    IndexRead, IndexedInput, IndexedLimit, IndexedMember, IndexedMutation, InputRole,
+    CompiledDimension, DeliveryIndex, DeliveryIndexContents, DeliveryIndexError, DeliveryIndexKey,
+    DeliveryRoot, IndexRead, IndexedInput, IndexedLimit, IndexedMember, IndexedMutation, InputRole,
     LimitDimension, MemberReadError, ProducerRevision, TemporalBindingRecord,
 };
 use quire_protocol::version_lock::EntryKey;
-use quire_spec_language::protocol_artifact::Dimension as CompiledDimension;
 
 fn key(root: &[u8], revision: &[u8]) -> DeliveryIndexKey {
     DeliveryIndexKey::new(DeliveryRoot::new(root), ProducerRevision::new(revision))

@@ -73,7 +73,7 @@ emitted by the producer.
   of [FR-016](./FR-016-resource-budget-dimension.md) is to be run at, carrying
   an exact typed dimension and bound. The dimension is either
   `Protocol(FR-016 member)` or
-  `CompiledProtocol(protocol_artifact::work::Dimension member)`; the two owner
+  `CompiledProtocol(delivery_index::CompiledDimension member)`, a closed enum this repository owns; the two owner
   vocabularies never share a key or substitute for one another. An earlier
   revision called these "producer-declared" limits and then reduced both
   vocabularies to opaque strings. Both were wrong: the grant is caller-supplied,
