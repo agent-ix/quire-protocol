@@ -9,8 +9,6 @@ use core::fmt;
 use core::hash::{Hash, Hasher};
 use std::collections::BTreeSet;
 
-use quire_spec_language::protocol_artifact::Dimension as CompiledDimension;
-
 use crate::bounds::inventory::{BudgetDimension, OperationOutcome, ResourceAccountant, SourceSite};
 use crate::bounds::{SiteId, SiteKind};
 use crate::version_lock::{EntryKey, ExactBytes};
@@ -236,6 +234,40 @@ impl TemporalBindingRecord {
     pub const fn path(&self) -> &ExactBytes {
         &self.path
     }
+}
+
+/// A compiled-protocol reader dimension, named by the delivery index.
+///
+/// Protocol owns this closed vocabulary; it is the index's key for a
+/// reader-side limit, not a re-export of the reader's accounting type.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CompiledDimension {
+    /// Compiled payload bytes.
+    PayloadBytes,
+    /// Output bytes.
+    OutputBytes,
+    /// Source bytes.
+    SourceBytes,
+    /// Content bytes.
+    ContentBytes,
+    /// Source count.
+    Sources,
+    /// Dependency count.
+    Dependencies,
+    /// Definition count.
+    Definitions,
+    /// Model count.
+    Models,
+    /// Declaration count.
+    Declarations,
+    /// Entry count.
+    Entries,
+    /// Reference count.
+    References,
+    /// Byte work.
+    ByteWork,
+    /// Nesting depth.
+    Depth,
 }
 
 /// A dimension owned either by Protocol or the compiled-protocol reader.

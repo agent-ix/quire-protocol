@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! QProtocol caller budgets and the source-bound resource-site inventory.
 //!
-//! This module deliberately does not reuse
-//! [`quire_spec_language::protocol_artifact::Dimension`]. That type is the
-//! producer's accounting vocabulary while reading a compiled artifact. The
+//! This module deliberately does not reuse the compiled-protocol reader's
+//! accounting vocabulary, which the delivery index names separately as
+//! [`crate::delivery_index::CompiledDimension`]. The
 //! closed [`crate::bounds::inventory::BudgetDimension`] set below is QProtocol's
 //! caller-facing vocabulary from FR-016. Similar labels across the two domains
 //! do not make them the same authority or the same exhausted resource.

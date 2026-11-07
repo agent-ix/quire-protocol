@@ -30,7 +30,7 @@ The comparator SHALL compare a value whose provenance is absent against no expec
 - **provenance** (identity component) — one of *selected* or *offered*.
   *Selected* is what this repository independently retained before it inspected
   any offer; *offered* is what the external producer presented. The distinction
-  is exercised by `tests/it001_v2_handoff.rs`: selection-side mutation cases
+  is exercised by two kinds of case: selection-side mutation cases
   rebuild the independent expectation, while offer-side cases submit A's
   published mutated bytes unchanged. Both refuse, for different typed reasons.
 - **subject** (identity component) — the thing the value is a value *of*: the
