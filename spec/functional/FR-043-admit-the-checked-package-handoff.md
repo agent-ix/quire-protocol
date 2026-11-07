@@ -26,9 +26,12 @@ refusal vocabulary for the checked package.
 - The handoff directory that `quire_spec_language::checked_handoff` writes
   (QSL FR-517): `checked-package.json`, `sources/<label>`, `models/<n>.json`,
   `inventory.json`, `selection.json`, `identities.json`
-  (`quire.checked-handoff.identities/1`), `equality.json`
+  (`quire.checked-handoff.identities/3`), `equality.json`
   (`quire.checked-handoff.equality/1`) and, for a mutation corpus, `mutations/`.
 - The evidence assembled from the handoff's own files, as QSL FR-517 states.
+- The caller's one finite native-join budget for the pass (QSL FR-531): the
+  identity-row join charges it, and admission neither builds, defaults nor
+  enlarges one.
 - The selection (`selection.json`, `quire.checked-handoff.selection/1`), whose
   identities were derived from the source before any bytes were emitted, read
   before the offered package is compared with it.
@@ -81,7 +84,7 @@ identity-file refusal or an equality-file refusal, carrying QSL's
 | FR-043-AC-5 | Bytes of `quire.compiled-protocol/1` or `/2` offered at the checked-package entry point return a typed refusal; no version is detected, upgraded or repaired. Checked-package bytes offered at a retired entry point return a typed refusal for as long as a retired entry point exists, which is until FR-047's end conditions are met. | Test (TC-149) |
 | FR-043-AC-6 | A bare JSON number outside the safe-integer interval, a non-canonical rational and a signed-64 overflow in a package field each return the reader's refusal unchanged, and the library holds no numeric decoder. | Test (TC-149) |
 | FR-043-AC-7 | A read whose limit, for a limit with nonzero measured usage, is one below the package's measured usage returns `CheckedPackageDispatchResult::Incomplete(CheckedPackageIncomplete)` naming the exhausted limit, carried unchanged; it is neither an admitted package nor a refusal, no linked representation is exposed, and the same read at the exact limit is admitted. | Test (TC-149) |
-| FR-043-AC-8 | An `identities.json` or `equality.json` whose format string is another, or whose row names a node the package does not hold, returns QSL's file refusal unchanged and no admitted handoff. | Test (TC-149) |
+| FR-043-AC-8 | An `identities.json` or `equality.json` whose format string is another, or whose row names a node the package does not hold, or whose identity-row join exhausts the caller's native-join budget, returns QSL's file refusal unchanged and no admitted handoff; the retired identities formats `/1` and `/2` are refused as another format. | Test (TC-149) |
 
 ## Dependencies
 

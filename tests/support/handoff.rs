@@ -5,7 +5,10 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-use quire_contract_model::{CheckedPackageEvidence, ClockConfiguration, ClockExactNumber};
+use qsl_package::NativeJoinLimits;
+use quire_contract_model::{
+    CheckedPackageEvidence, ClockConfiguration, ClockExactNumber, NativeJoinBudget,
+};
 use quire_spec_language::checked_handoff::{evidence, write, CheckedHandoffRequest, Corpus};
 use quire_spec_language::emit_checked_v2::{ClockSelection, Request};
 
@@ -58,6 +61,16 @@ fn recipe(kind: &str) -> (&'static str, Vec<(&'static str, ClockConfiguration)>)
     }
 }
 
+/// The finite native-join ceilings every test pass states for itself: 2^20
+/// work steps and 2^20 logical storage units, the values QSL's own handoff
+/// example uses (QSL FR-531 gives a fixture no default).
+const NATIVE_JOIN: NativeJoinLimits = NativeJoinLimits::new(1 << 20, 1 << 20);
+
+/// A new native-join budget of [`NATIVE_JOIN`] for one pass.
+pub fn join_budget() -> NativeJoinBudget {
+    NATIVE_JOIN.budget()
+}
+
 /// The request for the package of `kind`.
 pub fn request(kind: &str, corpus: Corpus) -> CheckedHandoffRequest {
     let (unit, clocks) = recipe(kind);
@@ -81,6 +94,7 @@ pub fn request(kind: &str, corpus: Corpus) -> CheckedHandoffRequest {
             out: None,
         },
         corpus,
+        native_join: NATIVE_JOIN,
     }
 }
 

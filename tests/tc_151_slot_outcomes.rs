@@ -26,7 +26,7 @@ use quire_protocol::compensation::purity::{Capability, CapabilityInventory, Pure
 use quire_protocol::ids::{AttemptId, DefinitionId, EffectId};
 use quire_protocol::slot::{attempts_maximum, evaluate, SlotEvaluation, SlotOutcome};
 use quire_spec_language::checked_handoff::Corpus;
-use support::handoff::written;
+use support::handoff::{join_budget, written};
 use support::limits::UNLIMITED;
 
 fn handoff() -> AdmittedHandoff {
@@ -41,15 +41,21 @@ fn handoff() -> AdmittedHandoff {
         &files,
         &handoff.evidence,
         CheckedPackageReadLimits::bounded(),
+        &mut join_budget(),
     )
     .expect("R admits")
 }
 
 fn bare(admitted: &AdmittedHandoff) -> BarePackage<'_> {
-    BarePackage::new(admitted.package()).with_supply(BareSupply {
-        identities: admitted.identities(),
-        equality: Some(admitted.equality()),
-    })
+    BarePackage::new(admitted.package())
+        .with_supply(
+            BareSupply {
+                identities: admitted.identities(),
+                equality: Some(admitted.equality()),
+            },
+            &mut join_budget(),
+        )
+        .expect("the supply joins within the test budget")
 }
 
 fn compensation_key(admitted: &AdmittedHandoff, name: &str) -> NodeKey {

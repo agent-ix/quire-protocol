@@ -8,16 +8,16 @@ mod support {
 use std::path::{Path, PathBuf};
 
 use ix_trace_rs::trace;
-use qsl_package::{EqualityFileRefusal, IdentityFileRefusal};
+use qsl_package::{EqualityFileRefusal, IdentityFileRefusal, NativeJoinLimits, IDENTITIES_FORMAT};
 use quire_contract_model::{
     read_checked_package, CheckedPackageDispatchResult, CheckedPackageEvidence,
     CheckedPackageLimit, CheckedPackageReadLimits, CheckedPackageRefusal,
-    CheckedPackageRefusalCode,
+    CheckedPackageRefusalCode, ExactTypeProjectionErrorCode,
 };
 use quire_protocol::checked_package::{admit, HandoffFiles, Refusal};
 use quire_spec_language::checked_handoff::{Corpus, SelectionAxis};
 use serde_json::Value;
-use support::handoff::{written, Handoff};
+use support::handoff::{join_budget, written, Handoff};
 
 fn files_of<'a>(handoff: &'a Handoff, package: &'a [u8]) -> HandoffFiles<'a> {
     HandoffFiles {
@@ -68,8 +68,13 @@ fn the_three_packages_of_recipe_r_are_admitted_unchanged() {
     for (kind, rows) in expected_rows {
         let handoff = written(kind, Corpus::None);
         let bytes = &handoff.files["checked-package.json"];
-        let admitted = admit(&files_of(&handoff, bytes), &handoff.evidence, bounded())
-            .unwrap_or_else(|refusal| panic!("{kind}: {refusal}"));
+        let admitted = admit(
+            &files_of(&handoff, bytes),
+            &handoff.evidence,
+            bounded(),
+            &mut join_budget(),
+        )
+        .unwrap_or_else(|refusal| panic!("{kind}: {refusal}"));
         let CheckedPackageDispatchResult::AdmittedV2(read) =
             direct(bytes, bounded(), &handoff.evidence)
         else {
@@ -119,7 +124,12 @@ fn the_standard_corpus_gets_each_cases_declared_refusal() {
             let identity = case["identity"].as_str().expect("identity");
             let file = case["input"]["file"].as_str().expect("file");
             let bytes = &handoff.files[file];
-            let result = admit(&files_of(&handoff, bytes), &handoff.evidence, bounded());
+            let result = admit(
+                &files_of(&handoff, bytes),
+                &handoff.evidence,
+                bounded(),
+                &mut join_budget(),
+            );
             match case["stage"].as_str().expect("stage") {
                 "reader" => {
                     reader_cases += 1;
@@ -192,7 +202,7 @@ fn a_changed_selection_identity_over_unchanged_bytes_is_refused() {
     let bytes = &handoff.files["checked-package.json"];
     let mut files = files_of(&handoff, bytes);
     files.selection = &changed;
-    let refusal = match admit(&files, &handoff.evidence, bounded()) {
+    let refusal = match admit(&files, &handoff.evidence, bounded(), &mut join_budget()) {
         Err(Refusal::Selection(refusal)) => refusal,
         other => panic!("expected a selection refusal, got {other:?}"),
     };
@@ -261,6 +271,7 @@ fn retired_format_bytes_are_refused_and_never_upgraded() {
             &files_of(&handoff, &bytes),
             &handoff.evidence,
             bounded(),
+            &mut join_budget(),
         ));
         assert_eq!(
             refusal.code,
@@ -289,6 +300,7 @@ fn numeric_defects_are_the_readers_refusals() {
             &files_of(&handoff, &bytes),
             &handoff.evidence,
             bounded(),
+            &mut join_budget(),
         ));
         assert_eq!(
             refusal.code,
@@ -310,7 +322,12 @@ fn numeric_defects_are_the_readers_refusals() {
         .pointer_mut("/temporal_bindings/0/clock/period/numerator")
         .expect("field") = Value::from("02");
     let bytes = serde_json::to_vec(&package).expect("encode");
-    let refusal = reader_refusal(admit(&files_of(&fixed, &bytes), &fixed.evidence, bounded()));
+    let refusal = reader_refusal(admit(
+        &files_of(&fixed, &bytes),
+        &fixed.evidence,
+        bounded(),
+        &mut join_budget(),
+    ));
     assert_eq!(refusal.code, CheckedPackageRefusalCode::MalformedWire);
     let CheckedPackageDispatchResult::Refused(owner) = direct(&bytes, bounded(), &fixed.evidence)
     else {
@@ -368,6 +385,7 @@ fn a_limit_one_below_usage_is_incomplete_and_the_exact_limit_admits() {
                 &files_of(&handoff, bytes),
                 &handoff.evidence,
                 with_limit(limit, middle),
+                &mut join_budget(),
             )
             .is_ok()
             {
@@ -385,6 +403,7 @@ fn a_limit_one_below_usage_is_incomplete_and_the_exact_limit_admits() {
             &files_of(&handoff, bytes),
             &handoff.evidence,
             with_limit(limit, usage - 1),
+            &mut join_budget(),
         ) {
             Err(Refusal::Incomplete(incomplete)) => {
                 assert_eq!(incomplete.limit_kind, limit);
@@ -395,7 +414,8 @@ fn a_limit_one_below_usage_is_incomplete_and_the_exact_limit_admits() {
         assert!(admit(
             &files_of(&handoff, bytes),
             &handoff.evidence,
-            with_limit(limit, usage)
+            with_limit(limit, usage),
+            &mut join_budget(),
         )
         .is_ok());
     }
@@ -420,18 +440,39 @@ fn identity_and_equality_files_are_refused_with_their_owners_refusals() {
     let other = serde_json::to_vec(&identities).expect("encode");
     let mut files = files_of(&handoff, bytes);
     files.identities = &other;
-    match admit(&files, &handoff.evidence, bounded()) {
+    match admit(&files, &handoff.evidence, bounded(), &mut join_budget()) {
         Err(Refusal::Identities(IdentityFileRefusal::Format(format))) => {
             assert_eq!(format, "quire.checked-handoff.identities/2");
         }
         other => panic!("expected the identity file's format refusal, got {other:?}"),
     }
 
-    identities["format"] = Value::from("quire.checked-handoff.identities/1");
+    for retired in [
+        "quire.checked-handoff.identities/1",
+        "quire.checked-handoff.identities/2",
+    ] {
+        identities["format"] = Value::from(retired);
+        let retired_bytes = serde_json::to_vec(&identities).expect("encode");
+        let mut retired_files = files_of(&handoff, bytes);
+        retired_files.identities = &retired_bytes;
+        match admit(
+            &retired_files,
+            &handoff.evidence,
+            bounded(),
+            &mut join_budget(),
+        ) {
+            Err(Refusal::Identities(IdentityFileRefusal::Format(format))) => {
+                assert_eq!(format, retired);
+            }
+            other => panic!("expected the format refusal for {retired}, got {other:?}"),
+        }
+    }
+
+    identities["format"] = Value::from(IDENTITIES_FORMAT);
     identities["declarations"][0]["structural_node"]["package"] = Value::from("elsewhere");
     let unjoined = serde_json::to_vec(&identities).expect("encode");
     files.identities = &unjoined;
-    match admit(&files, &handoff.evidence, bounded()) {
+    match admit(&files, &handoff.evidence, bounded(), &mut join_budget()) {
         Err(Refusal::Identities(IdentityFileRefusal::Unjoined { index: 0, .. })) => {}
         other => panic!("expected an unjoined identity row, got {other:?}"),
     }
@@ -442,10 +483,31 @@ fn identity_and_equality_files_are_refused_with_their_owners_refusals() {
     let other = serde_json::to_vec(&equality).expect("encode");
     let mut files = files_of(&handoff, bytes);
     files.equality = &other;
-    match admit(&files, &handoff.evidence, bounded()) {
+    match admit(&files, &handoff.evidence, bounded(), &mut join_budget()) {
         Err(Refusal::Equality(EqualityFileRefusal::Format(format))) => {
             assert_eq!(format, "quire.checked-handoff.equality/2");
         }
         other => panic!("expected the equality file's format refusal, got {other:?}"),
+    }
+}
+
+/// FR-043-AC-8: the identity-row join charges the caller's budget, and a
+/// budget it exhausts is QSL's own refusal, carried unchanged.
+#[test]
+#[trace("FR-043-AC-8", "TC-149")]
+fn an_exhausted_native_join_budget_is_qsls_identity_refusal_unchanged() {
+    let handoff = written("event_position", Corpus::None);
+    let bytes = &handoff.files["checked-package.json"];
+    let mut empty = NativeJoinLimits::new(0, 0).budget();
+    match admit(
+        &files_of(&handoff, bytes),
+        &handoff.evidence,
+        bounded(),
+        &mut empty,
+    ) {
+        Err(Refusal::Identities(IdentityFileRefusal::Native(error))) => {
+            assert_eq!(error.code, ExactTypeProjectionErrorCode::ExhaustedWork);
+        }
+        other => panic!("expected the identity file's native budget refusal, got {other:?}"),
     }
 }

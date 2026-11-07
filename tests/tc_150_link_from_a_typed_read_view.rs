@@ -20,7 +20,7 @@ use quire_protocol::checked_package::{admit, HandoffFiles};
 use quire_protocol::link::{link, LinkedProtocol};
 use quire_spec_language::checked_handoff::Corpus;
 use serde_json::Value;
-use support::handoff::{written, Handoff};
+use support::handoff::{join_budget, written, Handoff};
 
 fn admitted(handoff: &Handoff, bytes: &[u8]) -> Box<CheckedPackageV2> {
     let files = HandoffFiles {
@@ -33,6 +33,7 @@ fn admitted(handoff: &Handoff, bytes: &[u8]) -> Box<CheckedPackageV2> {
         &files,
         &handoff.evidence,
         CheckedPackageReadLimits::bounded(),
+        &mut join_budget(),
     ) {
         Ok(admitted) => Box::new(admitted.package().clone()),
         Err(refusal) => panic!("recipe R refused: {refusal}"),

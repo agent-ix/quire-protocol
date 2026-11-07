@@ -26,7 +26,7 @@ use quire_exact::Meter;
 use quire_protocol::checked_package::{admit, AdmittedHandoff, HandoffFiles};
 use quire_protocol::evidence::{assess, package, EvidenceRecord, EvidenceRefusal};
 use quire_spec_language::checked_handoff::Corpus;
-use support::handoff::written;
+use support::handoff::{join_budget, written};
 use support::limits::UNLIMITED;
 
 fn handoff(kind: &str) -> AdmittedHandoff {
@@ -41,15 +41,21 @@ fn handoff(kind: &str) -> AdmittedHandoff {
         &files,
         &handoff.evidence,
         CheckedPackageReadLimits::bounded(),
+        &mut join_budget(),
     )
     .expect("R admits")
 }
 
 fn bare(admitted: &AdmittedHandoff) -> BarePackage<'_> {
-    BarePackage::new(admitted.package()).with_supply(BareSupply {
-        identities: admitted.identities(),
-        equality: Some(admitted.equality()),
-    })
+    BarePackage::new(admitted.package())
+        .with_supply(
+            BareSupply {
+                identities: admitted.identities(),
+                equality: Some(admitted.equality()),
+            },
+            &mut join_budget(),
+        )
+        .expect("the supply joins within the test budget")
 }
 
 fn id(text: &str) -> SemanticTriggerIdentity {
@@ -62,6 +68,7 @@ fn request(package: &EvidencePackage<'_>, clause: &CheckedNodeId, ticks: u64) ->
     let subject = package.subject(clause, None).expect("the clause reads");
     let row = subject.occurrences[0].clock.expect("a clocked clause");
     EvidenceRequest {
+        native_valuations: Vec::new(),
         trigger: Some(id("o1")),
         correspondence: EvidenceRef::named("corr"),
         positions: (0..ticks)
@@ -131,7 +138,7 @@ fn unlimited() -> Meter {
 fn the_record_is_what_qsls_evidence_call_reports() {
     let admitted = handoff("event_position");
     let bare = bare(&admitted);
-    let evidence = package(&bare).expect("R's package constructs");
+    let evidence = package(&bare, &mut join_budget()).expect("R's package constructs");
     let ids = clauses(&evidence);
     assert_eq!(ids.len(), 2, "R's two named clauses");
     for clause in &ids {
@@ -250,7 +257,7 @@ fn cause(failure: &CallFailure) -> String {
 fn call_refusals_keep_their_cause_names_and_charge_nothing() {
     let admitted = handoff("event_position");
     let bare = bare(&admitted);
-    let evidence = package(&bare).expect("constructs");
+    let evidence = package(&bare, &mut join_budget()).expect("constructs");
     let ids = clauses(&evidence);
     let (clause, other) = (&ids[0], &ids[1]);
     let model = admitted
@@ -345,7 +352,7 @@ fn the_reader_refuses_the_rows_that_would_be_ambiguous() {
 fn a_missing_anchor_settles_as_a_non_value_never_a_boolean() {
     let admitted = handoff("event_position");
     let bare = bare(&admitted);
-    let evidence = package(&bare).expect("constructs");
+    let evidence = package(&bare, &mut join_budget()).expect("constructs");
     let clause = &clauses(&evidence)[0];
     let base = request(&evidence, clause, 3);
     let held = assess(&evidence, clause, &base, &mut unlimited()).expect("a record");
