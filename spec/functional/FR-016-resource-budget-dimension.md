@@ -71,16 +71,16 @@ producer's dimensions, which this requirement does not own and does not bound.
 ## The producer's dimensions are selected, never re-spelled
 
 While reading an offered artifact the producer accounts its own resources and
-reports its own exhausted dimension. That vocabulary is
-`protocol_artifact::work::Dimension`, which the producer documents as "The
-exact exhausted resource, never inferred from a diagnostic string", with the
-matching `Limits` fields a caller grants. Thirteen members.
+reports its own exhausted dimension, with matching limit fields a caller grants.
+This repository names that thirteen-member vocabulary as its own closed enum,
+`delivery_index::CompiledDimension` (payload bytes, output bytes, source bytes,
+content bytes, sources, dependencies, definitions, models, declarations,
+entries, references, byte work, depth), so a delivery index can key a
+reader-side limit without importing the producer's accounting type
+([FR-018](./FR-018-delivery-index.md)).
 
-This requirement selects that vocabulary whole and re-tabulates no member of
-it. Where a producer read exhausts a resource, the reported dimension is the
-producer's own value, spelled as the producer spells it. This library does not
-translate it into a member of the table above, and a caller comparing the two
-compares two vocabularies, not one.
+This requirement does not translate a producer dimension into a member of the
+table above, and a caller comparing the two compares two vocabularies, not one.
 
 The two sets overlap in subject without being the same dimension: a caller's
 `input-byte` grant bounds what this library accepts at its own boundary, while

@@ -464,3 +464,63 @@ fn tc_017_bounded_assembly_charges_exact_retained_bytes_before_the_index_exists(
         1
     );
 }
+
+#[test]
+#[trace("TC-017", "FR-018-AC-9")]
+fn tc_017_compiled_dimension_vocabulary_is_thirteen_members_in_exact_order() {
+    // The exhaustive match fails to compile if a member is added or removed
+    // without updating this test.
+    fn position(value: CompiledDimension) -> usize {
+        match value {
+            CompiledDimension::PayloadBytes => 0,
+            CompiledDimension::OutputBytes => 1,
+            CompiledDimension::SourceBytes => 2,
+            CompiledDimension::ContentBytes => 3,
+            CompiledDimension::Sources => 4,
+            CompiledDimension::Dependencies => 5,
+            CompiledDimension::Definitions => 6,
+            CompiledDimension::Models => 7,
+            CompiledDimension::Declarations => 8,
+            CompiledDimension::Entries => 9,
+            CompiledDimension::References => 10,
+            CompiledDimension::ByteWork => 11,
+            CompiledDimension::Depth => 12,
+        }
+    }
+    let expected = [
+        CompiledDimension::PayloadBytes,
+        CompiledDimension::OutputBytes,
+        CompiledDimension::SourceBytes,
+        CompiledDimension::ContentBytes,
+        CompiledDimension::Sources,
+        CompiledDimension::Dependencies,
+        CompiledDimension::Definitions,
+        CompiledDimension::Models,
+        CompiledDimension::Declarations,
+        CompiledDimension::Entries,
+        CompiledDimension::References,
+        CompiledDimension::ByteWork,
+        CompiledDimension::Depth,
+    ];
+    assert_eq!(expected.len(), 13);
+    for (index, member) in expected.iter().enumerate() {
+        assert_eq!(position(*member), index);
+    }
+    // Shuffled input sorts back into the declared order with distinct keys.
+    let mut shuffled: Vec<LimitDimension> = expected
+        .iter()
+        .rev()
+        .map(|member| LimitDimension::CompiledProtocol(*member))
+        .collect();
+    shuffled.sort();
+    let sorted: Vec<LimitDimension> = expected
+        .iter()
+        .map(|member| LimitDimension::CompiledProtocol(*member))
+        .collect();
+    assert_eq!(shuffled, sorted);
+    assert!(sorted.windows(2).all(|pair| pair[0] < pair[1]));
+    assert!(
+        LimitDimension::Protocol(BudgetDimension::ResolutionDeadline) < sorted[0],
+        "every Protocol dimension sorts before every compiled-protocol dimension"
+    );
+}
