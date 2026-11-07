@@ -26,9 +26,12 @@ refusal vocabulary for the checked package.
 - The handoff directory that `quire_spec_language::checked_handoff` writes
   (QSL FR-517): `checked-package.json`, `sources/<label>`, `models/<n>.json`,
   `inventory.json`, `selection.json`, `identities.json`
-  (`quire.checked-handoff.identities/1`), `equality.json`
+  (`quire.checked-handoff.identities/3`), `equality.json`
   (`quire.checked-handoff.equality/1`) and, for a mutation corpus, `mutations/`.
 - The evidence assembled from the handoff's own files, as QSL FR-517 states.
+- The caller's one finite native-join budget for the pass (QSL FR-531): the
+  identity-row join charges it, and admission neither builds, defaults nor
+  enlarges one.
 - The selection (`selection.json`, `quire.checked-handoff.selection/1`), whose
   identities were derived from the source before any bytes were emitted, read
   before the offered package is compared with it.

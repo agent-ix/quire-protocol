@@ -18,6 +18,7 @@ use qsl_package::{EqualityFileRefusal, IdentityFileRefusal, ReadEqualityRows, Re
 use quire_contract_model::{
     read_checked_package, CheckedPackageDispatchResult, CheckedPackageEvidence,
     CheckedPackageIncomplete, CheckedPackageReadLimits, CheckedPackageRefusal, CheckedPackageV2,
+    NativeJoinBudget,
 };
 use quire_spec_language::checked_handoff::{Selection, SelectionReadError, SelectionRefusal};
 
@@ -106,7 +107,9 @@ impl std::error::Error for Refusal {}
 /// defect the reader refuses is a [`Refusal::Reader`] and a defect only the
 /// selection can see is a [`Refusal::Selection`]. `evidence` is the evidence
 /// assembled from the handoff's own files (QSL FR-517) and `limits` the read
-/// limits of the caller.
+/// limits of the caller. `budget` is the caller's one finite native-join
+/// allowance for the pass; the identity-row join charges it and nothing here
+/// builds, defaults or enlarges one (QSL FR-531).
 ///
 /// # Errors
 ///
@@ -115,6 +118,7 @@ pub fn admit(
     files: &HandoffFiles<'_>,
     evidence: &CheckedPackageEvidence,
     limits: CheckedPackageReadLimits,
+    budget: &mut NativeJoinBudget,
 ) -> Result<AdmittedHandoff, Refusal> {
     let package = match read_checked_package(files.checked_package, limits, evidence) {
         CheckedPackageDispatchResult::AdmittedV2(package) => package,
@@ -130,7 +134,7 @@ pub fn admit(
         .check(&package)
         .map_err(Refusal::Selection)?;
     let identities =
-        ReadIdentityRows::read(files.identities, &package).map_err(Refusal::Identities)?;
+        ReadIdentityRows::read(files.identities, &package, budget).map_err(Refusal::Identities)?;
     let equality = ReadEqualityRows::read(files.equality, &package).map_err(Refusal::Equality)?;
     Ok(AdmittedHandoff {
         package,
