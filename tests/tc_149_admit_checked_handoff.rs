@@ -8,11 +8,11 @@ mod support {
 use std::path::{Path, PathBuf};
 
 use ix_trace_rs::trace;
-use qsl_package::{EqualityFileRefusal, IdentityFileRefusal, IDENTITIES_FORMAT};
+use qsl_package::{EqualityFileRefusal, IdentityFileRefusal, NativeJoinLimits, IDENTITIES_FORMAT};
 use quire_contract_model::{
     read_checked_package, CheckedPackageDispatchResult, CheckedPackageEvidence,
     CheckedPackageLimit, CheckedPackageReadLimits, CheckedPackageRefusal,
-    CheckedPackageRefusalCode,
+    CheckedPackageRefusalCode, ExactTypeProjectionErrorCode,
 };
 use quire_protocol::checked_package::{admit, HandoffFiles, Refusal};
 use quire_spec_language::checked_handoff::{Corpus, SelectionAxis};
@@ -447,6 +447,27 @@ fn identity_and_equality_files_are_refused_with_their_owners_refusals() {
         other => panic!("expected the identity file's format refusal, got {other:?}"),
     }
 
+    for retired in [
+        "quire.checked-handoff.identities/1",
+        "quire.checked-handoff.identities/2",
+    ] {
+        identities["format"] = Value::from(retired);
+        let retired_bytes = serde_json::to_vec(&identities).expect("encode");
+        let mut retired_files = files_of(&handoff, bytes);
+        retired_files.identities = &retired_bytes;
+        match admit(
+            &retired_files,
+            &handoff.evidence,
+            bounded(),
+            &mut join_budget(),
+        ) {
+            Err(Refusal::Identities(IdentityFileRefusal::Format(format))) => {
+                assert_eq!(format, retired);
+            }
+            other => panic!("expected the format refusal for {retired}, got {other:?}"),
+        }
+    }
+
     identities["format"] = Value::from(IDENTITIES_FORMAT);
     identities["declarations"][0]["structural_node"]["package"] = Value::from("elsewhere");
     let unjoined = serde_json::to_vec(&identities).expect("encode");
@@ -467,5 +488,26 @@ fn identity_and_equality_files_are_refused_with_their_owners_refusals() {
             assert_eq!(format, "quire.checked-handoff.equality/2");
         }
         other => panic!("expected the equality file's format refusal, got {other:?}"),
+    }
+}
+
+/// FR-043-AC-8: the identity-row join charges the caller's budget, and a
+/// budget it exhausts is QSL's own refusal, carried unchanged.
+#[test]
+#[trace("FR-043-AC-8", "TC-149")]
+fn an_exhausted_native_join_budget_is_qsls_identity_refusal_unchanged() {
+    let handoff = written("event_position", Corpus::None);
+    let bytes = &handoff.files["checked-package.json"];
+    let mut empty = NativeJoinLimits::new(0, 0).budget();
+    match admit(
+        &files_of(&handoff, bytes),
+        &handoff.evidence,
+        bounded(),
+        &mut empty,
+    ) {
+        Err(Refusal::Identities(IdentityFileRefusal::Native(error))) => {
+            assert_eq!(error.code, ExactTypeProjectionErrorCode::ExhaustedWork);
+        }
+        other => panic!("expected the identity file's native budget refusal, got {other:?}"),
     }
 }
