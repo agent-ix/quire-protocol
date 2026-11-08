@@ -3,80 +3,41 @@
 [![Discord](https://img.shields.io/badge/Discord-Join%20us-5865F2?logo=discord&logoColor=white)](https://discord.gg/k8DVhuYBR2)
 [![Quire](https://img.shields.io/badge/Quire-Specification%20Language-1F6FEB)](https://github.com/agent-ix/quire-spec-language)
 
-quire-protocol is a Rust crate that checks recorded traffic against a compiled
-protocol. A protocol describes roles that exchange messages over channels,
-together with the steps that undo earlier work when something fails.
+quire-protocol is a Rust crate that consumes the checked package the Quire
+Specification Language (QSL) produces for a protocol. A protocol describes
+roles that exchange messages over channels, together with the steps that undo
+earlier work when something fails.
 
-The crate takes a protocol compiled by the Quire Specification Language (QSL)
-and a finite record of observations. It reports whether the traffic followed the
-protocol and whether the undo path is available, using a closed vocabulary: a
-missing observation is "incomplete", a conversation that may still advance is
-"pending", and only an adverse observation is a "violation". Layers above it
-use these results and do not read protocol files.
+The crate admits a checked-package handoff, links one protocol clause into its
+roles, channels, queues and controls, evaluates protocol slots and temporal
+evidence through QSL's evaluation entries, and keeps the compensation state
+machine. Every refusal carries the value of the component that produced it, and
+resource bounds are declared up front.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/hero-dark.svg">
-  <img alt="A compiled protocol is admitted and linked into roles and channels. Observed traffic is then checked against it for conformance, and compensation is assessed alongside. The result is a conformance verdict and a compensation path that is available or unavailable." src="docs/images/hero-light.svg">
+  <img alt="A checked-package handoff of four files is admitted into one checked package. The package is then linked into a protocol with its roles and channels, its slots are evaluated to a slot outcome, and its temporal obligations are assessed to an evidence record." src="docs/images/hero-light.svg">
 </picture>
 
-> **Status: prerelease, private repository.** The pieces below exist and are
-> tested. They are not yet joined into one end-to-end pipeline, the crate is not
-> published (`publish = false`), and no qualification claim exists. Expect
-> breaking changes.
+## Getting started
 
-## Features
+quire-protocol is not published to a registry. Add it as a git dependency:
 
-- **Reads the checked package strictly.** It admits QSL's checked-package
-  handoff through Contract IR's reader and QSL's selection, identity and
-  equality checks, and carries each owner's refusal unchanged.
-- **Selects independently.** The caller names the artifact, its dependency
-  closure, profile and version-lock entries. A producer's own statement of what
-  it emitted is evidence only.
-- **Links.** Admission and linking are separate steps. Linking builds this
-  crate's own finite linked representation of the protocol, which is separate
-  from QSL's, and reports problems with locations.
-- **Assesses compensation.** It works out from the reported facts whether
-  compensation is active, registered, ordered correctly, retried within its
-  bound and recovered. Attempts and effects stay distinct, and no business
-  action is executed.
-- **Checks conformance.** A bounded batch replay and an incremental mode give
-  each obligation its own disposition. The incremental mode gives the same
-  answer as the batch once the record settles.
-- **Produces a canonical result.** The result record is
-  `quire.protocol.result/v1-draft.1`, with a strict reader, and it projects
-  into the `quire-verification/e02-draft-2` evidence format.
+```toml
+[dependencies]
+quire-protocol = { git = "https://github.com/agent-ix/quire-protocol", branch = "main" }
+```
 
-## Outcomes
+To build from a clone, install the Rust toolchain named in `rust-toolchain.toml`
+and run `cargo build`.
 
-Each obligation in a protocol ends in exactly one disposition. A violation
-names the adverse observation behind it.
+## Usage
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/outcomes-dark.svg">
-  <img alt="Each obligation in a protocol ends in one of five dispositions: conforms, pending, violates, incomplete or unavailable. A violation is always backed by an adverse observation of one kind: unexpected, missing, causally misordered, duplicate effect or cross-workflow." src="docs/images/outcomes-light.svg">
-</picture>
-
-The whole run gets one aggregate status: conforms, pending, violates or
-unavailable. The per-obligation results remain visible beneath it. Missing or
-duplicate premises are reported as their own defects and cannot change an
-obligation's result. Compensation availability is reported separately, as
-either available or unavailable with the list of causes. Causes include no
-activation fact, an ordering violation, a retry bound exceeded, and a recovery
-decision not yet reported.
-
-Operations return one of three outcomes: completed, refused with a typed
-refusal, or resource-incomplete when a declared bound (counts, allocation or
-deadline) stopped the work. Exhausting a bound is not reported as a refusal or a
-violation.
-
-## Admitting a protocol
-
-Admission takes the four files of a checked-package handoff directory (QSL
-FR-517), the evidence assembled from that directory, and read limits. It reads
-`checked-package.json` with Contract IR's `read_checked_package`, compares the
-admitted package with `selection.json`, and reads `identities.json` and
-`equality.json` against it. The case below is from
-[`tests/tc_149_admit_checked_handoff.rs`](tests/tc_149_admit_checked_handoff.rs):
+`admit` reads the four files of a checked-package handoff directory:
+`checked-package.json`, `selection.json`, `identities.json` and `equality.json`.
+It reads the package with Contract IR's reader, compares it with the selection,
+and reads the identity and equality files against it. `link` then builds the
+linked protocol for one protocol clause of the admitted package.
 
 ```rust
 let admitted = admit(
@@ -88,94 +49,76 @@ let admitted = admit(
     },
     &evidence,
     CheckedPackageReadLimits::bounded(),
+    &mut join_budget(),
 )?;
-assert_eq!(admitted.package().name(), "r");
+let linked = link(admitted.package(), &clause)?;
 ```
 
-A refusal carries the owner's value unchanged: the reader's refusal code, loci
-and cause, the reader's incomplete result when a read limit is exhausted, QSL's
-selection axis, or QSL's identity-file or equality-file refusal.
+`evidence` is the evidence assembled from the handoff's files, `join_budget()`
+is the caller's native-join allowance for the pass, and `clause` is the node id
+of a protocol clause in the package.
 
-## Linking a protocol
+## Outcomes
 
-`link(&package, &clause)` returns a `LinkedProtocol`: the clause's roles,
-channels, queues, controls, compensations, required temporal clauses,
-`terminal`, `scheduling` and activation rows as node ids from QSL's
-`protocol_view`, and the causal edges exactly as QSL's `causal_relation`
-returns them. It builds no edge. An absent node, a non-protocol node or a
-`protocol_reference` carrier returns QSL's `ViewRefusal`. The consumer-owned
-refusals, the window binding and the FR-002 criteria over recipe R are owed
-to QSL-1740.
+A slot evaluation returns a `SlotOutcome` that carries QSL's value unchanged.
+Admission returns a `Refusal` with one variant per file or check that failed.
 
-The compensation assessment over the checked-package evaluation and the
-temporal evidence route return in the next stage of the repoint (FR-045 to
-FR-047).
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/outcomes-dark.svg">
+  <img alt="A slot evaluation ends in one of eight outcomes: holds, does not hold, not Boolean, unavailable, undefined, refused, incomplete or a family result. Admission of a handoff fails with one of six refusals: reader, incomplete, selection file, selection, identities or equality, each carrying its owner's value unchanged." src="docs/images/outcomes-light.svg">
+</picture>
 
-## Modules
+## Reference
 
 | Module | What it holds |
 | --- | --- |
-| `checked_package` | Admission of the checked-package handoff (FR-043). |
-| `link` | The linked protocol over QSL's read view and causal relation (FR-044). |
-| `version_lock` | Version-lock resolution and the exact-byte delivery guard. |
+| `checked_package` | Admission of the checked-package handoff. |
+| `link` | The linked protocol over QSL's read view and causal relation. |
+| `slot` | The outcome of evaluating a protocol slot. |
+| `evidence` | Temporal evidence read from the checked package's own nodes. |
 | `compensation` | Activation, registration, ordering and retry facts. |
-| `closure`, `outcome` | The five-axis closure and the closed operation and claim outcomes. |
+| `closure`, `outcome` | The closure axes and the closed operation and claim outcomes. |
 | `bounds` | Count, allocation and deadline guards. |
 | `digest` | Canonical JCS encoding and the exact-byte SHA-256 carrier. |
 | `refusal` | The typed refusal envelope and its catalog. |
-| `repro`, `delivery_index` | Reproduction record and the evidence index for one pinned delivery. |
+| `repro`, `delivery_index` | The reproduction record and the evidence index for one pinned delivery. |
 
 The crate declares no Cargo feature.
 
-## Out of scope
-
-QSL owns native grammar, parsing and compiler diagnostics. Other repositories
-own temporal-logic syntax and evaluation, observation collection and
-correlation, running compensation or business actions, evidence storage,
-verification-method catalogs and sufficiency decisions, and release policy. The
-normative contracts live in quire-specification (private), and
-the intended architecture is in
-[`spec/assurance/AD-001-protocol-library-boundaries.md`](spec/assurance/AD-001-protocol-library-boundaries.md).
-Start from [`spec/spec.md`](spec/spec.md) for the requirements.
-
 ## Quire ecosystem
 
-`quire-protocol` is one of the backends. It reads checked output from the
-language layer and works over observations. It sits above QSL and below the
-orchestration tools.
+quire-protocol sits beside the compiler. It reads QSL's checked output and
+works over observations.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/ecosystem-dark.svg">
-  <img alt="The Quire repositories. The main chain runs from the standard, quire-specification, to the compiler, quire-spec-language, then quire-contract-ir, quire-contract-codegen and quire-contract-runtime. quire-spec-language also feeds quire-protocol, and quire-contract-ir feeds quire-analyze. quire-observation feeds quire-protocol and quire-mltl. Above the chain, quire-driver runs it, quire-integration tests it and quire-verification plans verification. Below it, shared libraries used throughout: quire-exact, quire-semantic-value, quire-walk, quire-canonical and quire-verification-contracts." src="docs/images/ecosystem-light.svg">
+  <img alt="The Quire repositories. The main chain runs from the standard, quire-specification, to the compiler, quire-spec-language, then quire-contract-ir, quire-contract-codegen and quire-contract-runtime. quire-spec-language also feeds quire-protocol, and quire-contract-ir feeds quire-analyze. quire-observation feeds quire-protocol and quire-mltl. quire-eval is the evaluation core. Above the chain, quire-driver runs it, quire-integration tests it and quire-verification plans verification. Below it, shared libraries used throughout: quire-exact, quire-semantic-value, quire-walk, quire-canonical and quire-verification-contracts." src="docs/images/ecosystem-light.svg">
 </picture>
 
-It depends on [quire-spec-language](https://github.com/agent-ix/quire-spec-language)
-(the checked-package read view and the evaluation entries, and its
-`checked_handoff` writer for tests),
-[quire-observation](https://github.com/agent-ix/quire-observation) (qualified
-observation values),
+It depends on [quire-spec-language](https://github.com/agent-ix/quire-spec-language),
+[quire-eval](https://github.com/agent-ix/quire-eval),
+[quire-observation](https://github.com/agent-ix/quire-observation),
 [quire-verification-contracts](https://github.com/agent-ix/quire-verification-contracts)
-(the evidence format it projects into) and
-[engineering-assurance](https://github.com/agent-ix/engineering-assurance) (the
-claim-strength vocabulary), all followed on `main` in `Cargo.toml`, with the commit held by `Cargo.lock`.
-[quire-contract-ir](https://github.com/agent-ix/quire-contract-ir) is a
-dev-dependency used only by tests.
+and [engineering-assurance](https://github.com/agent-ix/engineering-assurance).
+[quire-contract-ir](https://github.com/agent-ix/quire-contract-ir) supplies the
+checked-package reader. The requirements are in [`spec/spec.md`](spec/spec.md).
 
 ## Building and testing
 
-All first-party code and tests are Rust. The local gate is four commands run in
-order over one unchanged head, defined by
-[`spec/non-functional/NFR-004-define-local-verification-gate.md`](spec/non-functional/NFR-004-define-local-verification-gate.md)
-and listed in [`AGENTS.md`](AGENTS.md): `cargo fmt --check`, clippy with
-warnings denied, tests and rustdoc. Tests bind to requirements with
-`ix-trace-rs` attributes. No hosted CI runs from this repository.
+```
+cargo fmt --all -- --check
+cargo clippy --locked --all-targets -- -D warnings
+cargo test --locked
+RUSTDOCFLAGS="-D warnings" cargo doc --locked --no-deps
+```
 
 ## Contributing
 
 Read [`CONTRIBUTING.md`](CONTRIBUTING.md) first. Every contribution needs a
-signed [CLA](CLA.md). Contributor rules are in [`AGENTS.md`](AGENTS.md), and the
-artifact and rights policy is in [`ARTIFACTS.md`](ARTIFACTS.md).
+signed [CLA](CLA.md). The artifact and rights policy is in
+[`ARTIFACTS.md`](ARTIFACTS.md).
 
 ## License
 
-AGPL-3.0-or-later. See [`LICENSE`](LICENSE).
+AGPL-3.0-or-later. See [`LICENSE`](LICENSE) and
+[`CONTENT_RIGHTS.md`](CONTENT_RIGHTS.md).

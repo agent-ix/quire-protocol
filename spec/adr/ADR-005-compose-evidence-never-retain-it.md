@@ -42,8 +42,7 @@ Read carelessly, those two facts contradict each other, and for one revision
 they did. SR-048 FND-004 recorded it: "AD-001 now contradicts itself: the Views
 paragraph states no boundary \"records evidence\", while the new intake section
 gives this repository a per-scenario evidence record; the intended
-reconciliation (lanes record, boundaries do not) is nowhere written"
-([spec/reviews/it002-it003-packet/scope-boundary.md](../reviews/it002-it003-packet/scope-boundary.md)).
+reconciliation (lanes record, boundaries do not) is nowhere written".
 SR-048 FND-010 recorded the same gap from the other side: NFR-005 declined to
 say where a scenario record lives between composition and Quoin handoff, so only
 NFR-003-AC-4's inventory ban prevented it from being materialised as a

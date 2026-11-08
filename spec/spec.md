@@ -315,8 +315,6 @@ its entry-status table records why each is currently `unresolved`.
   structured Protocol scenario-record operation rather than coercing either.
 - `agent-ix/quire-contract-ir` issue 71 — the downstream consumer of Protocol's
   complete borrowed result-map view for native/TL correspondence and joining.
-- `agent-ix/quire-research` artifacts are research inputs only; none supplies a
-  runtime Protocol value or version-lock entry.
 
 The complete-global-conformance closure record is **not** an external reference.
 It is Protocol-owned and takes no version-lock entry because no external owner

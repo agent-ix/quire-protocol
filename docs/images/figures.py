@@ -8,7 +8,7 @@ Regenerate from the repository root with the agent-ix/dev-tools skill:
     python3 <dev-tools>/skills/docs-figures/scripts/render.py docs/images/figures.py
 
 Add --check to confirm the committed SVGs are current. The outcome names come
-from src/conformance/batch.rs and src/compensation/mod.rs.
+from src/slot.rs and src/checked_package.rs.
 """
 
 from docs_figures import FONTS, SMALL, TITLE, Figure  # noqa: F401
@@ -29,69 +29,74 @@ ROLES = [
 
 
 def hero():
-    """README hero: a compiled protocol plus observed traffic gives a verdict."""
+    """README hero: a checked handoff is admitted, then linked and evaluated."""
     f = Figure(
         "hero",
         980,
         290,
-        "A compiled protocol is admitted and linked into roles and channels. Observed traffic is "
-        "then checked against it for conformance, and compensation is assessed alongside. The "
-        "result is a conformance verdict and a compensation path that is available or unavailable.",
+        "A checked-package handoff of four files is admitted into one checked package. The "
+        "package is then linked into a protocol with its roles and channels, its slots are "
+        "evaluated to a slot outcome, and its temporal obligations are assessed to an evidence "
+        "record.",
     )
-    f.box(0, 30, 170, 56, "model", "compiled protocol", "from QSL, /1 or /2")
-    f.box(0, 190, 170, 56, "ink", "observed traffic", "messages · effects")
-    f.box(214, 90, 150, 56, "logic", "admit · link", "two separate steps")
-    f.box(408, 90, 150, 56, "model", "linked protocol", "roles · channels")
-    f.line([(170, 58), (190, 58), (190, 118), (211, 118)], "model")
+    f.box(0, 90, 170, 56, "model", "checked handoff", "four files from QSL")
+    f.box(214, 90, 150, 56, "logic", "admit", "reader · selection")
+    f.box(408, 90, 150, 56, "model", "checked package", "plus two files")
+    f.line([(170, 118), (211, 118)], "model")
     f.line([(364, 118), (405, 118)], "logic")
     f.line([(558, 118), (580, 118)], "model", arrow=False)
-    f.line([(580, 58), (580, 178)], "model", arrow=False)
-    f.line([(170, 218), (580, 218), (580, 178)], "ink", arrow=False)
-    f.line([(580, 58), (602, 58)], "model")
-    f.line([(580, 178), (602, 178)], "model")
-    f.box(604, 30, 170, 56, "logic", "compensation", "undo steps, in order")
-    f.box(604, 150, 170, 56, "logic", "conformance", "finite replay")
-    f.line([(774, 58), (807, 58)], "evidence", weight=2.4)
-    f.line([(774, 178), (807, 178)], "evidence", weight=2.4)
-    f.box(810, 30, 170, 56, "evidence", "compensation path", "available or not")
-    f.box(810, 150, 170, 56, "evidence", "conformance verdict", "conforms · violates")
-    f.legend(0, 284, [ROLES[1], ROLES[2], ROLES[3], ROLES[4]])
+    f.line([(580, 58), (580, 238)], "model", arrow=False)
+    for y in (58, 148, 238):
+        f.line([(580, y), (602, y)], "model")
+    f.box(604, 30, 170, 56, "logic", "link", "roles · channels")
+    f.box(604, 120, 170, 56, "logic", "evaluate slots", "through QSL")
+    f.box(604, 210, 170, 56, "logic", "assess evidence", "temporal obligations")
+    for y in (58, 148, 238):
+        f.line([(774, y), (807, y)], "evidence", weight=2.4)
+    f.box(810, 30, 170, 56, "evidence", "linked protocol", "or QSL's refusal")
+    f.box(810, 120, 170, 56, "evidence", "slot outcome", "holds · refused · ...")
+    f.box(810, 210, 170, 56, "evidence", "evidence record", "truth · settlement")
+    f.legend(0, 284, [ROLES[1], ROLES[2], ROLES[3]])
     return f
 
 
 def outcomes():
-    """The per-obligation dispositions and the adverse kinds behind a violation."""
-    dispositions = [
-        ("conforms", "every required fact present", "logic"),
-        ("pending", "a required fact may still arrive", "evidence"),
-        ("violates", "an adverse observation exists", "evidence"),
-        ("incomplete", "a required valuation is absent", "evidence"),
-        ("unavailable", "the assessment did not complete", "evidence"),
+    """The slot outcomes and the reasons admission refuses."""
+    slots = [
+        ("holds", "completed with true", "logic"),
+        ("does not hold", "completed with false", "evidence"),
+        ("not Boolean", "completed with another value", "evidence"),
+        ("unavailable", "a binder was supplied unavailable", "evidence"),
+        ("undefined", "the kernel left it undefined", "evidence"),
+        ("refused", "the kernel refused the slot", "evidence"),
+        ("incomplete", "a resource bound stopped it", "evidence"),
+        ("family result", "the slot's family answered itself", "evidence"),
     ]
-    adverse = [
-        ("unexpected", "not the expected observation"),
-        ("missing", "absent at a complete boundary"),
-        ("causally misordered", "dependent before predecessor"),
-        ("duplicate effect", "two observations, one effect"),
-        ("cross-workflow", "another workflow instance"),
+    refusals = [
+        ("reader", "the package reader refused"),
+        ("incomplete", "a read limit was reached"),
+        ("selection file", "not a selection sidecar"),
+        ("selection", "the package departs from it"),
+        ("identities", "identities.json refused"),
+        ("equality", "equality.json refused"),
     ]
     f = Figure(
         "outcomes",
         980,
-        290,
-        "Each obligation in a protocol ends in one of five dispositions: conforms, pending, "
-        "violates, incomplete or unavailable. A violation is always backed by an adverse "
-        "observation of one kind: unexpected, missing, causally misordered, duplicate effect or "
-        "cross-workflow.",
+        420,
+        "A slot evaluation ends in one of eight outcomes: holds, does not hold, not Boolean, "
+        "unavailable, undefined, refused, incomplete or a family result. Admission of a handoff "
+        "fails with one of six refusals: reader, incomplete, selection file, selection, "
+        "identities or equality, each carrying its owner's value unchanged.",
     )
-    f.text(0, 14, "ONE DISPOSITION PER OBLIGATION", "muted", "mono", SMALL)
-    f.text(520, 14, "WHAT BACKS A VIOLATION", "muted", "mono", SMALL)
-    for i, (name, why, role) in enumerate(dispositions):
+    f.text(0, 14, "ONE OUTCOME PER SLOT EVALUATION", "muted", "mono", SMALL)
+    f.text(520, 14, "WHY ADMISSION REFUSES", "muted", "mono", SMALL)
+    for i, (name, why, role) in enumerate(slots):
         y = 24 + i * 48
         f.box(0, y, 170, 40, role, name)
         f.line([(170, y + 20), (197, y + 20)], role, arrow=False)
         f.text(210, y + 25, why, "muted", "mono", SMALL + 1)
-    for i, (name, why) in enumerate(adverse):
+    for i, (name, why) in enumerate(refusals):
         y = 24 + i * 48
         f.box(520, y, 200, 40, "evidence", name)
         f.line([(720, y + 20), (747, y + 20)], "evidence", arrow=False)
@@ -100,17 +105,18 @@ def outcomes():
 
 
 REPOS = [
-    (1, 0, "quire-driver", "the quire command", True),
-    (2, 0, "quire-integration", "tests the whole chain", True),
-    (3, 0, "quire-verification", "plans verification", True),
-    (0, 1, "quire-specification", "the standard", True),
+    (1, 0, "quire-driver", "the quire command", False),
+    (2, 0, "quire-integration", "tests the whole chain", False),
+    (3, 0, "quire-verification", "plans verification", False),
+    (0, 1, "quire-specification", "the standard", False),
     (1, 1, "quire-spec-language", "compiler · evaluator", False),
     (2, 1, "quire-contract-ir", "contract model", False),
     (3, 1, "quire-contract-codegen", "code · tests · proofs", False),
     (4, 1, "quire-contract-runtime", "runs generated checks", False),
     (0, 2, "quire-observation", "qualified observations", False),
-    (1, 2, "quire-protocol", "protocol conformance", True),
+    (1, 2, "quire-protocol", "protocol conformance", False),
     (2, 2, "quire-analyze", "SMT consistency", False),
+    (3, 2, "quire-eval", "evaluation core", False),
     (0, 3, "quire-mltl", "MLTL over observations", False),
 ]
 FEEDS = [
@@ -137,10 +143,10 @@ def ecosystem(here="quire-spec-language"):
         "the compiler, quire-spec-language, then quire-contract-ir, quire-contract-codegen and "
         "quire-contract-runtime. quire-spec-language also feeds quire-protocol, and "
         "quire-contract-ir feeds quire-analyze. quire-observation feeds quire-protocol and "
-        "quire-mltl. Above the chain, quire-driver runs it, quire-integration tests it and "
-        "quire-verification plans verification. Below it, shared libraries used throughout: "
-        "quire-exact, quire-semantic-value, quire-walk, quire-canonical and "
-        "quire-verification-contracts.",
+        "quire-mltl. quire-eval is the evaluation core. Above the chain, quire-driver runs it, "
+        "quire-integration tests it and quire-verification plans verification. Below it, shared "
+        "libraries used throughout: quire-exact, quire-semantic-value, quire-walk, "
+        "quire-canonical and quire-verification-contracts.",
     )
     w, h, step = 176, 50, 201
     rows = {0: 20, 1: 120, 2: 210, 3: 290}
@@ -167,8 +173,7 @@ def ecosystem(here="quire-spec-language"):
         w0 = round(w0 + spare)
         f.box(x, 390, w0, h, "logic" if name == here else "ink", name)
         x += w0 + gap
-    f.legend(0, 472, [("logic", "this repository", "box"), ("ink", "private", "dash"),
-                      ("model", "feeds", "fill")])
+    f.legend(0, 472, [("logic", "this repository", "box"), ("model", "feeds", "fill")])
     return f
 
 

@@ -53,8 +53,7 @@ layer that remediates them."
 
 ### The defect, reintroduced structurally before it could recur
 
-SR-038 FND-003, high, on the version 2 corpus
-([spec/reviews/v2-intake/failure-domain.md](../reviews/v2-intake/failure-domain.md)):
+SR-038 FND-003, high, on the version 2 corpus:
 "The lane's outcome oracle is two-valued, so any non-admission passes.
 `Disposition` distinguishes only `Admits` from `RefusesBeforeLinking`;
 SC-06..SC-09 likewise say \"returns a typed refusal\" without binding it to
