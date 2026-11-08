@@ -60,7 +60,7 @@ fn digest(value: u8) -> Digest {
 }
 
 fn producer() -> quire_observation::AdmittedStaticBundle {
-    StaticProducerBundle::admit_json(include_bytes!("../fixtures/fcd-static-bundle-1.2.json"))
+    StaticProducerBundle::admit_json(quire_observation::test_support::FCD_STATIC_BUNDLE_1_2)
         .expect("shared FCD static bundle is admitted")
 }
 
