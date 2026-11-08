@@ -41,7 +41,7 @@ version they ran.
   local subprocess runner, stdout verdict parser, evidence store, verification
   catalogue, or human-disposition path.
 - Bind automated acceptance tests with bare `ix_trace_rs::trace` attributes.
-- Before promotion, run `/home/peter/dev/agent-skills/rust-review/SKILL.md` and
+- Before promotion, run the `rust-review` skill and
   QUOIN semantic `/gap-analysis`, then remediate every in-scope finding.
 - Run local checks only. Set `CARGO_BUILD_JOBS=1` and use
   `flock /tmp/quire-heavy-check.lock` for heavy Cargo work. Do not dispatch hosted CI.

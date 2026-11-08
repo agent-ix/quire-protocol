@@ -87,4 +87,3 @@ the exact Rust review, and semantic gap analysis run over one unchanged head.
 
 - Engineering Assurance issue 34 owns reusable producer execution and typed transport.
 - Quoin owns retained evidence and assurance reports.
-- `agent-ix/quire-research#62` owns the Quoin containment boundary.

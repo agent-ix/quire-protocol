@@ -31,8 +31,7 @@ artifact slot compares equal to an artifact digest over the same bytes, and an
 identity substitution survives every check this repository performs. `AP-001`'s
 `impact-identity-substitution` scenario is exactly this impact: SR-027 states it
 as "changed source, dependency, observation, profile, result, or adapter bytes
-retain an accepted identity"
-([spec/reviews/digest-domain-discrimination.md](../reviews/digest-domain-discrimination.md)).
+retain an accepted identity".
 
 The earlier `FR-201-canonical-identity-domain` contract supplied that rule and
 vocabulary. QSpec #520 withdrew its digest-domain criteria and now defines
