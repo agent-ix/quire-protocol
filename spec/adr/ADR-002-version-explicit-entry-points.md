@@ -57,8 +57,7 @@ revision that produced it.
 The decision itself was not reached by defect; the *falsifiability* of it was.
 An earlier IT-001-SC-06 carried the clause that `admit_and_link` "keeps its version 1
 behaviour unchanged". SR-044 FND-003 recorded that "that last clause names no
-observable and no baseline, so the scenario cannot fail for a stated reason"
-([spec/reviews/v2-intake/ears-conformance.md](../reviews/v2-intake/ears-conformance.md)).
+observable and no baseline, so the scenario cannot fail for a stated reason".
 An unfalsifiable no-regression clause is worse than none: it reads as a
 guarantee and discharges nothing. IT-001-SC-06a exists because of that finding.
 It names the observable — re-run SC-01 through SC-05 on the same version 1 fixture at

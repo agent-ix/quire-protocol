@@ -15,7 +15,7 @@ use qsl_eval::temporal::evidence::{
     PackageMismatch, Settlement, SupportRef, Truth,
 };
 use qsl_package::BarePackage;
-use quire_contract_model::CheckedNodeId;
+use quire_contract_model::{CheckedNodeId, NativeJoinBudget};
 use quire_eval::CallFailure;
 use quire_exact::Meter;
 
@@ -59,13 +59,18 @@ pub enum EvidenceRefusal {
     Call(CallFailure),
 }
 
-/// The evidence package of `bare`, built from its nodes alone.
+/// The evidence package of `bare`, built from its nodes alone. `budget` is
+/// the caller's one finite native-join allowance for the pass; capture
+/// projections the bare package did not retain charge it (QSL FR-531).
 ///
 /// # Errors
 ///
 /// [`EvidenceRefusal::Construction`] with QSL's [`PackageMismatch`].
-pub fn package<'p>(bare: &'p BarePackage<'p>) -> Result<EvidencePackage<'p>, EvidenceRefusal> {
-    EvidencePackage::from_package(bare).map_err(EvidenceRefusal::Construction)
+pub fn package<'p>(
+    bare: &'p BarePackage<'p>,
+    budget: &mut NativeJoinBudget,
+) -> Result<EvidencePackage<'p>, EvidenceRefusal> {
+    EvidencePackage::from_package(bare, budget).map_err(EvidenceRefusal::Construction)
 }
 
 /// Assess the temporal clause `clause` of `package` over `request`.

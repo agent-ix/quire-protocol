@@ -32,11 +32,9 @@ establishment on this library. Two independent reviews quote the wording. SR-048
 FND-001: "FR-009 requires each revision be \"reachable from its owner's published
 history\", which no pure boundary can determine without VCS or network access
 that AD-001's Views paragraph and NFR-003 forbid; reachability must be an
-owner-supplied manifest input, not a check this library performs"
-([spec/reviews/it002-it003-packet/scope-boundary.md](../reviews/it002-it003-packet/scope-boundary.md)).
+owner-supplied manifest input, not a check this library performs".
 SR-045 FND-001 reaches the same conclusion from the failure domain and adds the
-reproducibility argument
-([spec/reviews/it002-it003-packet/failure-domain.md](../reviews/it002-it003-packet/failure-domain.md)):
+reproducibility argument:
 "Reachability is also not a function of the manifest: a force-push or a retention
 policy in the owner's repository changes the resolution outcome of an unchanged
 manifest, so FR-009-AC-2 is not reproducible and collides with NFR-001."

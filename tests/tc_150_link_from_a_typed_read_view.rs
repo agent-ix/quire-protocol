@@ -20,7 +20,7 @@ use quire_protocol::checked_package::{admit, HandoffFiles};
 use quire_protocol::link::{link, LinkRefusal, LinkedProtocol};
 use quire_spec_language::checked_handoff::Corpus;
 use serde_json::Value;
-use support::handoff::{request, written, written_request, written_source, Handoff};
+use support::handoff::{join_budget, request, written, written_request, written_source, Handoff};
 
 fn admitted(handoff: &Handoff, bytes: &[u8]) -> Box<CheckedPackageV2> {
     let files = HandoffFiles {
@@ -33,6 +33,7 @@ fn admitted(handoff: &Handoff, bytes: &[u8]) -> Box<CheckedPackageV2> {
         &files,
         &handoff.evidence,
         CheckedPackageReadLimits::bounded(),
+        &mut join_budget(),
     ) {
         Ok(admitted) => Box::new(admitted.package().clone()),
         Err(refusal) => panic!("recipe R refused: {refusal}"),
@@ -61,7 +62,7 @@ fn ids(nodes: &[&CheckedNodeId]) -> Vec<CheckedNodeId> {
 /// FR-044-AC-1: over recipe R's protocol the linked lists and edge set are
 /// `protocol_view`'s node ids and `causal_relation`'s edges, value for value.
 #[test]
-#[trace("FR-044-AC-1", "TC-150")]
+#[trace("TC-150", "FR-044-AC-1")]
 fn linked_lists_and_edges_equal_the_owners_view_and_relation() {
     let (_handoff, package) = recipe("event_position");
     let clause = form_node(&package, "protocol_clause").node_id.clone();
@@ -139,7 +140,7 @@ fn sources(dir: &Path, found: &mut Vec<(String, String)>) {
 /// `PortRef`, and the edges the link layer returns come from
 /// `causal_relation`.
 #[test]
-#[trace("FR-044-AC-2", "TC-150")]
+#[trace("TC-150", "FR-044-AC-2")]
 fn no_source_constructs_a_causal_edge() {
     let mut found = Vec::new();
     sources(
@@ -184,7 +185,7 @@ fn no_source_constructs_a_causal_edge() {
 /// FR-044-AC-4: an absent node, a `protocol_reference` carrier and a
 /// non-protocol node each return the owner's typed refusal.
 #[test]
-#[trace("FR-044-AC-4", "TC-150")]
+#[trace("TC-150", "FR-044-AC-4")]
 fn absent_carrier_and_non_protocol_nodes_return_the_owners_refusal() {
     let (handoff, package) = recipe("event_position");
     let clause = form_node(&package, "protocol_clause").node_id.clone();
@@ -308,7 +309,7 @@ fn absent_carrier_and_non_protocol_nodes_return_the_owners_refusal() {
 /// FR-044-AC-6: recipe R links without a package window binding, and the
 /// linker module does not import or look up a window view.
 #[test]
-#[trace("FR-044-AC-6", "TC-150")]
+#[trace("TC-150", "FR-044-AC-6")]
 fn window_is_an_evaluation_input_not_a_package_binding() {
     let (_handoff, package) = recipe("event_position");
     let clause = form_node(&package, "protocol_clause").node_id.clone();
@@ -321,14 +322,62 @@ fn window_is_an_evaluation_input_not_a_package_binding() {
 
     let source = std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("src/link.rs"))
         .expect("link module source");
-    assert!(!source.contains("protocol_view::Window"));
-    assert!(!source.contains("window_binding"));
+    assert!(
+        !names_a_window_view(&source),
+        "the linker names no window view or binding"
+    );
+}
+
+/// Whether any code line of `source` (comments excluded) holds an identifier
+/// that names a window: a path import, a braced import or a call alike.
+fn names_a_window_view(source: &str) -> bool {
+    source
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("//"))
+        .flat_map(|line| line.split(|c: char| !(c.is_alphanumeric() || c == '_')))
+        .any(|token| token.to_ascii_lowercase().contains("window"))
+}
+
+/// FR-044-AC-6: the source scan sees a window view however it is imported.
+#[test]
+#[trace("TC-150", "FR-044-AC-6")]
+fn the_window_scan_covers_path_and_braced_imports() {
+    assert!(names_a_window_view(
+        "use qsl_package::protocol_view::Window;"
+    ));
+    assert!(names_a_window_view(
+        "use qsl_package::protocol_view::{protocol_view, Window, ViewRefusal};"
+    ));
+    assert!(names_a_window_view(
+        "use qsl_package::protocol_view::{\n    causal_relation,\n    window_binding,\n};"
+    ));
+    assert!(!names_a_window_view(
+        "// a window is an evaluation input\nuse qsl_package::protocol_view::{causal_relation, locus};"
+    ));
+}
+
+/// FR-044 no-relabel: the linker never constructs one of the owner's
+/// `ViewRefusal` values; it carries only the refusal QSL itself returned.
+#[test]
+#[trace("TC-150", "FR-044-AC-3")]
+fn the_linker_constructs_no_owner_refusal() {
+    let source = std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("src/link.rs"))
+        .expect("link module source");
+    for line in source
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("//"))
+    {
+        assert!(
+            !line.contains("ViewRefusal::"),
+            "the linker builds or names an owner refusal: {line}"
+        );
+    }
 }
 
 /// FR-044-AC-7: recipe R carries the selected temporal content through the
 /// link result, while its causal edges remain exactly QSL's authored relation.
 #[test]
-#[trace("FR-044-AC-7", "TC-150")]
+#[trace("TC-150", "FR-044-AC-7")]
 fn recipe_r_retains_selected_clock_and_owner_causal_edges() {
     let (_event_handoff, event_package) = recipe("event_position");
     let event_clause = form_node(&event_package, "protocol_clause").node_id.clone();
@@ -356,7 +405,7 @@ fn recipe_r_retains_selected_clock_and_owner_causal_edges() {
 /// FR-044-AC-7: changing the selected clock authority changes the linked
 /// temporal binding while leaving the owner-supplied causal relation intact.
 #[test]
-#[trace("FR-044-AC-7", "TC-150")]
+#[trace("TC-150", "FR-044-AC-7")]
 fn changing_the_selected_clock_changes_the_linked_temporal_binding() {
     let (_event_handoff, event_package) = recipe("event_position");
     let event_clause = form_node(&event_package, "protocol_clause").node_id.clone();
@@ -392,7 +441,7 @@ fn changing_the_selected_clock_changes_the_linked_temporal_binding() {
 
 /// FR-044-AC-3: duplicate role authorities are detected from typed role terms.
 #[test]
-#[trace("FR-044-AC-3", "TC-150")]
+#[trace("TC-150", "FR-044-AC-3")]
 fn duplicate_role_authority_is_refused_at_the_later_role() {
     let (handoff, package) = recipe("event_position");
     let clause = form_node(&package, "protocol_clause").node_id.clone();
@@ -463,11 +512,9 @@ fn duplicate_role_authority_is_refused_at_the_later_role() {
     assert!(!locus.is_empty(), "the refusal retains available locations");
 }
 
-/// FR-044-AC-3: a zero maximum repeat receives a consumer refusal with its
-/// source locus and no linked representation.
-#[test]
-#[trace("FR-044-AC-3", "TC-150")]
-fn zero_maximum_repeat_is_refused_at_its_control() {
+/// Recipe R with its first choice control respelled as a `repeat` whose
+/// `maximum` argument is the given term value; admitted by the checked reader.
+fn repeat_package(maximum: Value) -> (Box<CheckedPackageV2>, CheckedNodeId) {
     use qsl_package::protocol_view::{control_operation, ControlOperation};
 
     let (handoff, package) = recipe("event_position");
@@ -542,7 +589,7 @@ fn zero_maximum_repeat_is_refused_at_its_control() {
         {"term": "binding", "name": "visible", "value": visible},
         {"term": "binding", "name": "maximum", "value": {
             "term": "aggregate", "members": [{
-                "term": "literal", "type": integer_type, "value_kind": "integer", "value": "0"
+                "term": "literal", "type": integer_type, "value_kind": "integer", "value": maximum
             }]
         }},
         {"term": "binding", "name": "proof", "value": {"term": "aggregate", "members": []}},
@@ -591,12 +638,22 @@ fn zero_maximum_repeat_is_refused_at_its_control() {
     let CheckedPackageDispatchResult::AdmittedV2(mutated) = result else {
         panic!("the checked reader admits a progressing repeat with maximum zero: {result:?}");
     };
+    let sequence_id = sequence.node_id.clone();
+    (mutated, sequence_id)
+}
+
+/// FR-044-AC-3: a zero maximum repeat receives a consumer refusal with its
+/// source locus and no linked representation.
+#[test]
+#[trace("TC-150", "FR-044-AC-3")]
+fn zero_maximum_repeat_is_refused_at_its_control() {
+    let (mutated, control_id) = repeat_package(Value::from("0"));
     let clause = form_node(&mutated, "protocol_clause").node_id.clone();
     let refusal = link(&mutated, &clause).expect_err("zero maximum must be refused");
     let LinkRefusal::ZeroProgressIteration { control, locus } = refusal else {
         panic!("expected zero-progress refusal, got {refusal:?}");
     };
-    assert_eq!(control, sequence.node_id);
+    assert_eq!(control, control_id);
     assert!(
         !locus.is_empty(),
         "the refusal retains source-map locations"
@@ -606,7 +663,7 @@ fn zero_maximum_repeat_is_refused_at_its_control() {
 /// FR-044-AC-3: two admitted channels with one route and payload but different
 /// delivery premises are refused with both source loci.
 #[test]
-#[trace("FR-044-AC-3", "TC-150")]
+#[trace("TC-150", "FR-044-AC-3")]
 fn conflicting_channel_premises_are_refused_at_both_nodes() {
     let source_path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures/checked-handoff/unit-event-position.native");
@@ -649,7 +706,7 @@ fn conflicting_channel_premises_are_refused_at_both_nodes() {
 /// and answers `LinkedProtocol` or `LinkRefusal`; the retired wire
 /// types are compile-fail doctests of `quire_protocol::link`.
 #[test]
-#[trace("FR-044-AC-5", "TC-150")]
+#[trace("TC-150", "FR-044-AC-5")]
 fn the_link_entry_names_the_checked_package_types() {
     let entry: fn(&CheckedPackageV2, &CheckedNodeId) -> Result<LinkedProtocol, LinkRefusal> = link;
     let (_handoff, package) = recipe("event_position");

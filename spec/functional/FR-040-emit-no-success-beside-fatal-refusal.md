@@ -68,7 +68,7 @@ outcome, the typed refusal and the completed-empty result pairwise non-equivalen
 FR-040-AC-4 is this requirement's injectivity obligation. A suppression rule is
 the weakest possible oracle: if "returned no success value" is what a negative row
 checks, one shared error code satisfies every negative row — the defect recorded
-by SR-027 on version 1. `tests/it001_v2_handoff.rs` instead compares each
+by SR-027 on version 1. A conforming test instead compares each
 manifest case to the producer's exact `expected_refusal_code`. FR-040-AC-4
 therefore fails a two-valued integration rather than crediting it.
 

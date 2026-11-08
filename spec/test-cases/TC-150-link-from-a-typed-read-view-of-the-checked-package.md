@@ -25,7 +25,7 @@ without any window-binding package member and the linker imports no window view
 from QSL; re-run FR-002-AC-1 to AC-5 over **R**, including concurrent identity,
 legal interleavings, equal-time input reordering and changed temporal/clock
 selection. Tag each test with its exact acceptance criterion using
-`#[trace("FR-044-AC-n", "TC-150")]`.
+`#[trace("TC-150", "FR-044-AC-n")]`.
 
 ## Expected Results
 

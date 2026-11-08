@@ -4,8 +4,10 @@
 //!
 //! The lists come from QSL's [`protocol_view`] and the causal relation from
 //! QSL's [`causal_relation`]; this module owns no table of nodes and builds no
-//! causal edge. A read the package cannot answer is the owner's
-//! [`ViewRefusal`], and no partial representation accompanies it.
+//! causal edge. A read QSL cannot answer is QSL's own [`ViewRefusal`], carried
+//! unchanged; a node or member the linker itself reads from the package and
+//! cannot find is the linker's own refusal. No partial representation
+//! accompanies either.
 //!
 //! The retired wire types do not resolve through this crate.
 //!
@@ -38,8 +40,21 @@ use serde_json::Value;
 /// A consumer-owned refusal produced while linking an admitted protocol.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum LinkRefusal {
-    /// QSL could not answer a typed read. The owner's refusal is preserved.
+    /// QSL could not answer a typed read. The owner's refusal is preserved
+    /// exactly as QSL returned it; the linker never constructs one.
     View(ViewRefusal),
+    /// A node listed by the protocol view is absent from the package graph.
+    UnreadableNode {
+        /// The listed node the linker could not read.
+        node: CheckedNodeId,
+    },
+    /// A node lacks a member the linker reads from its checked content.
+    MissingMember {
+        /// The node read.
+        node: CheckedNodeId,
+        /// The member the linker needed.
+        member: &'static str,
+    },
     /// A repeat control has a maximum of zero and therefore cannot progress.
     ZeroProgressIteration {
         /// The repeat control.
@@ -60,7 +75,7 @@ pub enum LinkRefusal {
     ConflictingChannelPremise {
         /// The later channel node in the protocol view.
         channel: CheckedNodeId,
-        /// The earlier channel node with the same name.
+        /// The earlier channel node with the same route and payload.
         other: CheckedNodeId,
         /// Source-map entries available for both channel nodes.
         locus: Vec<CheckedSourceMapEntry>,
@@ -111,8 +126,8 @@ fn integer(term: &CheckedTerm) -> Option<u64> {
     else {
         return None;
     };
+    // QSL encodes an integer literal as its canonical decimal string only.
     match value {
-        Value::Number(number) => number.as_u64(),
         Value::String(value)
             if !value.is_empty() && value.bytes().all(|byte| byte.is_ascii_digit()) =>
         {
@@ -279,21 +294,21 @@ impl LinkedProtocol {
 ///
 /// # Errors
 ///
-/// An owner [`ViewRefusal`] wrapped in [`LinkRefusal::View`] for an absent
-/// node or a node that is not a `protocol` node, `NotAProtocolClause` for a
-/// `protocol_reference` carrier, and the member-naming refusals for a node
-/// that lacks a member its layout states. Consumer refusals identify
+/// QSL's own [`ViewRefusal`], unchanged inside [`LinkRefusal::View`], for
+/// every read QSL answers with a refusal: an absent or non-protocol node, a
+/// `protocol_reference` carrier, a node lacking a member its layout states.
+/// The linker's own refusals identify a listed node or member it cannot read
+/// ([`LinkRefusal::UnreadableNode`], [`LinkRefusal::MissingMember`]),
 /// zero-progress repeats, duplicate authorities, and conflicting channel
-/// premises.
-/// No representation is returned with a refusal.
+/// premises. No representation is returned with a refusal.
 pub fn link(
     package: &CheckedPackageV2,
     protocol: &CheckedNodeId,
 ) -> Result<LinkedProtocol, LinkRefusal> {
     let view = protocol_view(package, protocol).map_err(LinkRefusal::View)?;
     for id in view.controls().iter().copied() {
-        let node = node(package, id)
-            .ok_or_else(|| LinkRefusal::View(ViewRefusal::UnknownProtocol { node: id.clone() }))?;
+        let node =
+            node(package, id).ok_or_else(|| LinkRefusal::UnreadableNode { node: id.clone() })?;
         if has_zero_repeat_maximum(package, node) {
             return Err(LinkRefusal::ZeroProgressIteration {
                 control: id.clone(),
@@ -304,15 +319,12 @@ pub fn link(
 
     let mut authorities: Vec<(&CheckedNodeId, &CheckedNodeId)> = Vec::new();
     for id in view.roles().iter().copied() {
-        node(package, id)
-            .ok_or_else(|| LinkRefusal::View(ViewRefusal::UnknownProtocol { node: id.clone() }))?;
+        node(package, id).ok_or_else(|| LinkRefusal::UnreadableNode { node: id.clone() })?;
         let authority = argument(package, id, "model")
             .and_then(reference)
-            .ok_or_else(|| {
-                LinkRefusal::View(ViewRefusal::MissingMember {
-                    node: id.clone(),
-                    member: "model",
-                })
+            .ok_or_else(|| LinkRefusal::MissingMember {
+                node: id.clone(),
+                member: "model",
             })?;
         if authorities
             .iter()
@@ -329,8 +341,8 @@ pub fn link(
 
     let mut channels: Vec<(&CheckedNodeId, &CheckedSemanticNodeV2)> = Vec::new();
     for id in view.channels().iter().copied() {
-        let node = node(package, id)
-            .ok_or_else(|| LinkRefusal::View(ViewRefusal::UnknownProtocol { node: id.clone() }))?;
+        let node =
+            node(package, id).ok_or_else(|| LinkRefusal::UnreadableNode { node: id.clone() })?;
         for (other_id, other_node) in &channels {
             if !same_channel_premises(package, other_node, node).map_err(LinkRefusal::View)? {
                 let mut entries = source_locus(package, id);
@@ -348,18 +360,16 @@ pub fn link(
     let mut requirement_terms = Vec::with_capacity(view.requirements().len());
     let mut temporal_bindings = Vec::with_capacity(view.requirements().len());
     for id in view.requirements().iter().copied() {
-        let term = package.term(id).ok_or_else(|| {
-            LinkRefusal::View(ViewRefusal::MissingMember {
-                node: id.clone(),
-                member: "body",
-            })
+        let term = package.term(id).ok_or_else(|| LinkRefusal::MissingMember {
+            node: id.clone(),
+            member: "body",
         })?;
-        let rows = package.temporal_bindings().ok_or_else(|| {
-            LinkRefusal::View(ViewRefusal::MissingMember {
+        let rows = package
+            .temporal_bindings()
+            .ok_or_else(|| LinkRefusal::MissingMember {
                 node: id.clone(),
                 member: "temporal_bindings",
-            })
-        })?;
+            })?;
         let binding = temporal_binding(rows, id).map_err(LinkRefusal::View)?;
         requirement_terms.push(term.clone());
         temporal_bindings.push(binding.clone());
@@ -372,4 +382,36 @@ pub fn link(
         requirement_terms,
         temporal_bindings,
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ix_trace_rs::trace;
+
+    fn count(value: Value) -> CheckedTerm {
+        serde_json::from_value(serde_json::json!({
+            "term": "aggregate",
+            "members": [{
+                "term": "literal",
+                "type": {"package": "p", "path": ["integer"], "ordinal": 0},
+                "value_kind": "integer",
+                "value": value,
+            }],
+        }))
+        .expect("an integer aggregate term")
+    }
+
+    /// FR-044-AC-3: the linker reads an integer literal only in QSL's
+    /// canonical decimal-string encoding.
+    #[test]
+    #[trace("TC-150", "FR-044-AC-3")]
+    fn integer_reads_only_the_owners_decimal_string_encoding() {
+        assert_eq!(integer(&count(Value::from("0"))), Some(0));
+        assert_eq!(integer(&count(Value::from("12"))), Some(12));
+        assert_eq!(integer(&count(Value::from(0))), None);
+        assert_eq!(integer(&count(Value::from(12))), None);
+        assert_eq!(integer(&count(Value::from(""))), None);
+        assert_eq!(integer(&count(Value::from("-1"))), None);
+    }
 }
