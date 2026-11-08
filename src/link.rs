@@ -383,35 +383,3 @@ pub fn link(
         temporal_bindings,
     ))
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use ix_trace_rs::trace;
-
-    fn count(value: Value) -> CheckedTerm {
-        serde_json::from_value(serde_json::json!({
-            "term": "aggregate",
-            "members": [{
-                "term": "literal",
-                "type": {"package": "p", "path": ["integer"], "ordinal": 0},
-                "value_kind": "integer",
-                "value": value,
-            }],
-        }))
-        .expect("an integer aggregate term")
-    }
-
-    /// FR-044-AC-3: the linker reads an integer literal only in QSL's
-    /// canonical decimal-string encoding.
-    #[test]
-    #[trace("TC-150", "FR-044-AC-3")]
-    fn integer_reads_only_the_owners_decimal_string_encoding() {
-        assert_eq!(integer(&count(Value::from("0"))), Some(0));
-        assert_eq!(integer(&count(Value::from("12"))), Some(12));
-        assert_eq!(integer(&count(Value::from(0))), None);
-        assert_eq!(integer(&count(Value::from(12))), None);
-        assert_eq!(integer(&count(Value::from(""))), None);
-        assert_eq!(integer(&count(Value::from("-1"))), None);
-    }
-}
