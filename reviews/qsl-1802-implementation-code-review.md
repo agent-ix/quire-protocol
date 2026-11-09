@@ -187,3 +187,49 @@ Independent reviewer command: cargo test --locked --test tc_149_admit_checked_ha
   "bindings": []
 }
 ```
+
+## New findings (post-review gate)
+
+The lead's subsequent full test gate exposed a fixture path omitted by the confined review run. The initial clean conclusion above is historical and is superseded until this finding is dispositioned. fmt and Clippy passed; cargo test returned 101 with three TC-151 setup panics. Evidence: /tmp/qsl1802-final-gate-test.log. No implementation panic or incorrect product result is claimed: the concrete defect is that required regression assertions cannot execute against the refreshed owner graph.
+
+| ID | Severity | Summary | Refs |
+| --- | --- | --- | --- |
+| FND-002 | high | The refreshed owner uses operand-slot node paths, but TC-151 compensation_key passes package.graph() node ids to WireGraph::new, which requires resolved document indices. Three slot tests panic with OperandSlot { slot: 1 } before their outcome, unavailable-binder and binder-charge assertions; the required local test gate fails. | tests/tc_151_slot_outcomes.rs:61-77 |
+
+Required correction: obtain the compensation identity from the owner's resolved document graph before WireGraph key conversion, retaining the existing behavioral assertions. Run all seven TC-151 cases and the affected neighboring tests; do not weaken the outcome or accounting oracles. No test-only product API, copied encoder or source shim is justified.
+
+## Follow-up machine scope
+
+```json
+{
+  "clean": false,
+  "scope": [
+    {
+      "id": "FR-045-AC-1",
+      "path": "spec/functional/FR-045-assess-compensation-through-the-checked-package-evaluation.md",
+      "role": "examined",
+      "excerpt": "For every outcome-map row that an admitted compensation in **R** can reach today, the test produces the successor outcome: true and false `trigger.guard` and `retry.relation`, an unavailable binder, a wrongly typed value and a meter one below measured usage. R has no admitted input that produces the unsupported-construct row; that row is excluded from this criterion until the checked-package owner admits such an input. Recovery-predicate rows remain excluded while the QSL bare projection refuses R's comprehension binder."
+    }
+  ],
+  "findings": [
+    {
+      "fnd": "FND-002",
+      "severity": "high",
+      "confidence": "high",
+      "method": "code-review",
+      "check": "test-intent",
+      "artifact_id": "FR-045-AC-1",
+      "related_ids": [
+        "FR-045-AC-3",
+        "FR-045-AC-8",
+        "TC-151"
+      ],
+      "path": "tests/tc_151_slot_outcomes.rs",
+      "lines": "61-77",
+      "excerpt": "For every outcome-map row that an admitted compensation in **R** can reach today, the test produces the successor outcome: true and false `trigger.guard` and `retry.relation`, an unavailable binder, a wrongly typed value and a meter one below measured usage. R has no admitted input that produces the unsupported-construct row; that row is excluded from this criterion until the checked-package owner admits such an input. Recovery-predicate rows remain excluded while the QSL bare projection refuses R's comprehension binder.",
+      "finding": "The refreshed owner uses operand-slot node paths, but TC-151 compensation_key passes package.graph() node ids to WireGraph::new, which requires resolved document indices. Three slot tests panic with OperandSlot { slot: 1 } before their outcome, unavailable-binder and binder-charge assertions; the required local test gate fails."
+    }
+  ],
+  "bindings": []
+}
+```
