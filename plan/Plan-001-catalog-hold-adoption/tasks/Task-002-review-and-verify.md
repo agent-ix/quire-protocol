@@ -21,13 +21,13 @@ relationships:
 
 ## Scope
 
-Independently review the small implementation and run the ordered two-feature-lane local gate on its final unchanged state.
+Independently review the small implementation and run the ordered four-command local gate on its final unchanged state.
 
 ## Subtasks
 
 - [ ] Review unchanged error transport and early return against FR-043-AC-9 and TC-149, including owner accessors without local reconstruction.
 - [ ] Resolve all findings within the implementation PR and retain validated review artifacts.
-- [ ] Run the seven-command gate in plan.md with the disclosed user thermal override; preserve both default and test-support lanes and rustdoc warning denial.
+- [ ] Run the four-command gate in plan.md with the disclosed user thermal override; preserve the single declared feature lane and rustdoc warning denial.
 - [ ] Record application version and complete command outcomes; merge only after acceptance, review and passing checks with the user-required transient exact GitHub head guard and merge-request identity, without adding an authored revision ledger or SHA catalog.
 
 ## Deliverables

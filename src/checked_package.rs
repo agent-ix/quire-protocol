@@ -16,7 +16,7 @@ use std::fmt;
 
 use qsl_package::{EqualityFileRefusal, IdentityFileRefusal, ReadEqualityRows, ReadIdentityRows};
 use quire_contract_model::{
-    read_checked_package, CheckedPackageDispatchResult, CheckedPackageEvidence,
+    read_checked_package, CatalogReadError, CheckedPackageDispatchResult, CheckedPackageEvidence,
     CheckedPackageIncomplete, CheckedPackageReadLimits, CheckedPackageRefusal, CheckedPackageV2,
     NativeJoinBudget,
 };
@@ -69,6 +69,9 @@ impl AdmittedHandoff {
 /// as that owner returned it.
 #[derive(Debug)]
 pub enum Refusal {
+    /// The reader could not read its operation catalog. This is not a judgment
+    /// about the offered package; the owner's path and message are unchanged.
+    CatalogUnavailable(CatalogReadError),
     /// `read_checked_package` refused the package.
     Reader(Box<CheckedPackageRefusal>),
     /// `read_checked_package` reached a read limit before a conclusion. This
@@ -87,6 +90,7 @@ pub enum Refusal {
 impl fmt::Display for Refusal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::CatalogUnavailable(error) => write!(f, "{error}"),
             Self::Reader(refusal) => write!(f, "the reader refused the package: {refusal:?}"),
             Self::Incomplete(incomplete) => {
                 write!(f, "the reader reached a limit: {incomplete:?}")
@@ -114,6 +118,9 @@ impl std::error::Error for Refusal {}
 /// # Errors
 ///
 /// The first [`Refusal`] in the order package, selection, identities, equality.
+/// If the package reader cannot read its operation catalog,
+/// [`Refusal::CatalogUnavailable`] carries that owner's error unchanged before
+/// any selection, identity-row or equality-row check.
 pub fn admit(
     files: &HandoffFiles<'_>,
     evidence: &CheckedPackageEvidence,
@@ -127,6 +134,9 @@ pub fn admit(
         }
         CheckedPackageDispatchResult::Incomplete(incomplete) => {
             return Err(Refusal::Incomplete(incomplete))
+        }
+        CheckedPackageDispatchResult::CatalogUnavailable(error) => {
+            return Err(Refusal::CatalogUnavailable(error))
         }
     };
     Selection::read(files.selection)

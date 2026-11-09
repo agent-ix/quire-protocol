@@ -62,6 +62,11 @@ of a protocol clause in the package.
 
 A slot evaluation returns a `SlotOutcome` that carries QSL's value unchanged.
 Admission returns a `Refusal` with one variant per file or check that failed.
+In addition to the package and sidecar results shown below,
+`Refusal::CatalogUnavailable` carries Contract IR's `CatalogReadError` unchanged
+when the reader cannot read its operation catalog. That result concerns the
+reader's catalog, not the offered package, and stops admission before sidecar
+checks.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/outcomes-dark.svg">
