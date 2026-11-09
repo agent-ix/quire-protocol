@@ -35,7 +35,6 @@ use quire_contract_model::{
     CheckedNodeId, CheckedPackageV2, CheckedProtocolActivationRow, CheckedSemanticNodeV2,
     CheckedSourceMapEntry, CheckedTerm, LiteralKind, TemporalBinding,
 };
-use serde_json::Value;
 
 /// A consumer-owned refusal produced while linking an admitted protocol.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -127,8 +126,8 @@ fn integer(term: &CheckedTerm) -> Option<u64> {
         return None;
     };
     // QSL encodes an integer literal as its canonical decimal string only.
-    match value {
-        Value::String(value)
+    match value.as_str() {
+        Some(value)
             if !value.is_empty() && value.bytes().all(|byte| byte.is_ascii_digit()) =>
         {
             value.parse().ok()

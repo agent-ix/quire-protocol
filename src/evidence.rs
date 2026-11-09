@@ -87,6 +87,6 @@ pub fn assess(
 ) -> Result<EvidenceRecord, EvidenceRefusal> {
     package
         .evaluate_temporal_evidence(clause, request, meter)
-        .map(|result| EvidenceRecord::from(&result))
+        .map(|result| EvidenceRecord::from(result.result()))
         .map_err(EvidenceRefusal::Call)
 }
