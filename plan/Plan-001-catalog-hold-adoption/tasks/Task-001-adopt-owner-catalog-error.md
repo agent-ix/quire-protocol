@@ -16,6 +16,11 @@ relationships:
 ## Scope
 
 Adapt src/checked_package.rs to the current owner dispatch result and refresh Cargo.lock without changing moving-main declarations.
+The coherent refresh also adopts the owners' existing `CheckedJson::as_str`
+and `EvaluatedEvidence::result` accessors in the linker and evidence adapter,
+and removes the retired empty native-valuation request field in its regression
+test. These preserve the existing integer and evidence behavior; they add no
+consumer API or compatibility path.
 
 ## Subtasks
 
