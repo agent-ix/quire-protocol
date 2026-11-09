@@ -10,12 +10,27 @@ relationships:
 
 ## Description
 
-Verify the link layer over the checked package's nodes and QSL's causal relation.
+Verify the link layer over the checked package's nodes and QSL's causal relation,
+including the consumer-owned residual checks added after stage 2.
 
 ## Test Procedure
 
-Link **R**'s protocol and compare its lists and edge set with `protocol_view` and `causal_relation`; inspect the source for any edge construction; edit views for a zero-progress iteration, duplicate role authorities and conflicting channel premises; link an absent id, a `protocol_reference` carrier and a non-protocol node; compile-fail the retired types; read a window binding; re-run FR-002-AC-1 to AC-5 over **R**. Tag the tests `#[trace("TC-150", "FR-044-AC-n")]`.
+Link **R**'s protocol and compare its lists and edge set with `protocol_view` and
+`causal_relation`; inspect the source for any edge construction; edit checked
+nodes for a zero-maximum repeat, duplicate role authorities and conflicting
+channel premises; verify each consumer refusal names its node ids and available
+source-map loci; link an absent id, a `protocol_reference` carrier and a
+non-protocol node; compile-fail the retired types; verify linking succeeds
+without any window-binding package member and the linker imports no window view
+from QSL; re-run FR-002-AC-1 to AC-5 over **R**, including concurrent identity,
+legal interleavings, equal-time input reordering and changed temporal/clock
+selection. Tag each test with its exact acceptance criterion using
+`#[trace("TC-150", "FR-044-AC-n")]`.
 
 ## Expected Results
 
-Lists and edges equal the view's; no local edge derivation; each consumer refusal located; typed refusals with no partial representation; retired types unresolved; the window binding on its retained spelling; FR-002's criteria hold over **R**.
+Lists and edges equal the view's; no local edge derivation; each consumer
+refusal is typed, located when an owner locus exists, and returns no partial
+representation; owner refusals remain unchanged; retired types unresolved; no
+window package member or QSL window view is required; FR-002's criteria hold
+over **R**.
