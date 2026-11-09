@@ -71,10 +71,16 @@ fn compensation_key(admitted: &AdmittedHandoff, name: &str) -> NodeKey {
                 })
         })
         .expect("compensation node");
-    WireGraph::new(package.resolved_graph().nodes.iter().map(|node| &node.node_id))
-        .expect("wire ids")
-        .key(&node.node_id)
-        .expect("key")
+    WireGraph::new(
+        package
+            .resolved_graph()
+            .nodes
+            .iter()
+            .map(|node| &node.node_id),
+    )
+    .expect("wire ids")
+    .key(&node.node_id)
+    .expect("key")
 }
 
 fn int(value: i64) -> Value {
