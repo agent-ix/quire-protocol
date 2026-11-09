@@ -248,6 +248,8 @@ fn absent_carrier_and_non_protocol_nodes_return_the_owners_refusal() {
     // `protocol_reference`.
     let mut json: Value =
         serde_json::from_slice(&handoff.files["checked-package.json"]).expect("package JSON");
+    qsl_semantics::check::wire_id::resolve_operand_slots(&mut json)
+        .expect("the owner's operand rows resolve");
     let nodes = json["semantic_graph"]["nodes"]
         .as_array_mut()
         .expect("nodes");
@@ -281,6 +283,7 @@ fn absent_carrier_and_non_protocol_nodes_return_the_owners_refusal() {
     entry["ordinal"] = Value::from(0);
     entry["role"] = Value::from("expression");
     map.push(entry);
+    qsl_semantics::check::wire_id::write_operand_rows(&mut json);
     let bytes = serde_json::to_vec(&json).expect("respelled package");
     let result = read_checked_package(
         &bytes,
@@ -712,65 +715,57 @@ fn repeat_package(maximum: Value) -> (Box<CheckedPackageV2>, CheckedNodeId) {
         .iter()
         .find(|node| control_operation(node) == Ok(ControlOperation::Choice))
         .expect("recipe R includes a choice control");
-    let CheckedTerm::Application { arguments, .. } =
-        package.term(&sequence.node_id).expect("sequence term")
-    else {
-        panic!("sequence has an application body");
-    };
+    let mut json: Value =
+        serde_json::from_slice(&handoff.files["checked-package.json"]).expect("package JSON");
+    qsl_semantics::check::wire_id::resolve_operand_slots(&mut json)
+        .expect("the owner's operand rows resolve");
+    let nodes = json["semantic_graph"]["nodes"].as_array().expect("nodes");
+    let index = package
+        .graph()
+        .nodes
+        .iter()
+        .position(|node| node.node_id == sequence.node_id)
+        .expect("choice graph position");
+    let arguments = nodes[index]["body"]["arguments"]
+        .as_array()
+        .expect("arguments");
     let argument = |name: &str| {
         arguments
             .iter()
-            .find_map(|term| match term {
-                CheckedTerm::Binding { name: found, value } if found.as_ref() == name => {
-                    Some(value.as_ref())
-                }
-                _ => None,
-            })
+            .find(|term| term["term"] == "binding" && term["name"] == name)
+            .map(|term| &term["value"])
             .expect("sequence argument")
     };
-    let owner = serde_json::to_value(argument("owner")).expect("owner term");
-    let visible = serde_json::to_value(argument("visible")).expect("visible term");
-    let CheckedTerm::Aggregate { members } = argument("cases") else {
-        panic!("choice cases are an aggregate");
-    };
+    let owner = argument("owner").clone();
+    let visible = argument("visible").clone();
+    let members = argument("cases")["members"]
+        .as_array()
+        .expect("choice cases");
     let case_body = |index: usize| {
-        let Some(CheckedTerm::Aggregate { members: case }) = members.get(index) else {
-            panic!("choice has case {index}");
-        };
-        let Some(CheckedTerm::Binding { value, .. }) = case.iter().find(
-            |member| matches!(member, CheckedTerm::Binding { name, .. } if name.as_ref() == "body"),
-        ) else {
-            panic!("choice case has a body");
-        };
-        let CheckedTerm::Reference { target } = value.as_ref() else {
-            panic!("choice case body is a reference");
-        };
-        target
+        let case = members[index]["members"].as_array().expect("case members");
+        let body = case
+            .iter()
+            .find(|term| term["name"] == "body")
+            .expect("case body");
+        assert_eq!(body["value"]["term"], "reference");
+        body["value"]["target"].clone()
     };
     let target = case_body(0);
     let exhausted_target = case_body(1);
     let body = serde_json::json!({"term": "reference", "target": target});
     let type_id = |form: &str| {
-        package
-            .graph()
-            .nodes
+        nodes
             .iter()
-            .find(|node| &*node.node_tag == "scalar_type" && &*node.semantic_form == form)
-            .map(|node| serde_json::to_value(&node.node_id).expect("type id"))
+            .find(|node| node["node_tag"] == "scalar_type" && node["semantic_form"] == form)
+            .map(|node| node["node_id"].clone())
             .expect("built-in scalar type")
     };
     let integer_type = type_id("integer");
     let boolean_type = type_id("boolean");
-    let sequence_id = serde_json::to_value(&sequence.node_id).expect("choice id");
-    let mut json: Value =
-        serde_json::from_slice(&handoff.files["checked-package.json"]).expect("package JSON");
     let nodes = json["semantic_graph"]["nodes"]
         .as_array_mut()
         .expect("nodes");
-    let repeat = nodes
-        .iter_mut()
-        .find(|node| node["node_id"] == sequence_id)
-        .expect("choice wire node");
+    let repeat = &mut nodes[index];
     repeat["body"]["operation"]["member"]["operator"] = Value::from("repeat");
     repeat["body"]["arguments"] = serde_json::json!([
         {"term": "binding", "name": "owner", "value": owner},
@@ -817,6 +812,7 @@ fn repeat_package(maximum: Value) -> (Box<CheckedPackageV2>, CheckedNodeId) {
     dependencies.dedup();
     repeat["dependencies"] = Value::Array(dependencies);
 
+    qsl_semantics::check::wire_id::write_operand_rows(&mut json);
     let bytes = serde_json::to_vec(&json).expect("mutated package");
     let result = read_checked_package(
         &bytes,
