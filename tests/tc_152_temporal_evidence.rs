@@ -68,7 +68,6 @@ fn request(package: &EvidencePackage<'_>, clause: &CheckedNodeId, ticks: u64) ->
     let subject = package.subject(clause, None).expect("the clause reads");
     let row = subject.occurrences[0].clock.expect("a clocked clause");
     EvidenceRequest {
-        native_valuations: Vec::new(),
         trigger: Some(id("o1")),
         correspondence: EvidenceRef::named("corr"),
         positions: (0..ticks)
@@ -147,7 +146,7 @@ fn the_record_is_what_qsls_evidence_call_reports() {
             .evaluate_temporal_evidence(clause, &asked, &mut unlimited())
             .expect("QSL's call");
         let record = assess(&evidence, clause, &asked, &mut unlimited()).expect("the record");
-        assert_eq!(record, EvidenceRecord::from(&direct));
+        assert_eq!(record, EvidenceRecord::from(direct.result()));
         assert_eq!(record.activation, ActivationState::Active);
         assert_eq!(
             record.truth,
