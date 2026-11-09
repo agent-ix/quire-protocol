@@ -17,7 +17,7 @@ use qsl_package::protocol_view::{
 };
 use quire_contract_model::{
     read_checked_package, CheckedNodeId, CheckedPackageDispatchResult, CheckedPackageReadLimits,
-    CheckedPackageV2, CheckedSemanticNodeV2, CheckedTerm, ClockConfiguration,
+    CheckedPackageV2, CheckedSemanticNodeV2, ClockConfiguration,
 };
 use quire_protocol::checked_package::{admit, HandoffFiles};
 use quire_protocol::link::{link, LinkRefusal, LinkedProtocol};
