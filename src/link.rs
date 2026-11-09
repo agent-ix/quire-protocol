@@ -127,9 +127,7 @@ fn integer(term: &CheckedTerm) -> Option<u64> {
     };
     // QSL encodes an integer literal as its canonical decimal string only.
     match value.as_str() {
-        Some(value)
-            if !value.is_empty() && value.bytes().all(|byte| byte.is_ascii_digit()) =>
-        {
+        Some(value) if !value.is_empty() && value.bytes().all(|byte| byte.is_ascii_digit()) => {
             value.parse().ok()
         }
         _ => None,
