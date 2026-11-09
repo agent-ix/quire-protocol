@@ -233,3 +233,33 @@ Required correction: obtain the compensation identity from the owner's resolved 
   "bindings": []
 }
 ```
+
+## Dispositions
+
+| FND | outcome | reason |
+| --- | --- | --- |
+| FND-002 | fixed | Round 1: Both compensation selection and wire-key graph construction use the owner resolved document view. Semantic-name lookup, slot outcomes, unavailable-binder and charge-accounting assertions are unchanged. Confined fmt/Clippy pass and TC-151 7/7 plus TC-150 15/15 pass; the latest source delta is formatting only. |
+
+## Disposition pass 1 evidence and verdict
+
+The exact fix was inspected against Contract IR's resolved_graph() contract and QSL's WireGraph::new/key contracts. The former resolves node-held operands into graph-index segments; the latter reconstructs keys from this document view. No owner logic is copied, no test assertion or trace is weakened, and no product error path is altered. The final source change after the inspected fix only expands the constructor formatting.
+
+Application: quire-protocol 0.1.0. Coder confined logs /tmp/qsl1802-slot-fix-confined-final-{fmt,lint,test}.log and .time were read: fmt=0, lint=0, test=0; TC-150 has 15 passed/0 failed and TC-151 has 7 passed/0 failed. The formerly failing three tests now run to their existing assertions. The reviewer ran no Cargo command or aggregate gate in this disposition pass. Earlier failed gate evidence remains historical and is not represented as passing.
+
+**PASS for the corrected PR delta** — FND-002 is fixed, no new or still-open finding, mergeable after the lead commits latest artifacts and completes the final four-command gate. Original findings and initial review conclusions above are preserved as history; this disposition is the current outcome. The repository-wide unchanged coverage baseline remains a separate FAIL as documented by the gap-analysis artifact. FND-001 is the required no-findings placeholder, not a real outstanding defect.
+
+```json
+{
+  "dispositions": [
+    {
+      "fnd": "FND-002",
+      "outcome": "fixed",
+      "after_excerpt": "WireGraph::new(\n        package\n            .resolved_graph()\n            .nodes\n            .iter()\n            .map(|node| &node.node_id),\n    )\n    .expect(\"wire ids\")\n    .key(&node.node_id)\n    .expect(\"key\")",
+      "reason": "Both compensation selection and wire-key graph construction use the owner resolved document view. Semantic-name lookup, slot outcomes, unavailable-binder and charge-accounting assertions are unchanged. Confined fmt/Clippy pass and TC-151 7/7 plus TC-150 15/15 pass; the latest source delta is formatting only."
+    }
+  ],
+  "new_findings": [],
+  "still_open": [],
+  "mergeable_after_final_gate": true
+}
+```
