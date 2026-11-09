@@ -61,7 +61,7 @@ fn bare(admitted: &AdmittedHandoff) -> BarePackage<'_> {
 fn compensation_key(admitted: &AdmittedHandoff, name: &str) -> NodeKey {
     let package = admitted.package();
     let node = package
-        .graph()
+        .resolved_graph()
         .nodes
         .iter()
         .find(|node| {
@@ -71,7 +71,7 @@ fn compensation_key(admitted: &AdmittedHandoff, name: &str) -> NodeKey {
                 })
         })
         .expect("compensation node");
-    WireGraph::new(package.graph().nodes.iter().map(|node| &node.node_id))
+    WireGraph::new(package.resolved_graph().nodes.iter().map(|node| &node.node_id))
         .expect("wire ids")
         .key(&node.node_id)
         .expect("key")
