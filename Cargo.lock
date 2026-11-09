@@ -5,7 +5,7 @@ version = 4
 [[package]]
 name = "agent-ix-extraction-frontend"
 version = "0.2.1"
-source = "git+https://github.com/agent-ix/filament-core-data?branch=main#df5e55796db57a62e5b5984c8ec60d70049cebe0"
+source = "git+https://github.com/agent-ix/filament-core-data?branch=main#498761210248100d6b4aa2c16efd8ca824cce497"
 dependencies = [
  "agent-ix-semantic-ir",
  "clap",
@@ -17,12 +17,12 @@ dependencies = [
 [[package]]
 name = "agent-ix-semantic-ir"
 version = "0.1.1"
-source = "git+https://github.com/agent-ix/filament-core-data?branch=main#df5e55796db57a62e5b5984c8ec60d70049cebe0"
+source = "git+https://github.com/agent-ix/filament-core-data?branch=main#498761210248100d6b4aa2c16efd8ca824cce497"
 
 [[package]]
 name = "agent-ix-semantic-schema"
 version = "0.3.0"
-source = "git+https://github.com/agent-ix/filament-core-data?branch=main#df5e55796db57a62e5b5984c8ec60d70049cebe0"
+source = "git+https://github.com/agent-ix/filament-core-data?branch=main#498761210248100d6b4aa2c16efd8ca824cce497"
 
 [[package]]
 name = "ahash"
@@ -421,17 +421,6 @@ dependencies = [
 
 [[package]]
 name = "fancy-regex"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "531e46835a22af56d1e3b66f04844bed63158bc094a628bec1d321d9b4c44bf2"
-dependencies = [
- "bit-set 0.5.3",
- "regex-automata",
- "regex-syntax",
-]
-
-[[package]]
-name = "fancy-regex"
 version = "0.19.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d301f5bf187b3c295fce6468d3875037a0bccc5f6b151c63cac2f85babf21912"
@@ -490,16 +479,6 @@ name = "fraction"
 version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3027ae1df8d41b4bed2241c8fdad4acc1e7af60c8e17743534b545e77182d678"
-dependencies = [
- "lazy_static",
- "num",
-]
-
-[[package]]
-name = "fraction"
-version = "0.15.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e076045bb43dac435333ed5f04caf35c7463631d0dae2deb2638d94dd0a5b872"
 dependencies = [
  "lazy_static",
  "num",
@@ -842,34 +821,6 @@ dependencies = [
 
 [[package]]
 name = "jsonschema"
-version = "0.18.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fa0f4bea31643be4c6a678e9aa4ae44f0db9e5609d5ca9dc9083d06eb3e9a27a"
-dependencies = [
- "ahash",
- "anyhow",
- "base64 0.22.1",
- "bytecount",
- "fancy-regex 0.13.0",
- "fraction 0.15.4",
- "getrandom 0.2.17",
- "iso8601",
- "itoa",
- "memchr",
- "num-cmp",
- "once_cell",
- "parking_lot",
- "percent-encoding",
- "regex",
- "serde",
- "serde_json",
- "time",
- "url",
- "uuid",
-]
-
-[[package]]
-name = "jsonschema"
 version = "0.55.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b68339c3d874e48151d74ffe256d93a58cffa240983cb0967d3cbaea083a44fe"
@@ -882,12 +833,40 @@ dependencies = [
  "fraction 0.17.0",
  "getrandom 0.3.4",
  "itoa",
- "jsonschema-regex",
- "jsonschema-value",
+ "jsonschema-regex 0.55.1",
+ "jsonschema-value 0.55.1",
  "num-cmp",
  "num-traits",
  "percent-encoding",
- "referencing",
+ "referencing 0.55.1",
+ "regex",
+ "serde",
+ "serde_json",
+ "strum",
+ "unicode-general-category",
+ "uuid-simd",
+]
+
+[[package]]
+name = "jsonschema"
+version = "0.56.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b6a806f80c1f5560431009ce5ec29b59d38f950e0cd7db5f1b8925e6d8104e21"
+dependencies = [
+ "ahash",
+ "bytecount",
+ "data-encoding",
+ "email_address",
+ "fancy-regex 0.19.2",
+ "fraction 0.17.0",
+ "getrandom 0.3.4",
+ "itoa",
+ "jsonschema-regex 0.56.0",
+ "jsonschema-value 0.56.0",
+ "num-cmp",
+ "num-traits",
+ "percent-encoding",
+ "referencing 0.56.0",
  "regex",
  "serde",
  "serde_json",
@@ -906,10 +885,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "jsonschema-regex"
+version = "0.56.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cb862addfa7782108933abcf842fe25334523a9df5b89ea4d9620e3dd7b42181"
+dependencies = [
+ "regex-syntax",
+]
+
+[[package]]
 name = "jsonschema-value"
 version = "0.55.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0230ac05e09c6111e96c147b75c390579f5cbd45654b980c68ac60fe17b3f129"
+dependencies = [
+ "ahash",
+ "bytecount",
+ "fraction 0.17.0",
+ "getrandom 0.3.4",
+ "num-cmp",
+ "num-traits",
+ "serde_json",
+ "zmij",
+]
+
+[[package]]
+name = "jsonschema-value"
+version = "0.56.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a05cd404c5ff6e2731dbbf7e290a27417750acfb59e329560a1d0af384c93fb0"
 dependencies = [
  "ahash",
  "bytecount",
@@ -1233,7 +1237,7 @@ dependencies = [
 [[package]]
 name = "qsl-cst"
 version = "0.1.0"
-source = "git+https://github.com/agent-ix/quire-spec-language?branch=main#27adf2f492e383cc61eef2ad775ef54e8df154a7"
+source = "git+https://github.com/agent-ix/quire-spec-language?branch=main#91c6158a171f335ba51dbc129f936e5b7a787096"
 dependencies = [
  "ix-trace-rs",
  "logos",
@@ -1245,7 +1249,7 @@ dependencies = [
 [[package]]
 name = "qsl-eval"
 version = "0.1.0"
-source = "git+https://github.com/agent-ix/quire-spec-language?branch=main#27adf2f492e383cc61eef2ad775ef54e8df154a7"
+source = "git+https://github.com/agent-ix/quire-spec-language?branch=main#91c6158a171f335ba51dbc129f936e5b7a787096"
 dependencies = [
  "ix-trace-rs",
  "qsl-foundation",
@@ -1264,7 +1268,7 @@ dependencies = [
 [[package]]
 name = "qsl-forms"
 version = "0.1.0"
-source = "git+https://github.com/agent-ix/quire-spec-language?branch=main#27adf2f492e383cc61eef2ad775ef54e8df154a7"
+source = "git+https://github.com/agent-ix/quire-spec-language?branch=main#91c6158a171f335ba51dbc129f936e5b7a787096"
 dependencies = [
  "ix-trace-rs",
  "qsl-cst",
@@ -1277,7 +1281,7 @@ dependencies = [
 [[package]]
 name = "qsl-foundation"
 version = "0.1.0"
-source = "git+https://github.com/agent-ix/quire-spec-language?branch=main#27adf2f492e383cc61eef2ad775ef54e8df154a7"
+source = "git+https://github.com/agent-ix/quire-spec-language?branch=main#91c6158a171f335ba51dbc129f936e5b7a787096"
 dependencies = [
  "hashbrown 0.17.1",
  "ix-trace-rs",
@@ -1291,7 +1295,7 @@ dependencies = [
 [[package]]
 name = "qsl-package"
 version = "0.1.0"
-source = "git+https://github.com/agent-ix/quire-spec-language?branch=main#27adf2f492e383cc61eef2ad775ef54e8df154a7"
+source = "git+https://github.com/agent-ix/quire-spec-language?branch=main#91c6158a171f335ba51dbc129f936e5b7a787096"
 dependencies = [
  "ix-trace-rs",
  "qsl-foundation",
@@ -1309,7 +1313,7 @@ dependencies = [
 [[package]]
 name = "qsl-replay"
 version = "0.1.0"
-source = "git+https://github.com/agent-ix/quire-spec-language?branch=main#27adf2f492e383cc61eef2ad775ef54e8df154a7"
+source = "git+https://github.com/agent-ix/quire-spec-language?branch=main#91c6158a171f335ba51dbc129f936e5b7a787096"
 dependencies = [
  "base64 0.22.1",
  "ix-trace-rs",
@@ -1336,7 +1340,7 @@ dependencies = [
 [[package]]
 name = "qsl-semantics"
 version = "0.1.0"
-source = "git+https://github.com/agent-ix/quire-spec-language?branch=main#27adf2f492e383cc61eef2ad775ef54e8df154a7"
+source = "git+https://github.com/agent-ix/quire-spec-language?branch=main#91c6158a171f335ba51dbc129f936e5b7a787096"
 dependencies = [
  "agent-ix-extraction-frontend",
  "agent-ix-semantic-ir",
@@ -1353,6 +1357,8 @@ dependencies = [
  "serde_json",
  "tempfile",
  "thiserror",
+ "unicode-ident",
+ "unicode-normalization",
 ]
 
 [[package]]
@@ -1381,7 +1387,7 @@ dependencies = [
 [[package]]
 name = "quire-checked"
 version = "0.1.0"
-source = "git+https://github.com/agent-ix/quire-eval?branch=main#c714820c71f3b809fb323768e0fe1949a6989acd"
+source = "git+https://github.com/agent-ix/quire-eval?branch=main#c7cab6258de016515e5cb83968cfd5d78b0b5193"
 dependencies = [
  "quire-canonical",
  "quire-exact",
@@ -1420,7 +1426,7 @@ dependencies = [
 [[package]]
 name = "quire-eval"
 version = "0.1.0"
-source = "git+https://github.com/agent-ix/quire-eval?branch=main#c714820c71f3b809fb323768e0fe1949a6989acd"
+source = "git+https://github.com/agent-ix/quire-eval?branch=main#c7cab6258de016515e5cb83968cfd5d78b0b5193"
 dependencies = [
  "quire-exact",
  "quire-semantic-value",
@@ -1484,14 +1490,14 @@ dependencies = [
 
 [[package]]
 name = "quire-rs"
-version = "0.50.3"
-source = "git+https://github.com/agent-ix/quire-rs?rev=5b4be36d594a488b21c854051f05116eb9302d78#5b4be36d594a488b21c854051f05116eb9302d78"
+version = "0.53.0"
+source = "git+https://github.com/agent-ix/quire-rs?rev=71a1f970bebc8d7267424dda26cf4c665bcc5ae5#71a1f970bebc8d7267424dda26cf4c665bcc5ae5"
 dependencies = [
  "agent-ix-semantic-schema",
  "globset",
  "ignore",
  "indexmap",
- "jsonschema 0.18.3",
+ "jsonschema 0.56.0",
  "loom",
  "rayon",
  "regex",
@@ -1515,7 +1521,7 @@ dependencies = [
 [[package]]
 name = "quire-spec-language"
 version = "0.2.0"
-source = "git+https://github.com/agent-ix/quire-spec-language?branch=main#27adf2f492e383cc61eef2ad775ef54e8df154a7"
+source = "git+https://github.com/agent-ix/quire-spec-language?branch=main#91c6158a171f335ba51dbc129f936e5b7a787096"
 dependencies = [
  "ix-trace-rs",
  "logos",
@@ -1523,7 +1529,6 @@ dependencies = [
  "num-integer",
  "num-traits",
  "qsl-cst",
- "qsl-eval",
  "qsl-forms",
  "qsl-foundation",
  "qsl-package",
@@ -1532,7 +1537,6 @@ dependencies = [
  "quire-canonical",
  "quire-checked",
  "quire-contract-model",
- "quire-eval",
  "quire-exact",
  "quire-semantic-value",
  "serde",
@@ -1638,6 +1642,23 @@ name = "referencing"
 version = "0.55.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a196a5b4a8a12f46b6353174df865a05d41a6055aff212ec30877492788618b6"
+dependencies = [
+ "ahash",
+ "fluent-uri",
+ "getrandom 0.3.4",
+ "hashbrown 0.17.1",
+ "itoa",
+ "micromap",
+ "parking_lot",
+ "percent-encoding",
+ "serde_json",
+]
+
+[[package]]
+name = "referencing"
+version = "0.56.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a3b4a92fac7e28c27de3ad26df2ecb9e652f227b258e845af034052e5b22c96c"
 dependencies = [
  "ahash",
  "fluent-uri",
