@@ -293,7 +293,14 @@ fn absent_carrier_and_non_protocol_nodes_return_the_owners_refusal() {
     let CheckedPackageDispatchResult::AdmittedV2(carrier) = result else {
         panic!("the reader must admit the respelled package: {result:?}");
     };
-    let carrier_id = form_node(&carrier, "protocol_reference").node_id.clone();
+    let carrier_id = carrier
+        .resolved_graph()
+        .nodes
+        .iter()
+        .find(|node| node.semantic_form.as_ref() == "protocol_reference")
+        .expect("carrier node")
+        .node_id
+        .clone();
     let refused = link(&carrier, &carrier_id).expect_err("carrier");
     assert_eq!(
         refused,
