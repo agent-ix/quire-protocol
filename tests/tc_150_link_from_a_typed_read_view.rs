@@ -7,11 +7,14 @@ mod support {
     pub mod handoff;
 }
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use ix_trace_rs::trace;
-use qsl_package::protocol_view::{causal_relation, protocol_view, temporal_binding, ViewRefusal};
+use qsl_package::protocol_view::{
+    causal_relation, control_operation, protocol_view, temporal_binding, CausalEdge,
+    ControlOperation, EdgeKind, ViewRefusal,
+};
 use quire_contract_model::{
     read_checked_package, CheckedNodeId, CheckedPackageDispatchResult, CheckedPackageReadLimits,
     CheckedPackageV2, CheckedSemanticNodeV2, CheckedTerm, ClockConfiguration,
@@ -400,6 +403,191 @@ fn recipe_r_retains_selected_clock_and_owner_causal_edges() {
             selected
         );
     }
+}
+
+fn operation(package: &CheckedPackageV2, id: &CheckedNodeId) -> Option<ControlOperation> {
+    package
+        .graph()
+        .nodes
+        .iter()
+        .find(|node| &node.node_id == id)
+        .and_then(|node| control_operation(node).ok())
+}
+
+/// The nodes reachable from `start` along `edges`, `start` included, never
+/// entering `stop`.
+fn reach(
+    edges: &[CausalEdge],
+    start: &CheckedNodeId,
+    stop: Option<&CheckedNodeId>,
+) -> BTreeSet<CheckedNodeId> {
+    let mut seen = BTreeSet::from([start.clone()]);
+    let mut frontier = vec![start.clone()];
+    while let Some(node) = frontier.pop() {
+        for edge in edges.iter().filter(|edge| edge.from.node == node) {
+            if Some(&edge.to.node) != stop && seen.insert(edge.to.node.clone()) {
+                frontier.push(edge.to.node.clone());
+            }
+        }
+    }
+    seen
+}
+
+/// FR-044-AC-7 (FR-002-AC-1, AC-2): over recipe R's `parallel`, the two
+/// concurrent branches keep distinct node identities, share no node, and each
+/// has its own owner-supplied join edge; every listed node id is unique.
+#[test]
+#[trace("TC-150", "FR-044-AC-7")]
+fn concurrent_branches_keep_distinct_identities_and_their_own_join_edge() {
+    let (_handoff, package) = recipe("event_position");
+    let clause = form_node(&package, "protocol_clause").node_id.clone();
+    let linked = link(&package, &clause).expect("recipe R links");
+
+    for list in [
+        linked.roles(),
+        linked.channels(),
+        linked.queues(),
+        linked.controls(),
+    ] {
+        let unique: BTreeSet<_> = list.iter().collect();
+        assert_eq!(unique.len(), list.len(), "no node id is listed twice");
+    }
+
+    let parallels: Vec<_> = linked
+        .controls()
+        .iter()
+        .filter(|id| operation(&package, id) == Some(ControlOperation::Parallel))
+        .collect();
+    assert_eq!(parallels.len(), 1, "recipe R has one parallel control");
+    let parallel = parallels[0];
+    let bodies: Vec<_> = linked
+        .edges()
+        .iter()
+        .filter(|edge| edge.kind == EdgeKind::Branch && &edge.from.node == parallel)
+        .map(|edge| edge.to.node.clone())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect();
+    assert_eq!(bodies.len(), 2, "two branch bodies enter the parallel");
+
+    let first = reach(linked.edges(), &bodies[0], Some(parallel));
+    let second = reach(linked.edges(), &bodies[1], Some(parallel));
+    assert!(first.is_disjoint(&second), "branches share no node");
+
+    let joins: Vec<_> = linked
+        .edges()
+        .iter()
+        .filter(|edge| edge.kind == EdgeKind::Join)
+        .collect();
+    assert_eq!(joins.len(), 2, "`join all` names both branches");
+    assert_eq!(joins[0].to, joins[1].to, "both joins land on one port");
+    assert_ne!(joins[0].from, joins[1].from);
+    assert!(
+        (first.contains(&joins[0].from.node) && second.contains(&joins[1].from.node))
+            || (second.contains(&joins[0].from.node) && first.contains(&joins[1].from.node)),
+        "one join edge leaves each branch"
+    );
+}
+
+/// FR-044-AC-7 (FR-002-AC-2): the owner-supplied edges leave the two branches
+/// unordered against each other, so every interleaving of their controls is
+/// permitted, keep each branch's own message order, and reach the join.
+#[test]
+#[trace("TC-150", "FR-044-AC-7")]
+fn parallel_branches_permit_every_interleaving_and_reach_the_join() {
+    let (_handoff, package) = recipe("event_position");
+    let clause = form_node(&package, "protocol_clause").node_id.clone();
+    let linked = link(&package, &clause).expect("recipe R links");
+    let edges = linked.edges();
+    let parallel = linked
+        .controls()
+        .iter()
+        .find(|id| operation(&package, id) == Some(ControlOperation::Parallel))
+        .expect("parallel control");
+    let bodies: Vec<_> = edges
+        .iter()
+        .filter(|edge| edge.kind == EdgeKind::Branch && &edge.from.node == parallel)
+        .map(|edge| edge.to.node.clone())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect();
+    let sides = [
+        reach(edges, &bodies[0], Some(parallel)),
+        reach(edges, &bodies[1], Some(parallel)),
+    ];
+    let of_kind =
+        |side: &BTreeSet<CheckedNodeId>, wanted: ControlOperation| -> Vec<CheckedNodeId> {
+            side.iter()
+                .filter(|id| operation(&package, id) == Some(wanted))
+                .cloned()
+                .collect()
+        };
+    let join_target = edges
+        .iter()
+        .find(|edge| edge.kind == EdgeKind::Join)
+        .map(|edge| edge.to.node.clone())
+        .expect("a join edge");
+
+    let mut sends = Vec::new();
+    for (index, side) in sides.iter().enumerate() {
+        let send = of_kind(side, ControlOperation::Send);
+        let receive = of_kind(side, ControlOperation::Receive);
+        assert_eq!((send.len(), receive.len()), (1, 1), "branch {index}");
+        assert!(
+            edges.iter().any(|edge| edge.kind == EdgeKind::Message
+                && edge.from.node == send[0]
+                && edge.to.node == receive[0]),
+            "the branch keeps its authored send-to-receive edge"
+        );
+        assert!(
+            reach(edges, &send[0], None).contains(&join_target),
+            "the branch's controls precede the join"
+        );
+        sends.push(send[0].clone());
+    }
+    // Neither branch's first control is ordered before the other's, so both
+    // interleavings are permitted by the relation.
+    assert!(!reach(edges, &sends[0], Some(parallel)).contains(&sends[1]));
+    assert!(!reach(edges, &sends[1], Some(parallel)).contains(&sends[0]));
+    for edge in edges {
+        let from = sides.iter().position(|side| side.contains(&edge.from.node));
+        let to = sides.iter().position(|side| side.contains(&edge.to.node));
+        assert!(
+            from.is_none() || to.is_none() || from == to,
+            "no edge crosses between the concurrent branches: {edge:?}"
+        );
+    }
+}
+
+/// FR-044-AC-7 (FR-002-AC-4): reordering the equal-time input of the handoff
+/// (the temporal clock selections) adds no causal edge: the edge set is the
+/// same, and so is the selected binding of each required clause.
+#[test]
+#[trace("TC-150", "FR-044-AC-7")]
+fn reordering_equal_time_input_adds_no_edge() {
+    let (_handoff, package) = recipe("event_position");
+    let clause = form_node(&package, "protocol_clause").node_id.clone();
+    let baseline = link(&package, &clause).expect("recipe R links");
+
+    let mut asked = request("event_position", Corpus::None);
+    assert!(
+        asked.emit.temporal_selections.len() >= 2,
+        "recipe R states several clock selections, so reversing them reorders"
+    );
+    asked.emit.temporal_selections.reverse();
+    let reordered_handoff = written_request(asked);
+    let reordered_package = admitted(
+        &reordered_handoff,
+        &reordered_handoff.files["checked-package.json"],
+    );
+    let reordered_clause = form_node(&reordered_package, "protocol_clause")
+        .node_id
+        .clone();
+    let reordered = link(&reordered_package, &reordered_clause).expect("reordered input links");
+
+    assert_eq!(baseline.edges(), reordered.edges());
+    assert_eq!(baseline.requirements(), reordered.requirements());
+    assert_eq!(baseline.temporal_bindings(), reordered.temporal_bindings());
 }
 
 /// FR-044-AC-7: changing the selected clock authority changes the linked
