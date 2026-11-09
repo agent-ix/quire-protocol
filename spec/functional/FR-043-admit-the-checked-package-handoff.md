@@ -9,6 +9,7 @@ relationships:
   - { target: ix://agent-ix/quire-spec-language/FR-517, type: depends_on }
   - { target: ix://agent-ix/quire-spec-language/FR-518, type: depends_on }
   - { target: ix://agent-ix/quire-spec-language/FR-521, type: references }
+  - { target: ix://agent-ix/quire-contract-ir/FR-038, type: depends_on }
 ---
 # FR-043: Admit the checked-package handoff with the Contract IR reader
 
@@ -39,15 +40,22 @@ refusal vocabulary for the checked package.
 ## Outputs
 
 One admitted `CheckedPackageV2` together with the identity rows and equality
-rows read from `identities.json` and `equality.json` against it, or one of five
-non-admitted results: a reader
+rows read from `identities.json` and `equality.json` against it, or one
+non-admitted result: a reader
 refusal carrying Contract IR's `CheckedPackageRefusalCode` with its loci, cause
 and node locus unchanged; an incomplete read,
 `CheckedPackageDispatchResult::Incomplete(CheckedPackageIncomplete)`, when a read
-limit is exhausted, carried unchanged; or a selection refusal carrying QSL's
+limit is exhausted, carried unchanged; a catalog-unavailable result,
+`CheckedPackageDispatchResult::CatalogUnavailable(CatalogReadError)`, carrying
+Contract IR's catalog read error unchanged; or a selection refusal carrying QSL's
 `SelectionRefusal` with its `SelectionAxis` unchanged (QSL FR-517, FR-518); an
 identity-file refusal or an equality-file refusal, carrying QSL's
 `IdentityFileRefusal` or `EqualityFileRefusal` unchanged (QSL FR-531).
+
+Catalog unavailability means the reader could not read its own operation
+catalog; it is not a judgment that the offered package is invalid. Contract IR
+owns `CatalogReadError`, including its unreadable path and message
+(Contract IR FR-038-AC-58).
 
 ## Behavior
 
@@ -64,6 +72,14 @@ identity-file refusal or an equality-file refusal, carrying QSL's
 - The library shall return the reader's refusal, incomplete result or the
   selection's axis exactly as returned and shall add no code or axis of its own for a
   checked-package defect.
+- When the reader returns `CatalogUnavailable(error)`, the library shall return
+  a distinct non-admitted result carrying that same `CatalogReadError` unchanged.
+- When the operation catalog is unavailable, the library shall expose no admitted handoff.
+- When the operation catalog is unavailable, the library shall perform no
+  selection, identity-row or equality-row check.
+- The library shall not reclassify catalog unavailability as a package refusal
+  or an incomplete package read.
+- The library shall declare no local catalog-error vocabulary.
 - The library shall admit the format `quire.checked-package/v2` through its one
   explicit entry point and shall not infer a format or version from the offered
   bytes.
@@ -85,11 +101,14 @@ identity-file refusal or an equality-file refusal, carrying QSL's
 | FR-043-AC-6 | A bare JSON number outside the safe-integer interval, a non-canonical rational and a signed-64 overflow in a package field each return the reader's refusal unchanged, and the library holds no numeric decoder. | Test (TC-149) |
 | FR-043-AC-7 | A read whose limit, for a limit with nonzero measured usage, is one below the package's measured usage returns `CheckedPackageDispatchResult::Incomplete(CheckedPackageIncomplete)` naming the exhausted limit, carried unchanged; it is neither an admitted package nor a refusal, no linked representation is exposed, and the same read at the exact limit is admitted. | Test (TC-149) |
 | FR-043-AC-8 | An `identities.json` or `equality.json` whose format string is another, or whose row names a node the package does not hold, or whose identity-row join exhausts the caller's native-join budget, returns QSL's file refusal unchanged and no admitted handoff; the retired identities formats `/1` and `/2` are refused as another format. | Test (TC-149) |
+| FR-043-AC-9 | The production match over `CheckedPackageDispatchResult` has a `CatalogUnavailable` arm that returns a distinct non-admitted result carrying the imported `CatalogReadError` unchanged, including its path and message. That branch returns before selection, identity-row and equality-row checks, produces no admitted handoff, and maps to neither a package refusal nor an incomplete read; no local catalog error or panic substitutes for the owner's value. | Inspection |
 
 ## Dependencies
 
 - QSL FR-517 and FR-518 (the handoff, selection and mutation corpus), QSL FR-521
   (the repoint gate), Contract IR's `read_checked_package`.
+- [Contract IR FR-038](ix://agent-ix/quire-contract-ir/FR-038), especially
+  AC-58, owns the operation catalog's typed unreadability result and error.
 - [FR-001](FR-001-admit-selected-protocol-profile.md) states the admission
   contract for the retired `quire.compiled-protocol/2` wire; this requirement is
   its checked-package successor.
