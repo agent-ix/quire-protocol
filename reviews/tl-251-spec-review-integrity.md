@@ -21,3 +21,9 @@ Ticket: TL-251. Spec-review with the integrity lens, scoped to the one spec file
 | ID | Severity | Summary | Refs |
 | --- | --- | --- | --- |
 | FND-001 | medium | ADR-006 Context still says "This repository owns a canonicaliser for its result bytes". The Status line says "JCS canonicalizes bytes this repository produces". The paragraph "The canonicaliser is deliberately incomplete, and stays that way" describes how the canonicaliser behaves with JSON numbers. After this PR, no canonicaliser exists in the repository, so a reader would take a removed implementation as present. | spec/adr/ADR-006-confine-jcs-to-the-protocol-result-domain.md:20-26, 89-98 |
+
+## Dispositions
+
+| FND | outcome | reason |
+| --- | --- | --- |
+| FND-001 | fixed | d3d8ca9 rewords the ADR-006 Status, Context and number-refusal paragraphs as the rule for a canonicaliser once adopted (quire-canonical) and states the repository currently contains none. |

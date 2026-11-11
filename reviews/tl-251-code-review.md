@@ -20,3 +20,10 @@ Ticket: TL-251. Code review with the Rust lane (rust-review) folded in, scoped t
 | --- | --- | --- | --- |
 | FND-001 | low | `serde_json` stays a normal `[dependencies]` entry, but its only library user was `jcs.rs`. After the deletion only integration tests use it, and `[dev-dependencies]` already lists it at Cargo.toml:41. The normal entry is now unused and should be removed. | Cargo.toml:30 |
 | FND-002 | low | `repro.rs` still says "the single RFC 8785 result-domain implementation is chunk C-11's". With `jcs.rs` gone, no implementation exists, so the sentence points at nothing. `src/ids.rs:15` (not in the diff) also still names "the C-11 JCS domain". | src/repro.rs:85-86; src/ids.rs:15 |
+
+## Dispositions
+
+| FND | outcome | reason |
+| --- | --- | --- |
+| FND-001 | fixed | d3d8ca9 removes `serde_json` from `[dependencies]`; the `[dev-dependencies]` entry remains for the tests. |
+| FND-002 | fixed | d3d8ca9 drops the C-11 implementation claim from `src/repro.rs` and rewords `src/ids.rs:15` to "a separate domain". |
