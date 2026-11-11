@@ -16,7 +16,7 @@ Verifies the TL-6 delta over FR-019 and FR-028 (ADR-010). Unsupported constructs
 
 ## Test Procedure
 
-Tag each test `#[trace("TC-154", "FR-1nn-AC-n")]`. Deadline: responses at, after and before the deadline, with each combination of progress open/closed and completeness complete/incomplete, a false constraint, a response arriving after timeout but observed at the deadline, a response observed after the deadline, completeness contradicted, and two waiting instances of one branch. Captures: ordered, duplicated, mutated-source, wrong-boundary and one-undefined cases, and a supplied value that differs from the local expression result (AC-5).
+Tag each test `#[trace("TC-154", "FR-1nn-AC-n")]`. Deadline: responses at, after and before the deadline, with each combination of progress open/closed and completeness complete/incomplete, a false constraint, a response arriving after timeout but observed at the deadline, a response observed after the deadline, completeness contradicted, progress open together with incomplete or contradicted completeness, and two waiting instances of one branch. Captures: ordered, duplicated, mutated-source, wrong-boundary and one-undefined cases, and a supplied value that differs from the local expression result (AC-5).
 
 ## Expected Results
 

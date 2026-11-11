@@ -69,3 +69,4 @@ Round 1, fix commit 2d40a60.
 | FND-003 | fixed | 2d40a60: A matching response observed exactly at the deadline instant selects the response branch, and the same response at a time strictly after the deadline, with progress `closed` and completeness `complete`, selects timeout. |
 | FND-001 | still-open | deferred to post-#143 by the coordinator: spec/tests.md prose totals (49 FRs / 24 TCs / 348 ACs), FR-set breakdown, the 40-row / 229-AC behavioural total, the Test Execution Summary and the 344 owed-criteria row are still unchanged at ddde4c0; they are to be recomputed once PR #143 (FR-050..FR-059) merges. |
 | FND-004 | fixed | ddde4c0 (round 2): Given a QSL-supplied capture value that differs from what the authored expression would yield if computed locally, the bound value equals the supplied one. |
+| FND-001 | fixed | 610d466 (round 3, rebased on main 9986cd8): The repository carries 61 functional requirements, 8 non-functional |

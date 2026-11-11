@@ -48,6 +48,7 @@ The evaluator SHALL NOT select timeout when progress is `open` through the deadl
 Two waits on the same static branch SHALL settle independently.
 Absent selection is truth `pending` (FR-242) while the deadline is not reached or progress is `open`.
 Absent selection under completeness `incomplete` or `contradicted` is truth `unavailable` (FR-242) with execution `completed` (FR-241).
+When progress is `open` and completeness is `incomplete` or `contradicted` at once, the truth is `unavailable`, because `pending` requires complete observations (QSpec FR-061).
 In both of those cases the completeness axis carries the FR-295 value, `incomplete` or `contradicted`, and the progress axis is unchanged.
 When an observation observed at or before the deadline is admitted after timeout was selected, by arrival order in the admitted history, the evaluator SHALL emit a superseding or invalidating result under FR-033.
 The evaluator SHALL leave the earlier result unaltered.
@@ -57,7 +58,7 @@ The evaluator SHALL leave the earlier result unaltered.
 | ID | Criteria | Verification |
 | --- | --- | --- |
 | FR-100-AC-1 | A matching response observed exactly at the deadline instant selects the response branch, and the same response at a time strictly after the deadline, with progress `closed` and completeness `complete`, selects timeout. | Test (TC-154) |
-| FR-100-AC-2 | No response with progress `closed` through the deadline and completeness `complete` selects timeout; the same history with progress `open` is truth `pending`; with completeness `incomplete` or `contradicted` it is truth `unavailable` with execution `completed` and the completeness axis carrying `incomplete` or `contradicted`; none selects timeout. | Test (TC-154) |
+| FR-100-AC-2 | No response with progress `closed` through the deadline and completeness `complete` selects timeout; the same history with progress `open` is truth `pending`; with completeness `incomplete` or `contradicted` it is truth `unavailable` with execution `completed` and the completeness axis carrying `incomplete` or `contradicted`; with progress `open` and completeness `incomplete` or `contradicted` together it is truth `unavailable`, not `pending`; none selects timeout. | Test (TC-154) |
 | FR-100-AC-3 | A response whose bound constraint is false does not select the response branch and does not by itself select timeout. | Test (TC-154) |
 | FR-100-AC-4 | A matching response that arrives after timeout was selected, by position in the admitted history, but is observed at or before the deadline, yields a FR-033 superseding or invalidating result naming the earlier result and leaves its bytes and identity unchanged; a response observed after the deadline yields no such result, and batch and incremental runs agree on both. | Test (TC-154) |
 | FR-100-AC-5 | Two waiting instances of one static branch, one answered and one not, settle differently and independently. | Test (TC-154) |

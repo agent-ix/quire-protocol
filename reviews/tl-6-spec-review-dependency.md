@@ -50,3 +50,4 @@ Round 1, fix commit 2d40a60.
 | --- | --- | --- |
 | FND-001 | fixed | 2d40a60: Closes V1-PROT-019 (inclusive timeout branches). Extends FR-028; no existing requirement states how a deadline branch is selected. The settlement vocabulary is not new: the selected branch is carried with the FR-242 truth disposition and FR-241 execution disposition the owner already defines. |
 | FND-002 | still-open | deferred to post-#143 by the coordinator: FR-101 still names FR-057 in prose only (FR-057 exists only on PR #143); add the frontmatter `references` edge FR-101 -> FR-057 once #143 is on main. |
+| FND-002 | fixed | 610d466 (round 3, rebased on main 9986cd8): relationships: - target: ix://agent-ix/quire-protocol/FR-057 type: references |

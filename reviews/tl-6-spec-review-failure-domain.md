@@ -53,6 +53,12 @@ PASS WITH FINDINGS. FR-101's atomic-refusal and duplicate-occurrence edges are f
 | --- | --- | --- | --- |
 | FND-005 | medium | The round-2 fix maps completeness `contradicted` to `refused`. `refused` is an FR-241 execution value, but QSpec FR-241 defines it as 'the evaluator refused the request' (E02 invalid-input), and QSpec FR-061's result-combination rules (quire-specification 76efa51f) never derive it from an input-completeness fact. FR-061 handles a missing decision-support fact as truth `unavailable` with completeness retaining the fact, and a contradicted premise by FR-295 `contradicted` plus FR-033 supersession. The `incomplete` case likewise names no FR-242 truth value. Both no-selection cases should be execution `completed`, truth `unavailable` (FR-242), with completeness carrying the FR-295 value `incomplete` or `contradicted`. Fix FR-100 Behavior and FR-100-AC-2 to match. | spec/functional/FR-100-settle-inclusive-deadline-branches-on-complete-progress.md:49-50, 59 |
 
+## New findings (disposition pass 3)
+
+| ID | Severity | Summary | Refs |
+| --- | --- | --- | --- |
+| FND-006 | low | FR-100 Behavior gives truth `pending` when progress is `open` and truth `unavailable` when completeness is `incomplete` or `contradicted`, but does not say which applies when both hold (progress `open` with completeness `incomplete`). QSpec FR-061 resolves it (`pending` requires the required observations to be complete through the progress point, so `unavailable` wins), but FR-100 should say so, for example 'completeness `incomplete` or `contradicted` takes precedence over open progress', and FR-100-AC-2 should test that combination. | spec/functional/FR-100-settle-inclusive-deadline-branches-on-complete-progress.md:49-50 |
+
 ## Dispositions
 
 Round 1, fix commit 2d40a60.
@@ -64,3 +70,4 @@ Round 1, fix commit 2d40a60.
 | FND-003 | fixed | 2d40a60: Two waiting instances of one static branch, one answered and one not, settle differently and independently. |
 | FND-002 | fixed | ddde4c0 (round 2): A matching response that arrives after timeout was selected, by position in the admitted history, but is observed at or before the deadline, yields a FR-033 superseding or invalidating result naming the earlier result and leaves its bytes and identity unchanged; a response observed after the deadline yields no such result, and batch and incremental runs agree on both. |
 | FND-004 | fixed | ddde4c0 (round 2): Absent selection under completeness `contradicted` is `refused`, carrying the FR-295 `contradicted` value on the completeness axis. |
+| FND-005 | fixed | 610d466 (round 3, rebased on main 9986cd8): Absent selection under completeness `incomplete` or `contradicted` is truth `unavailable` (FR-242) with execution `completed` (FR-241). |
