@@ -4,7 +4,9 @@
 //! A waiting instance (an `await` control of one workflow instance, with its
 //! repeat ordinals) is judged against one admitted history. The response
 //! branch is selected by a matching observation inside the authored window
-//! `within [lower, upper]`, both bounds inside. The timeout branch is selected only
+//! `within [lower, upper]`, both bounds inside, counted from the anchor of the
+//! admitted `after` observation of that wait: the window does not exist until
+//! that observation is admitted. The timeout branch is selected only
 //! when the awaited scope's progress is `closed` through the deadline and the
 //! input completeness is `complete`, two separate owner facts that never stand
 //! in for each other (FR-028).
@@ -23,7 +25,7 @@ use core::ops::RangeInclusive;
 use quire_contract_model::CheckedNodeId;
 use quire_exact::Integer;
 use quire_observation::authority::{
-    completeness, progress, BoundaryRef, OpenClosed, TemporalBoundary,
+    completeness, observation, progress, BoundaryRef, OpenClosed, TemporalBoundary,
 };
 
 use crate::closure::{AssessmentExecution, TruthDisposition};
@@ -47,8 +49,19 @@ pub enum WaitRefusal {
     /// The progress view's boundary is not the wait's window, or it is on
     /// another clock.
     ProgressNotThroughDeadline,
-    /// The window counted from the anchor does not fit the integer range of
-    /// the clock family.
+    /// The `after` observation's anchor is not of the clock family of the
+    /// progress boundary the wait is judged through.
+    AnchorNotOnClockFamily,
+    /// A second observation was offered as the `after` event of one waiting
+    /// instance.
+    AmbiguousAnchor {
+        /// The `after` observation already admitted.
+        first: ObservationRef,
+        /// The refused observation.
+        offered: ObservationRef,
+    },
+    /// The window counted from the anchor, or the anchor itself, does not fit
+    /// the integer range of the clock family.
     WindowOutOfRange,
     /// A fact is not after the last admitted one in the history's order.
     OutOfOrder {
@@ -143,23 +156,29 @@ impl Deadline {
         }
     }
 
-    /// The window `declaration` authors, counted from `anchor`, on the QObs
-    /// clock `clock_identity` that the caller's clock selection binds to the
-    /// authored clock, whose instants lie in `admitted` (see
-    /// [`Self::admitted_range`]).
+    /// The window `declaration` authors, counted from the anchor of the
+    /// admitted `after` observation, on the QObs clock `clock_identity` that
+    /// the caller's clock selection binds to the authored clock, in the clock
+    /// family of `family`.
     ///
     /// # Errors
     ///
-    /// [`WaitRefusal::WindowOutOfRange`] when a bound overflows or lies
-    /// outside `admitted`.
+    /// [`WaitRefusal::AnchorNotOnClockFamily`] when the anchor is of another
+    /// family; [`WaitRefusal::WindowOutOfRange`] when a bound overflows or
+    /// lies outside [`Self::admitted_range`].
     pub fn of(
         declaration: &AwaitDeclaration,
-        anchor: i128,
+        after: &AfterAnchor,
         clock_identity: &str,
-        admitted: &RangeInclusive<i128>,
+        family: &TemporalBoundary,
     ) -> Result<Self, WaitRefusal> {
+        if !after.is_of(family) {
+            return Err(WaitRefusal::AnchorNotOnClockFamily);
+        }
+        let admitted = Self::admitted_range(family);
         let bound = |offset: u64| {
-            anchor
+            after
+                .instant()
                 .checked_add(i128::from(offset))
                 .filter(|instant| admitted.contains(instant))
                 .ok_or(WaitRefusal::WindowOutOfRange)
@@ -185,7 +204,83 @@ impl Deadline {
         self.lower <= observed && observed <= self.upper
     }
 
-    fn named_by(&self, view: &progress::View) -> bool {
+    fn names(&self, window: &ProgressWindow) -> bool {
+        window.clock == self.clock_identity
+            && self.lower.to_string() == *window.lower
+            && self.upper.to_string() == *window.upper
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Anchor {
+    EventPosition(u64),
+    FixedSample(u64),
+    Timestamp(i128),
+}
+
+/// The instant of an admitted `after` observation, read from the owner's
+/// observation view: the position of an event position, the sample index of a
+/// fixed sample, the signed nanosecond instant of a timestamped event.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct AfterAnchor(Anchor);
+
+impl AfterAnchor {
+    /// The anchor of `view`.
+    ///
+    /// # Errors
+    ///
+    /// [`WaitRefusal::WindowOutOfRange`] when the anchor text does not fit the
+    /// integer range of its clock family.
+    pub fn of(view: &observation::View) -> Result<Self, WaitRefusal> {
+        let out_of_range = |_| WaitRefusal::WindowOutOfRange;
+        let anchor = match view.payload().anchor() {
+            observation::AnchorRef::EventPosition { position } => {
+                Anchor::EventPosition(position.parse().map_err(out_of_range)?)
+            }
+            observation::AnchorRef::FixedSample { index, .. } => {
+                Anchor::FixedSample(index.parse().map_err(out_of_range)?)
+            }
+            observation::AnchorRef::Timestamp { instant_nanos } => {
+                Anchor::Timestamp(instant_nanos.parse().map_err(out_of_range)?)
+            }
+        };
+        Ok(Self(anchor))
+    }
+
+    /// The anchor instant in the unit of its clock.
+    #[must_use]
+    pub const fn instant(&self) -> i128 {
+        match self.0 {
+            Anchor::EventPosition(position) | Anchor::FixedSample(position) => position as i128,
+            Anchor::Timestamp(instant) => instant,
+        }
+    }
+
+    const fn is_of(&self, family: &TemporalBoundary) -> bool {
+        matches!(
+            (self.0, family),
+            (
+                Anchor::EventPosition(_),
+                TemporalBoundary::EventPosition { .. }
+            ) | (Anchor::FixedSample(_), TemporalBoundary::FixedSample { .. })
+                | (
+                    Anchor::Timestamp(_),
+                    TemporalBoundary::TimestampedEvent { .. }
+                )
+        )
+    }
+}
+
+/// The boundary and clock a progress view is read through, as text.
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct ProgressWindow {
+    lower: Box<str>,
+    upper: Box<str>,
+    clock: Box<str>,
+}
+
+impl ProgressWindow {
+    fn of(view: &progress::View) -> Self {
         let (lower, upper) = match view.payload().boundary() {
             BoundaryRef::EventPosition {
                 lower,
@@ -203,9 +298,11 @@ impl Deadline {
                 ..
             } => (lower_nanos, upper_inclusive_nanos),
         };
-        view.payload().clock_identity() == &*self.clock_identity
-            && self.lower.to_string() == lower
-            && self.upper.to_string() == upper
+        Self {
+            lower: lower.into(),
+            upper: upper.into(),
+            clock: view.payload().clock_identity().into(),
+        }
     }
 }
 
@@ -251,8 +348,12 @@ enum WaitEvent {
         constraint: Constraint,
     },
     Authority {
+        window: ProgressWindow,
         progress: OpenClosed,
         completeness: completeness::State,
+    },
+    After {
+        anchor: AfterAnchor,
     },
 }
 
@@ -276,29 +377,39 @@ impl WaitFact {
         }
     }
 
-    /// The awaited scope's progress and the input completeness, read from the
-    /// owner's views.
+    /// The admitted observation of the awaited `after` event of this wait,
+    /// whose anchor opens the window. The caller attributes the observation
+    /// to the wait's `after` event; the owner's view names neither.
     ///
     /// # Errors
     ///
-    /// [`WaitRefusal::ProgressNotThroughDeadline`] when the progress view's
-    /// boundary is not the deadline's.
-    pub fn authority(
-        at: ObservationRef,
-        deadline: &Deadline,
-        progress: &progress::View,
-        completeness: &completeness::View,
-    ) -> Result<Self, WaitRefusal> {
-        if !deadline.named_by(progress) {
-            return Err(WaitRefusal::ProgressNotThroughDeadline);
-        }
+    /// As [`AfterAnchor::of`].
+    pub fn after(at: ObservationRef, view: &observation::View) -> Result<Self, WaitRefusal> {
         Ok(Self {
             at,
+            event: WaitEvent::After {
+                anchor: AfterAnchor::of(view)?,
+            },
+        })
+    }
+
+    /// The awaited scope's progress and the input completeness, read from the
+    /// owner's views. Whether the progress view is the wait's window is
+    /// checked when the fact is admitted to the wait.
+    #[must_use]
+    pub fn authority(
+        at: ObservationRef,
+        progress: &progress::View,
+        completeness: &completeness::View,
+    ) -> Self {
+        Self {
+            at,
             event: WaitEvent::Authority {
+                window: ProgressWindow::of(progress),
                 progress: progress.payload().state(),
                 completeness: completeness.payload().state(),
             },
-        })
+        }
     }
 
     /// The fact's place in the admitted history.
@@ -508,6 +619,13 @@ impl WaitAssessment {
 }
 
 #[derive(Clone, Debug)]
+struct Anchoring {
+    declaration: AwaitDeclaration,
+    clock_identity: Box<str>,
+    family: TemporalBoundary,
+}
+
+#[derive(Clone, Debug)]
 struct Seen {
     observed: i128,
     constraint: Constraint,
@@ -518,7 +636,10 @@ struct Seen {
 #[derive(Clone, Debug)]
 pub struct Wait {
     key: WaitKey,
-    deadline: Deadline,
+    anchoring: Anchoring,
+    deadline: Option<Deadline>,
+    anchored_by: Option<ObservationRef>,
+    unanchored: Vec<ProgressWindow>,
     last: Option<ObservationRef>,
     seen: Vec<Seen>,
     progress: Option<OpenClosed>,
@@ -528,20 +649,45 @@ pub struct Wait {
 }
 
 impl Wait {
-    /// A wait on `deadline`, assessed under the pure-assessment witness: no
-    /// business operation is reachable from any settlement path.
-    #[must_use]
-    pub const fn new(_pure: PureAssessment, key: WaitKey, deadline: Deadline) -> Self {
-        Self {
+    /// A wait on the `await` that `declaration` authors, keyed by `key`, assessed under the
+    /// pure-assessment witness: no business operation is reachable from any
+    /// settlement path. The window opens when the `after` observation is
+    /// admitted, on the QObs clock `clock_identity` in the clock family of
+    /// `family`.
+    ///
+    /// # Errors
+    ///
+    /// [`WaitRefusal::UndeclaredAwait`] when `key` is not the wait of
+    /// `declaration`.
+    pub fn new(
+        _pure: PureAssessment,
+        key: WaitKey,
+        declaration: &AwaitDeclaration,
+        clock_identity: &str,
+        family: TemporalBoundary,
+    ) -> Result<Self, WaitRefusal> {
+        if declaration.control != key.branch {
+            return Err(WaitRefusal::UndeclaredAwait {
+                control: key.branch,
+            });
+        }
+        Ok(Self {
             key,
-            deadline,
+            anchoring: Anchoring {
+                declaration: declaration.clone(),
+                clock_identity: clock_identity.into(),
+                family,
+            },
+            deadline: None,
+            anchored_by: None,
+            unanchored: Vec::new(),
             last: None,
             seen: Vec::new(),
             progress: None,
             completeness: None,
             results: Vec::new(),
             supersessions: Vec::new(),
-        }
+        })
     }
 
     /// The current result, absent until a fact decides one.
@@ -551,11 +697,17 @@ impl Wait {
     }
 
     /// Admit the next fact of the history. A fact that changes a settled
-    /// timeout returns the FR-033 supersession it produced.
+    /// timeout returns the FR-033 supersession it produced. A refused fact
+    /// changes nothing.
     ///
     /// # Errors
     ///
-    /// [`WaitRefusal::OutOfOrder`] when the fact is not after the last one.
+    /// [`WaitRefusal::OutOfOrder`] when the fact is not after the last one;
+    /// [`WaitRefusal::AmbiguousAnchor`] for a second `after` observation;
+    /// [`WaitRefusal::AnchorNotOnClockFamily`] and
+    /// [`WaitRefusal::WindowOutOfRange`] for an `after` observation the clock
+    /// family cannot window; [`WaitRefusal::ProgressNotThroughDeadline`] for a
+    /// progress view that is not the window.
     pub fn admit(&mut self, fact: WaitFact) -> Result<Option<&Supersession>, WaitRefusal> {
         if let Some(last) = &self.last {
             if fact.at <= *last {
@@ -566,6 +718,27 @@ impl Wait {
             }
         }
         let contradiction = match fact.event {
+            WaitEvent::After { anchor } => {
+                if let Some(first) = &self.anchored_by {
+                    return Err(WaitRefusal::AmbiguousAnchor {
+                        first: first.clone(),
+                        offered: fact.at,
+                    });
+                }
+                let deadline = Deadline::of(
+                    &self.anchoring.declaration,
+                    &anchor,
+                    &self.anchoring.clock_identity,
+                    &self.anchoring.family,
+                )?;
+                if !self.unanchored.iter().all(|window| deadline.names(window)) {
+                    return Err(WaitRefusal::ProgressNotThroughDeadline);
+                }
+                self.deadline = Some(deadline);
+                self.anchored_by = Some(fact.at.clone());
+                self.unanchored.clear();
+                None
+            }
             WaitEvent::Observation {
                 observed,
                 constraint,
@@ -575,15 +748,23 @@ impl Wait {
                     constraint,
                     at: fact.at.clone(),
                 });
-                Contradiction::Observation
+                Some(Contradiction::Observation)
             }
             WaitEvent::Authority {
+                window,
                 progress,
                 completeness,
             } => {
+                match &self.deadline {
+                    Some(deadline) if !deadline.names(&window) => {
+                        return Err(WaitRefusal::ProgressNotThroughDeadline);
+                    }
+                    Some(_) => {}
+                    None => self.unanchored.push(window),
+                }
                 self.progress = Some(progress);
                 self.completeness = Some(completeness);
-                Contradiction::Authority
+                Some(Contradiction::Authority)
             }
         };
         self.last = Some(fact.at.clone());
@@ -602,9 +783,12 @@ impl Wait {
             settlement,
         };
         self.results.push(result.clone());
-        let Some(earlier) =
-            before.filter(|earlier| earlier.settlement.branch() == Some(&Branch::Timeout))
-        else {
+        // No timeout is selected before the window exists, so the fact that
+        // opens it contradicts nothing.
+        let (Some(contradiction), Some(earlier)) = (
+            contradiction,
+            before.filter(|earlier| earlier.settlement.branch() == Some(&Branch::Timeout)),
+        ) else {
             return Ok(None);
         };
         self.supersessions.push(Supersession {
@@ -623,10 +807,19 @@ impl Wait {
             progress: self.progress,
             completeness: self.completeness,
         };
+        let unselected = |truth| settlement(Verdict::NotSelected(truth));
+        let Some(deadline) = &self.deadline else {
+            return Some(match self.completeness? {
+                completeness::State::Incomplete | completeness::State::Contradicted => {
+                    unselected(Some(TruthDisposition::Unavailable))
+                }
+                completeness::State::Complete => unselected(Some(TruthDisposition::Pending)),
+            });
+        };
         let inside = || {
             self.seen
                 .iter()
-                .filter(|seen| self.deadline.admits(seen.observed))
+                .filter(|seen| deadline.admits(seen.observed))
         };
         if let Some(first) = inside().find(|seen| seen.constraint.matches()) {
             return Some(settlement(Verdict::Selected(Branch::Response {
@@ -634,7 +827,6 @@ impl Wait {
             })));
         }
         let (progress, completeness) = (self.progress?, self.completeness?);
-        let unselected = |truth| settlement(Verdict::NotSelected(truth));
         Some(match (completeness, progress) {
             (completeness::State::Incomplete | completeness::State::Contradicted, _) => {
                 unselected(Some(TruthDisposition::Unavailable))
@@ -672,16 +864,18 @@ impl Wait {
 ///
 /// # Errors
 ///
-/// As [`Wait::admit`]; a repeated position is [`WaitRefusal::OutOfOrder`].
+/// As [`Wait::new`] and [`Wait::admit`]; a repeated position is [`WaitRefusal::OutOfOrder`].
 pub fn assess(
     pure: PureAssessment,
     key: WaitKey,
-    deadline: Deadline,
+    declaration: &AwaitDeclaration,
+    clock_identity: &str,
+    family: TemporalBoundary,
     facts: &[WaitFact],
 ) -> Result<WaitAssessment, WaitRefusal> {
     let mut ordered = facts.to_vec();
     ordered.sort_by(|left, right| left.at.cmp(&right.at));
-    let mut wait = Wait::new(pure, key, deadline);
+    let mut wait = Wait::new(pure, key, declaration, clock_identity, family)?;
     for fact in ordered {
         wait.admit(fact)?;
     }

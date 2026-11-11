@@ -86,12 +86,28 @@ pub fn qualified_subject(
     subject(producer, tag)
 }
 
+/// The admitted observation view of an `after` event placed at `placement`.
+pub fn after_observation(tag: &str, placement: Placement) -> authority::observation::View {
+    let qualified = qualified(tag, true, placement);
+    let owner = AuthoritySelection {
+        definition_identity: id(format!("definition:{tag}")),
+        definition_revision: id("1"),
+        definition_digest: digest(9),
+    };
+    let subject = SubjectSelection {
+        scope_identity: id(format!("window:{tag}")),
+        population_identity: qualified.scope().population_identity.clone(),
+    };
+    let context = Context::new(History::batch(&qualified), &owner, &subject, 1, None);
+    observation_view(context, &qualified, tag)
+}
+
 pub fn scope_views(tag: &str) -> ScopeViews {
     scope_views_with_value(tag, true)
 }
 
 pub fn scope_views_with_value(tag: &str, valuation_present: bool) -> ScopeViews {
-    let qualified = qualified(tag, valuation_present);
+    let qualified = qualified(tag, valuation_present, timestamp_placement());
     let owner = AuthoritySelection {
         definition_identity: id(format!("definition:{tag}")),
         definition_revision: id("1"),
@@ -416,7 +432,28 @@ fn population_view(context: Context<'_>) -> authority::population::View {
         .expect("population view")
 }
 
-fn qualified(tag: &str, valuation_present: bool) -> Box<QualifiedObservation> {
+/// The anchor and clock range of the fixture observation.
+pub type Placement = (Anchor, ClockRange);
+
+fn timestamp_placement() -> Placement {
+    (
+        Anchor::TimestampNanos(10),
+        ClockRange::Timestamp {
+            start_nanos: 0,
+            end_nanos: 30,
+        },
+    )
+}
+
+fn qualified(
+    tag: &str,
+    valuation_present: bool,
+    (anchor, range): Placement,
+) -> Box<QualifiedObservation> {
+    let event_time_nanos = match anchor {
+        Anchor::TimestampNanos(instant) => instant,
+        Anchor::EventPosition(_) | Anchor::FixedSample { .. } => 10,
+    };
     let producer = producer();
     let subject = subject(&producer, tag);
     let mut request = AdmissionRequest {
@@ -455,17 +492,21 @@ fn qualified(tag: &str, valuation_present: bool) -> Box<QualifiedObservation> {
             membership_complete: true,
             closure_identity: Some(id(format!("closure:{tag}"))),
             closure_digest: Some(digest(5)),
-            kind: ScopeKind::Window {
-                window_identity: id(format!("window:{tag}")),
+            kind: match range {
+                ClockRange::Timestamp { .. } => ScopeKind::Window {
+                    window_identity: id(format!("window:{tag}")),
+                },
+                ClockRange::EventPosition { .. } | ClockRange::FixedSample { .. } => {
+                    ScopeKind::Snapshot {
+                        snapshot_identity: id(format!("window:{tag}")),
+                    }
+                }
             },
-            range: ClockRange::Timestamp {
-                start_nanos: 0,
-                end_nanos: 30,
-            },
+            range,
             members: vec![Member {
                 object_identity: id(format!("member:{tag}")),
                 record_identity: id("unsealed-record"),
-                anchor: Anchor::TimestampNanos(10),
+                anchor,
             }],
         },
         records: vec![AdmittedRecord {
@@ -486,8 +527,8 @@ fn qualified(tag: &str, valuation_present: bool) -> Box<QualifiedObservation> {
                 ValueState::Missing
             },
             visibility: Visibility::External,
-            anchor: Anchor::TimestampNanos(10),
-            event_time_nanos: 10,
+            anchor,
+            event_time_nanos,
             ingestion_time_nanos: 11,
             causal_relationship_identity: None,
             clock_identity: id(format!("clock:{tag}")),
