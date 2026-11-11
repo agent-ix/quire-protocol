@@ -261,7 +261,9 @@ fn a_false_constraint_selects_neither_branch() {
         Constraint::DoesNotHold
     );
     assert_eq!(
-        Constraint::of(&SlotOutcome::NotBoolean(Value::Integer(Integer::from(1)))),
+        Constraint::of(&SlotOutcome::NotBoolean(Value::Integer(Integer::from(
+            1i64
+        )))),
         Constraint::Unestablished
     );
     for constraint in [Constraint::DoesNotHold, Constraint::Unestablished] {
@@ -766,10 +768,11 @@ fn the_supplied_value_is_bound_not_a_local_result() {
         )
         .expect("binds")
     };
-    // What the authored guard gives for a ready trigger, computed by QSL here.
-    let local = bind(guard_outcome(Some(true)));
+    // What the authored guard gives for a trigger that is not ready (the guard
+    // is true then), computed by QSL here.
+    let local = bind(guard_outcome(Some(false)));
     assert!(is_boolean(local.occurrences()[0].value(), true));
     // What QSL supplied at the activation boundary, for another trigger.
-    let supplied = bind(guard_outcome(Some(false)));
+    let supplied = bind(guard_outcome(Some(true)));
     assert!(is_boolean(supplied.occurrences()[0].value(), false));
 }
