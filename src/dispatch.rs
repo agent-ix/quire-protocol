@@ -196,10 +196,14 @@ impl<R: BackendResult, B> ProtocolOutcome<R, B> {
     pub fn truth(&self) -> Truth {
         match self {
             Self::Settled(ClaimSettlement::Result { result, .. }) => {
-                if result.inconclusive().is_some() {
-                    Truth::Unavailable
-                } else {
-                    result.truth()
+                match result.truth() {
+                    // A decided truth cannot accompany an `Inconclusive`
+                    // verdict; the backend's `pending` and `unavailable` are
+                    // carried as it states them.
+                    Truth::Satisfied | Truth::Violated if result.inconclusive().is_some() => {
+                        Truth::Unavailable
+                    }
+                    truth => truth,
                 }
             }
             Self::Settled(ClaimSettlement::Disposition(_))
@@ -373,10 +377,11 @@ where
     {
         CandidateOutcome::UnknownBackend(_) => {
             return ProtocolOutcome::InvalidRequest {
+                // IR-1513: the owner (quire-contract-codegen) is to publish this code.
                 code: CatalogCode::new("invalid_capability", "unknown-backend"),
                 candidates: Vec::new(),
                 binding,
-            }
+            };
         }
         CandidateOutcome::Candidates(set) => set,
     };
@@ -395,6 +400,7 @@ where
             )))
         } else {
             ProtocolOutcome::InvalidRequest {
+                // IR-1513: the owner (quire-contract-codegen) is to publish this code.
                 code: CatalogCode::new("invalid_capability", "ambiguous-backend"),
                 candidates: set.candidates().to_vec(),
                 binding,

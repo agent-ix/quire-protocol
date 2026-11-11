@@ -47,7 +47,7 @@ Upstream admission already refuses a checked-package channel with a missing comp
 - The dispatcher shall assume no full observability of an `external` role (`ix://agent-ix/quire-specification/FR-217`).
 - When QSL's backend returns the `Inconclusive` verdict (QSL V-6, with its `InconclusiveCause`) or a requires-bound outcome (FR-058), the dispatcher shall carry it unchanged.
 - The dispatcher shall give a disposition with an absent premise neither truth `satisfied` nor truth `violated`.
-- The dispatcher shall give a disposition whose QSL verdict is `Inconclusive` the truth `unavailable`, because `ix://agent-ix/quire-specification/FR-242` reserves `pending` for an open decision scope with settlement basis `unsettled`, which an `Inconclusive` verdict does not state.
+- The dispatcher shall give a disposition whose QSL verdict is `Inconclusive` the truth and settlement basis the backend states, and neither truth `satisfied` nor truth `violated`.
 
 ## Acceptance Criteria
 
@@ -57,7 +57,7 @@ Upstream admission already refuses a checked-package channel with a missing comp
 | FR-151-AC-2 | Given two requests that differ in exactly one component of one channel premise, their request identities and their disposition provenance differ. | Test (TC-161) |
 | FR-151-AC-3 | Given a request whose per-claim premise set omits one channel premise or one role internality of the fragment, that disposition is refused under FR-030 naming the absent premise, the stand-in records no call for that claim, and every independent disposition is unchanged. | Test (TC-161) |
 | FR-151-AC-4 | Given a requester premise set stating `external` for a role, the backend call carries `external` for it as stated and no premise implying that the role is fully observable. | Test (TC-161) |
-| FR-151-AC-5 | Given a stand-in that returns the `Inconclusive` verdict with a `BoundReached` `InconclusiveCause` and one that returns a requires-bound outcome, each disposition carries the outcome and the cause unchanged and holds neither truth `satisfied` nor truth `violated`, and the `Inconclusive` disposition holds truth `unavailable`. | Test (TC-161) |
+| FR-151-AC-5 | Given a stand-in that returns the `Inconclusive` verdict with a `BoundReached` `InconclusiveCause`, truth `pending` and basis `unsettled`, one that returns the same verdict with truth `satisfied`, and one that returns a requires-bound outcome, each disposition carries the outcome and the cause unchanged and holds neither truth `satisfied` nor truth `violated`, and the first holds truth `pending`. | Test (TC-161) |
 | FR-151-AC-6 | Given the request of FR-151-AC-3, the refused disposition holds neither truth `satisfied` nor truth `violated` and retains no value for the omitted premise, and the same request with the premise restored is sent to the stand-in with exactly the restored value. | Test (TC-161) |
 | FR-151-AC-7 | Given a fragment with channels and roles, the stand-in backend's recorded call carries each channel's sender, receiver and message type and each role internality equal to the checked package's, as QSL's read view publishes them. | Test (TC-161) |
 | FR-151-AC-8 | Given a request whose ordering premise for a channel differs from the checked package's declaration, and a second whose delivery premise differs, each disposition is refused under FR-030 naming the channel, the stand-in records no call, and every independent disposition is unchanged. | Test (TC-161) |

@@ -26,3 +26,13 @@ Units examined: FR-150-AC-1..AC-9, FR-151-AC-1..AC-7, FR-152-AC-1..AC-6, FR-153-
 | FND-003 | medium | FR-150 Outputs and FR-030 require a disposition bound to the backend it was selected against. When the request names no backend and FR-290 yields one candidate, `dispatch` sends to `candidate.id()`, but `Binding` keeps only `request.backend == None`. No disposition records which backend produced it. | src/dispatch.rs:340-380 |
 | FND-004 | medium | The new public `Disposition::execution` maps `RequiresBound` to `ResourceIncomplete`. closure.rs defines that as 'a resource ceiling stopped the assessment', but requires-bound means unbounded domains that need a bound. QSL treats it as a negotiation disposition. No criterion or test covers the mapping. | src/disposition.rs:186-196 |
 | FND-005 | low | The `DecisiveWithoutWitness` refusal has no owning criterion and is exercised only inside the FR-152-AC-4 test. It also applies to `local-projection`, although FR-152 ties the trace-position witness to `realizability`, and it accepts a record whose `trace_position` is `None`. | src/dispatch.rs:386-400 |
+
+## Dispositions
+
+| FND | outcome | reason |
+| --- | --- | --- |
+| FND-001 | fixed | Round 1, 72743ff: / FR-151-AC-4 / Given a requester premise set stating `external` for a role, the backend call carries `external` for it as stated and no premise implying that the role is fully observable. / Test (TC-161) / |
+| FND-002 | fixed | Round 1, 72743ff: / FR-151-AC-5 / Given a stand-in that returns the `Inconclusive` verdict with a `BoundReached` `InconclusiveCause` and one that returns a requires-bound outcome, each disposition carries the outcome and the cause unchanged and holds neither truth `satisfied` nor truth `violated`, and the `Inconclusive` disposition holds truth `unavailable`. / Test (TC-161) / |
+| FND-003 | fixed | Round 1, 72743ff: / FR-150-AC-10 / Given a request naming no backend and one stand-in serving the claim kind, the disposition records that stand-in as the backend selected, and a disposition settled without a selected backend records none. / Test (TC-160) / |
+| FND-004 | fixed | Round 1, 72743ff: Disposition::execution removed from src/disposition.rs at 72743ff; no RequiresBound-to-ResourceIncomplete mapping remains. |
+| FND-005 | fixed | Round 1, 72743ff: / FR-152-AC-7 / Given a stand-in returning a decisive `realizability` result with no witness, and a second whose witness record has no trace position, each disposition is refused under FR-030, and a decisive `local-projection` result with no witness is carried unchanged. / Test (TC-162) / |

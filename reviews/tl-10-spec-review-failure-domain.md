@@ -63,6 +63,7 @@ PASS WITH FINDINGS. The PR is consistent with merged FR-057, FR-058 and FR-301-A
 | FND-004 | fixed | Verified at PR head df47610 (round 2). |
 | FND-005 | fixed | Verified at PR head eb49afd (round 3). |
 | FND-006 | fixed | Verified at PR head eb49afd (round 3). |
+| FND-007 | fixed | Round 1, 72743ff: / FR-151-AC-8 / Given a request whose ordering premise for a channel differs from the checked package's declaration, and a second whose delivery premise differs, each disposition is refused under FR-030 naming the channel, the stand-in records no call, and every independent disposition is unchanged. / Test (TC-161) / |
 
 ## New findings (quire-protocol#148 spec delta)
 

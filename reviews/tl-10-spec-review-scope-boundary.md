@@ -43,6 +43,7 @@ PASS WITH FINDINGS. The PR is consistent with merged FR-057, FR-058 and FR-301-A
 | --- | --- | --- |
 | FND-001 | fixed | Verified at PR head ca84709. |
 | FND-002 | fixed | Verified at PR head ca84709. |
+| FND-003 | fixed | Round 1, 72743ff: QSL's read view of the checked package (`ix://agent-ix/quire-spec-language/ADR-017`, read through FR-044) publishes each channel's ordering and delivery policy and each role declaration. It does not yet publish a channel's sender, receiver and message type, nor a role's internality. Until QSL publishes them (FR-151-AC-7), the dispatcher forwards those components as the requester states them and verifies none against the checked package. |
 
 ## New findings (quire-protocol#148 spec delta)
 

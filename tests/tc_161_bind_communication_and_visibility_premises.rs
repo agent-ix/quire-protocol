@@ -217,24 +217,30 @@ fn an_external_role_reaches_the_backend_as_external_and_nothing_more() {
 fn inconclusive_and_requires_bound_are_carried_and_hold_no_decided_truth() {
     let dynamic = Dynamic::with("workflow", 3);
     let asked = request(&dynamic, KIND, &["Head"]);
-    // A backend that reports `satisfied` beside an Inconclusive verdict.
     let cause = InconclusiveCause::BoundReached { depth: 3 };
-    let mut inconclusive = Sentinel::new("v6", Truth::Satisfied, SettlementBasis::Unsettled);
-    inconclusive.inconclusive = Some(cause.clone());
-    let mut boundary = Boundary::new();
-    serve(
-        &mut boundary,
-        "backend",
-        &[Capability::Realizability],
-        always(inconclusive.clone()),
-    );
-    let outcome = dispatch(&mut boundary, dynamic.linked().declarations(), &asked);
-    assert_eq!(outcome.truth(), Truth::Unavailable);
-    let ProtocolOutcome::Settled(ClaimSettlement::Result { result, .. }) = outcome else {
-        panic!("{outcome:?}");
-    };
-    assert_eq!(result, inconclusive);
-    assert_eq!(result.inconclusive, Some(cause));
+    // The backend's own `pending` is carried; a decided `satisfied` beside an
+    // Inconclusive verdict is not.
+    for (stated, expected) in [
+        (Truth::Pending, Truth::Pending),
+        (Truth::Satisfied, Truth::Unavailable),
+    ] {
+        let mut inconclusive = Sentinel::new("v6", stated, SettlementBasis::Unsettled);
+        inconclusive.inconclusive = Some(cause.clone());
+        let mut boundary = Boundary::new();
+        serve(
+            &mut boundary,
+            "backend",
+            &[Capability::Realizability],
+            always(inconclusive.clone()),
+        );
+        let outcome = dispatch(&mut boundary, dynamic.linked().declarations(), &asked);
+        assert_eq!(outcome.truth(), expected);
+        let ProtocolOutcome::Settled(ClaimSettlement::Result { result, .. }) = outcome else {
+            panic!("{outcome:?}");
+        };
+        assert_eq!(result, inconclusive);
+        assert_eq!(result.inconclusive, Some(cause.clone()));
+    }
 
     let node = dynamic.key(&dynamic.named("control", "Bounded"));
     let ClaimExtent::Unbounded(domains) = ClaimExtent::from_domains(

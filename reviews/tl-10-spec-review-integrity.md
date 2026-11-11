@@ -55,6 +55,8 @@ PASS WITH FINDINGS. The PR is consistent with merged FR-057, FR-058 and FR-301-A
 | FND-002 | fixed | Verified at PR head ca84709. |
 | FND-003 | fixed | Verified at PR head ca84709. |
 | FND-004 | fixed | Verified at PR head df47610 (round 2). |
+| FND-005 | fixed | Round 1, 72743ff: Behavioural totals across these 61 rows: 353 acceptance criteria. 119 carry a living traced test, 106 belong to retired rows (their tests were deleted in QSL-1549 stage 1), 0 are blocked and 128 are planned or verify by Inspection or Analysis only. 119 + 106 + 0 + 128 = 353. |
+| FND-006 | fixed | Round 1, 72743ff: When a `local-projection` or `realizability` claim is dispatched, the dispatcher SHALL bind the communication and visibility premises of the claim's fragment to the disposition and hand them to QSL's backend, taking each from the checked package where QSL's read view publishes it. |
 
 ## New findings (quire-protocol#148 spec delta)
 
@@ -64,3 +66,9 @@ Spec delta of quire-protocol#148 at 9a7c29cbccf869b7df1aa109a0b541442416656c (`g
 | --- | --- | --- | --- |
 | FND-005 | low | The rows change criterion counts (FR-151 6->7, FR-152 5->6) and move 27 criteria from planned to living-traced. The Overview ('474 acceptance criteria'), the Behavioural totals line ('347 ... 88 carry a living traced test ... 153 are planned') and the Owed acceptance criteria table were not recomputed. | spec/tests.md:228 |
 | FND-006 | medium | FR-151's Description, Inputs and Behavior bullet 1 still say the dispatcher hands the backend all five channel-premise components and the role internality 'exactly as the checked package authors them'. AC-1 was narrowed and AC-7 split off because no read view provides them. The FR statement now promises what no criterion verifies, and only spec/tests.md records the gap. Say in FR-151 that this dependency is outstanding. | spec/functional/FR-151-bind-communication-and-visibility-premises.md:55 |
+
+## New findings (quire-protocol#148 disposition pass 1)
+
+| ID | Severity | Summary | Refs |
+| --- | --- | --- | --- |
+| FND-007 | low | The new FR-151 bullet forces truth `unavailable` for an `Inconclusive` verdict 'because FR-242 reserves `pending` for an open decision scope with settlement basis `unsettled`, which an `Inconclusive` verdict does not state'. FR-242's own `pending` row is completed execution with basis `unsettled`, and it projects to E02 logical.outcome `inconclusive`. The TC-161 stand-in returns basis `Unsettled`, yet the dispatcher overrides it to `unavailable`. Either drop the stated rationale and carry the backend's own `pending`/`unavailable` truth (clamping only `satisfied`/`violated`), or cite the QSpec line that maps V-6 `Inconclusive` to `unavailable`. Not blocking. | spec/functional/FR-151-bind-communication-and-visibility-premises.md:Behavior |
