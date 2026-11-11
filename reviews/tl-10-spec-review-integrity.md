@@ -54,3 +54,4 @@ PASS WITH FINDINGS. The PR is consistent with merged FR-057, FR-058 and FR-301-A
 | FND-001 | fixed | Verified at PR head ca84709. |
 | FND-002 | fixed | Verified at PR head ca84709. |
 | FND-003 | fixed | Verified at PR head ca84709. |
+| FND-004 | fixed | Verified at PR head df47610 (round 2). |

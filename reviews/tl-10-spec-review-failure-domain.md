@@ -45,6 +45,14 @@ PASS WITH FINDINGS. The PR is consistent with merged FR-057, FR-058 and FR-301-A
 | --- | --- | --- | --- |
 | FND-004 | medium | The fix makes the deciding element identity resolve to one linked-graph node and refuses the disposition otherwise. QSpec FR-351 defines the deciding element as 'the exact value that decided the result' (a String), with no mapping to a protocol graph node, and ADR-010 states the TL-10 join as 'trace-position correspondence to the linked graph'. The node mapping is one QSpec does not derive, and it can refuse a valid QSL witness whose deciding element is a value. Join the component ADR-010 names (the trace position's step or event identity), or cite the owner text that makes the deciding element a node identity. | spec/functional/FR-152-carry-projection-and-realizability-witness.md:33 |
 
+
+## New findings (disposition pass 2)
+
+| ID | Severity | Summary | Refs |
+| --- | --- | --- | --- |
+| FND-005 | medium | FR-152 now resolves a deciding quantifier's `node_id`, and AC-1 and AC-4 test a `realizability` witness that has one. QSpec FR-351-AC-1 gives a witness a deciding quantifier only 'where the decision is a collection quantifier's', and FR-351's family-neutrality section lists none for the protocol family. FR-302, which FR-152 carries, imports only deciding element identity, index, value path and trace position, with no quantifier component. So AC-1's fixture is a witness shape that FR-302 does not carry for a realizability claim, and the node_id rule extends FR-302's carried record locally. Drop the quantifier branch: AC-1 then mirrors AC-2, with the witness carried byte-for-byte and the claim's source identities retained, and AC-4 keeps only its no-source-identity case. Alternatively, cite the owner text that gives a protocol witness a quantifier. | spec/functional/FR-152-carry-projection-and-realizability-witness.md:48 |
+| FND-006 | low | The FR-152 statement ('every source identity it names joined to the FR-002 linked graph') and Outputs ('with each source identity it names resolved to one node of the linked graph') still describe the old rule, under which the witness names node identities. The new Behavior and the FR-351 note say the witness names none except an optional quantifier `node_id`, and the join runs through the source identities the disposition retains under FR-030. Bring the Description and Outputs in line with that. Outputs now reads: The disposition carrying the backend's witness or counterexample unchanged, with each source identity it names resolved to one node of the linked graph; for a `realizability` claim settled on `decisive-witness` or `decisive-counterexample`, the trace-position witness under FR-302; or one FR-030 refu | spec/functional/FR-152-carry-projection-and-realizability-witness.md:19 |
+
 ## Dispositions
 
 | FND | outcome | reason |
@@ -52,3 +60,4 @@ PASS WITH FINDINGS. The PR is consistent with merged FR-057, FR-058 and FR-301-A
 | FND-001 | fixed | Verified at PR head ca84709. |
 | FND-002 | fixed | Verified at PR head ca84709. |
 | FND-003 | fixed | Verified at PR head ca84709. |
+| FND-004 | fixed | Verified at PR head df47610 (round 2). |
