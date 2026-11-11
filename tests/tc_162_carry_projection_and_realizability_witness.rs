@@ -150,27 +150,6 @@ fn a_decisive_result_with_no_source_identity_is_refused_alone() {
         ))
     );
     assert_eq!(together[1], alone[0]);
-
-    let mut missing = Boundary::new();
-    serve(
-        &mut missing,
-        "backend",
-        &[Capability::Realizability],
-        always(Sentinel::new(
-            "bare",
-            Truth::Satisfied,
-            SettlementBasis::DecisiveWitness,
-        )),
-    );
-    let outcome = dispatch(
-        &mut missing,
-        declarations,
-        &request(&dynamic, KIND, &["Head"]),
-    );
-    assert_eq!(
-        outcome,
-        ProtocolOutcome::Refused(DispositionRefusal::DecisiveWithoutWitness)
-    );
 }
 
 #[test]
@@ -198,4 +177,50 @@ fn a_projected_local_artifact_is_carried_unchanged() {
         panic!("{outcome:?}");
     };
     assert_eq!(carried, result);
+}
+
+#[test]
+#[trace("TC-162", "FR-152-AC-7")]
+fn a_decisive_realizability_result_needs_a_positioned_witness_and_a_projection_does_not() {
+    let dynamic = Dynamic::with("workflow", 3);
+    let declarations = dynamic.linked().declarations();
+    let bare = Sentinel::new("bare", Truth::Satisfied, SettlementBasis::DecisiveWitness);
+    let mut unpositioned = bare.clone();
+    let mut record = witness(&dynamic, Vec::new());
+    record.trace_position = None;
+    unpositioned.witness = Some(record);
+    for result in [bare.clone(), unpositioned] {
+        let mut boundary = Boundary::new();
+        serve(
+            &mut boundary,
+            "backend",
+            &[Capability::Realizability],
+            always(result),
+        );
+        let outcome = dispatch(
+            &mut boundary,
+            declarations,
+            &request(&dynamic, KIND, &["Head"]),
+        );
+        assert_eq!(
+            outcome,
+            ProtocolOutcome::Refused(DispositionRefusal::DecisiveWithoutWitness)
+        );
+    }
+    let mut boundary = Boundary::new();
+    serve(
+        &mut boundary,
+        "backend",
+        &[Capability::LocalProjection],
+        always(bare.clone()),
+    );
+    let outcome = dispatch(
+        &mut boundary,
+        declarations,
+        &request(&dynamic, ProtocolClaimKind::LocalProjection, &["Head"]),
+    );
+    let ProtocolOutcome::Settled(ClaimSettlement::Result { result, .. }) = outcome else {
+        panic!("{outcome:?}");
+    };
+    assert_eq!(result, bare);
 }

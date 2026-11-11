@@ -14,33 +14,40 @@ relationships:
   - { target: ix://agent-ix/quire-specification/FR-217, type: depends_on }
   - { target: ix://agent-ix/quire-specification/FR-242, type: depends_on }
   - { target: ix://agent-ix/quire-specification/FR-243, type: depends_on }
+  - { target: ix://agent-ix/quire-spec-language/ADR-017, type: depends_on }
 ---
 # FR-151: Bind communication and visibility premises to projection and realizability dispositions
 
 ## Description
 
-When a `local-projection` or `realizability` claim is dispatched, the dispatcher SHALL bind the exact communication and visibility premises the checked package authors for the claim's fragment to the disposition and hand them to QSL's backend.
+When a `local-projection` or `realizability` claim is dispatched, the dispatcher SHALL bind the communication and visibility premises of the claim's fragment to the disposition and hand them to QSL's backend, taking each from the checked package where QSL's read view publishes it.
 
 ## Inputs
 
-The channel premise (sender, receiver, message type, ordering policy and delivery policy) of every channel and the role internality of every role in the claim's admitted fragment, read from the checked package through FR-044; and the per-claim premises the requester supplied (FR-030).
+The channel premise (sender, receiver, message type, ordering policy and delivery policy) of every channel and the role internality of every role in the claim's admitted fragment; and the per-claim premises the requester supplied (FR-030).
+
+QSL's read view of the checked package (`ix://agent-ix/quire-spec-language/ADR-017`, read through FR-044) publishes each channel's ordering and delivery policy and each role declaration. It does not yet publish a channel's sender, receiver and message type, nor a role's internality. Until QSL publishes them (FR-151-AC-7), the dispatcher forwards those components as the requester states them and verifies none against the checked package.
 
 ## Outputs
 
-The premises as the backend received them, retained on the disposition (FR-030), or one FR-030 refusal of the disposition naming the absent premise. A disposition whose premise is absent, or whose QSL outcome is `Inconclusive`, carries no truth `satisfied` or `violated`.
+The premises as the backend received them, retained on the disposition (FR-030), or one FR-030 refusal of the disposition naming the absent or substituted premise. A disposition whose premise is absent, or whose QSL outcome is `Inconclusive`, carries no truth `satisfied` or `violated`.
 
 Upstream admission already refuses a checked-package channel with a missing component (`ix://agent-ix/quire-specification/FR-054` through `ix://agent-ix/quire-specification/FR-216`) and a role with absent internality (`ix://agent-ix/quire-specification/FR-217`), so the checked-package read view cannot lack a premise. The seam where a premise can still be absent is the requester's per-claim premise set, which can omit a premise for a channel or role of the fragment. The library owns that absence (FR-030 refusal, before dispatch). QSL's procedure owns the outcome it reaches when every premise is present but insufficient to decide (`Inconclusive`, ADR-010 gap G2).
 
 ## Behavior
 
-- The dispatcher shall hand the backend each channel premise and each role internality exactly as the checked package authors them.
+- The dispatcher shall hand the backend each channel's ordering and delivery policy and each role declaration exactly as the checked package authors them.
+- The dispatcher shall hand the backend each component of the requester's premises that QSL's read view does not publish exactly as the requester stated it.
+- When the requester's ordering or delivery premise for a channel differs from the checked package's declaration of it, the dispatcher shall refuse that disposition under FR-030 naming the channel.
+- When the requester's premise differs from the checked package's declaration, the dispatcher shall invoke no backend for that claim.
 - The dispatcher shall retain on the disposition each premise it handed the backend.
 - When the requester's premise set omits a channel premise or a role internality of the fragment, the dispatcher shall refuse that disposition under FR-030 naming the absent premise.
 - When the requester's premise set omits a channel premise or a role internality of the fragment, the dispatcher shall invoke no backend for that claim.
 - The dispatcher shall supply no default, inferred or sampled premise.
 - The dispatcher shall assume no full observability of an `external` role (`ix://agent-ix/quire-specification/FR-217`).
 - When QSL's backend returns the `Inconclusive` verdict (QSL V-6, with its `InconclusiveCause`) or a requires-bound outcome (FR-058), the dispatcher shall carry it unchanged.
-- The dispatcher shall give a disposition with an absent premise or an `Inconclusive` QSL verdict neither truth `satisfied` nor truth `violated`.
+- The dispatcher shall give a disposition with an absent premise neither truth `satisfied` nor truth `violated`.
+- The dispatcher shall give a disposition whose QSL verdict is `Inconclusive` the truth `unavailable`, because `ix://agent-ix/quire-specification/FR-242` reserves `pending` for an open decision scope with settlement basis `unsettled`, which an `Inconclusive` verdict does not state.
 
 ## Acceptance Criteria
 
@@ -49,10 +56,11 @@ Upstream admission already refuses a checked-package channel with a missing comp
 | FR-151-AC-1 | Given a fragment with channels and roles, the stand-in backend's recorded call carries each channel's ordering and delivery premise and each role declaration equal to the checked package's, and the disposition retains the same premises. | Test (TC-161) |
 | FR-151-AC-2 | Given two requests that differ in exactly one component of one channel premise, their request identities and their disposition provenance differ. | Test (TC-161) |
 | FR-151-AC-3 | Given a request whose per-claim premise set omits one channel premise or one role internality of the fragment, that disposition is refused under FR-030 naming the absent premise, the stand-in records no call for that claim, and every independent disposition is unchanged. | Test (TC-161) |
-| FR-151-AC-4 | Given a fragment with an `external` role, the backend call carries `external` for it and no premise implying that the role is fully observable. | Test (TC-161) |
-| FR-151-AC-5 | Given a stand-in that returns the `Inconclusive` verdict with an `InconclusiveCause` and one that returns a requires-bound outcome, each disposition carries the outcome unchanged and holds neither truth `satisfied` nor truth `violated`. | Test (TC-161) |
+| FR-151-AC-4 | Given a requester premise set stating `external` for a role, the backend call carries `external` for it as stated and no premise implying that the role is fully observable. | Test (TC-161) |
+| FR-151-AC-5 | Given a stand-in that returns the `Inconclusive` verdict with a `BoundReached` `InconclusiveCause` and one that returns a requires-bound outcome, each disposition carries the outcome and the cause unchanged and holds neither truth `satisfied` nor truth `violated`, and the `Inconclusive` disposition holds truth `unavailable`. | Test (TC-161) |
 | FR-151-AC-6 | Given the request of FR-151-AC-3, the refused disposition holds neither truth `satisfied` nor truth `violated` and retains no value for the omitted premise, and the same request with the premise restored is sent to the stand-in with exactly the restored value. | Test (TC-161) |
-| FR-151-AC-7 | Given a fragment with channels and roles, the stand-in backend's recorded call carries each channel's sender, receiver and message type and each role internality equal to the checked package's. | Test (TC-161) |
+| FR-151-AC-7 | Given a fragment with channels and roles, the stand-in backend's recorded call carries each channel's sender, receiver and message type and each role internality equal to the checked package's, as QSL's read view publishes them. | Test (TC-161) |
+| FR-151-AC-8 | Given a request whose ordering premise for a channel differs from the checked package's declaration, and a second whose delivery premise differs, each disposition is refused under FR-030 naming the channel, the stand-in records no call, and every independent disposition is unchanged. | Test (TC-161) |
 
 ## Adopted vocabulary
 

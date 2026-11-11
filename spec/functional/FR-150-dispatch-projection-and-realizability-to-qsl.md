@@ -45,6 +45,8 @@ One disposition per requested claim (FR-029), carrying the backend's result, ref
 - The dispatcher shall return `failed` (FR-241) for exactly the claim whose selected backend failed.
 - The dispatcher shall invoke no other backend for a claim whose selected backend failed.
 - The dispatcher shall leave the finite global conformance disposition and every other requested claim's disposition unchanged (FR-029).
+- The dispatcher shall record on the disposition the backend it selected the claim against.
+- The provider boundary shall refuse a second provider for a backend identity that already has one.
 - The dispatcher shall introduce no dispatch path, resource guard or fallback backend beyond FR-005's closed dispatch.
 
 ## Acceptance Criteria
@@ -60,6 +62,8 @@ One disposition per requested claim (FR-029), carrying the backend's result, ref
 | FR-150-AC-7 | Given a request for `local-projection`, `realizability` and `global-conformance` together, three dispositions are returned, and the `global-conformance` disposition equals the one returned when the other two claims are not requested. | Test (TC-160) |
 | FR-150-AC-8 | Given two registered stand-ins that both serve `realizability` and a request naming neither, the claim settles under FR-290 as `ambiguous-backend` naming both candidates in candidate order and neither stand-in records a call, and given a request naming an unregistered backend the claim settles `unknown-backend`. | Test (TC-160) |
 | FR-150-AC-9 | Given the same two stand-ins, a request naming one of them sends the claim to that stand-in only, and the result is identical under every registration order. | Test (TC-160) |
+| FR-150-AC-10 | Given a request naming no backend and one stand-in serving the claim kind, the disposition records that stand-in as the backend selected, and a disposition settled without a selected backend records none. | Test (TC-160) |
+| FR-150-AC-11 | Given a second provider registered for a backend identity that already has one, the registration is refused and the first provider is the one called. | Test (TC-160) |
 
 ## Adopted vocabulary
 

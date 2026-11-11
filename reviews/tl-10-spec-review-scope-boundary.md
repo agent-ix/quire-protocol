@@ -43,3 +43,11 @@ PASS WITH FINDINGS. The PR is consistent with merged FR-057, FR-058 and FR-301-A
 | --- | --- | --- |
 | FND-001 | fixed | Verified at PR head ca84709. |
 | FND-002 | fixed | Verified at PR head ca84709. |
+
+## New findings (quire-protocol#148 spec delta)
+
+Spec delta of quire-protocol#148 at 9a7c29cbccf869b7df1aa109a0b541442416656c (`git diff origin/main...HEAD -- spec/`): FR-151 (AC-1 narrowed, AC-7 appended), FR-152 (AC-5 narrowed, AC-6 appended), TC-162 procedure, spec/tests.md rows FR-150..FR-153 and TC-160..TC-163.
+
+| ID | Severity | Summary | Refs |
+| --- | --- | --- | --- |
+| FND-003 | low | FR-151-AC-7 waits on 'a QSL read view that publishes channel sender, receiver, message type and role internality', but neither FR-151 nor tests.md names the owning repository through an ix:// relationship or a tracking ticket. The boundary is stated with no owner. | spec/tests.md:219 |

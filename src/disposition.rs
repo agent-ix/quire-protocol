@@ -183,19 +183,6 @@ pub enum Disposition<P> {
     Failed(FailedDisposition<P>),
 }
 
-impl<P> Disposition<P> {
-    /// The execution state of the disposition (FR-241).
-    #[must_use]
-    pub const fn execution(&self) -> AssessmentExecution {
-        match self {
-            Self::Unsupported(_) => AssessmentExecution::Unsupported,
-            Self::RequiresBound(_) => AssessmentExecution::ResourceIncomplete,
-            Self::Refused(_) => AssessmentExecution::Refused,
-            Self::Failed(_) => AssessmentExecution::Failed,
-        }
-    }
-}
-
 /// A refusal the backend returned, carried by its catalog code. It holds no
 /// truth `satisfied` or `violated`.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -267,6 +254,44 @@ pub enum ClaimSettlement<R, P> {
     Disposition(Disposition<P>),
 }
 
+/// Settle one claim against `boundary`, binding the report to `premises`.
+pub fn settle_claim<C, R, P>(
+    boundary: &mut (impl QslBoundary<C, R> + ?Sized),
+    claim: &C,
+    premises: P,
+) -> ClaimSettlement<R, P> {
+    match boundary.report(claim) {
+        QslReport::Result(result) => ClaimSettlement::Result { result, premises },
+        QslReport::Unsupported { cause, construct } => {
+            ClaimSettlement::Disposition(Disposition::Unsupported(UnsupportedDisposition {
+                cause,
+                construct,
+                premises,
+                warnings: Vec::new(),
+            }))
+        }
+        QslReport::Refusal(code) => {
+            ClaimSettlement::Disposition(Disposition::Refused(RefusedDisposition {
+                code,
+                premises,
+            }))
+        }
+        QslReport::Failed(diagnostic) => {
+            ClaimSettlement::Disposition(Disposition::Failed(FailedDisposition {
+                diagnostic,
+                premises,
+            }))
+        }
+        QslReport::RequiresBound { outcome, construct } => {
+            ClaimSettlement::Disposition(Disposition::RequiresBound(RequiresBoundDisposition {
+                outcome,
+                construct,
+                premises,
+            }))
+        }
+    }
+}
+
 /// Settle each of `claims` against `boundary`: exactly one settlement per
 /// claim, in order, none derived from another claim's.
 pub fn settle_claims<C, R, P: Clone>(
@@ -275,39 +300,7 @@ pub fn settle_claims<C, R, P: Clone>(
 ) -> Vec<ClaimSettlement<R, P>> {
     claims
         .iter()
-        .map(|(claim, premises)| match boundary.report(claim) {
-            QslReport::Result(result) => ClaimSettlement::Result {
-                result,
-                premises: premises.clone(),
-            },
-            QslReport::Unsupported { cause, construct } => {
-                ClaimSettlement::Disposition(Disposition::Unsupported(UnsupportedDisposition {
-                    cause,
-                    construct,
-                    premises: premises.clone(),
-                    warnings: Vec::new(),
-                }))
-            }
-            QslReport::Refusal(code) => {
-                ClaimSettlement::Disposition(Disposition::Refused(RefusedDisposition {
-                    code,
-                    premises: premises.clone(),
-                }))
-            }
-            QslReport::Failed(diagnostic) => {
-                ClaimSettlement::Disposition(Disposition::Failed(FailedDisposition {
-                    diagnostic,
-                    premises: premises.clone(),
-                }))
-            }
-            QslReport::RequiresBound { outcome, construct } => {
-                ClaimSettlement::Disposition(Disposition::RequiresBound(RequiresBoundDisposition {
-                    outcome,
-                    construct,
-                    premises: premises.clone(),
-                }))
-            }
-        })
+        .map(|(claim, premises)| settle_claim(boundary, claim, premises.clone()))
         .collect()
 }
 

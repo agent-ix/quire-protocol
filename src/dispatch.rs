@@ -14,18 +14,20 @@
 //! (FR-150, FR-152). While no backend serves the kind it settles the claim
 //! `unsupported` (FR-153).
 
+use std::collections::btree_map::Entry;
 use std::collections::BTreeMap;
 
 use qsl_foundation::BackendId;
-use qsl_replay::{SeparatingWitnessRecord, SettlementBasis, Truth};
+use qsl_package::protocol_view::Delivery;
+use qsl_replay::{InconclusiveCause, SeparatingWitnessRecord, SettlementBasis, Truth};
 use qsl_route::{BackendDescriptor, Candidate, CandidateOutcome, RegistrationRefusal, Registry};
 use qsl_semantics::check::Capability;
 use quire_contract_model::CheckedNodeId;
 use quire_semantic_value::catalog::CatalogCode;
 
-use crate::declarations::{ChannelDeclaration, Declarations, RoleDeclaration};
+use crate::declarations::{ChannelDeclaration, Declarations, Ordering, RoleDeclaration};
 use crate::disposition::{
-    settle_claims, ClaimSettlement, Disposition, QslBoundary, UnsupportedCause,
+    settle_claim, ClaimSettlement, Disposition, QslBoundary, UnsupportedCause,
     UnsupportedDisposition, Warning,
 };
 
@@ -59,13 +61,27 @@ pub struct Fragment {
     pub roles: Vec<CheckedNodeId>,
 }
 
+/// One channel's premise as the requester states it (FR-151). The ordering
+/// and delivery are the components QSL's read view publishes, so they are
+/// typed and must equal the checked package's; the components it does not yet
+/// publish (sender, receiver, message type) are `C`, forwarded as stated.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ChannelPremise<C> {
+    /// The ordering policy.
+    pub ordering: Ordering,
+    /// The delivery policy.
+    pub delivery: Delivery,
+    /// The components the read view does not publish.
+    pub unread: C,
+}
+
 /// The per-claim premises the requester supplied, keyed by the channel or role
-/// they are the premise of (FR-151). `C` is one channel premise and `I` one
-/// role internality, as the requester states them.
+/// they are the premise of (FR-151). `C` is a channel's unread components and
+/// `I` one role internality, as the requester states them.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Premises<C, I> {
     /// The premise of each channel.
-    pub channels: BTreeMap<CheckedNodeId, C>,
+    pub channels: BTreeMap<CheckedNodeId, ChannelPremise<C>>,
     /// The internality of each role.
     pub roles: BTreeMap<CheckedNodeId, I>,
 }
@@ -103,6 +119,8 @@ pub struct ProtocolRequest<A, C, I> {
 pub struct Binding<A, C, I> {
     /// The request, unchanged.
     pub request: ProtocolRequest<A, C, I>,
+    /// The backend the claim was selected against, once FR-290 selects one.
+    pub selected: Option<BackendId>,
     /// The checked package's declaration of each channel of the fragment, in
     /// fragment order.
     pub channels: Vec<ChannelDeclaration>,
@@ -126,9 +144,14 @@ pub enum DispositionRefusal {
     /// A decisive result was returned for a request that retains no source
     /// identity (FR-152).
     NoSourceIdentity,
-    /// A decisive result was returned with no trace-position witness
+    /// The requester's premise for a channel disagrees with the checked
+    /// package's declaration of it.
+    SubstitutedChannelPremise(CheckedNodeId),
+    /// A decisive `realizability` result carries no trace-position witness
     /// (FR-302).
     DecisiveWithoutWitness,
+    /// QSL's registry selected a backend that has no provider.
+    NoProvider(BackendId),
 }
 
 /// What the dispatcher reads of a backend's result. The result itself is
@@ -141,8 +164,9 @@ pub trait BackendResult {
     /// The separating-witness record the result carries, when it carries
     /// one.
     fn witness(&self) -> Option<&SeparatingWitnessRecord>;
-    /// Whether the result is QSL's `Inconclusive` verdict.
-    fn inconclusive(&self) -> bool;
+    /// QSL's `InconclusiveCause` when the result is its `Inconclusive`
+    /// verdict.
+    fn inconclusive(&self) -> Option<&InconclusiveCause>;
 }
 
 /// The settlement of one requested claim.
@@ -172,8 +196,8 @@ impl<R: BackendResult, B> ProtocolOutcome<R, B> {
     pub fn truth(&self) -> Truth {
         match self {
             Self::Settled(ClaimSettlement::Result { result, .. }) => {
-                if result.inconclusive() {
-                    Truth::Pending
+                if result.inconclusive().is_some() {
+                    Truth::Unavailable
                 } else {
                     result.truth()
                 }
@@ -206,6 +230,15 @@ pub enum ClaimDisposition<G, A, C, I, R> {
     GlobalConformance(G),
     /// The protocol claim's settlement.
     Protocol(ProtocolOutcome<R, Binding<A, C, I>>),
+}
+
+/// Why a provider was not registered.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum RegistrationError {
+    /// QSL's registry refused the descriptor.
+    Registry(RegistrationRefusal),
+    /// The identity already has a provider.
+    ProviderHeld(BackendId),
 }
 
 /// The call into one registered backend.
@@ -244,24 +277,28 @@ impl<'p, A, C, I, R> ProviderBoundary<'p, A, C, I, R> {
     ///
     /// # Errors
     ///
-    /// QSL's `duplicate-backend` refusal when the identity conflicts; the
-    /// identity is then served by no provider.
+    /// [`RegistrationError::Registry`] with QSL's `duplicate-backend` refusal
+    /// when the identity conflicts; the identity is then served by no
+    /// provider. [`RegistrationError::ProviderHeld`] when the identity
+    /// already has a provider; the held provider is kept and `provider` is
+    /// dropped.
     pub fn register(
         &mut self,
         descriptor: BackendDescriptor,
         provider: impl QslBoundary<Binding<A, C, I>, R> + 'p,
-    ) -> Result<(), RegistrationRefusal> {
+    ) -> Result<(), RegistrationError> {
         let id = descriptor.id().clone();
         match self.registry.register(descriptor) {
-            Ok(()) => {
-                self.providers
-                    .entry(id)
-                    .or_insert_with(|| Box::new(provider));
-                Ok(())
-            }
+            Ok(()) => match self.providers.entry(id) {
+                Entry::Occupied(held) => Err(RegistrationError::ProviderHeld(held.key().clone())),
+                Entry::Vacant(slot) => {
+                    slot.insert(Box::new(provider));
+                    Ok(())
+                }
+            },
             Err(refusal) => {
                 self.providers.remove(&id);
-                Err(refusal)
+                Err(RegistrationError::Registry(refusal))
             }
         }
     }
@@ -283,8 +320,13 @@ pub fn bind<A: Clone, C: Clone, I: Clone>(
         let declared = declarations
             .channel(node)
             .ok_or_else(|| DispositionRefusal::UndeclaredChannel(node.clone()))?;
-        if !request.premises.channels.contains_key(node) {
-            return Err(DispositionRefusal::AbsentChannelPremise(node.clone()));
+        let stated = request
+            .premises
+            .channels
+            .get(node)
+            .ok_or_else(|| DispositionRefusal::AbsentChannelPremise(node.clone()))?;
+        if stated.ordering != declared.ordering || stated.delivery != declared.delivery {
+            return Err(DispositionRefusal::SubstitutedChannelPremise(node.clone()));
         }
         channels.push(declared.clone());
     }
@@ -300,6 +342,7 @@ pub fn bind<A: Clone, C: Clone, I: Clone>(
     }
     Ok(Binding {
         request: request.clone(),
+        selected: None,
         channels,
         roles,
     })
@@ -345,8 +388,8 @@ where
                     construct: None,
                     premises: binding,
                     warnings: vec![Warning::UnservedCapability {
-                        kind: capability,
-                        backend: request.backend.clone(),
+                        kind: set.kind(),
+                        backend: set.requested_backend().cloned(),
                     }],
                 },
             )))
@@ -358,32 +401,27 @@ where
             }
         };
     };
+    let mut binding = binding;
+    binding.selected = Some(candidate.id().clone());
     let Some(provider) = boundary.providers.get_mut(candidate.id()) else {
-        // `register` is the only way a descriptor enters the registry and it
-        // always holds its provider, so no candidate lacks one.
-        return ProtocolOutcome::Settled(ClaimSettlement::Disposition(Disposition::Failed(
-            crate::disposition::FailedDisposition {
-                diagnostic: None,
-                premises: binding,
-            },
-        )));
+        return ProtocolOutcome::Refused(DispositionRefusal::NoProvider(candidate.id().clone()));
     };
-    let mut settled = settle_claims(provider.as_mut(), &[(binding.clone(), binding)]);
-    let Some(settlement) = settled.pop() else {
-        return ProtocolOutcome::Refused(DispositionRefusal::NoSourceIdentity);
-    };
+    let claim = binding.clone();
+    let settlement = settle_claim(provider.as_mut(), &claim, binding);
     if let ClaimSettlement::Result { result, premises } = &settlement {
-        if let Some(refusal) = carry_refusal(result, &premises.request.sources) {
+        if let Some(refusal) = carry_refusal(request.kind, result, &premises.request.sources) {
             return ProtocolOutcome::Refused(refusal);
         }
     }
     ProtocolOutcome::Settled(settlement)
 }
 
-/// FR-152: a decisive result is carried with its trace-position witness,
-/// beside the source identities the disposition retains; without either it is
-/// refused. The witness is never read, normalised or reordered.
+/// FR-152: a decisive result is carried beside the source identities the
+/// disposition retains, and a decisive `realizability` result with its
+/// trace-position witness; without them it is refused. The witness is never
+/// read, normalised or reordered.
 fn carry_refusal<R: BackendResult>(
+    kind: ProtocolClaimKind,
     result: &R,
     sources: &[CheckedNodeId],
 ) -> Option<DispositionRefusal> {
@@ -393,7 +431,10 @@ fn carry_refusal<R: BackendResult>(
     if sources.is_empty() {
         return Some(DispositionRefusal::NoSourceIdentity);
     }
-    if result.witness().is_none() {
+    let positioned = result
+        .witness()
+        .is_some_and(|record| record.trace_position.is_some());
+    if kind == ProtocolClaimKind::Realizability && !positioned {
         return Some(DispositionRefusal::DecisiveWithoutWitness);
     }
     None

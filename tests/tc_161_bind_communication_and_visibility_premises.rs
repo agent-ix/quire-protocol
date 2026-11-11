@@ -8,21 +8,23 @@ mod support {
     pub mod standin;
 }
 
-use std::collections::BTreeSet;
-
 use ix_trace_rs::trace;
 use qsl_eval::simulation::RequiresBound;
 use qsl_foundation::bound::{DomainKey, DomainKind};
-use qsl_replay::{SettlementBasis, Truth};
+use qsl_package::protocol_view::Delivery;
+use qsl_replay::{InconclusiveCause, SettlementBasis, Truth};
 use qsl_semantics::check::Capability;
 use qsl_semantics::family::ClaimExtent;
+use quire_protocol::declarations::Ordering;
 use quire_protocol::dispatch::{
-    dispatch, dispatch_claims, ClaimDisposition, ClaimRequest, DispositionRefusal,
+    dispatch, dispatch_claims, ChannelPremise, ClaimDisposition, ClaimRequest, DispositionRefusal,
     ProtocolClaimKind, ProtocolOutcome,
 };
 use quire_protocol::disposition::{ClaimSettlement, Disposition, QslReport};
 use support::dynamic::Dynamic;
-use support::standin::{always, chan, request, serve, Boundary, Chan, Sentinel};
+use support::standin::{always, request, rest, serve, Boundary, Rest, Sentinel};
+
+type Change = Box<dyn Fn(ChannelPremise<Rest>) -> ChannelPremise<Rest>>;
 
 const KIND: ProtocolClaimKind = ProtocolClaimKind::Realizability;
 
@@ -79,37 +81,76 @@ fn requests_differing_in_one_premise_component_differ_in_identity_and_provenance
     let dynamic = Dynamic::with("workflow", 3);
     let base = request(&dynamic, KIND, &["Head"]);
     let head = dynamic.named("channel", "Head");
-    let components: [fn(Chan) -> Chan; 5] = [
-        |c| Chan { sender: "R", ..c },
-        |c| Chan { receiver: "S", ..c },
-        |c| Chan {
-            message_type: "Other",
+    let declared = dynamic
+        .linked()
+        .declarations()
+        .channel(&head)
+        .expect("Head")
+        .clone();
+    let other_delivery = if declared.delivery == Delivery::AtMostOnce {
+        Delivery::AtLeastOnce
+    } else {
+        Delivery::AtMostOnce
+    };
+    let components: [Change; 5] = [
+        Box::new(|c| ChannelPremise {
+            unread: Rest {
+                sender: "other",
+                ..c.unread
+            },
             ..c
-        },
-        |c| Chan {
-            ordering: "unordered",
+        }),
+        Box::new(|c| ChannelPremise {
+            unread: Rest {
+                receiver: "other",
+                ..c.unread
+            },
             ..c
-        },
-        |c| Chan {
-            delivery: "exactly-once-premise",
+        }),
+        Box::new(|c| ChannelPremise {
+            unread: Rest {
+                message_type: "other",
+                ..c.unread
+            },
             ..c
-        },
+        }),
+        Box::new(|c| ChannelPremise {
+            ordering: Ordering::Unordered,
+            ..c
+        }),
+        Box::new(move |c| ChannelPremise {
+            delivery: other_delivery,
+            ..c
+        }),
     ];
-    let mut provenance = BTreeSet::new();
-    for change in components {
+    let (mut boundary, _) = serving();
+    let base_binding = match dispatch(&mut boundary, dynamic.linked().declarations(), &base) {
+        ProtocolOutcome::Settled(ClaimSettlement::Result { premises, .. }) => premises,
+        other => panic!("{other:?}"),
+    };
+    let mut retained = vec![base_binding];
+    for (index, change) in components.iter().enumerate() {
         let mut other = base.clone();
         let premise = other.premises.channels.get_mut(&head).expect("premise");
         *premise = change(premise.clone());
-        assert_ne!(base, other);
-        let (mut boundary, _) = serving();
-        let settled = dispatch(&mut boundary, dynamic.linked().declarations(), &other);
-        let ProtocolOutcome::Settled(ClaimSettlement::Result { premises, .. }) = settled else {
-            panic!("{settled:?}");
-        };
-        assert_ne!(premises.request, base);
-        provenance.insert(format!("{:?}", premises.request.premises));
+        assert_ne!(base, other, "component {index}");
+        // Only the components the read view does not publish can differ from
+        // the package and still be bound (FR-151-AC-8 refuses the others).
+        if index < 3 {
+            let (mut boundary, _) = serving();
+            let settled = dispatch(&mut boundary, dynamic.linked().declarations(), &other);
+            let ProtocolOutcome::Settled(ClaimSettlement::Result { premises, .. }) = settled else {
+                panic!("{settled:?}");
+            };
+            assert_eq!(premises.request, other);
+            retained.push(premises);
+        }
     }
-    assert_eq!(provenance.len(), components.len());
+    for (left, first) in retained.iter().enumerate() {
+        for second in &retained[left + 1..] {
+            assert_ne!(first, second);
+        }
+    }
 }
 
 #[test]
@@ -177,8 +218,9 @@ fn inconclusive_and_requires_bound_are_carried_and_hold_no_decided_truth() {
     let dynamic = Dynamic::with("workflow", 3);
     let asked = request(&dynamic, KIND, &["Head"]);
     // A backend that reports `satisfied` beside an Inconclusive verdict.
+    let cause = InconclusiveCause::BoundReached { depth: 3 };
     let mut inconclusive = Sentinel::new("v6", Truth::Satisfied, SettlementBasis::Unsettled);
-    inconclusive.inconclusive = true;
+    inconclusive.inconclusive = Some(cause.clone());
     let mut boundary = Boundary::new();
     serve(
         &mut boundary,
@@ -187,14 +229,12 @@ fn inconclusive_and_requires_bound_are_carried_and_hold_no_decided_truth() {
         always(inconclusive.clone()),
     );
     let outcome = dispatch(&mut boundary, dynamic.linked().declarations(), &asked);
-    assert!(!matches!(
-        outcome.truth(),
-        Truth::Satisfied | Truth::Violated
-    ));
+    assert_eq!(outcome.truth(), Truth::Unavailable);
     let ProtocolOutcome::Settled(ClaimSettlement::Result { result, .. }) = outcome else {
         panic!("{outcome:?}");
     };
     assert_eq!(result, inconclusive);
+    assert_eq!(result.inconclusive, Some(cause));
 
     let node = dynamic.key(&dynamic.named("control", "Bounded"));
     let ClaimExtent::Unbounded(domains) = ClaimExtent::from_domains(
@@ -252,9 +292,12 @@ fn a_refused_disposition_holds_no_decided_truth_and_the_restored_premise_is_sent
     assert_eq!(calls.len(), 0);
 
     let mut restored = omitted;
-    let value = Chan {
-        delivery: "restored-delivery",
-        ..chan("at-least-once")
+    let value = ChannelPremise {
+        unread: Rest {
+            sender: "restored-sender",
+            ..rest()
+        },
+        ..complete.premises.channels[&head].clone()
     };
     restored
         .premises
@@ -266,4 +309,59 @@ fn a_refused_disposition_holds_no_decided_truth_and_the_restored_premise_is_sent
         panic!("one call");
     };
     assert_eq!(call.request.premises.channels[&head], value);
+}
+
+#[test]
+#[trace("TC-161", "FR-151-AC-8")]
+fn a_requester_premise_that_disagrees_with_the_package_is_refused_alone() {
+    let dynamic = Dynamic::with("workflow", 3);
+    let head = dynamic.named("channel", "Head");
+    let complete = request(&dynamic, KIND, &["Head"]);
+    let declared = dynamic
+        .linked()
+        .declarations()
+        .channel(&head)
+        .expect("Head")
+        .clone();
+    let mut wrong_ordering = complete.clone();
+    wrong_ordering
+        .premises
+        .channels
+        .get_mut(&head)
+        .expect("premise")
+        .ordering = Ordering::Unordered;
+    let mut wrong_delivery = complete;
+    wrong_delivery
+        .premises
+        .channels
+        .get_mut(&head)
+        .expect("premise")
+        .delivery = if declared.delivery == Delivery::AtMostOnce {
+        Delivery::AtLeastOnce
+    } else {
+        Delivery::AtMostOnce
+    };
+    let (mut boundary, calls) = serving();
+    let settled = dispatch_claims(
+        &mut boundary,
+        dynamic.linked().declarations(),
+        &[
+            ClaimRequest::Protocol(wrong_ordering),
+            ClaimRequest::Protocol(wrong_delivery),
+            ClaimRequest::GlobalConformance("conformant"),
+        ],
+    );
+    for refused in &settled[..2] {
+        assert_eq!(
+            *refused,
+            ClaimDisposition::Protocol(ProtocolOutcome::Refused(
+                DispositionRefusal::SubstitutedChannelPremise(head.clone())
+            ))
+        );
+    }
+    assert_eq!(
+        settled[2],
+        ClaimDisposition::GlobalConformance("conformant")
+    );
+    assert_eq!(calls.len(), 0);
 }

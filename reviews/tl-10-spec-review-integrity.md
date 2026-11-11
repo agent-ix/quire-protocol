@@ -55,3 +55,12 @@ PASS WITH FINDINGS. The PR is consistent with merged FR-057, FR-058 and FR-301-A
 | FND-002 | fixed | Verified at PR head ca84709. |
 | FND-003 | fixed | Verified at PR head ca84709. |
 | FND-004 | fixed | Verified at PR head df47610 (round 2). |
+
+## New findings (quire-protocol#148 spec delta)
+
+Spec delta of quire-protocol#148 at 9a7c29cbccf869b7df1aa109a0b541442416656c (`git diff origin/main...HEAD -- spec/`): FR-151 (AC-1 narrowed, AC-7 appended), FR-152 (AC-5 narrowed, AC-6 appended), TC-162 procedure, spec/tests.md rows FR-150..FR-153 and TC-160..TC-163.
+
+| ID | Severity | Summary | Refs |
+| --- | --- | --- | --- |
+| FND-005 | low | The rows change criterion counts (FR-151 6->7, FR-152 5->6) and move 27 criteria from planned to living-traced. The Overview ('474 acceptance criteria'), the Behavioural totals line ('347 ... 88 carry a living traced test ... 153 are planned') and the Owed acceptance criteria table were not recomputed. | spec/tests.md:228 |
+| FND-006 | medium | FR-151's Description, Inputs and Behavior bullet 1 still say the dispatcher hands the backend all five channel-premise components and the role internality 'exactly as the checked package authors them'. AC-1 was narrowed and AC-7 split off because no read view provides them. The FR statement now promises what no criterion verifies, and only spec/tests.md records the gap. Say in FR-151 that this dependency is outstanding. | spec/functional/FR-151-bind-communication-and-visibility-premises.md:55 |

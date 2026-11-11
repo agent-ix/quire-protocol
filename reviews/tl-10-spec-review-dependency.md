@@ -41,3 +41,11 @@ PASS WITH FINDINGS. The PR is consistent with merged FR-057, FR-058 and FR-301-A
 | FND | outcome | reason |
 | --- | --- | --- |
 | FND-001 | fixed | Verified at PR head ca84709. |
+
+## New findings (quire-protocol#148 spec delta)
+
+Spec delta of quire-protocol#148 at 9a7c29cbccf869b7df1aa109a0b541442416656c (`git diff origin/main...HEAD -- spec/`): FR-151 (AC-1 narrowed, AC-7 appended), FR-152 (AC-5 narrowed, AC-6 appended), TC-162 procedure, spec/tests.md rows FR-150..FR-153 and TC-160..TC-163.
+
+| ID | Severity | Summary | Refs |
+| --- | --- | --- | --- |
+| FND-002 | low | The tests.md FR-152 row says AC-6 'awaits the FR-249 derived-artifact identity rule'. In this repository ADR-010 reserves FR-200..FR-249 for TL-9 composition, so a bare 'FR-249' reads as a local requirement. Qualify it as ix://agent-ix/quire-specification/FR-249, with FR-062, as FR-030 cites them. | spec/tests.md:220 |

@@ -37,7 +37,7 @@ fn protocol(
     disposition: ClaimDisposition<
         &'static str,
         support::standin::Assumptions,
-        support::standin::Chan,
+        support::standin::Rest,
         &'static str,
         Sentinel,
     >,

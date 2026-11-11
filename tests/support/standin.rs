@@ -14,31 +14,31 @@ use qsl_foundation::witness::{
     ObservationIdentity, RuntimeValuePath, ValuePathStep, ValuePathSubject,
 };
 use qsl_foundation::BackendId;
-use qsl_replay::{SeparatingWitnessRecord, SettlementBasis, TracePosition, Truth};
+use qsl_replay::{
+    InconclusiveCause, SeparatingWitnessRecord, SettlementBasis, TracePosition, Truth,
+};
 use qsl_route::{BackendDescriptor, Candidate, Mode, ProviderOrigin};
 use qsl_semantics::check::Capability;
 use quire_protocol::dispatch::{
-    BackendResult, Binding, Fragment, Premises, ProtocolClaimKind, ProtocolRequest,
+    BackendResult, Binding, ChannelPremise, Fragment, Premises, ProtocolClaimKind, ProtocolRequest,
     ProviderBoundary,
 };
 use quire_protocol::disposition::{QslBoundary, QslReport};
 
 use super::dynamic::Dynamic;
 
-/// A channel premise: the five components FR-216 names.
+/// The channel components QSL's read view does not publish yet.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Chan {
+pub struct Rest {
     pub sender: &'static str,
     pub receiver: &'static str,
     pub message_type: &'static str,
-    pub ordering: &'static str,
-    pub delivery: &'static str,
 }
 
 pub type Assumptions = &'static str;
-pub type Req = ProtocolRequest<Assumptions, Chan, &'static str>;
-pub type Bind = Binding<Assumptions, Chan, &'static str>;
-pub type Boundary = ProviderBoundary<'static, Assumptions, Chan, &'static str, Sentinel>;
+pub type Req = ProtocolRequest<Assumptions, Rest, &'static str>;
+pub type Bind = Binding<Assumptions, Rest, &'static str>;
+pub type Boundary = ProviderBoundary<'static, Assumptions, Rest, &'static str, Sentinel>;
 
 /// The result a stand-in returns, with the parts the dispatcher reads.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -47,7 +47,7 @@ pub struct Sentinel {
     pub truth: Truth,
     pub basis: SettlementBasis,
     pub witness: Option<SeparatingWitnessRecord>,
-    pub inconclusive: bool,
+    pub inconclusive: Option<InconclusiveCause>,
     pub artifact: Option<&'static str>,
 }
 
@@ -58,7 +58,7 @@ impl Sentinel {
             truth,
             basis,
             witness: None,
-            inconclusive: false,
+            inconclusive: None,
             artifact: None,
         }
     }
@@ -74,8 +74,8 @@ impl BackendResult for Sentinel {
     fn witness(&self) -> Option<&SeparatingWitnessRecord> {
         self.witness.as_ref()
     }
-    fn inconclusive(&self) -> bool {
-        self.inconclusive
+    fn inconclusive(&self) -> Option<&InconclusiveCause> {
+        self.inconclusive.as_ref()
     }
 }
 
@@ -97,6 +97,12 @@ impl Calls {
 pub struct Standin {
     answer: Answer,
     calls: Calls,
+}
+
+impl Standin {
+    pub fn new(answer: Answer, calls: Calls) -> Self {
+        Self { answer, calls }
+    }
 }
 
 impl QslBoundary<Bind, Sentinel> for Standin {
@@ -143,13 +149,11 @@ pub fn always(result: Sentinel) -> Answer {
     Box::new(move |_| QslReport::Result(result.clone()))
 }
 
-pub fn chan(delivery: &'static str) -> Chan {
-    Chan {
+pub fn rest() -> Rest {
+    Rest {
         sender: "S",
         receiver: "R",
         message_type: "Notice",
-        ordering: "fifo",
-        delivery,
     }
 }
 
@@ -172,7 +176,19 @@ pub fn request(dynamic: &Dynamic, kind: ProtocolClaimKind, channels: &[&str]) ->
         premises: Premises {
             channels: channel_nodes
                 .into_iter()
-                .map(|node| (node, chan("at-least-once")))
+                .map(|node| {
+                    let declared = dynamic
+                        .linked()
+                        .declarations()
+                        .channel(&node)
+                        .expect("a declared channel");
+                    let premise = ChannelPremise {
+                        ordering: declared.ordering.clone(),
+                        delivery: declared.delivery,
+                        unread: rest(),
+                    };
+                    (node, premise)
+                })
                 .collect(),
             roles: roles.into_iter().map(|node| (node, "internal")).collect(),
         },

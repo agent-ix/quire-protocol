@@ -33,6 +33,7 @@ The disposition carrying the backend's witness, counterexample or projected loca
 - The result producer shall join the carried trace position to the linked graph through the source identities the disposition retains under FR-030.
 - The result producer shall interpret the trace position as no graph identity itself.
 - When the disposition retains no source identity, the result producer shall refuse it under FR-030.
+- When a `realizability` disposition settled on a decisive basis carries no trace-position witness, or a witness record with no trace position, the result producer shall refuse it under FR-030.
 - The result producer shall retain the derived-artifact correspondence FR-030 requires beside the source identities.
 - The result producer shall compute no witness, no minimisation and no reordering of a witness.
 - The result producer shall leave every independent disposition unchanged when it refuses one.
@@ -49,6 +50,7 @@ The disposition carrying the backend's witness, counterexample or projected loca
 | FR-152-AC-4 | Given a decisive request whose disposition retains no source identity, that disposition is refused under FR-030, and every independent disposition is unchanged. | Test (TC-162) |
 | FR-152-AC-5 | Given a stand-in returning a projected local artifact for a `local-projection` claim, the disposition carries it unchanged. | Test (TC-162) |
 | FR-152-AC-6 | Given a projected local artifact whose identity disagrees with the one derived from its selected tuple, that disposition is refused as FR-030-AC-5 requires. | Test (TC-162) |
+| FR-152-AC-7 | Given a stand-in returning a decisive `realizability` result with no witness, and a second whose witness record has no trace position, each disposition is refused under FR-030, and a decisive `local-projection` result with no witness is carried unchanged. | Test (TC-162) |
 
 ## Adopted vocabulary
 

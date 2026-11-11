@@ -11,14 +11,18 @@ mod support {
 use ix_trace_rs::trace;
 use qsl_eval::simulation::protocol::Unsupported;
 use qsl_replay::{SettlementBasis, Truth};
+use qsl_route::{BackendDescriptor, Mode, ProviderOrigin};
 use qsl_semantics::check::Capability;
+use quire_protocol::dispatch::RegistrationError;
 use quire_protocol::dispatch::{
     dispatch, dispatch_claims, ClaimDisposition, ClaimRequest, ProtocolClaimKind, ProtocolOutcome,
 };
 use quire_protocol::disposition::{ClaimSettlement, Disposition, QslReport, UnsupportedCause};
 use quire_semantic_value::catalog::CatalogCode;
 use support::dynamic::Dynamic;
-use support::standin::{always, candidate, id, request, serve, Boundary, Req, Sentinel};
+use support::standin::{
+    always, candidate, id, request, serve, Boundary, Calls, Req, Sentinel, Standin,
+};
 
 const PROJECTION: ProtocolClaimKind = ProtocolClaimKind::LocalProjection;
 const REALIZABILITY: ProtocolClaimKind = ProtocolClaimKind::Realizability;
@@ -425,4 +429,74 @@ fn a_named_backend_alone_is_called_under_every_registration_order() {
         panic!("{forward:?}");
     };
     assert_eq!(result, sentinel("b"));
+}
+
+#[test]
+#[trace("TC-160", "FR-150-AC-10")]
+fn the_selected_backend_is_recorded_on_the_disposition() {
+    let dynamic = Dynamic::with("workflow", 3);
+    let mut boundary = Boundary::new();
+    serve(
+        &mut boundary,
+        "only-backend",
+        &[Capability::Realizability],
+        always(sentinel("x")),
+    );
+    let asked = request(&dynamic, REALIZABILITY, &["Head"]);
+    assert_eq!(asked.backend, None);
+    let outcome = run(&mut boundary, &dynamic, &asked);
+    let ProtocolOutcome::Settled(ClaimSettlement::Result { premises, .. }) = outcome else {
+        panic!("{outcome:?}");
+    };
+    assert_eq!(premises.selected, Some(id("only-backend")));
+    assert_eq!(premises.request.backend, None);
+
+    let unserved = run(
+        &mut boundary,
+        &dynamic,
+        &request(&dynamic, PROJECTION, &["Head"]),
+    );
+    let ProtocolOutcome::Settled(ClaimSettlement::Disposition(Disposition::Unsupported(
+        unsupported,
+    ))) = unserved
+    else {
+        panic!("{unserved:?}");
+    };
+    assert_eq!(unsupported.premises.selected, None);
+}
+
+#[test]
+#[trace("TC-160", "FR-150-AC-11")]
+fn a_second_provider_for_a_held_identity_is_refused_and_the_first_is_called() {
+    let dynamic = Dynamic::with("workflow", 3);
+    let mut boundary = Boundary::new();
+    let first = serve(
+        &mut boundary,
+        "backend",
+        &[Capability::Realizability],
+        always(sentinel("first")),
+    );
+    let descriptor = BackendDescriptor::new(
+        candidate("backend"),
+        ProviderOrigin::Linked,
+        [(Capability::Realizability, Mode::Unbounded)],
+        None,
+        None,
+    )
+    .expect("a descriptor");
+    let refused = boundary.register(
+        descriptor,
+        Standin::new(always(sentinel("second")), Calls::default()),
+    );
+    assert_eq!(refused, Err(RegistrationError::ProviderHeld(id("backend"))));
+    let outcome = run(
+        &mut boundary,
+        &dynamic,
+        &request(&dynamic, REALIZABILITY, &["Head"]),
+    );
+    assert_eq!(first.len(), 1);
+    let ProtocolOutcome::Settled(ClaimSettlement::Result { result, .. }) = outcome else {
+        panic!("{outcome:?}");
+    };
+    assert_eq!(result, sentinel("first"));
 }
