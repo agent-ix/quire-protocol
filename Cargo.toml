@@ -20,6 +20,10 @@ qsl-eval = { git = "https://github.com/agent-ix/quire-spec-language", branch = "
 # The channel overflow, loss selector and outstanding vocabulary (QSL FR-308,
 # FR-218) the declarations retain, and the wire graph that keys protocol nodes in tests.
 qsl-semantics = { git = "https://github.com/agent-ix/quire-spec-language", branch = "main" }
+# The capability-backend registry and candidate sets (QSL FR-075, FR-290), the
+# truth and settlement-basis vocabulary and the separating-witness record.
+qsl-route = { git = "https://github.com/agent-ix/quire-spec-language", branch = "main" }
+qsl-replay = { git = "https://github.com/agent-ix/quire-spec-language", branch = "main" }
 quire-eval = { git = "https://github.com/agent-ix/quire-eval", branch = "main" }
 quire-exact = { git = "https://github.com/agent-ix/quire-exact", branch = "main" }
 quire-semantic-value = { git = "https://github.com/agent-ix/quire-semantic-value", branch = "main" }

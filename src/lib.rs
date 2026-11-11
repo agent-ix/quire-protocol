@@ -40,6 +40,8 @@ pub mod declarations;
 pub mod delivery_index;
 /// Exact-byte SHA-256 digest carriers.
 pub mod digest;
+/// Dispatch of `local-projection` and `realizability` claims to the backend QSL's registry selects.
+pub mod dispatch;
 /// Typed dispositions for QSL `Unsupported` and requires-bound outcomes.
 pub mod disposition;
 /// Assessment of an observed history against those declarations.

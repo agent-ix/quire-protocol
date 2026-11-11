@@ -63,3 +63,12 @@ PASS WITH FINDINGS. The PR is consistent with merged FR-057, FR-058 and FR-301-A
 | FND-004 | fixed | Verified at PR head df47610 (round 2). |
 | FND-005 | fixed | Verified at PR head eb49afd (round 3). |
 | FND-006 | fixed | Verified at PR head eb49afd (round 3). |
+| FND-007 | fixed | Round 1, 72743ff: / FR-151-AC-8 / Given a request whose ordering premise for a channel differs from the checked package's declaration, and a second whose delivery premise differs, each disposition is refused under FR-030 naming the channel, the stand-in records no call, and every independent disposition is unchanged. / Test (TC-161) / |
+
+## New findings (quire-protocol#148 spec delta)
+
+Spec delta of quire-protocol#148 at 9a7c29cbccf869b7df1aa109a0b541442416656c (`git diff origin/main...HEAD -- spec/`): FR-151 (AC-1 narrowed, AC-7 appended), FR-152 (AC-5 narrowed, AC-6 appended), TC-162 procedure, spec/tests.md rows FR-150..FR-153 and TC-160..TC-163.
+
+| ID | Severity | Summary | Refs |
+| --- | --- | --- | --- |
+| FND-007 | medium | After narrowing, FR-151 has no criterion for a requester premise that disagrees with the checked package's declaration of the same channel or role (for example ordering `unordered` against a package `fifo`). FR-030 says a substituted component refuses. `bind` checks only presence and passes both values to the backend side by side. State whether the requester premise must equal the package's, and if so add a refusal criterion. | spec/functional/FR-151-bind-communication-and-visibility-premises.md:55 |

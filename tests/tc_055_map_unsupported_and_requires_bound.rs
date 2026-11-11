@@ -51,7 +51,7 @@ fn premises(claim: &Claim) -> (Claim, Premises) {
 fn unsupported(cause: UnsupportedCause, construct: &Construct) -> QslReport<&'static str> {
     QslReport::Unsupported {
         cause,
-        construct: construct.clone(),
+        construct: Some(construct.clone()),
     }
 }
 
@@ -83,6 +83,7 @@ fn each_adr_listed_cause_is_carried_by_its_qsl_name_with_the_constructs_node() {
             cause: carried,
             construct: carried_construct,
             premises,
+            ..
         }))] = settled.as_slice()
         else {
             panic!("{cause:?}: {settled:?}");
@@ -90,7 +91,10 @@ fn each_adr_listed_cause_is_carried_by_its_qsl_name_with_the_constructs_node() {
         // QSL's own typed value, carried and compared as that value.
         assert_eq!(*carried, UnsupportedCause::Construct(cause));
         assert_eq!(format!("{carried:?}"), format!("Construct({cause:?})"));
-        assert_eq!(carried_construct.node, dynamic.named("channel", "Symbolic"));
+        assert_eq!(
+            carried_construct.as_ref().expect("a construct").node,
+            dynamic.named("channel", "Symbolic")
+        );
         assert_eq!(*premises, (claim.0, "exact-fragment"));
     }
 }
@@ -266,7 +270,7 @@ fn a_requires_bound_outcome_is_carried_unchanged_with_each_domain_kind_and_key()
             claim.0,
             QslReport::RequiresBound {
                 outcome: outcome.clone(),
-                construct: construct.clone(),
+                construct: Some(construct.clone()),
             },
         )]),
         calls: Vec::new(),
@@ -277,7 +281,7 @@ fn a_requires_bound_outcome_is_carried_unchanged_with_each_domain_kind_and_key()
         panic!("{settled:?}");
     };
     assert_eq!(carried.outcome, outcome);
-    assert_eq!(carried.construct, construct);
+    assert_eq!(carried.construct, Some(construct));
     let carried_domains: Vec<_> = carried
         .domains()
         .map(|(key, kind)| (key.clone(), kind))
@@ -302,7 +306,7 @@ fn no_call_into_qsl_carries_a_bound_and_no_disposition_field_holds_one() {
             claim.0,
             QslReport::RequiresBound {
                 outcome,
-                construct: dynamic.construct(&dynamic.named("control", "Bounded")),
+                construct: Some(dynamic.construct(&dynamic.named("control", "Bounded"))),
             },
         )]),
         calls: Vec::new(),
@@ -361,7 +365,7 @@ fn a_requires_bound_claim_leaves_other_claims_and_the_closure_axes_unchanged() {
                 "safety",
                 QslReport::RequiresBound {
                     outcome: outcome.clone(),
-                    construct: construct.clone(),
+                    construct: Some(construct.clone()),
                 },
             );
         }

@@ -1338,6 +1338,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "qsl-route"
+version = "0.1.0"
+source = "git+https://github.com/agent-ix/quire-spec-language?branch=main#91c6158a171f335ba51dbc129f936e5b7a787096"
+dependencies = [
+ "ix-trace-rs",
+ "qsl-foundation",
+ "qsl-semantics",
+ "quire-checked",
+ "quire-exact",
+ "quire-semantic-value",
+ "thiserror",
+]
+
+[[package]]
 name = "qsl-semantics"
 version = "0.1.0"
 source = "git+https://github.com/agent-ix/quire-spec-language?branch=main#91c6158a171f335ba51dbc129f936e5b7a787096"
@@ -1474,6 +1488,8 @@ dependencies = [
  "qsl-eval",
  "qsl-foundation",
  "qsl-package",
+ "qsl-replay",
+ "qsl-route",
  "qsl-semantics",
  "quire-contract-model",
  "quire-eval",
