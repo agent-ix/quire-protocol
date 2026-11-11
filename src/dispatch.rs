@@ -4,7 +4,7 @@
 //!
 //! QSL decides what a backend serves. The registry is QSL's own
 //! ([`qsl_route::Registry`], FR-290's candidate computation), and a backend
-//! joins it at the provider boundary ([`ProviderBoundary::register`]) with the
+//! joins it at the provider boundary ([`ProviderBoundary::register`](crate::dispatch::ProviderBoundary::register)) with the
 //! descriptor QSL's registry accepts. This library holds no capability table of
 //! its own and the closed built-in table of FR-005 gains no entry.
 //!
