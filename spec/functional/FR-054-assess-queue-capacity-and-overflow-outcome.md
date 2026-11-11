@@ -23,7 +23,7 @@ When an admitted observation history is assessed against a linked protocol, the 
 
 ## Inputs
 
-A linked protocol with its channel declarations (FR-051), and an admitted observation fact set.
+A linked protocol with its channel declarations (FR-051), and an admitted observation fact set, given to the assessment as the library's `ChannelFact` values: each names the observation, the checked channel node and one of enqueue (with the message identity and the exact bytes of its ordering key), deliver, overflow (with the outcome observed), lose or duplicate.
 
 ## Outputs
 
@@ -35,6 +35,7 @@ Per channel: the observed maximum occupancy, whether it stayed within capacity, 
 - The evaluator shall not evaluate the expression.
 - The evaluator shall report occupancy above capacity with no authored overflow event as a capacity violation naming the channel, capacity and observed occupancy.
 - The evaluator shall report an overflow outcome that differs from the authored policy as an overflow violation naming the channel, the authored policy and the observed outcome.
+- The evaluator shall judge a loss against the queue as the arriving message found it: `head` drops the oldest queued message, `tail` the newest and `new` the arriving one; a loss whose dropped message is not that message is an overflow violation however it is labelled.
 - The evaluator shall judge delivery order against the authored ordering key and report an order the key forbids as an order violation.
 - For an `unordered` channel the evaluator shall report no order violation for any delivery order.
 - The evaluator shall report an observed loss, duplication or reordering that the channel's delivery premise does not permit as a premise violation naming the channel and the premise.
@@ -53,6 +54,7 @@ Per channel: the observed maximum occupancy, whether it stayed within capacity, 
 | FR-054-AC-5 | Over a channel with a symbolic capacity, the assessment returns the FR-057 disposition and reports neither a capacity violation nor its absence. | Test (TC-052) |
 | FR-054-AC-6 | Over a channel whose delivery premise forbids loss and a history with a lost message, and over one whose premise permits it, the assessment reports a premise violation naming channel and premise only for the first. | Test (TC-052) |
 | FR-054-AC-7 | Over an `unordered` channel, any delivery order of the same messages reports no order violation; over an `unordered` channel whose overflow loses `head` or `tail`, the assessment returns the FR-057 disposition for that channel. | Test (TC-052) |
+| FR-054-AC-8 | Over a `loss head` channel holding messages m1 to m4, a loss labelled `head` that drops m1 reports no violation, and one that drops m3, one labelled `tail` that drops m4 and a `head` loss of the arriving message on an empty queue each report an overflow violation. | Test (TC-052) |
 
 ## Dependencies
 

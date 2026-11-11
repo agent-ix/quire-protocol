@@ -3,9 +3,8 @@
 //! (FR-053). The `until(p)` predicate is never evaluated: the history states
 //! when the instance retired, and that is the only end read.
 //!
-//! A role with no authored population bound cannot be linked from QSL source
-//! (`max` is required), so FR-053-AC-4 runs over the static role `S`, which
-//! declares no replication and therefore no bound.
+//! A static role (FR-053-AC-4) has no replication, no spawn and no population
+//! bound; its activity is judged against nothing.
 
 mod support {
     pub mod dynamic;
@@ -14,7 +13,8 @@ mod support {
 
 use ix_trace_rs::trace;
 use quire_protocol::dynamics::{
-    assess_roles, LifetimeViolation, PopulationViolation, RoleAssessment, RoleEvent, RoleFact,
+    assess_roles, HistoryRefusal, LifetimeViolation, PopulationViolation, RoleAssessment,
+    RoleEvent, RoleFact,
 };
 use support::dynamic::{at, instance, Dynamic};
 
@@ -133,42 +133,64 @@ fn reaching_the_bound_is_clean_and_one_more_names_role_bound_and_count() {
 
 #[test]
 #[trace("TC-051", "FR-053-AC-4")]
-fn a_role_with_no_authored_bound_reports_the_bound_absent_and_infers_none() {
+fn a_static_role_has_no_bound_and_its_activity_is_never_a_lifetime_violation() {
     let dynamic = Dynamic::with("workflow", 3);
-    let spawn = |position, who: &str| fact(position, who, RoleEvent::Spawn, &dynamic, "S");
-    let facts: Vec<_> = (1..=9).map(|n| spawn(n, &format!("s{n}"))).collect();
-    let assessment = assess(&dynamic, &facts, "S");
+    let act = |position, who: &str| fact(position, who, RoleEvent::Act, &dynamic, "S");
+    let assessment = assess(&dynamic, &[act(1, "s1"), act(2, "s1"), act(3, "s2")], "S");
     assert_eq!(assessment.bound, None);
     assert_eq!(assessment.within_bound, None);
     assert_eq!(assessment.population_violation, None);
-    assert_eq!(assessment.max_live, 9);
+    assert!(assessment.lifetime_violations.is_empty());
+    assert!(assessment.instances.values().all(|inside| *inside));
+    // QSL never spawns a static role: a spawn fact for one is not a history.
+    let spawn = fact(1, "s1", RoleEvent::Spawn, &dynamic, "S");
+    assert_eq!(
+        assess_roles(dynamic.linked().declarations(), &[spawn]),
+        Err(HistoryRefusal::StaticRoleLifecycle {
+            role: dynamic.named("role", "S")
+        })
+    );
 }
 
 #[test]
 #[trace("TC-051", "FR-053-AC-5")]
-fn presentation_order_changes_no_role_assessment_value() {
+fn a_permitted_reordering_of_concurrent_observations_changes_no_value() {
     let dynamic = Dynamic::with("workflow", 2);
-    let facts = vec![
-        r(1, "i1", RoleEvent::Spawn, &dynamic),
-        r(2, "i2", RoleEvent::Spawn, &dynamic),
-        r(3, "i3", RoleEvent::Spawn, &dynamic),
-        r(4, "i1", RoleEvent::Act, &dynamic),
-        r(5, "i1", RoleEvent::WorkflowEnd, &dynamic),
-        r(6, "i1", RoleEvent::Act, &dynamic),
-    ];
-    let reference = assess(&dynamic, &facts, "R");
+    // Three instances, one per observation; the spawns and the acts of
+    // different instances are concurrent (no causal edge relates them), so
+    // swapping their positions is a permitted presentation order.
+    let at_positions = |order: [u64; 6]| {
+        vec![
+            r(order[0], "i1", RoleEvent::Spawn, &dynamic),
+            r(order[1], "i2", RoleEvent::Spawn, &dynamic),
+            r(order[2], "i3", RoleEvent::Spawn, &dynamic),
+            r(order[3], "i1", RoleEvent::Act, &dynamic),
+            r(order[4], "i2", RoleEvent::Act, &dynamic),
+            r(order[5], "i3", RoleEvent::Act, &dynamic),
+        ]
+    };
+    let reference = assess(&dynamic, &at_positions([1, 2, 3, 4, 5, 6]), "R");
     assert!(reference.population_violation.is_some());
-    assert_eq!(reference.lifetime_violations.len(), 1);
-    let mut reversed = facts.clone();
-    reversed.reverse();
-    let mut rotated = facts.clone();
-    rotated.rotate_left(2);
-    let mut interleaved = facts.clone();
-    interleaved.swap(0, 5);
-    interleaved.swap(1, 4);
-    for permutation in [reversed, rotated, interleaved] {
-        assert_eq!(assess(&dynamic, &permutation, "R"), reference);
+    assert!(reference.lifetime_violations.is_empty());
+    // Concurrent spawns exchanged; concurrent acts exchanged; a spawn moved
+    // after the other instances' acts (its own act still follows it).
+    for order in [[2, 1, 3, 4, 5, 6], [1, 2, 3, 6, 5, 4], [1, 3, 2, 4, 6, 5]] {
+        let assessment = assess(&dynamic, &at_positions(order), "R");
+        assert_eq!(assessment.max_live, reference.max_live, "{order:?}");
+        assert_eq!(
+            assessment.population_violation,
+            reference.population_violation
+        );
+        assert_eq!(
+            assessment.lifetime_violations,
+            reference.lifetime_violations
+        );
+        assert_eq!(assessment.instances, reference.instances);
     }
+    // A reordering that is not permitted does change the value: an instance's
+    // act moved before its own spawn.
+    let broken = assess(&dynamic, &at_positions([4, 2, 3, 1, 5, 6]), "R");
+    assert_eq!(broken.lifetime_violations.len(), 1);
 }
 
 #[test]
@@ -241,4 +263,21 @@ fn an_until_instance_acting_before_its_observed_retire_is_clean() {
     let assessment = assess(&dynamic, &facts, "R");
     assert!(assessment.lifetime_violations.is_empty());
     assert_eq!(assessment.max_live, 1);
+}
+
+#[test]
+#[trace("TC-051", "FR-053-AC-9")]
+fn a_fact_naming_no_declared_role_refuses_the_history() {
+    let dynamic = Dynamic::with("workflow", 3);
+    let channel = dynamic.named("channel", "Head");
+    let fact = RoleFact {
+        at: at(1),
+        role: channel.clone(),
+        instance: instance("i1"),
+        event: RoleEvent::Act,
+    };
+    assert_eq!(
+        assess_roles(dynamic.linked().declarations(), &[fact]),
+        Err(HistoryRefusal::UndeclaredSubject { node: channel })
+    );
 }

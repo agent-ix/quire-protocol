@@ -8,12 +8,8 @@ mod support {
 }
 
 use ix_trace_rs::trace;
-use quire_protocol::closure::{
-    ClosureState, DecisionScopeClosure, DecisionScopeProgress, GlobalConformanceClosure, ScopeAxis,
-    ScopeState, SurroundingExecutionClosure, SurroundingExecutionProgress,
-};
 use quire_protocol::disposition::{
-    request_discharge, DischargeStatus, LoopProof, UnsupportedCause, REQUESTED_CAPABILITY,
+    request_discharge, DischargeStatus, LoopProof, UnsupportedCause,
 };
 use quire_protocol::dynamics::{
     assess_loops, LoopAssessment, LoopBoundViolation, LoopEvent, LoopFact,
@@ -32,6 +28,7 @@ fn run(dynamic: &Dynamic, control: &str, iterations: usize, exit: bool) -> LoopA
             at: at(u64::try_from(index).unwrap() + 1),
             control: dynamic.named("control", control),
             workflow: workflow("w1"),
+            repeat_ordinals: Vec::new(),
             event,
         })
         .collect();
@@ -69,36 +66,67 @@ fn a_history_ending_inside_the_loop_is_not_exited_and_not_a_violation() {
     assert!(run(&dynamic, "Bounded", 2, true).exited);
 }
 
-fn closure(open: bool) -> ClosureState {
-    let state = if open {
-        ScopeState::Open
-    } else {
-        ScopeState::Closed
-    };
-    ClosureState::new(
-        Some(DecisionScopeProgress::of(state)),
-        Some(DecisionScopeClosure::of(state)),
-        Some(SurroundingExecutionProgress::of(state)),
-        Some(SurroundingExecutionClosure::of(state)),
-        Some(if open {
-            GlobalConformanceClosure::Open
-        } else {
-            GlobalConformanceClosure::Closed
-        }),
-    )
-    .expect("five axes")
+#[test]
+#[trace("TC-054", "FR-056-AC-3")]
+fn the_loop_assessment_takes_and_holds_no_closure_axis() {
+    let dynamic = Dynamic::with("workflow", 3);
+    let assessment = run(&dynamic, "Bounded", 4, false);
+    // Destructured with no rest pattern: a closure, progress or any other
+    // axis would have to be a new field, and the assessor's signature has no
+    // input to supply one from.
+    let LoopAssessment {
+        control: _,
+        workflow: _,
+        repeat_ordinals: _,
+        iterations,
+        maximum,
+        within_maximum,
+        exited,
+        violation,
+    } = assessment.clone();
+    assert_eq!((iterations, maximum), (4, Some(3)));
+    assert_eq!((within_maximum, exited), (Some(false), false));
+    assert!(violation.is_some());
+    // Assessing again, as another axis's value changes around it, is the same
+    // value.
+    assert_eq!(run(&dynamic, "Bounded", 4, false), assessment);
 }
 
 #[test]
-#[trace("TC-054", "FR-056-AC-3")]
-fn the_loop_assessment_is_unchanged_by_the_closure_axis_value() {
+#[trace("TC-054", "FR-056-AC-5")]
+fn a_loop_inside_a_repeat_is_one_occurrence_for_each_iteration() {
+    use qsl_package::OccurrenceKeyError;
+    use quire_exact::Integer;
+    use quire_protocol::dynamics::HistoryRefusal;
     let dynamic = Dynamic::with("workflow", 3);
-    // The assessment takes no closure input, so any closure state assessed for
-    // the same history leaves it as it was.
-    let before = run(&dynamic, "Bounded", 4, false);
-    let states = [closure(true), closure(false)];
-    assert_ne!(states[0], states[1]);
-    assert_eq!(run(&dynamic, "Bounded", 4, false), before);
+    let facts = |ordinals: &[u64], iterations: usize| -> Vec<LoopFact> {
+        (0..iterations)
+            .map(|index| LoopFact {
+                at: at(ordinals[0] * 10 + u64::try_from(index).unwrap() + 1),
+                control: dynamic.named("control", "Inner"),
+                workflow: workflow("w1"),
+                repeat_ordinals: ordinals.iter().map(|n| Integer::from(*n)).collect(),
+                event: LoopEvent::Iteration,
+            })
+            .collect()
+    };
+    let mut history = facts(&[0], 2);
+    history.extend(facts(&[1], 3));
+    let assessed = assess_loops(dynamic.linked().declarations(), &history).expect("declared");
+    // Inner's maximum is 2: iteration 0 of Outer stays within it, iteration 1
+    // exceeds it. Merged, one occurrence of five iterations would report one
+    // violation that belongs to neither.
+    let counts: Vec<_> = assessed
+        .iter()
+        .map(|a| (a.iterations, a.violation.is_some()))
+        .collect();
+    assert_eq!(counts, [(2, false), (3, true)]);
+    assert!(matches!(
+        assess_loops(dynamic.linked().declarations(), &facts(&[2], 1)),
+        Err(HistoryRefusal::Occurrence(
+            OccurrenceKeyError::RepeatOrdinal { .. }
+        ))
+    ));
 }
 
 #[test]
@@ -143,8 +171,12 @@ fn a_discharge_request_is_unsupported_naming_the_capability_with_the_requests_pr
     let construct = dynamic.construct(&declaration.control);
     let premises = vec!["fragment-x".to_owned(), "backend-y".to_owned()];
     let disposition = request_discharge(declaration, construct.clone(), premises.clone());
-    assert_eq!(disposition.cause, UnsupportedCause::RequestedCapability);
-    assert_eq!(disposition.cause.name(), REQUESTED_CAPABILITY.as_bytes());
+    assert_eq!(disposition.cause, UnsupportedCause::requested_capability());
+    let UnsupportedCause::RequestedCapability(code) = &disposition.cause else {
+        panic!("the requested-capability cause");
+    };
+    assert_eq!(code.cause(), "unsupported-requested-capability");
+    assert_eq!(code.code(), "unsupported_projection");
     assert_eq!(disposition.construct, construct);
     assert_eq!(disposition.premises, premises);
     assert_eq!(

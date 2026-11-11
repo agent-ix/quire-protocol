@@ -9,7 +9,9 @@ mod support {
 
 use ix_trace_rs::trace;
 use qsl_eval::simulation::protocol::Unsupported;
+use qsl_package::OccurrenceKeyError;
 use qsl_semantics::check::CheckedOutstanding;
+use quire_exact::Integer;
 use quire_protocol::declarations::JoinPolicy;
 use quire_protocol::disposition::UnsupportedCause;
 use quire_protocol::dynamics::{
@@ -39,6 +41,7 @@ fn history(dynamic: &Dynamic, join: &str, who: &str, events: Vec<JoinEvent>) -> 
             at: at(u64::try_from(index).unwrap() + 1),
             join: dynamic.named("control", join),
             workflow: workflow(who),
+            repeat_ordinals: Vec::new(),
             event,
         })
         .collect()
@@ -213,7 +216,10 @@ fn a_predicate_or_unruled_any_or_quorum_join_is_unsupported_and_neither_settled_
             vec![done("a"), done("b"), JoinEvent::Settled],
         );
         let result = outcomes(&dynamic, &facts).expect("declared join");
-        let [JoinOutcome::Unsupported { cause, construct }] = result.as_slice() else {
+        let [JoinOutcome::Unsupported {
+            cause, construct, ..
+        }] = result.as_slice()
+        else {
             panic!("{join}: {result:?}");
         };
         assert_eq!(*cause, UnsupportedCause::Construct(expected), "{join}");
@@ -244,7 +250,7 @@ fn an_all_join_with_no_outstanding_rule_is_still_assessed() {
 }
 
 #[test]
-#[trace("TC-053", "FR-055-AC-3")]
+#[trace("TC-053", "FR-055-AC-7")]
 fn a_branch_the_join_does_not_list_refuses_the_history() {
     let dynamic = Dynamic::with("workflow", 3);
     let facts = history(&dynamic, "JoinAll", "w1", vec![done("zzz")]);
@@ -255,4 +261,59 @@ fn a_branch_the_join_does_not_list_refuses_the_history() {
             branch: "zzz".into(),
         })
     );
+}
+
+fn nested(dynamic: &Dynamic, ordinals: &[u64], events: Vec<JoinEvent>) -> Vec<JoinFact> {
+    events
+        .into_iter()
+        .enumerate()
+        .map(|(index, event)| JoinFact {
+            at: at(u64::try_from(index).unwrap() + 1),
+            join: dynamic.named("control", "InnerJoin"),
+            workflow: workflow("w1"),
+            repeat_ordinals: ordinals.iter().map(|n| Integer::from(*n)).collect(),
+            event,
+        })
+        .collect()
+}
+
+#[test]
+#[trace("TC-053", "FR-055-AC-8")]
+fn a_join_inside_a_repeat_is_one_occurrence_for_each_iteration() {
+    let dynamic = Dynamic::with("workflow", 3);
+    let settled = |ordinals: &[u64], complete: &[&str]| {
+        let mut events: Vec<_> = complete.iter().map(|branch| done(branch)).collect();
+        events.push(JoinEvent::Settled);
+        nested(&dynamic, ordinals, events)
+    };
+    // Iteration 0 settles with every branch, iteration 1 with one: two
+    // occurrences of one join in one workflow, never merged into one count.
+    let mut facts = settled(&[0], &["a", "b", "c"]);
+    facts.extend(settled(&[1], &["a"]));
+    let result = outcomes(&dynamic, &facts).expect("declared join");
+    let assessed: Vec<_> = result
+        .iter()
+        .map(|outcome| match outcome {
+            JoinOutcome::Assessed(assessment) => assessment,
+            other @ JoinOutcome::Unsupported { .. } => panic!("{other:?}"),
+        })
+        .collect();
+    assert_eq!(assessed.len(), 2);
+    assert_eq!(assessed[0].repeat_ordinals, [Integer::from(0u64)]);
+    assert!(assessed[0].violations.is_empty());
+    assert_eq!(assessed[1].repeat_ordinals, [Integer::from(1u64)]);
+    assert_eq!(assessed[1].violations.len(), 1);
+    // QSL's key refuses an ordinal outside the repeat's maximum and a missing one.
+    assert!(matches!(
+        outcomes(&dynamic, &settled(&[2], &["a"])),
+        Err(HistoryRefusal::Occurrence(
+            OccurrenceKeyError::RepeatOrdinal { .. }
+        ))
+    ));
+    assert!(matches!(
+        outcomes(&dynamic, &settled(&[], &["a"])),
+        Err(HistoryRefusal::Occurrence(
+            OccurrenceKeyError::RepeatCount { .. }
+        ))
+    ));
 }

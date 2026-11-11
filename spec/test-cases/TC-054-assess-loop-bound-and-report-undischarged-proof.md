@@ -16,7 +16,7 @@ Verify assess loop bound and report proof as undischarged over a checked package
 
 ## Test Procedure
 
-Assess loops at the maximum minus one, the maximum and one over, a loop with no maximum, a history ending inside a loop, and a loop with an invariant and a lexicographic variant, then request their discharge. Tag each test with the exact acceptance criterion it verifies.
+Assess loops at the maximum minus one, the maximum and one over, a loop with no maximum, a loop inside a `repeat` under two outer ordinals, a history ending inside a loop, and a loop with an invariant and a lexicographic variant, then request their discharge. Tag each test with the exact acceptance criterion it verifies.
 
 ## Expected Results
 

@@ -14,8 +14,8 @@ Verify assess role lifetime and population bound over a checked package and an a
 
 ## Test Procedure
 
-Assess histories inside, before and after a lifetime, after the end of a workflow, scope and until(p) lifetime, a scope role's compensation attempt with an open registration, an until(p) instance acting after p holds but before its retire, at the population bound and one over it, with an absent bound, and under permuted presentation orders. Tag each test with the exact acceptance criterion it verifies.
+Assess histories inside, before and after a lifetime, after the end of a workflow, scope and until(p) lifetime, a scope role's compensation attempt with an open registration, an until(p) instance acting after p holds but before its retire, at the population bound and one over it, a static role's activity and a lifecycle fact for it, a fact naming an undeclared role, and exchanged positions of concurrent observations. Tag each test with the exact acceptance criterion it verifies.
 
 ## Expected Results
 
-Violations name the instance or role, bound and count; an absent bound is reported absent; results are order invariant.
+Violations name the instance or role, bound and count; a static role's bound is reported absent and its activity is never a violation; results are invariant under exchanges of concurrent observations.

@@ -24,7 +24,7 @@ use super::handoff::{join_budget, request, written_request};
 /// The protocol: a static role `S`, one replicated role `R` of lifetime
 /// `{lifetime}`, eight channels over distinct routes and payloads, a join of
 /// every policy and a loop with and without a maximum.
-fn source(lifetime: &str, max: u64) -> String {
+fn source(lifetime: &str, max: u64, bag_loss: &str) -> String {
     let branches = |prefix: &str| {
         ["a", "b", "c"]
             .iter()
@@ -53,7 +53,7 @@ protocol Flow using p over (input: M::Workflow) on origin {{
   channel New from R to R carries M::Notice ordering fifo by (m: M::Notice) {{ m.ready }} delivery unknown capacity 2 overflow loss new;
   channel Block from S to S carries Boolean ordering unordered delivery at-least-once capacity 3 overflow block;
   channel BagNew from S to R carries Boolean ordering unordered delivery unknown capacity 2 overflow loss new;
-  channel BagHead from R to S carries Boolean ordering unordered delivery unknown capacity 2 overflow loss head;
+  channel BagHead from R to S carries Boolean ordering unordered delivery unknown capacity 2 overflow loss {bag_loss};
   channel Symbolic from R to R carries Boolean ordering unordered delivery unknown capacity symbolic(Bound) overflow reject;
   run sequence Main {{
     {all}
@@ -64,6 +64,10 @@ protocol Flow using p over (input: M::Workflow) on origin {{
     {all_unruled}
     {predicate}
     repeat Bounded by S visible () max 3 invariant {{ true }} variant {{ 1 }} while {{ false }} sequence BoundedBody {{ event Tick by S as (tick: M::Notice) {{ true }}; }} exhausted sequence BoundedOut {{ }}
+    repeat Outer by S visible () max 2 while {{ false }} sequence OuterBody {{
+      {inner_join}
+      repeat Inner by S visible () max 2 while {{ false }} sequence InnerBody {{ event Tuck by S as (tuck: M::Notice) {{ true }}; }} exhausted sequence InnerOut {{ }}
+    }} exhausted sequence OuterOut {{ }}
     repeat Free by S visible () while {{ false }} sequence FreeBody {{ event Tock by S as (tock: M::Notice) {{ true }}; }}
   }}
   finish End as (outcome: Boolean) {{ true }};
@@ -76,6 +80,7 @@ protocol Flow using p over (input: M::Workflow) on origin {{
         quorum_unruled = parallel("QuorumUnruled", "quorum(2) [a,b,c]"),
         all_unruled = parallel("AllUnruled", "all [a,b,c]"),
         predicate = parallel("Predicate", "predicate(both) [a,b,c]"),
+        inner_join = parallel("InnerJoin", "all [a,b,c] outstanding continue"),
     )
 }
 
@@ -113,11 +118,21 @@ pub struct Dynamic {
 impl Dynamic {
     /// The package declaring the replicated role `R` with `lifetime` and `max`.
     pub fn with(lifetime: &str, max: u64) -> Self {
+        Self::build(lifetime, max, "head")
+    }
+
+    /// The package whose unordered channel `BagHead` loses its `tail`
+    /// instead of its `head`.
+    pub fn with_unordered_tail_loss() -> Self {
+        Self::build("workflow", 3, "tail")
+    }
+
+    fn build(lifetime: &str, max: u64, bag_loss: &str) -> Self {
         let holder = tempfile::tempdir().expect("temporary directory");
         let model_path: PathBuf = holder.path().join("model.semantic-ir.json");
         std::fs::write(&model_path, model()).expect("model file");
         let source_path = holder.path().join("unit.native");
-        std::fs::write(&source_path, source(lifetime, max)).expect("source file");
+        std::fs::write(&source_path, source(lifetime, max, bag_loss)).expect("source file");
         let mut asked = request("event_position", Corpus::None);
         asked.emit.source = source_path;
         asked.emit.models = vec![model_path];

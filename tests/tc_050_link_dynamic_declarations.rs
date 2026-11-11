@@ -1,14 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! TC-050: linking role, queue, join and loop declarations (FR-050 to FR-052).
-//!
-//! Two shapes cannot be authored, so no admitted package carries them and no
-//! test here can build one: a replicated role without `max` (QSL's grammar
-//! requires it and Contract IR's reader refuses a role group without it with
-//! `MalformedWire`), and a channel without an overflow policy (the grammar
-//! requires `overflow`). The linker reads both as absent and substitutes no
-//! default; FR-050-AC-2's absent half and FR-051-AC-3 are therefore backed by
-//! the reader's refusal and by `Option` in the declaration types, not by a
-//! linked example.
 
 mod support {
     pub mod dynamic;
@@ -17,8 +8,9 @@ mod support {
 
 use ix_trace_rs::trace;
 use qsl_package::protocol_view::{delivery, queue_capacity, Delivery, QueueCapacity};
+use qsl_package::{RoleLifetime, RoleReplication};
 use qsl_semantics::check::{ChannelOverflow, CheckedOutstanding, LossSelector};
-use quire_protocol::declarations::{Capacity, JoinPolicy, Lifetime, Ordering};
+use quire_protocol::declarations::{Capacity, JoinPolicy, Ordering};
 use quire_protocol::link::link;
 use support::dynamic::Dynamic;
 
@@ -27,7 +19,11 @@ const UNTIL: &str = "until(input = input and R = R)";
 #[test]
 #[trace("TC-050", "FR-050-AC-1")]
 fn each_lifetime_kind_is_linked_with_its_checked_node() {
-    for (written, max) in [("workflow", 3), ("scope", 2), (UNTIL, 1)] {
+    for (written, max, expected) in [
+        ("workflow", 3, RoleLifetime::Workflow),
+        ("scope", 2, RoleLifetime::Scope),
+        (UNTIL, 1, RoleLifetime::Until),
+    ] {
         let dynamic = Dynamic::with(written, max);
         let role = dynamic.named("role", "R");
         let declared = dynamic
@@ -36,15 +32,16 @@ fn each_lifetime_kind_is_linked_with_its_checked_node() {
             .role(&role)
             .expect("linked role");
         assert_eq!(declared.node, role);
-        let replication = declared.replication.as_ref().expect("replicated");
-        match (written, &replication.lifetime) {
-            ("workflow", Lifetime::Workflow) | ("scope", Lifetime::Scope) => {}
-            (UNTIL, Lifetime::Until(predicate)) => {
-                assert!(dynamic.package().term(predicate).is_some());
-            }
-            other => panic!("lifetime {other:?}"),
-        }
-        assert_eq!(&*replication.population, "workers");
+        let RoleReplication::Replicated {
+            population,
+            lifetime,
+            ..
+        } = &declared.replication
+        else {
+            panic!("a replicated role, got {:?}", declared.replication);
+        };
+        assert_eq!(*lifetime, expected);
+        assert_eq!(population.as_str(), "workers");
         let static_role = dynamic.named("role", "S");
         assert_eq!(
             dynamic
@@ -52,7 +49,7 @@ fn each_lifetime_kind_is_linked_with_its_checked_node() {
                 .declarations()
                 .role(&static_role)
                 .map(|role| role.replication.clone()),
-            Some(None)
+            Some(RoleReplication::Static)
         );
     }
 }
@@ -63,14 +60,17 @@ fn the_authored_bound_is_carried_exactly() {
     for max in [1, 3, 7] {
         let dynamic = Dynamic::with("workflow", max);
         let role = dynamic.named("role", "R");
-        let replication = dynamic
-            .linked()
-            .declarations()
-            .role(&role)
-            .and_then(|declared| declared.replication.clone())
-            .expect("replicated");
-        assert_eq!(replication.max, Some(max));
+        let declared = dynamic.linked().declarations().role(&role).expect("linked");
+        assert_eq!(declared.max(), Some(max));
     }
+    // A static role has no population and so no bound; none is supplied.
+    let dynamic = Dynamic::with("workflow", 3);
+    let declared = dynamic
+        .linked()
+        .declarations()
+        .role(&dynamic.named("role", "S"))
+        .expect("linked");
+    assert_eq!(declared.max(), None);
 }
 
 #[test]
@@ -205,12 +205,7 @@ fn every_channel_field_equals_the_checked_node_and_the_owners_accessors() {
             other => panic!("{}: capacity {other:?}", expected.name),
         }
         assert_eq!(declared.capacity, expected.capacity, "{}", expected.name);
-        assert_eq!(
-            declared.overflow,
-            Some(expected.overflow),
-            "{}",
-            expected.name
-        );
+        assert_eq!(declared.overflow, expected.overflow, "{}", expected.name);
         assert_eq!(
             matches!(declared.ordering, Ordering::Fifo { .. }),
             expected.fifo,
@@ -237,6 +232,29 @@ fn join_of(dynamic: &Dynamic, name: &str) -> quire_protocol::declarations::JoinD
         .join(&id)
         .cloned()
         .unwrap_or_else(|| panic!("join {name}"))
+}
+
+#[test]
+#[trace("TC-050", "FR-051-AC-3")]
+fn every_channel_links_with_the_overflow_policy_it_authors() {
+    let dynamic = Dynamic::with("workflow", 3);
+    let policies: Vec<ChannelOverflow> = dynamic
+        .linked()
+        .declarations()
+        .channels()
+        .iter()
+        .map(|channel| channel.overflow)
+        .collect();
+    for expected in [
+        ChannelOverflow::Block,
+        ChannelOverflow::Reject,
+        ChannelOverflow::Loss(LossSelector::Head),
+        ChannelOverflow::Loss(LossSelector::Tail),
+        ChannelOverflow::Loss(LossSelector::New),
+    ] {
+        assert!(policies.contains(&expected), "{expected:?}");
+    }
+    assert_eq!(policies.len(), authored().len());
 }
 
 #[test]

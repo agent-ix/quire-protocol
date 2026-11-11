@@ -14,7 +14,7 @@ relationships:
 
 ## Description
 
-When the linked protocol is built from an admitted checked package, the library SHALL retain each authored role declaration (its lifetime kind, its population bound, its activation rule and its authored spawn and retire controls) as read from the checked package. The library SHALL mint no role instance identity of its own.
+When the linked protocol is built from an admitted checked package, the library SHALL retain each authored role declaration (static, or replicated with its population, its `max` bound and its lifetime kind) as QSL's occurrence schema reads it from the checked package. QSL requires a `max` on every replicated role and spawns and retires by that bound and lifetime, so the library carries no separate spawn or retire control and no per-role activation rule: the activation rows of the clause stay those of FR-044. The library SHALL mint no role instance identity of its own.
 
 ## Inputs
 
@@ -22,14 +22,14 @@ An admitted checked package (FR-043) and the node id of a protocol clause, read 
 
 ## Outputs
 
-The linked representation carrying, per role, the checked node id, the lifetime kind, the population bound or its absence, and the activation rule; or the typed `LinkRefusal` of FR-044.
+The linked representation carrying, per role, the checked node id and QSL's `RoleReplication` (static, or population, `max` and lifetime kind); or the typed `LinkRefusal` of FR-044.
 
 ## Behavior
 
-- The library shall read role lifetime, population bound and activation rule from the checked node content and QSL's owner accessors.
+- The library shall read role replication through QSL's `protocol_occurrence_schemas_from_read` and parse none of it from the node terms itself.
 - The library shall keep no table of its own.
-- The library shall retain an absent population bound as absent.
-- The library shall not substitute a default bound.
+- The library shall carry a replicated role's `max` as the authored value (QSL requires one).
+- The library shall carry a static role with no bound and shall not substitute a default bound for it.
 - The library shall assign no instance identity at link time. A role instance identity exists only where an observation in the history names it (FR-053).
 - The library shall retain a role the checked package marks replicated as replicated.
 - The library shall not expand it into a finite set of roles.
@@ -39,7 +39,7 @@ The linked representation carrying, per role, the checked node id, the lifetime 
 | ID | Criteria | Verification |
 | --- | --- | --- |
 | FR-050-AC-1 | Over a checked package declaring one role per lifetime kind (`workflow`, `scope`, `until(p)`), the linked representation lists each role with the checked node id and the lifetime kind that node carries. | Test (TC-050) |
-| FR-050-AC-2 | Over a replicated role with a `max` bound and one with none, the linked representation carries the bound exactly and carries absence as absence, with no default. | Test (TC-050) |
+| FR-050-AC-2 | Over replicated roles of different `max` and a static role, the linked representation carries each `max` exactly and carries the static role with no bound and no default. | Test (TC-050) |
 | FR-050-AC-3 | Linking the same checked package twice yields equal representations, and the representation holds no role instance identifier. | Test (TC-050) |
 | FR-050-AC-4 | A replicated role is linked as one declaration; the representation holds no per-instance expansion of it. | Test (TC-050) |
 

@@ -14,7 +14,7 @@ relationships:
 
 ## Description
 
-When the linked protocol is built from an admitted checked package, the library SHALL retain each authored channel's delivery premise, ordering key, capacity and overflow policy exactly as the checked package declares them. The library SHALL mark a capacity that is not a literal as symbolic instead of resolving it.
+When the linked protocol is built from an admitted checked package, the library SHALL retain each authored channel's delivery premise, ordering key, capacity and overflow policy (QSL requires one on every channel) exactly as the checked package declares them. The library SHALL mark a capacity that is not a literal as symbolic instead of resolving it.
 
 ## Inputs
 
@@ -22,15 +22,14 @@ An admitted checked package (FR-043) and the node id of a protocol clause.
 
 ## Outputs
 
-Per channel: the checked node id, the delivery premise, the ordering (`fifo` with its key, or `unordered`), the capacity as a literal or as a symbolic expression, and the overflow policy (`block`, `reject`, or `loss` with its selector).
+Per channel: the checked node id, the delivery premise, the ordering (`fifo` with its key, or `unordered`), the capacity as a literal or as a symbolic expression, and the overflow policy (`block`, `reject`, or `loss` with its selector), always present.
 
 ## Behavior
 
 - The library shall obtain the delivery premise and capacity through QSL's `delivery` and `queue_capacity` accessors wherever they own the value (FR-044).
 - The library shall keep a symbolic capacity as the authored expression.
 - The library shall not evaluate it to a number.
-- The library shall retain a channel that declares no overflow policy as having none.
-- The library shall not supply one.
+- The library shall carry the overflow policy the queue node authors and shall supply none; a queue node without one is not an admitted package.
 - Conflicting channel premises remain refused by FR-044; this requirement adds no second refusal for them.
 
 ## Acceptance Criteria
@@ -39,7 +38,7 @@ Per channel: the checked node id, the delivery premise, the ordering (`fifo` wit
 | --- | --- | --- |
 | FR-051-AC-1 | Over channels with a literal capacity, a symbolic capacity, each overflow policy and each ordering, the linked representation carries each field equal to the value the checked node and QSL's accessors report. | Test (TC-050) |
 | FR-051-AC-2 | A symbolic capacity is carried as its authored expression, and no linked field holds a number derived from it. | Test (TC-050) |
-| FR-051-AC-3 | A channel with no authored overflow policy is linked with no overflow policy and no default. | Test (TC-050) |
+| FR-051-AC-3 | Over channels authoring `block`, `reject` and `loss` with each of `head`, `tail` and `new`, each linked channel's overflow policy is the authored one, and no channel is linked without one. | Test (TC-050) |
 
 ## Dependencies
 

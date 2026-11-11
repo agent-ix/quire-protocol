@@ -55,6 +55,13 @@ pub enum LinkRefusal {
         /// The member the linker needed.
         member: &'static str,
     },
+    /// QSL's occurrence schema of the packages' protocols could not be read.
+    Occurrence(qsl_package::OccurrenceRefusal),
+    /// A node has no QSL structural key.
+    UnkeyedNode {
+        /// The node.
+        node: CheckedNodeId,
+    },
     /// A declaration member the linker reads is present but not a value the
     /// QSL layout admits for it.
     MalformedMember {

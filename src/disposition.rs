@@ -17,6 +17,7 @@ use qsl_eval::simulation::protocol::Unsupported;
 use qsl_eval::simulation::RequiresBound;
 use qsl_foundation::bound::{DomainKey, DomainKind};
 use quire_contract_model::{CheckedNodeId, CheckedPackageV2, CheckedSourceMapEntry};
+use quire_semantic_value::catalog::CatalogCode;
 
 use crate::closure::AssessmentExecution;
 use crate::declarations::LoopDeclaration;
@@ -44,84 +45,55 @@ impl Construct {
     }
 }
 
-/// QSL's cause name for a request that no engine serves.
-pub const REQUESTED_CAPABILITY: &str = "unsupported-requested-capability";
-
-/// The cause of an `unsupported` disposition, by QSL's own name.
-#[derive(Clone, Debug, Eq, PartialEq)]
+/// The cause of an `unsupported` disposition, as QSL reports it.
+///
+/// QSL's `Unsupported` publishes no name accessor, only the variant itself, so
+/// the cause is carried as that typed value and compared as that value; its
+/// name is the variant's, which is what a debug rendering of the carried
+/// value shows.
+#[derive(Clone, Debug)]
 pub enum UnsupportedCause {
     /// A construct QSL's protocol system does not step, as QSL reported it.
     Construct(Unsupported),
-    /// A claim or discharge no QSL engine serves: [`REQUESTED_CAPABILITY`].
-    RequestedCapability,
-    /// A cause name this library does not recognise, retained byte for byte
-    /// and mapped to no known cause (FR-008).
+    /// A claim or discharge no QSL engine serves, with QSL's own catalog code
+    /// for it.
+    RequestedCapability(CatalogCode),
+    /// A cause the caller received from outside and could not type as either
+    /// of the above, retained byte for byte and mapped to no known cause
+    /// (FR-008).
     Unrecognised(RetainedBytes),
 }
 
-/// The payload-less QSL `Unsupported` variants, by their QSL names.
-const NAMED: [(&str, Unsupported); 12] = [
-    ("WeakMemory", Unsupported::WeakMemory),
-    ("AccessFootprint", Unsupported::AccessFootprint),
-    ("SymbolicCapacity", Unsupported::SymbolicCapacity),
-    ("UnorderedLossSelector", Unsupported::UnorderedLossSelector),
-    ("UndecidedInitialGuard", Unsupported::UndecidedInitialGuard),
-    ("Capture", Unsupported::Capture),
-    (
-        "ActivationOnEachTemplate",
-        Unsupported::ActivationOnEachTemplate,
-    ),
-    ("JoinPredicate", Unsupported::JoinPredicate),
-    ("UnruledOutstanding", Unsupported::UnruledOutstanding),
-    ("OverNotAnObject", Unsupported::OverNotAnObject),
-    ("UnboundAttemptBinder", Unsupported::UnboundAttemptBinder),
-    ("NodelessBinder", Unsupported::NodelessBinder),
-];
+impl PartialEq for UnsupportedCause {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Construct(left), Self::Construct(right)) => left == right,
+            (Self::RequestedCapability(left), Self::RequestedCapability(right)) => left == right,
+            (Self::Unrecognised(left), Self::Unrecognised(right)) => left == right,
+            (Self::Construct(_) | Self::RequestedCapability(_) | Self::Unrecognised(_), _) => false,
+        }
+    }
+}
+
+impl Eq for UnsupportedCause {}
 
 impl UnsupportedCause {
-    /// The cause named `name` when it is one QSL defines, otherwise the name
-    /// retained unchanged as [`Self::Unrecognised`].
+    /// QSL's cause for a request no engine serves:
+    /// `unsupported_projection`/`unsupported-requested-capability`, spelled
+    /// as QSL spells it wherever it settles such an item. QSL exports no
+    /// constant for it.
     #[must_use]
-    pub fn from_name(name: &[u8]) -> Self {
-        if name == REQUESTED_CAPABILITY.as_bytes() {
-            return Self::RequestedCapability;
-        }
-        if name == b"UnenumerableRecord" {
-            return Self::Construct(Unsupported::UnenumerableRecord);
-        }
-        NAMED
-            .iter()
-            .find(|(known, _)| known.as_bytes() == name)
-            .map_or_else(
-                || Self::Unrecognised(RetainedBytes::new(name)),
-                |(_, cause)| Self::Construct(*cause),
-            )
+    pub const fn requested_capability() -> Self {
+        Self::RequestedCapability(CatalogCode::new(
+            "unsupported_projection",
+            "unsupported-requested-capability",
+        ))
     }
 
-    /// The cause name, unchanged: the QSL variant name, QSL's requested
-    /// capability name, or the bytes that were offered.
+    /// A cause received as bytes this library cannot type, retained unchanged.
     #[must_use]
-    pub fn name(&self) -> &[u8] {
-        match self {
-            Self::Construct(cause) => match cause {
-                Unsupported::Control(_) => b"Control",
-                Unsupported::WeakMemory => b"WeakMemory",
-                Unsupported::AccessFootprint => b"AccessFootprint",
-                Unsupported::SymbolicCapacity => b"SymbolicCapacity",
-                Unsupported::UnorderedLossSelector => b"UnorderedLossSelector",
-                Unsupported::UndecidedInitialGuard => b"UndecidedInitialGuard",
-                Unsupported::Capture => b"Capture",
-                Unsupported::ActivationOnEachTemplate => b"ActivationOnEachTemplate",
-                Unsupported::JoinPredicate => b"JoinPredicate",
-                Unsupported::UnruledOutstanding => b"UnruledOutstanding",
-                Unsupported::OverNotAnObject => b"OverNotAnObject",
-                Unsupported::UnboundAttemptBinder => b"UnboundAttemptBinder",
-                Unsupported::NodelessBinder => b"NodelessBinder",
-                Unsupported::UnenumerableRecord => b"UnenumerableRecord",
-            },
-            Self::RequestedCapability => REQUESTED_CAPABILITY.as_bytes(),
-            Self::Unrecognised(name) => name.as_bytes(),
-        }
+    pub fn unrecognised(name: &[u8]) -> Self {
+        Self::Unrecognised(RetainedBytes::new(name))
     }
 }
 
@@ -195,7 +167,13 @@ pub enum QslReport<R> {
     },
 }
 
-/// The call boundary into QSL's protocol analysis. A request carries the
+/// The call boundary into QSL's protocol analysis.
+///
+/// This seam is deliberately minimal. The dispatch requirements TL-9
+/// (FR-200..204) and TL-10 (FR-150..153) extend it, not fork it: they add an
+/// arm for a QSL refusal returned as such, an optional construct for a report
+/// that names none, and a slot for the warnings a disposition carries. None
+/// of those is built here. A request carries the
 /// claim and nothing else: there is no parameter through which this library
 /// could pass a bound it chose.
 pub trait QslBoundary<C, R> {
@@ -290,16 +268,20 @@ impl LoopProof {
 
 /// The disposition of a request to discharge `declaration`'s invariant or
 /// variant: `unsupported`, carrying QSL's requested-capability cause, bound to
-/// the request's premises.
+/// the request's premises. The construct is always the loop's own control: the
+/// caller supplies only its locus.
 #[must_use]
 pub fn request_discharge<P>(
     declaration: &LoopDeclaration,
     construct: Construct,
     premises: P,
 ) -> UnsupportedDisposition<P> {
-    debug_assert_eq!(declaration.control, construct.node);
+    let construct = Construct {
+        node: declaration.control.clone(),
+        locus: construct.locus,
+    };
     UnsupportedDisposition {
-        cause: UnsupportedCause::RequestedCapability,
+        cause: UnsupportedCause::requested_capability(),
         construct,
         premises,
     }

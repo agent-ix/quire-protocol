@@ -87,9 +87,9 @@ fn each_adr_listed_cause_is_carried_by_its_qsl_name_with_the_constructs_node() {
         else {
             panic!("{cause:?}: {settled:?}");
         };
-        // QSL's own spelling of the variant, not a name this library wrote.
-        assert_eq!(carried.name(), format!("{cause:?}").as_bytes());
+        // QSL's own typed value, carried and compared as that value.
         assert_eq!(*carried, UnsupportedCause::Construct(cause));
+        assert_eq!(format!("{carried:?}"), format!("Construct({cause:?})"));
         assert_eq!(carried_construct.node, dynamic.named("channel", "Symbolic"));
         assert_eq!(*premises, (claim.0, "exact-fragment"));
     }
@@ -172,6 +172,7 @@ fn symbolic_capacity_and_predicate_joins_hold_no_derived_number_or_truth_value()
             at: at(1),
             join: dynamic.named("control", "Predicate"),
             workflow: workflow("w1"),
+            repeat_ordinals: Vec::new(),
             event: JoinEvent::Settled,
         }],
         |node| dynamic.construct(node),
@@ -188,31 +189,35 @@ fn symbolic_capacity_and_predicate_joins_hold_no_derived_number_or_truth_value()
 
 #[test]
 #[trace("TC-055", "FR-057-AC-4")]
-fn an_unrecognised_cause_name_is_retained_unchanged_and_mapped_to_no_known_cause() {
+fn an_unrecognised_cause_is_retained_unchanged_and_mapped_to_no_known_cause() {
     let offered: &[u8] = b"QuantumEntangledLoop \xff";
-    let cause = UnsupportedCause::from_name(offered);
-    assert!(matches!(cause, UnsupportedCause::Unrecognised(_)));
-    assert_eq!(cause.name(), offered);
-    // Every name QSL's `Unsupported` defines round-trips to itself, so the
-    // unrecognised name is the only one that is not mapped.
+    let cause = UnsupportedCause::unrecognised(offered);
+    let UnsupportedCause::Unrecognised(retained) = &cause else {
+        panic!("retained as unrecognised");
+    };
+    assert_eq!(retained.as_bytes(), offered);
+    // It equals no cause QSL defines, including the requested-capability one.
     for known in [
-        Unsupported::SymbolicCapacity,
-        Unsupported::JoinPredicate,
-        Unsupported::UnruledOutstanding,
-        Unsupported::UnorderedLossSelector,
-        Unsupported::ActivationOnEachTemplate,
-        Unsupported::Capture,
-        Unsupported::UnenumerableRecord,
+        UnsupportedCause::Construct(Unsupported::SymbolicCapacity),
+        UnsupportedCause::Construct(Unsupported::JoinPredicate),
+        UnsupportedCause::requested_capability(),
     ] {
-        assert_eq!(
-            UnsupportedCause::from_name(format!("{known:?}").as_bytes()),
-            UnsupportedCause::Construct(known)
-        );
+        assert_ne!(cause, known);
     }
-    assert_eq!(
-        UnsupportedCause::from_name(b"unsupported-requested-capability"),
-        UnsupportedCause::RequestedCapability
-    );
+    // Carried through a claim's settlement it stays what it was.
+    let dynamic = Dynamic::with("workflow", 3);
+    let construct = dynamic.construct(&dynamic.named("channel", "Symbolic"));
+    let claim = Claim("conformance");
+    let mut standin = Standin {
+        answers: BTreeMap::from([(claim.0, unsupported(cause.clone(), &construct))]),
+        calls: Vec::new(),
+    };
+    let settled = settle_claims(&mut standin, &[premises(&claim)]);
+    let [ClaimSettlement::Disposition(Disposition::Unsupported(carried))] = settled.as_slice()
+    else {
+        panic!("{settled:?}");
+    };
+    assert_eq!(carried.cause, cause);
 }
 
 /// A requires-bound outcome of QSL's own type over the three kinds the ticket

@@ -22,7 +22,7 @@ When an admitted observation history is assessed against a linked protocol, the 
 
 ## Inputs
 
-A linked protocol with its loop declarations (FR-052), and an admitted observation fact set.
+A linked protocol with its loop declarations (FR-052), and an admitted observation fact set, given to the assessment as the library's `LoopFact` values: each names the observation, the `repeat` control, the workflow instance, one repeat ordinal for each enclosing `repeat` and one of iteration or exit.
 
 ## Outputs
 
@@ -35,6 +35,7 @@ Per loop occurrence: the observed iteration count, whether it stayed within the 
 - The evaluator shall not infer that it exits.
 - For a loop with no authored maximum, the evaluator shall report the observed iteration count and the maximum as absent.
 - For a loop with no authored maximum, the evaluator shall report no loop-bound violation and infer no maximum from the history.
+- The evaluator shall keep one occurrence for each workflow instance and enclosing repeat ordinals, so a loop inside a `repeat` counts each outer iteration alone.
 - The evaluator shall keep the exit axis separate from the closure axis (FR-028).
 - The evaluator shall not evaluate the loop's invariant or variant against the history (FR-059).
 
@@ -46,6 +47,7 @@ Per loop occurrence: the observed iteration count, whether it stayed within the 
 | FR-056-AC-2 | A history that ends inside a loop reports the loop as not exited and reports no violation by that fact alone. | Test (TC-054) |
 | FR-056-AC-3 | The loop assessment of a history is unchanged by the closure axis value assessed for the same history. | Test (TC-054) |
 | FR-056-AC-4 | Over a loop with no authored maximum and a history of any iteration count, the assessment reports the observed count, reports the maximum as absent and reports no loop-bound violation. | Test (TC-054) |
+| FR-056-AC-5 | Over a loop inside a `repeat`, iterations observed under two outer ordinals are two occurrences, each judged against the maximum alone, and an ordinal outside the outer repeat's maximum refuses the history. | Test (TC-054) |
 
 ## Dependencies
 

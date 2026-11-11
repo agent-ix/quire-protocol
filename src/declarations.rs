@@ -15,45 +15,42 @@ use qsl_package::protocol_view::{
     control_operation, delivery, queue_capacity, ControlOperation, Delivery, ProtocolView,
     QueueCapacity,
 };
+use qsl_package::{
+    protocol_occurrence_schemas_from_read, ProtocolOccurrenceSchema, RoleReplication,
+};
+use qsl_semantics::check::wire_id::WireGraph;
 use qsl_semantics::check::{ChannelOverflow, CheckedOutstanding, LossSelector};
 use quire_contract_model::{CheckedNodeId, CheckedPackageV2, CheckedTerm, LiteralKind};
+use quire_exact::NodeKey;
 
 use crate::link::{argument, node, reference, LinkRefusal};
 
-/// A replicated role's lifetime (QSpec FR-465 "Role"). The `until` predicate
-/// is the checked node the role names; it is never evaluated here.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum Lifetime {
-    /// `lifetime workflow`.
-    Workflow,
-    /// `lifetime scope`.
-    Scope,
-    /// `lifetime until(p)`, by the checked node holding `p`.
-    Until(CheckedNodeId),
-}
-
-/// What a replicated role declares beyond its model.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Replication {
-    /// The population the instances are drawn from, as authored.
-    pub population: Box<str>,
-    /// The authored `max` live-instance bound, or `None` when the checked
-    /// node carries none. No default is substituted.
-    pub max: Option<u64>,
-    /// The binder node the lifetime predicate reads.
-    pub binder: CheckedNodeId,
-    /// The authored lifetime.
-    pub lifetime: Lifetime,
-}
-
-/// One authored role. A static role has no [`Replication`]; a replicated role
-/// is one declaration, never expanded into instances.
+/// One authored role. The replication is QSL's own `RoleReplication`, read
+/// through its occurrence schema: a static role is [`RoleReplication::Static`]
+/// and a replicated role is one declaration with its population, `max` and
+/// lifetime, never expanded into instances. QSL's `max` is required, so no
+/// default is ever substituted for an absent one.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RoleDeclaration {
     /// The checked `role` node.
     pub node: CheckedNodeId,
-    /// The replication group, absent for a static role.
-    pub replication: Option<Replication>,
+    /// QSL's structural key of the node.
+    pub key: NodeKey,
+    /// Static, or replicated with population, maximum and lifetime.
+    pub replication: RoleReplication,
+}
+
+impl RoleDeclaration {
+    /// The authored `max` of a replicated role; `None` for a static role,
+    /// which has no population bound. A maximum beyond `u64` saturates: no
+    /// history counts that many instances.
+    #[must_use]
+    pub fn max(&self) -> Option<u64> {
+        match &self.replication {
+            RoleReplication::Static => None,
+            RoleReplication::Replicated { max, .. } => Some(max.to_u64().unwrap_or(u64::MAX)),
+        }
+    }
 }
 
 /// A channel's authored ordering.
@@ -92,8 +89,8 @@ pub struct ChannelDeclaration {
     pub ordering: Ordering,
     /// The authored capacity, as QSL's `queue_capacity` accessor reads it.
     pub capacity: Capacity,
-    /// The authored overflow policy, or `None` when the queue declares none.
-    pub overflow: Option<ChannelOverflow>,
+    /// The authored overflow policy; QSL's grammar requires one.
+    pub overflow: ChannelOverflow,
 }
 
 /// A join's authored policy (QSpec FR-171).
@@ -115,6 +112,8 @@ pub enum JoinPolicy {
 pub struct JoinDeclaration {
     /// The `parallel` control node.
     pub control: CheckedNodeId,
+    /// QSL's structural key of the control.
+    pub key: NodeKey,
     /// The authored policy.
     pub policy: JoinPolicy,
     /// The labels of the joined branches, ascending as the package lists them.
@@ -143,6 +142,8 @@ impl JoinDeclaration {
 pub struct LoopDeclaration {
     /// The `repeat` control node.
     pub control: CheckedNodeId,
+    /// QSL's structural key of the control.
+    pub key: NodeKey,
     /// The authored iteration maximum, or `None` when the loop has none.
     pub maximum: Option<u64>,
     /// The authored invariant, by its checked node. Not interpreted here.
@@ -153,15 +154,23 @@ pub struct LoopDeclaration {
 
 /// Every role, channel, join and loop declaration of one linked protocol, in
 /// the protocol view's order.
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Declarations {
     roles: Vec<RoleDeclaration>,
     channels: Vec<ChannelDeclaration>,
     joins: Vec<JoinDeclaration>,
     loops: Vec<LoopDeclaration>,
+    schema: ProtocolOccurrenceSchema,
 }
 
 impl Declarations {
+    /// QSL's occurrence schema of the clause: its roles, controls and repeat
+    /// dimensions, which key every join and loop occurrence.
+    #[must_use]
+    pub fn schema(&self) -> &ProtocolOccurrenceSchema {
+        &self.schema
+    }
+
     /// The role declarations.
     #[must_use]
     pub fn roles(&self) -> &[RoleDeclaration] {
@@ -217,12 +226,43 @@ impl Declarations {
         package: &CheckedPackageV2,
         view: &ProtocolView<'_>,
     ) -> Result<Self, LinkRefusal> {
-        let mut declarations = Self::default();
+        let clause = view.clause();
+        let unkeyed = |node: &CheckedNodeId| LinkRefusal::UnkeyedNode { node: node.clone() };
+        let graph = WireGraph::new(package.resolved_graph().nodes.iter().map(|n| &n.node_id))
+            .map_err(|_| unkeyed(clause))?;
+        let key_of = |id: &CheckedNodeId| graph.key(id).map_err(|_| unkeyed(id));
+        let clause_key = key_of(clause)?;
+        let schema = protocol_occurrence_schemas_from_read(package)
+            .map_err(LinkRefusal::Occurrence)?
+            .into_iter()
+            .map(|occurrence| occurrence.schema)
+            .find(|schema| schema.workflow == clause_key)
+            .ok_or_else(|| LinkRefusal::MissingMember {
+                node: clause.clone(),
+                member: "occurrence schema",
+            })?;
+        let mut declarations = Self {
+            roles: Vec::new(),
+            channels: Vec::new(),
+            joins: Vec::new(),
+            loops: Vec::new(),
+            schema,
+        };
+        let schema = declarations.schema.clone();
         for id in view.roles().iter().copied() {
-            let group = member_of_node(package, id, "replication")?;
+            let key = key_of(id)?;
+            let slot = schema
+                .roles
+                .iter()
+                .find(|slot| slot.key == key)
+                .ok_or_else(|| LinkRefusal::MissingMember {
+                    node: id.clone(),
+                    member: "role slot",
+                })?;
             declarations.roles.push(RoleDeclaration {
                 node: id.clone(),
-                replication: replication(id, group)?,
+                key,
+                replication: slot.replication.clone(),
             });
         }
         for id in view.channels().iter().copied() {
@@ -232,8 +272,12 @@ impl Declarations {
             let control = node(package, id)
                 .ok_or_else(|| LinkRefusal::UnreadableNode { node: id.clone() })?;
             match control_operation(control) {
-                Ok(ControlOperation::Parallel) => declarations.joins.push(join(package, id)?),
-                Ok(ControlOperation::Repeat) => declarations.loops.push(repeat(package, id)?),
+                Ok(ControlOperation::Parallel) => {
+                    declarations.joins.push(join(package, id, key_of(id)?)?);
+                }
+                Ok(ControlOperation::Repeat) => {
+                    declarations.loops.push(repeat(package, id, key_of(id)?)?);
+                }
                 Ok(_) | Err(_) => {}
             }
         }
@@ -298,43 +342,6 @@ fn malformed(node: &CheckedNodeId, member: &'static str) -> LinkRefusal {
     }
 }
 
-/// Read a role's `replication` group. An empty group is a static role.
-fn replication(
-    role: &CheckedNodeId,
-    group: &CheckedTerm,
-) -> Result<Option<Replication>, LinkRefusal> {
-    let group = members(group).ok_or_else(|| malformed(role, "replication"))?;
-    if group.is_empty() {
-        return Ok(None);
-    }
-    let bad = || malformed(role, "replication");
-    let population = named(group, "population").and_then(text).ok_or_else(bad)?;
-    let max = named(group, "max")
-        .map(|term| integer(term).ok_or_else(bad))
-        .transpose()?;
-    let binder = named(group, "binder")
-        .and_then(reference)
-        .ok_or_else(bad)?
-        .clone();
-    let lifetime = match named(group, "lifetime").and_then(text) {
-        Some("workflow") => Lifetime::Workflow,
-        Some("scope") => Lifetime::Scope,
-        Some("until") => Lifetime::Until(
-            named(group, "until")
-                .and_then(reference)
-                .ok_or_else(bad)?
-                .clone(),
-        ),
-        _ => return Err(bad()),
-    };
-    Ok(Some(Replication {
-        population: population.into(),
-        max,
-        binder,
-        lifetime,
-    }))
-}
-
 fn ordering(channel: &CheckedNodeId, group: &CheckedTerm) -> Result<Ordering, LinkRefusal> {
     let bad = || malformed(channel, "ordering");
     let group = members(group).ok_or_else(bad)?;
@@ -389,18 +396,16 @@ fn channel(
     })
 }
 
-/// The overflow policy a queue authors, `None` when it authors none.
+/// The overflow policy a queue authors; QSL's grammar requires one.
 fn overflow(
     package: &CheckedPackageV2,
     queue: &CheckedNodeId,
-) -> Result<Option<ChannelOverflow>, LinkRefusal> {
+) -> Result<ChannelOverflow, LinkRefusal> {
     let bad = || malformed(queue, "overflow");
-    let Some(policy) = argument(package, queue, "overflow") else {
-        return Ok(None);
-    };
+    let policy = member_of_node(package, queue, "overflow")?;
     match text(policy).ok_or_else(bad)? {
-        "block" => Ok(Some(ChannelOverflow::Block)),
-        "reject" => Ok(Some(ChannelOverflow::Reject)),
+        "block" => Ok(ChannelOverflow::Block),
+        "reject" => Ok(ChannelOverflow::Reject),
         "loss" => {
             let selector = argument(package, queue, "loss")
                 .and_then(members)
@@ -410,9 +415,9 @@ fn overflow(
                 })
                 .ok_or_else(bad)?;
             match selector {
-                "head" => Ok(Some(ChannelOverflow::Loss(LossSelector::Head))),
-                "tail" => Ok(Some(ChannelOverflow::Loss(LossSelector::Tail))),
-                "new" => Ok(Some(ChannelOverflow::Loss(LossSelector::New))),
+                "head" => Ok(ChannelOverflow::Loss(LossSelector::Head)),
+                "tail" => Ok(ChannelOverflow::Loss(LossSelector::Tail)),
+                "new" => Ok(ChannelOverflow::Loss(LossSelector::New)),
                 _ => Err(bad()),
             }
         }
@@ -420,7 +425,11 @@ fn overflow(
     }
 }
 
-fn join(package: &CheckedPackageV2, id: &CheckedNodeId) -> Result<JoinDeclaration, LinkRefusal> {
+fn join(
+    package: &CheckedPackageV2,
+    id: &CheckedNodeId,
+    key: NodeKey,
+) -> Result<JoinDeclaration, LinkRefusal> {
     let bad = |member| malformed(id, member);
     let group = members(member_of_node(package, id, "join")?).ok_or_else(|| bad("join"))?;
     let policy = match named(group, "policy").and_then(text) {
@@ -457,13 +466,18 @@ fn join(package: &CheckedPackageV2, id: &CheckedNodeId) -> Result<JoinDeclaratio
     };
     Ok(JoinDeclaration {
         control: id.clone(),
+        key,
         policy,
         joined,
         outstanding,
     })
 }
 
-fn repeat(package: &CheckedPackageV2, id: &CheckedNodeId) -> Result<LoopDeclaration, LinkRefusal> {
+fn repeat(
+    package: &CheckedPackageV2,
+    id: &CheckedNodeId,
+    key: NodeKey,
+) -> Result<LoopDeclaration, LinkRefusal> {
     let bad = |member| malformed(id, member);
     let maximum =
         match members(member_of_node(package, id, "maximum")?).ok_or_else(|| bad("maximum"))? {
@@ -485,6 +499,7 @@ fn repeat(package: &CheckedPackageV2, id: &CheckedNodeId) -> Result<LoopDeclarat
     };
     Ok(LoopDeclaration {
         control: id.clone(),
+        key,
         maximum,
         invariant,
         variant,

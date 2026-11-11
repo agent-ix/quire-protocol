@@ -14,7 +14,7 @@ Verify assess join settlement per policy over a checked package and an admitted 
 
 ## Test Procedure
 
-Assess `all`, `any` and `quorum(n)` joins at n-1, n and n+1 completed branches with a duplicated branch observation, outstanding `continue` and `cancel` branches, a predicate join, an `all` join with no outstanding rule and `any` and `quorum(n)` joins with none. Tag each test with the exact acceptance criterion it verifies.
+Assess `all`, `any` and `quorum(n)` joins at n-1, n and n+1 completed branches with a duplicated branch observation, outstanding `continue` and `cancel` branches, a predicate join, an `all` join with no outstanding rule and `any` and `quorum(n)` joins with none, a branch label the join does not list, and a join inside a `repeat` settling in two iterations. Tag each test with the exact acceptance criterion it verifies.
 
 ## Expected Results
 

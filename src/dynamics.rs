@@ -25,11 +25,16 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use qsl_eval::simulation::protocol::Unsupported;
 use qsl_package::protocol_view::Delivery;
+use qsl_package::{
+    OccurrenceKeyError, ProtocolOccurrenceSchema, RoleLifetime, RoleReplication,
+    WorkflowInstanceIdentity,
+};
 use qsl_semantics::check::{ChannelOverflow, CheckedOutstanding, LossSelector};
 use quire_contract_model::CheckedNodeId;
+use quire_exact::{Integer, NodeKey};
 
 use crate::declarations::{
-    Capacity, ChannelDeclaration, Declarations, JoinPolicy, Lifetime, Ordering,
+    Capacity, ChannelDeclaration, Declarations, JoinPolicy, Ordering, RoleDeclaration,
 };
 use crate::disposition::{Construct, UnsupportedCause};
 use crate::ids::{MessageId, RoleInstanceId, WorkflowInstanceId};
@@ -44,6 +49,21 @@ pub enum HistoryRefusal {
         /// The node the fact named.
         node: CheckedNodeId,
     },
+    /// A spawn, retire or end fact names a static role, which QSL never
+    /// spawns: only its activity is observable.
+    StaticRoleLifecycle {
+        /// The static role.
+        role: CheckedNodeId,
+    },
+    /// A join or loop fact's workflow identity is not text QSL can key an
+    /// occurrence by (non-UTF-8).
+    WorkflowNotText {
+        /// The workflow identity bytes.
+        workflow: Box<[u8]>,
+    },
+    /// QSL's occurrence key refused the fact's workflow, control or repeat
+    /// ordinals.
+    Occurrence(OccurrenceKeyError),
     /// A join fact names a branch label the join does not list.
     UndeclaredBranch {
         /// The join control.
@@ -63,6 +83,39 @@ pub struct ObservationRef {
     pub position: u64,
     /// The observation's identity bytes, as the producer gave them.
     pub identity: Box<[u8]>,
+}
+
+/// Validate a join or loop fact's occurrence against QSL's schema: the
+/// control, its owner, the workflow identity and one repeat ordinal for each
+/// enclosing `repeat` (QSL FR-384 "Runtime key binding"). Occurrences that
+/// differ in any of these never merge.
+fn bind_occurrence(
+    declarations: &Declarations,
+    control: &NodeKey,
+    workflow: &WorkflowInstanceId,
+    repeat_ordinals: &[Integer],
+) -> Result<(), HistoryRefusal> {
+    let schema: &ProtocolOccurrenceSchema = declarations.schema();
+    let identity = std::str::from_utf8(workflow.identity_bytes()).map_err(|_| {
+        HistoryRefusal::WorkflowNotText {
+            workflow: workflow.identity_bytes().into(),
+        }
+    })?;
+    let identity = WorkflowInstanceIdentity::new(identity).map_err(HistoryRefusal::Occurrence)?;
+    let owner = schema
+        .controls
+        .iter()
+        .find(|entry| &entry.key == control)
+        .map(|entry| entry.owner.clone())
+        .ok_or_else(|| {
+            HistoryRefusal::Occurrence(OccurrenceKeyError::UnknownNode {
+                node: control.clone(),
+            })
+        })?;
+    schema
+        .bind(identity, control, &owner, repeat_ordinals)
+        .map(|_| ())
+        .map_err(HistoryRefusal::Occurrence)
 }
 
 // ---------------------------------------------------------------------------
@@ -177,38 +230,41 @@ pub fn assess_roles(
             .ok_or_else(|| HistoryRefusal::UndeclaredSubject {
                 node: fact.role.clone(),
             })?;
+        let is_static = matches!(
+            declarations.roles()[index].replication,
+            RoleReplication::Static
+        );
+        if is_static && fact.event != RoleEvent::Act {
+            return Err(HistoryRefusal::StaticRoleLifecycle {
+                role: fact.role.clone(),
+            });
+        }
         by_role.entry(index).or_default().push(fact);
     }
     let mut assessments = Vec::new();
     for (index, role) in declarations.roles().iter().enumerate() {
         let mut role_facts = by_role.remove(&index).unwrap_or_default();
         role_facts.sort_by(|left, right| left.at.cmp(&right.at));
-        let (lifetime, bound) = role
-            .replication
-            .as_ref()
-            .map_or((None, None), |replication| {
-                (Some(&replication.lifetime), replication.max)
-            });
-        assessments.push(assess_role(&role.node, lifetime, bound, &role_facts));
+        assessments.push(assess_role(role, &role_facts));
     }
     Ok(assessments)
 }
 
-fn ends_lifetime(lifetime: Option<&Lifetime>, event: &RoleEvent) -> bool {
+fn ends_lifetime(lifetime: Option<RoleLifetime>, event: &RoleEvent) -> bool {
     matches!(
         (lifetime, event),
-        (Some(Lifetime::Workflow), RoleEvent::WorkflowEnd)
-            | (Some(Lifetime::Scope), RoleEvent::ScopeEnd)
-            | (Some(Lifetime::Until(_)), RoleEvent::Retire)
+        (Some(RoleLifetime::Workflow), RoleEvent::WorkflowEnd)
+            | (Some(RoleLifetime::Scope), RoleEvent::ScopeEnd)
+            | (Some(RoleLifetime::Until), RoleEvent::Retire)
     )
 }
 
-fn assess_role(
-    role: &CheckedNodeId,
-    lifetime: Option<&Lifetime>,
-    bound: Option<u64>,
-    facts: &[&RoleFact],
-) -> RoleAssessment {
+fn assess_role(role: &RoleDeclaration, facts: &[&RoleFact]) -> RoleAssessment {
+    let lifetime = match &role.replication {
+        RoleReplication::Static => None,
+        RoleReplication::Replicated { lifetime, .. } => Some(*lifetime),
+    };
+    let bound = role.max();
     let mut spawned: BTreeMap<&RoleInstanceId, &ObservationRef> = BTreeMap::new();
     let mut ended: BTreeMap<&RoleInstanceId, &ObservationRef> = BTreeMap::new();
     let mut instances: BTreeMap<RoleInstanceId, bool> = BTreeMap::new();
@@ -224,6 +280,9 @@ fn assess_role(
                 live.insert(&fact.instance);
                 max_live = max_live.max(u64::try_from(live.len()).unwrap_or(u64::MAX));
             }
+            // A static role is never spawned: its instance is the workflow's,
+            // so its activity has no spawn to precede.
+            RoleEvent::Act if lifetime.is_none() => {}
             RoleEvent::Act => {
                 if !spawned.contains_key(&fact.instance) {
                     violated = Some(LifetimeViolation::BeforeSpawn {
@@ -258,13 +317,13 @@ fn assess_role(
     }
     let population_violation = bound.and_then(|bound| {
         (max_live > bound).then(|| PopulationViolation {
-            role: role.clone(),
+            role: role.node.clone(),
             bound,
             observed: max_live,
         })
     });
     RoleAssessment {
-        role: role.clone(),
+        role: role.node.clone(),
         instances,
         max_live,
         bound,
@@ -365,8 +424,8 @@ pub enum QueueViolation {
     Overflow {
         /// The channel.
         channel: CheckedNodeId,
-        /// The authored policy, `None` when the queue authors none.
-        authored: Option<ChannelOverflow>,
+        /// The authored policy.
+        authored: ChannelOverflow,
         /// The observed outcome.
         observed: OverflowOutcome,
     },
@@ -459,18 +518,20 @@ pub fn assess_channels(
     Ok(outcomes)
 }
 
-fn unsupported_channel(channel: &ChannelDeclaration) -> Option<Unsupported> {
-    if matches!(channel.capacity, Capacity::Symbolic(_)) {
-        return Some(Unsupported::SymbolicCapacity);
-    }
+/// The literal capacity QSL steps, or the `Unsupported` cause for a channel it
+/// does not.
+fn steppable_capacity(channel: &ChannelDeclaration) -> Result<u64, Unsupported> {
+    let Capacity::Literal(capacity) = channel.capacity else {
+        return Err(Unsupported::SymbolicCapacity);
+    };
     let loses_ordered = matches!(
         channel.overflow,
-        Some(ChannelOverflow::Loss(
-            LossSelector::Head | LossSelector::Tail
-        ))
+        ChannelOverflow::Loss(LossSelector::Head | LossSelector::Tail)
     );
-    (channel.ordering == Ordering::Unordered && loses_ordered)
-        .then_some(Unsupported::UnorderedLossSelector)
+    if channel.ordering == Ordering::Unordered && loses_ordered {
+        return Err(Unsupported::UnorderedLossSelector);
+    }
+    Ok(capacity)
 }
 
 fn permits(premise: Delivery, breach: PremiseBreach) -> bool {
@@ -491,15 +552,15 @@ fn assess_channel(
     facts: &[&ChannelFact],
     construct: &impl Fn(&CheckedNodeId) -> Construct,
 ) -> ChannelOutcome {
-    if let Some(cause) = unsupported_channel(channel) {
-        return ChannelOutcome::Unsupported {
-            channel: channel.node.clone(),
-            cause: UnsupportedCause::Construct(cause),
-            construct: construct(&channel.node),
-        };
-    }
-    let Capacity::Literal(capacity) = channel.capacity else {
-        unreachable!("a symbolic capacity returned above");
+    let capacity = match steppable_capacity(channel) {
+        Ok(capacity) => capacity,
+        Err(cause) => {
+            return ChannelOutcome::Unsupported {
+                channel: channel.node.clone(),
+                cause: UnsupportedCause::Construct(cause),
+                construct: construct(&channel.node),
+            }
+        }
     };
     let overflowed: BTreeSet<&MessageId> = facts
         .iter()
@@ -552,7 +613,24 @@ fn assess_channel(
                     }
                 }
             }
-            ChannelEvent::Overflow { outcome, .. } => {
+            ChannelEvent::Overflow { message, outcome } => {
+                // The queue as the arriving message found it.
+                let others: Vec<&MessageId> = queued
+                    .iter()
+                    .map(|(queued, _)| *queued)
+                    .filter(|queued| *queued != message)
+                    .collect();
+                // A loss is judged against the queue, not the label: head
+                // drops the oldest queued message, tail the newest, new the
+                // arriving one.
+                let observed_matches_queue = match outcome {
+                    OverflowOutcome::Blocked | OverflowOutcome::Rejected => true,
+                    OverflowOutcome::Lost { selector, dropped } => match selector {
+                        LossSelector::Head => others.first().copied() == Some(dropped),
+                        LossSelector::Tail => others.last().copied() == Some(dropped),
+                        LossSelector::New => dropped == message,
+                    },
+                };
                 if let OverflowOutcome::Lost { dropped, .. } = outcome {
                     if let Some(position) = queued.iter().position(|(queued, _)| *queued == dropped)
                     {
@@ -562,7 +640,7 @@ fn assess_channel(
                         }
                     }
                 }
-                if !matches_policy(channel.overflow, outcome) {
+                if !(observed_matches_queue && matches_policy(channel.overflow, outcome)) {
                     violations.push(QueueViolation::Overflow {
                         channel: violation_channel(),
                         authored: channel.overflow,
@@ -605,16 +683,15 @@ fn assess_channel(
     })
 }
 
-fn matches_policy(authored: Option<ChannelOverflow>, observed: &OverflowOutcome) -> bool {
-    matches!(
-        (authored, observed),
-        (Some(ChannelOverflow::Block), OverflowOutcome::Blocked)
-            | (Some(ChannelOverflow::Reject), OverflowOutcome::Rejected)
-    ) || matches!(
-        (authored, observed),
-        (Some(ChannelOverflow::Loss(authored)), OverflowOutcome::Lost { selector, .. })
-            if authored == *selector
-    )
+fn matches_policy(authored: ChannelOverflow, observed: &OverflowOutcome) -> bool {
+    match (authored, observed) {
+        (ChannelOverflow::Block, OverflowOutcome::Blocked)
+        | (ChannelOverflow::Reject, OverflowOutcome::Rejected) => true,
+        (ChannelOverflow::Loss(authored), OverflowOutcome::Lost { selector, .. }) => {
+            authored == *selector
+        }
+        (ChannelOverflow::Block | ChannelOverflow::Reject | ChannelOverflow::Loss(_), _) => false,
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -660,6 +737,9 @@ pub struct JoinFact {
     pub join: CheckedNodeId,
     /// The workflow instance holding the occurrence.
     pub workflow: WorkflowInstanceId,
+    /// One ordinal for each enclosing `repeat`, outermost first, as QSL's
+    /// occurrence key binds them.
+    pub repeat_ordinals: Vec<Integer>,
     /// What was observed.
     pub event: JoinEvent,
 }
@@ -698,6 +778,8 @@ pub struct JoinAssessment {
     pub join: CheckedNodeId,
     /// The workflow instance.
     pub workflow: WorkflowInstanceId,
+    /// The enclosing `repeat` ordinals of the occurrence.
+    pub repeat_ordinals: Vec<Integer>,
     /// The distinct branches observed complete before the join settled, or by
     /// the end of the history when it did not settle.
     pub completed: BTreeSet<Box<str>>,
@@ -721,7 +803,11 @@ pub enum JoinOutcome {
     /// QSL would report an `Unsupported` cause for the join (FR-057); the
     /// occurrence is reported neither settled nor unsettled.
     Unsupported {
-        /// The cause, carried by name.
+        /// The workflow instance of the occurrence.
+        workflow: WorkflowInstanceId,
+        /// The enclosing `repeat` ordinals of the occurrence.
+        repeat_ordinals: Vec<Integer>,
+        /// The cause, as QSL reports it.
         cause: UnsupportedCause,
         /// The join control and its locus.
         construct: Construct,
@@ -731,7 +817,9 @@ pub enum JoinOutcome {
 /// Assess `facts` against the join declarations of `declarations`.
 ///
 /// A join declaration with no fact yields no occurrence. A join QSL would
-/// report `Unsupported` for yields [`JoinOutcome::Unsupported`] once.
+/// report `Unsupported` for yields one [`JoinOutcome::Unsupported`] for each
+/// occurrence (workflow instance and enclosing repeat ordinals) the history
+/// names.
 ///
 /// # Errors
 ///
@@ -743,7 +831,9 @@ pub fn assess_joins(
     facts: &[JoinFact],
     construct: impl Fn(&CheckedNodeId) -> Construct,
 ) -> Result<Vec<JoinOutcome>, HistoryRefusal> {
-    let mut occurrences: BTreeMap<(usize, &WorkflowInstanceId), Vec<&JoinFact>> = BTreeMap::new();
+    // Ordinals key by their decimal text: `Integer` is not a sound map key.
+    type Key<'a> = (usize, &'a WorkflowInstanceId, Vec<String>);
+    let mut occurrences: BTreeMap<Key<'_>, Vec<&JoinFact>> = BTreeMap::new();
     for fact in facts {
         let index = declarations
             .joins()
@@ -767,13 +857,27 @@ pub fn assess_joins(
                 });
             }
         }
+        bind_occurrence(
+            declarations,
+            &declaration.key,
+            &fact.workflow,
+            &fact.repeat_ordinals,
+        )?;
         occurrences
-            .entry((index, &fact.workflow))
+            .entry((
+                index,
+                &fact.workflow,
+                fact.repeat_ordinals
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect(),
+            ))
             .or_default()
             .push(fact);
     }
     let mut outcomes = Vec::new();
-    for ((index, workflow), mut occurrence) in occurrences {
+    for ((index, workflow, _), mut occurrence) in occurrences {
+        let ordinals = &occurrence[0].repeat_ordinals;
         let declaration = &declarations.joins()[index];
         let unsupported = match (&declaration.policy, declaration.outstanding) {
             (JoinPolicy::Predicate(_), _) => Some(Unsupported::JoinPredicate),
@@ -784,6 +888,8 @@ pub fn assess_joins(
         };
         if let Some(cause) = unsupported {
             outcomes.push(JoinOutcome::Unsupported {
+                workflow: workflow.clone(),
+                repeat_ordinals: ordinals.clone(),
                 cause: UnsupportedCause::Construct(cause),
                 construct: construct(&declaration.control),
             });
@@ -793,6 +899,7 @@ pub fn assess_joins(
         outcomes.push(JoinOutcome::Assessed(assess_join(
             declaration,
             workflow,
+            ordinals,
             &occurrence,
         )));
     }
@@ -802,6 +909,7 @@ pub fn assess_joins(
 fn assess_join(
     declaration: &crate::declarations::JoinDeclaration,
     workflow: &WorkflowInstanceId,
+    ordinals: &[Integer],
     facts: &[&JoinFact],
 ) -> JoinAssessment {
     let mut completed: BTreeSet<Box<str>> = BTreeSet::new();
@@ -864,6 +972,7 @@ fn assess_join(
     JoinAssessment {
         join: declaration.control.clone(),
         workflow: workflow.clone(),
+        repeat_ordinals: ordinals.to_vec(),
         completed,
         settled: settled_with.is_some(),
         permitted,
@@ -895,6 +1004,9 @@ pub struct LoopFact {
     pub control: CheckedNodeId,
     /// The workflow instance holding the occurrence.
     pub workflow: WorkflowInstanceId,
+    /// One ordinal for each enclosing `repeat`, outermost first, as QSL's
+    /// occurrence key binds them.
+    pub repeat_ordinals: Vec<Integer>,
     /// What was observed.
     pub event: LoopEvent,
 }
@@ -917,6 +1029,8 @@ pub struct LoopAssessment {
     pub control: CheckedNodeId,
     /// The workflow instance.
     pub workflow: WorkflowInstanceId,
+    /// The enclosing `repeat` ordinals of the occurrence.
+    pub repeat_ordinals: Vec<Integer>,
     /// The iterations observed.
     pub iterations: u64,
     /// The authored maximum, or `None` when the loop authors none.
@@ -942,7 +1056,9 @@ pub fn assess_loops(
     declarations: &Declarations,
     facts: &[LoopFact],
 ) -> Result<Vec<LoopAssessment>, HistoryRefusal> {
-    let mut occurrences: BTreeMap<(usize, &WorkflowInstanceId), Vec<&LoopFact>> = BTreeMap::new();
+    // Ordinals key by their decimal text: `Integer` is not a sound map key.
+    type Key<'a> = (usize, &'a WorkflowInstanceId, Vec<String>);
+    let mut occurrences: BTreeMap<Key<'_>, Vec<&LoopFact>> = BTreeMap::new();
     for fact in facts {
         let index = declarations
             .loops()
@@ -951,14 +1067,28 @@ pub fn assess_loops(
             .ok_or_else(|| HistoryRefusal::UndeclaredSubject {
                 node: fact.control.clone(),
             })?;
+        bind_occurrence(
+            declarations,
+            &declarations.loops()[index].key,
+            &fact.workflow,
+            &fact.repeat_ordinals,
+        )?;
         occurrences
-            .entry((index, &fact.workflow))
+            .entry((
+                index,
+                &fact.workflow,
+                fact.repeat_ordinals
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect(),
+            ))
             .or_default()
             .push(fact);
     }
     Ok(occurrences
         .into_iter()
-        .map(|((index, workflow), occurrence)| {
+        .map(|((index, workflow, _), occurrence)| {
+            let ordinals = &occurrence[0].repeat_ordinals;
             let declaration = &declarations.loops()[index];
             let iterations = u64::try_from(
                 occurrence
@@ -977,6 +1107,7 @@ pub fn assess_loops(
             LoopAssessment {
                 control: declaration.control.clone(),
                 workflow: workflow.clone(),
+                repeat_ordinals: ordinals.to_vec(),
                 iterations,
                 maximum: declaration.maximum,
                 within_maximum: declaration.maximum.map(|maximum| iterations <= maximum),

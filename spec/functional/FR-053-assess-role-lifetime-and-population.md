@@ -22,7 +22,7 @@ When an admitted observation history is assessed against a linked protocol, the 
 
 ## Inputs
 
-A linked protocol with its role declarations (FR-050), and an admitted observation fact set.
+A linked protocol with its role declarations (FR-050), and an admitted observation fact set, given to the assessment as the library's `RoleFact` values: each names the observation (its position in the history's own order and its identity), the checked role node, the role instance identity the observation names and one of spawn, act, retire, workflow end or scope end. A static role is never spawned: only its activity is a fact.
 
 ## Outputs
 
@@ -48,11 +48,12 @@ Per role: the observed instance identities, whether each instance's observed act
 | FR-053-AC-1 | Over a history whose instances all act inside their lifetimes and whose live count never exceeds the bound, the role assessment reports no violation. | Test (TC-051) |
 | FR-053-AC-2 | Over histories with activity before spawn, activity after retire, and a retire that precedes its spawn, the assessment reports a lifetime violation per case naming the instance and observation. | Test (TC-051) |
 | FR-053-AC-3 | Over a history reaching exactly the bound and one reaching the bound plus one live instance, the assessment reports no violation for the first and a population violation naming role, bound and count for the second. | Test (TC-051) |
-| FR-053-AC-4 | Over a role with no authored population bound, the assessment reports no population violation and reports the bound as absent; it does not infer a bound from the history. | Test (TC-051) |
-| FR-053-AC-5 | Permuting the presentation order of the history within the permitted orders changes no role assessment value. | Test (TC-051) |
+| FR-053-AC-4 | Over a static role, the assessment reports the bound as absent, reports no population violation and no lifetime violation for its activity, and does not infer a bound from the history; a spawn, retire or end fact for a static role refuses the history. | Test (TC-051) |
+| FR-053-AC-5 | Exchanging the positions of observations the authored causal order leaves concurrent (the spawns and the acts of different instances) changes no role assessment value, while moving an instance's act before its own spawn does. | Test (TC-051) |
 | FR-053-AC-6 | Over one role per lifetime kind, activity after the observation that ends the workflow, after the observed end of a `scope` lifetime and after the observed `retire` of an `until(p)` instance is reported as a lifetime violation for `workflow`, `scope` and `until(p)` respectively, and activity before those observations is not. | Test (TC-051) |
 | FR-053-AC-7 | Over a `scope` role that owns a compensation template, a compensation attempt observed while a registration of that template is open, or while a running branch can still reach its effect, is not reported as a lifetime violation. | Test (TC-051) |
 | FR-053-AC-8 | Over an `until(p)` role and a history in which `p` is observed to hold and the instance acts before its observed `retire`, the assessment reports no lifetime violation and does not evaluate `p`. | Test (TC-051) |
+| FR-053-AC-9 | A fact naming a node that is not a declared role refuses the history with the node named, and no role assessment is returned. | Test (TC-051) |
 
 ## Dependencies
 

@@ -126,61 +126,110 @@ fn excess_occupancy_is_a_capacity_violation_only_without_an_overflow_event() {
     assert!(with.within_capacity);
 }
 
+/// A full queue of `capacity` messages `m1..`, then `events` for the arriving
+/// message `x`.
+fn full_queue(capacity: usize, events: Vec<ChannelEvent>) -> Vec<ChannelEvent> {
+    let mut history: Vec<_> = (1..=capacity)
+        .map(|n| enqueue(&format!("m{n}"), "k"))
+        .collect();
+    history.extend(events);
+    history
+}
+
 #[test]
 #[trace("TC-052", "FR-054-AC-3")]
 fn each_authored_overflow_policy_matches_its_outcome_and_a_mismatch_names_both() {
     let dynamic = Dynamic::with("workflow", 3);
+    // (channel, capacity, authored policy, the outcome the full queue yields)
     let policies = [
-        ("Block", ChannelOverflow::Block, OverflowOutcome::Blocked),
-        ("Reject", ChannelOverflow::Reject, OverflowOutcome::Rejected),
+        ("Block", 3, ChannelOverflow::Block, OverflowOutcome::Blocked),
+        (
+            "Reject",
+            2,
+            ChannelOverflow::Reject,
+            OverflowOutcome::Rejected,
+        ),
         (
             "Head",
+            4,
             ChannelOverflow::Loss(LossSelector::Head),
             lost(LossSelector::Head, "m1"),
         ),
         (
             "Tail",
+            2,
             ChannelOverflow::Loss(LossSelector::Tail),
-            lost(LossSelector::Tail, "m1"),
+            lost(LossSelector::Tail, "m2"),
         ),
         (
             "New",
+            2,
             ChannelOverflow::Loss(LossSelector::New),
-            lost(LossSelector::New, "m1"),
+            lost(LossSelector::New, "x"),
         ),
         (
             "BagNew",
+            2,
             ChannelOverflow::Loss(LossSelector::New),
-            lost(LossSelector::New, "m1"),
+            lost(LossSelector::New, "x"),
         ),
     ];
-    for (name, authored, matching) in policies {
-        let clean = assessed(&dynamic, name, vec![overflow("m1", matching.clone())]);
+    for (name, capacity, authored, matching) in policies {
+        let clean = assessed(
+            &dynamic,
+            name,
+            full_queue(capacity, vec![overflow("x", matching.clone())]),
+        );
         assert!(clean.violations.is_empty(), "{name}");
-        // An outcome of a different kind from every other policy.
+        // An outcome of a different kind from the authored policy.
         let different = if authored == ChannelOverflow::Block {
             OverflowOutcome::Rejected
         } else {
             OverflowOutcome::Blocked
         };
-        let wrong = assessed(&dynamic, name, vec![overflow("m1", different.clone())]);
+        let wrong = assessed(
+            &dynamic,
+            name,
+            full_queue(capacity, vec![overflow("x", different.clone())]),
+        );
         assert_eq!(
             wrong.violations,
             [QueueViolation::Overflow {
                 channel: dynamic.named("channel", name),
-                authored: Some(authored),
+                authored,
                 observed: different,
             }],
             "{name}"
         );
     }
-    // A loss of another selector is a mismatch too.
-    let wrong_selector = assessed(
+}
+
+#[test]
+#[trace("TC-052", "FR-054-AC-8")]
+fn a_loss_is_judged_against_the_queue_not_against_its_label() {
+    let dynamic = Dynamic::with("workflow", 3);
+    // Authored `loss head` on a queue [m1..m4]: the oldest is m1. A loss
+    // labelled head that drops another message is a mismatch...
+    let wrong_message = assessed(
         &dynamic,
         "Head",
-        vec![overflow("m1", lost(LossSelector::Tail, "m1"))],
+        full_queue(4, vec![overflow("x", lost(LossSelector::Head, "m3"))]),
     );
-    assert_eq!(wrong_selector.violations.len(), 1);
+    assert_eq!(wrong_message.violations.len(), 1);
+    // ...and so is a head loss of the arriving message on an empty queue.
+    let empty = assessed(
+        &dynamic,
+        "Head",
+        vec![overflow("x", lost(LossSelector::Head, "x"))],
+    );
+    assert_eq!(empty.violations.len(), 1);
+    // A loss of another selector than the authored one is a mismatch too.
+    let other_selector = assessed(
+        &dynamic,
+        "Head",
+        full_queue(4, vec![overflow("x", lost(LossSelector::Tail, "m4"))]),
+    );
+    assert_eq!(other_selector.violations.len(), 1);
 }
 
 #[test]
@@ -238,7 +287,6 @@ fn a_symbolic_capacity_returns_the_unsupported_disposition_and_judges_nothing() 
         cause,
         UnsupportedCause::Construct(Unsupported::SymbolicCapacity)
     );
-    assert_eq!(cause.name(), b"SymbolicCapacity");
     assert_eq!(construct.node, dynamic.named("channel", "Symbolic"));
 }
 
@@ -293,12 +341,17 @@ fn an_unordered_channel_has_no_order_violation_and_a_head_or_tail_loss_is_unsupp
         ],
     );
     assert!(any_order.violations.is_empty());
-    let facts = history(&dynamic, "BagHead", vec![enqueue("m1", "k")]);
-    let ChannelOutcome::Unsupported { cause, .. } = outcome(&dynamic, "BagHead", &facts) else {
-        panic!("an unordered head loss is unsupported");
-    };
-    assert_eq!(
-        cause,
-        UnsupportedCause::Construct(Unsupported::UnorderedLossSelector)
-    );
+    for dynamic in [
+        Dynamic::with("workflow", 3),
+        Dynamic::with_unordered_tail_loss(),
+    ] {
+        let facts = history(&dynamic, "BagHead", vec![enqueue("m1", "k")]);
+        let ChannelOutcome::Unsupported { cause, .. } = outcome(&dynamic, "BagHead", &facts) else {
+            panic!("an unordered head or tail loss is unsupported");
+        };
+        assert_eq!(
+            cause,
+            UnsupportedCause::Construct(Unsupported::UnorderedLossSelector)
+        );
+    }
 }

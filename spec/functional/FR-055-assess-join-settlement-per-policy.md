@@ -23,7 +23,7 @@ When an admitted observation history is assessed against a linked protocol, the 
 
 ## Inputs
 
-A linked protocol with its join declarations (FR-052), and an admitted observation fact set.
+A linked protocol with its join declarations (FR-052), and an admitted observation fact set, given to the assessment as the library's `JoinFact` values: each names the observation, the `parallel` control, the workflow instance, one repeat ordinal for each enclosing `repeat` as QSL's occurrence key binds them, and one of branch completed, settled or outstanding branch outcome.
 
 ## Outputs
 
@@ -41,6 +41,7 @@ Per join occurrence: the set of observed completed branches, whether the join se
 - For an `all` join with no authored `outstanding` rule, the evaluator shall assess settlement, because settlement requires every branch and none remains outstanding.
 - For a `predicate` join the evaluator shall return the disposition of FR-057.
 - For a `predicate` join the evaluator shall not evaluate the predicate.
+- The evaluator shall keep one occurrence for each workflow instance and repeat ordinals, and shall refuse a history whose key QSL's occurrence schema refuses or whose branch label the join does not list.
 - This requirement states no step semantics. QSL owns the exploration semantics (QSL ADR-027); this library assesses one admitted observation history (ADR-010 Decision 2).
 
 ## Acceptance Criteria
@@ -53,6 +54,8 @@ Per join occurrence: the set of observed completed branches, whether the join se
 | FR-055-AC-4 | Over joins authored `outstanding continue` and `outstanding cancel`, a history whose outstanding branches behave as authored reports none, and one whose branches behave otherwise reports an outstanding violation. | Test (TC-053) |
 | FR-055-AC-5 | Over a `predicate` join and over an `any` and a `quorum(n)` join with no `outstanding` rule, the assessment returns the FR-057 disposition and reports neither a settled nor an unsettled join. | Test (TC-053) |
 | FR-055-AC-6 | Over an `all` join with no `outstanding` rule, a history settling with every branch complete reports no violation and no outstanding branch, and a history settling with a branch missing reports a join violation. | Test (TC-053) |
+| FR-055-AC-7 | A fact naming a branch label the join does not list refuses the history with the join and label named. | Test (TC-053) |
+| FR-055-AC-8 | Over a join inside a `repeat`, histories settling in two iterations are two occurrences, each judged alone, and an ordinal outside the repeat's maximum or a missing ordinal refuses the history. | Test (TC-053) |
 
 ## Dependencies
 
