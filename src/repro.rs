@@ -82,8 +82,7 @@
 //! # Boundary
 //!
 //! This module owns the reproduction record only. It does not canonicalise,
-//! digest or serialise it: the single RFC 8785 result-domain implementation is
-//! chunk C-11's (`src/digest/jcs.rs`), and embedding this record as provenance
+//! digest or serialise it. Embedding this record as provenance
 //! on the canonical protocol result is chunk C-26's (`src/result/mod.rs`).
 //! Nothing here reaches a parser, a grammar, a compiler output schema or a
 //! canonicalizer.

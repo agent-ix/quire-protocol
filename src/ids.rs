@@ -12,8 +12,8 @@
 //! **1. Identity is the producer's exact bytes.** Each newtype retains the
 //! identity bytes offered by the producer unchanged — no trim, no case fold, no
 //! Unicode normalisation, no UTF-8 requirement. B copies; B does not
-//! canonicalise. (Canonicalisation of protocol *results* is the C-11 JCS
-//! domain, which these identities never reach.)
+//! canonicalise. (Canonicalisation of protocol *results* is a separate domain,
+//! which these identities never reach.)
 //!
 //! **2. Display text is never identity.** Every identity also carries the
 //! producer's human-readable display text. That text takes no part in `PartialEq`,

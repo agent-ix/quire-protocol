@@ -17,13 +17,15 @@ relationships:
 
 ## Status
 
-Accepted for intake and output bytes. JCS canonicalizes bytes this repository
-produces; it does not derive a result identity or digest. Intake preserves
-producer bytes as delivered.
+Accepted for intake and output bytes. Once a canonicaliser is adopted (through
+quire-canonical), RFC 8785 JCS applies only to bytes this repository produces;
+it does not derive a result identity or digest. Intake preserves producer bytes
+as delivered. This repository currently contains no canonicaliser.
 
 ## Context
 
-This repository owns a canonicaliser for its result bytes.
+This repository has no canonicaliser of its own; result-byte canonicalisation
+is to come from quire-canonical.
 [FR-006](../functional/FR-006-produce-canonical-protocol-results.md) requires
 canonical protocol result bytes and an FR-286 structural identity; the
 external ArtifactRef carries no digest.
@@ -86,16 +88,16 @@ normalise-then-compare fallback. The correct fix is on the producer's side or in
 a repinned entry, and no amount of caller pressure changes that, because the
 alternative is a consumer that cannot tell a reformat from a substitution.
 
-**The canonicaliser is deliberately incomplete, and stays that way.** SR-027
-FND-010 recorded that "The RFC 8785 canonicaliser refuses JSON numbers rather
-than implementing ECMAScript number serialisation" (`src/digest/jcs.rs:60`). Its
-disposition is "open by design", with the reason stated: "Approximating
-ECMAScript number serialisation would produce a wrong canonical form that still
-looks well formed, which is the failure class this crate exists to refuse." A
-refusal is a correct answer; a plausible-looking wrong canonical form is not.
+**A canonicaliser, once adopted, must refuse JSON numbers it cannot serialise
+exactly.** SR-027 FND-010 recorded the rule for the earlier implementation, which
+was deleted (TL-251): refuse JSON numbers rather than approximate ECMAScript
+number serialisation. Approximating it would produce a wrong canonical form that
+still looks well formed, which is the failure class this crate exists to refuse.
+A refusal is a correct answer; a plausible-looking wrong canonical form is not.
 The consequence is that any result field needing a JSON number outside what the
-canonicaliser accepts cannot be canonicalised at all, and FR-001's numeric rules
-push those values into contract-defined non-number encodings instead.
+adopted canonicaliser accepts cannot be canonicalised at all, and FR-001's
+numeric rules push those values into contract-defined non-number encodings
+instead.
 
 **The structural identities stay distinct by their specified structure.**
 QSpec FR-286 defines the canonical result key, and FR-062/FR-249 define the
