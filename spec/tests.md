@@ -50,6 +50,16 @@ relationships:
   - { target: ix://agent-ix/quire-protocol/FR-045, type: references }
   - { target: ix://agent-ix/quire-protocol/FR-046, type: references }
   - { target: ix://agent-ix/quire-protocol/FR-047, type: references }
+  - { target: ix://agent-ix/quire-protocol/FR-050, type: references }
+  - { target: ix://agent-ix/quire-protocol/FR-051, type: references }
+  - { target: ix://agent-ix/quire-protocol/FR-052, type: references }
+  - { target: ix://agent-ix/quire-protocol/FR-053, type: references }
+  - { target: ix://agent-ix/quire-protocol/FR-054, type: references }
+  - { target: ix://agent-ix/quire-protocol/FR-055, type: references }
+  - { target: ix://agent-ix/quire-protocol/FR-056, type: references }
+  - { target: ix://agent-ix/quire-protocol/FR-057, type: references }
+  - { target: ix://agent-ix/quire-protocol/FR-058, type: references }
+  - { target: ix://agent-ix/quire-protocol/FR-059, type: references }
   - { target: ix://agent-ix/quire-protocol/NFR-001, type: references }
   - { target: ix://agent-ix/quire-protocol/NFR-002, type: references }
   - { target: ix://agent-ix/quire-protocol/NFR-003, type: references }
@@ -185,8 +195,18 @@ in Domain Object Coverage instead.
 | FR-045 | FR-045-AC-1..AC-8 | TC-151 (AC-1, AC-3, AC-4, AC-6, AC-8); no living test for AC-2, AC-5, AC-7 | 🚧 In progress — 5 of 8 criteria have a living traced test over `BarePackage`'s slot call (QSL FR-531, FR-533): AC-1 covers the guard and retry rows, the unavailable binder, the wrongly typed value and the meter one below usage; AC-3 the unavailable retry binders, the value-asserted mappings of every non-Boolean owner outcome and the absence of Boolean coercion; AC-4 the `attempts maximum` bound of 3 admitting three attempts and refusing the fourth; AC-6 the retired names; AC-8 the per-binder charge log. Owed: R's `recovery.predicate` slots cannot be evaluated because QSL's bare projection faults on the `sum(receipt in ...)` binder (`reader-expression-binder-is-admitted`), so AC-1's recovery rows, AC-2's restated recovery assertions and AC-3's recovery supplies wait on that QSL fix; an unsupported-construct row has no input in R; AC-5 has no denied-syscall harness; AC-7 ends because AC-8's gate is met. The retry bound is read from the node's `attempts` argument directly because QSL's `protocol_view` has no accessor for it. |
 | FR-046 | FR-046-AC-1..AC-7 | TC-152 (AC-1, AC-2, AC-3, AC-4, AC-6); no living test for AC-5, AC-7 | 🚧 In progress — 5 of 7 criteria have a living traced test over `EvidencePackage::from_package`: AC-1 the record equals QSL's result for R's two named clauses and changes with a valuation, AC-2 and AC-3 no retired contract string or `native_temporal` in source, AC-4 six reachable causes of QSL FR-516's table come back by name with nothing charged, AC-6 a missing or withdrawn anchor settles as a missing non-value. Owed: AC-4 does not cover the causes a request over R cannot reach; AC-5 has no input, since the reader refuses the name rows that would give the one bytes-route construction refusal (`AmbiguousName`); AC-7 (the retained `temporal::` surface and `Position.instance_valuations`) has no test; AC-6's IT-002 scenarios are not redone (see FR-047-AC-3). The request is built by the caller: no mapping from observation evidence to `EvidenceRequest` is specified. |
 | FR-047 | FR-047-AC-1..AC-4 | TC-153 (AC-1, AC-2, AC-4); no living test for AC-3 | 🚧 In progress — 3 of 4 criteria have a living traced test: no `quire_spec_language::number`, no `handoff-writer` feature or retired format identity in source, and no checksum, seal or `ArtifactRef` (the planner ruled for removal). AC-3 is owed: IT-001 and IT-002 are still the retired procedures, and their scenarios have no counterpart table against recipe R yet. |
+| FR-050 | FR-050-AC-1..AC-4 | TC-050 (AC-1..AC-4) | 🚧 Planned — spec only (ADR-010); binds all 4 criteria; awaits the implementation. |
+| FR-051 | FR-051-AC-1..AC-3 | TC-050 (AC-1..AC-3) | 🚧 Planned — spec only (ADR-010); binds all 3 criteria; awaits the implementation. |
+| FR-052 | FR-052-AC-1..AC-3 | TC-050 (AC-1..AC-3) | 🚧 Planned — spec only (ADR-010); binds all 3 criteria; awaits the implementation. |
+| FR-053 | FR-053-AC-1..AC-8 | TC-051 (AC-1..AC-8) | 🚧 Planned — spec only (ADR-010); binds all 8 criteria; awaits the implementation. |
+| FR-054 | FR-054-AC-1..AC-7 | TC-052 (AC-1..AC-7) | 🚧 Planned — spec only (ADR-010); binds all 7 criteria; awaits the implementation. |
+| FR-055 | FR-055-AC-1..AC-6 | TC-053 (AC-1..AC-6) | 🚧 Planned — spec only (ADR-010); binds all 6 criteria; awaits the implementation. |
+| FR-056 | FR-056-AC-1..AC-4 | TC-054 (AC-1..AC-4) | 🚧 Planned — spec only (ADR-010); binds all 4 criteria; awaits the implementation. |
+| FR-057 | FR-057-AC-1..AC-4 | TC-055 (AC-1..AC-4) | 🚧 Planned — spec only (ADR-010); binds all 4 criteria; awaits the implementation. |
+| FR-058 | FR-058-AC-1..AC-3 | TC-055 (AC-1..AC-3) | 🚧 Planned — spec only (ADR-010); binds all 3 criteria; awaits the implementation. |
+| FR-059 | FR-059-AC-1..AC-4 | TC-054 (AC-1..AC-4) | 🚧 Planned — spec only (ADR-010); binds all 4 criteria; awaits the implementation. |
 
-Behavioural totals across these 40 rows: 229 acceptance criteria. 88 carry a living traced test, 106 belong to retired rows (their tests were deleted in QSL-1549 stage 1), 0 are blocked and 35 are planned or verify by Inspection or Analysis only. 88 + 106 + 0 + 35 = 229.
+Behavioural totals across these 50 rows: 275 acceptance criteria. 88 carry a living traced test, 106 belong to retired rows (their tests were deleted in QSL-1549 stage 1), 0 are blocked and 81 are planned or verify by Inspection or Analysis only. 88 + 106 + 0 + 81 = 275.
 
 ## Domain Object Coverage
 
@@ -269,6 +289,12 @@ a coverage claim in this matrix.
 | TC-151 | Assess compensation through the checked-package evaluation | Property | P0 | FR-045 | 🚧 In progress — seven tests cover FR-045-AC-1, AC-3, AC-4, AC-6 and AC-8 (the Boolean, non-Boolean, undefined, refused, incomplete and family mappings are called directly, since no admitted input of R reaches the last four through a slot); AC-2, AC-5 and AC-7 are owed (see FR-045). |
 | TC-152 | Consume temporal evidence through the in-memory evidence types | Property | P0 | FR-046 | 🚧 In progress — six tests cover FR-046-AC-1, AC-2, AC-3, AC-4 and AC-6 (five traced to those criteria, one tagged TC-152 only); AC-5 and AC-7 are owed (see FR-046). |
 | TC-153 | End the retired compiler surfaces and the integrity lanes | Static | P0 | FR-047 | 🚧 In progress — three tests cover FR-047-AC-1, AC-2 and AC-4; AC-3 is owed (see FR-047). |
+| TC-050 | Link role, queue, join and loop declarations | Property | P0 | FR-050, FR-051, FR-052 | 🚧 Planned — spec only (ADR-010); awaits the implementation. |
+| TC-051 | Assess role lifetime and population bound | Property | P0 | FR-053 | 🚧 Planned — spec only (ADR-010); awaits the implementation. |
+| TC-052 | Assess queue capacity, overflow outcome and order | Property | P0 | FR-054 | 🚧 Planned — spec only (ADR-010); awaits the implementation. |
+| TC-053 | Assess join settlement per policy | Property | P0 | FR-055 | 🚧 Planned — spec only (ADR-010); awaits the implementation. |
+| TC-054 | Assess loop bound and report proof as undischarged | Property | P0 | FR-056, FR-059 | 🚧 Planned — spec only (ADR-010); awaits the implementation. |
+| TC-055 | Map QSL Unsupported and requires-bound outcomes to dispositions | Property | P0 | FR-057, FR-058 | 🚧 Planned — spec only (ADR-010); awaits the implementation. |
 | TC-147 | Admit protocol refinement dispatch | Property | P0 | FR-301 | 🚧 Planned — binds all 6 FR-301 criteria; awaits the dispatch implementation; QSL implements FR-176/FR-177 (ADR-010). |
 | TC-148 | Carry a trace-position witness on the protocol result wire | Property | P0 | FR-302 | 🚧 Planned — binds all 5 FR-302 criteria; awaits `agent-ix/quire-specification#114`'s `native-run-result/2`. |
 
