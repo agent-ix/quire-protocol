@@ -30,7 +30,8 @@ The disposition carrying the backend's witness or counterexample unchanged, with
 
 - The result producer shall carry the backend's witness, counterexample or projected local artifact unchanged.
 - The result producer shall carry the trace-position witness of a `realizability` claim settled `decisive-witness` or `decisive-counterexample` as FR-302 states.
-- The result producer shall join the carried trace position to the linked graph through the source identities the disposition retains under FR-030, and shall interpret the trace position as no graph identity itself.
+- The result producer shall join the carried trace position to the linked graph through the source identities the disposition retains under FR-030.
+- The result producer shall interpret the trace position as no graph identity itself.
 - Where the carried witness holds a deciding quantifier, the result producer shall resolve its `node_id` to one node of the linked graph.
 - When a deciding quantifier's `node_id` resolves to no node of the linked graph, the result producer shall refuse that disposition under FR-030.
 - When the disposition retains no source identity, the result producer shall refuse it under FR-030.
