@@ -51,3 +51,9 @@ Round 2, fix commit fb68003.
 | FND | outcome | reason |
 | --- | --- | --- |
 | FND-004 | still-open | TL-389 now carries both questions and FR-100 cites it, but it is filed in the TL team (Temporal & Protocol, project Temporal Language Implementation), the consumer's own queue. quire-specification owner work lives in STD (for example STD-450, fixed by quire-specification PR 607). Move TL-389 to the STD team, or file it there and link it from TL-389. No branch change is needed. |
+
+Round 3, fix commit 89325f1.
+
+| FND | outcome | reason |
+| --- | --- | --- |
+| FND-004 | fixed | 89325f1 |

@@ -77,3 +77,9 @@ Round 2, fix commit fb68003.
 | FND-004 | deferred | TL-388 (FR-100: derive the await window anchor from the admitted after-event observation). FR-100 Inputs now cite it: 'The anchor instant is supplied by the caller; reading it from the admitted history is carried by TL-388.' |
 | FND-007 | fixed | fb68003 |
 | FND-008 | fixed | fb68003 |
+
+Round 3, fix commit 89325f1.
+
+| FND | outcome | reason |
+| --- | --- | --- |
+| FND-009 | fixed | 89325f1 |
