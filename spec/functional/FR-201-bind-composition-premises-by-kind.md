@@ -29,7 +29,8 @@ The composition disposition retaining the four lists and the subjects exactly as
 
 - The dispatcher shall pass the `environment`, `relies`, `liveness_dependencies` and `fairness` lists to the backend as four separate lists, each entry byte-equal to the request's.
 - The dispatcher shall retain all four lists in the disposition, collapsing none into a flag and merging none into another.
-- The dispatcher shall carry the discharge record as the backend returned it, with one entry per discharged slot and each entry's role as QSL names it, and shall classify no slot into a premise list.
+- The dispatcher shall carry the discharge record as the backend returned it, with one entry per discharged slot and each entry's role as QSL names it.
+- The dispatcher shall classify no slot into a premise list.
 - When a returned result names a component subject that is not among the request's subjects, the dispatcher shall refuse the disposition under FR-030 with the cause `identity-mismatch`.
 - When the backend returns a slot undischarged, the disposition shall retain that slot as undischarged.
 - The dispatcher shall mark no slot discharged on any basis other than the backend's discharge record.

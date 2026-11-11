@@ -39,7 +39,8 @@ The disposition carrying every returned artifact byte-equal and its axes as the 
 - The library shall carry a returned refusal or non-success cause unchanged and without mapping it to another cause.
 - The library shall carry the result label QSL's backend returns (for composition `proved`, `inconclusive`, `unsupported` or `incomplete`) exactly as returned.
 - The library shall read a returned label into the assessment-execution, truth and settlement-basis values of `ix://agent-ix/quire-specification/FR-241`, `ix://agent-ix/quire-specification/FR-242` and `ix://agent-ix/quire-specification/FR-243` only through the owner table of `ix://agent-ix/quire-specification/FR-360`, which `ix://agent-ix/quire-specification/FR-489` makes the composition result's vocabulary.
-- The library shall derive no axis value for a label that table does not contain, and shall carry such a label unchanged.
+- The library shall derive no axis value for a label that table does not contain.
+- The library shall carry such a label unchanged.
 - The library shall derive no truth value from the presence, absence or content of a certificate, counterexample, witness or discharge record.
 - The library shall set the assessment-execution value `refused` on no composition or refinement disposition on its own, because that value states that the evaluator refused the request.
 - When QSL's backend returns a refusal of the composition or refinement item (for example `malformed-declaration` for a cycle with no profile), the library shall carry that refusal unchanged, and the owner's `refused` reading applies to it.
