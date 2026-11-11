@@ -66,3 +66,9 @@ Units examined:
 | ID | Severity | Summary | Refs |
 | --- | --- | --- | --- |
 | FND-002 | low | TC-202's procedure puts the certificate-shaped bytes beside the `incomplete` label, while FR-202-AC-5 puts them beside `unsupported`; align the TC stimulus with the criterion (or cover both). | spec/test-cases/TC-202-carry-composition-and-refinement-results-unchanged.md:17 |
+
+## Dispositions
+
+| FND | outcome | reason |
+| --- | --- | --- |
+| FND-002 | fixed | round 2, eea438d: Feed sentinel composition and refinement results from a stand-in, including a two-half counterexample, a one-half counterexample, each cause named in FR-202-AC-4, composition labels `proved`, `inconclusive`, `unsupported` and `incomplete` (`unsupported` beside certificate-shaped bytes), a `malformed-declaration` refusal, and unsupported dynamic behaviour. Tag each test with the exact acceptance criterion it verifies. |

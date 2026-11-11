@@ -41,3 +41,4 @@ Units examined:
 | FND | outcome | reason |
 | --- | --- | --- |
 | FND-001 | fixed | fef63ea (9fb5cea): - { target: ix://agent-ix/quire-specification/FR-489, type: depends_on } / - { target: ix://agent-ix/quire-specification/FR-360, type: depends_on } |
+| FND-002 | fixed | round 2, eea438d: - { target: ix://agent-ix/quire-specification/FR-243, type: depends_on } |

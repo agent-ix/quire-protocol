@@ -78,3 +78,4 @@ Units examined:
 | FND | outcome | reason |
 | --- | --- | --- |
 | FND-001 | fixed | fef63ea (9fb5cea): Given a stand-in composition result labelled `unsupported` that also carries certificate-shaped bytes, the disposition carries the label, reads it as execution `unsupported`, truth `unavailable` and basis `unavailable` through the FR-360 table, and derives no truth from the bytes; given the labels `proved`, `inconclusive` and `incomplete`, the first two read as the FR-360 rows and `incomplete`, absent from that table, is carried unchanged with no derived axis value. |
+| FND-002 | fixed | round 2, eea438d: - The library shall read the settlement basis of `ix://agent-ix/quire-specification/FR-243` from the Settlement table of `ix://agent-ix/quire-specification/FR-489` (`proved` to `decisive-witness`, `inconclusive` to `unsettled`, `unsupported` and `incomplete` to `unavailable`), because FR-360 leaves `proved` open between two bases. |
