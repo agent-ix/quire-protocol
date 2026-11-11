@@ -40,6 +40,10 @@ pub mod declarations;
 pub mod delivery_index;
 /// Exact-byte SHA-256 digest carriers.
 pub mod digest;
+/// Typed dispositions for QSL `Unsupported` and requires-bound outcomes.
+pub mod disposition;
+/// Assessment of an observed history against those declarations.
+pub mod dynamics;
 pub mod evidence;
 /// Protocol identity newtypes. Owner chunk: C-07.
 pub mod ids;
