@@ -29,6 +29,8 @@ extern crate self as quire_protocol;
 
 /// Count, allocation and deadline guards. Owner chunk: C-29 (submodule: C-30).
 pub mod bounds;
+/// Obligation-activation captures bound as ordered, immutable occurrences (FR-101).
+pub mod captures;
 pub mod checked_package;
 /// Five-axis closure and outcome lattice. Owner chunk: C-15.
 pub mod closure;
@@ -36,6 +38,8 @@ pub mod closure;
 pub mod compensation;
 /// Authored role, channel, join and loop declarations of a linked protocol.
 pub mod declarations;
+/// Settlement of inclusive deadline branches (FR-100).
+pub mod deadline;
 /// Consumer-authored evidence index for one pinned producer delivery.
 pub mod delivery_index;
 /// Exact-byte SHA-256 digest carriers.
