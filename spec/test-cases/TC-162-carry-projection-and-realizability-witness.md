@@ -14,7 +14,7 @@ Verify that a backend witness, counterexample or projected local artifact is car
 
 ## Test Procedure
 
-Dispatch `realizability` claims against a stand-in returning a `decisive-witness` result, a `decisive-counterexample` result and a deliberately non-minimal witness, and a `local-projection` claim against a stand-in returning a projected artifact. Then use a decisive request whose disposition retains no source identity, and an artifact whose identity disagrees with its derived tuple. Tag each test with the exact acceptance criterion it verifies.
+Dispatch `realizability` claims against a stand-in returning a `decisive-witness` result, a `decisive-counterexample` result and a deliberately non-minimal witness, and a `local-projection` claim against a stand-in returning a projected artifact. Then use a decisive request whose disposition retains no source identity, and an artifact whose identity disagrees with its derived tuple (FR-152-AC-6). Tag each test with the exact acceptance criterion it verifies.
 
 ## Expected Results
 

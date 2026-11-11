@@ -91,7 +91,10 @@ fn each_adr_listed_cause_is_carried_by_its_qsl_name_with_the_constructs_node() {
         // QSL's own typed value, carried and compared as that value.
         assert_eq!(*carried, UnsupportedCause::Construct(cause));
         assert_eq!(format!("{carried:?}"), format!("Construct({cause:?})"));
-        assert_eq!(carried_construct.as_ref().expect("a construct").node, dynamic.named("channel", "Symbolic"));
+        assert_eq!(
+            carried_construct.as_ref().expect("a construct").node,
+            dynamic.named("channel", "Symbolic")
+        );
         assert_eq!(*premises, (claim.0, "exact-fragment"));
     }
 }

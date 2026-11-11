@@ -197,6 +197,9 @@ pub enum ClaimRequest<G, A, C, I> {
 }
 
 /// The disposition of one requested claim, in request order (FR-029).
+// One disposition per requested claim, held briefly; boxing would only hide the
+// settlement the caller matches on.
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ClaimDisposition<G, A, C, I, R> {
     /// The global conformance result, unchanged.
@@ -205,11 +208,14 @@ pub enum ClaimDisposition<G, A, C, I, R> {
     Protocol(ProtocolOutcome<R, Binding<A, C, I>>),
 }
 
+/// The call into one registered backend.
+type Provider<'p, A, C, I, R> = Box<dyn QslBoundary<Binding<A, C, I>, R> + 'p>;
+
 /// The provider boundary: QSL's registry, and the call into each backend
 /// registered in it. A caller supplies no callback per request.
 pub struct ProviderBoundary<'p, A, C, I, R> {
     registry: Registry,
-    providers: BTreeMap<BackendId, Box<dyn QslBoundary<Binding<A, C, I>, R> + 'p>>,
+    providers: BTreeMap<BackendId, Provider<'p, A, C, I, R>>,
 }
 
 impl<A, C, I, R> Default for ProviderBoundary<'_, A, C, I, R> {
@@ -248,7 +254,9 @@ impl<'p, A, C, I, R> ProviderBoundary<'p, A, C, I, R> {
         let id = descriptor.id().clone();
         match self.registry.register(descriptor) {
             Ok(()) => {
-                self.providers.entry(id).or_insert_with(|| Box::new(provider));
+                self.providers
+                    .entry(id)
+                    .or_insert_with(|| Box::new(provider));
                 Ok(())
             }
             Err(refusal) => {

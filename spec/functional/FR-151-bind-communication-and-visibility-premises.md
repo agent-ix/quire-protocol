@@ -46,12 +46,13 @@ Upstream admission already refuses a checked-package channel with a missing comp
 
 | ID | Criteria | Verification |
 | --- | --- | --- |
-| FR-151-AC-1 | Given a fragment with channels and roles, the stand-in backend's recorded call carries each channel premise (all five components) and each role internality equal to the checked package's, and the disposition retains the same premises. | Test (TC-161) |
+| FR-151-AC-1 | Given a fragment with channels and roles, the stand-in backend's recorded call carries each channel's ordering and delivery premise and each role declaration equal to the checked package's, and the disposition retains the same premises. | Test (TC-161) |
 | FR-151-AC-2 | Given two requests that differ in exactly one component of one channel premise, their request identities and their disposition provenance differ. | Test (TC-161) |
 | FR-151-AC-3 | Given a request whose per-claim premise set omits one channel premise or one role internality of the fragment, that disposition is refused under FR-030 naming the absent premise, the stand-in records no call for that claim, and every independent disposition is unchanged. | Test (TC-161) |
 | FR-151-AC-4 | Given a fragment with an `external` role, the backend call carries `external` for it and no premise implying that the role is fully observable. | Test (TC-161) |
 | FR-151-AC-5 | Given a stand-in that returns the `Inconclusive` verdict with an `InconclusiveCause` and one that returns a requires-bound outcome, each disposition carries the outcome unchanged and holds neither truth `satisfied` nor truth `violated`. | Test (TC-161) |
 | FR-151-AC-6 | Given the request of FR-151-AC-3, the refused disposition holds neither truth `satisfied` nor truth `violated` and retains no value for the omitted premise, and the same request with the premise restored is sent to the stand-in with exactly the restored value. | Test (TC-161) |
+| FR-151-AC-7 | Given a fragment with channels and roles, the stand-in backend's recorded call carries each channel's sender, receiver and message type and each role internality equal to the checked package's. | Test (TC-161) |
 
 ## Adopted vocabulary
 
