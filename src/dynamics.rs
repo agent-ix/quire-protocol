@@ -89,7 +89,7 @@ pub struct ObservationRef {
 /// control, its owner, the workflow identity and one repeat ordinal for each
 /// enclosing `repeat` (QSL FR-384 "Runtime key binding"). Occurrences that
 /// differ in any of these never merge.
-fn bind_occurrence(
+pub(crate) fn bind_occurrence(
     declarations: &Declarations,
     control: &NodeKey,
     workflow: &WorkflowInstanceId,

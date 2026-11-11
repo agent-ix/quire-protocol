@@ -489,6 +489,48 @@ impl AssessmentExecution {
 }
 
 // ---------------------------------------------------------------------------
+// Truth disposition (FR-242)
+// ---------------------------------------------------------------------------
+
+/// The four members `FR-242-truth-disposition` publishes.
+///
+/// No Rust crate publishes this vocabulary, so it is adopted here the way
+/// [`AssessmentExecution`] adopts `FR-241`: the labels are the owner's and are
+/// compared as exact strings. Neither `pending` nor `unavailable` is a Boolean
+/// success, and an absent truth is `None`, never `unavailable` (`FR-242-AC-3`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum TruthDisposition {
+    /// `satisfied`.
+    Satisfied,
+    /// `violated`.
+    Violated,
+    /// `pending`: execution `completed`, decision-scope progress open.
+    Pending,
+    /// `unavailable`: a required decision-support fact is missing.
+    Unavailable,
+}
+
+impl TruthDisposition {
+    /// Every member, in the order `FR-242` tabulates them.
+    pub const ALL: [Self; 4] = [
+        Self::Satisfied,
+        Self::Violated,
+        Self::Pending,
+        Self::Unavailable,
+    ];
+
+    /// The published member label, spelled exactly as `FR-242` publishes it.
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Satisfied => "satisfied",
+            Self::Violated => "violated",
+            Self::Pending => "pending",
+            Self::Unavailable => "unavailable",
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // The five axes observed together
 // ---------------------------------------------------------------------------
 

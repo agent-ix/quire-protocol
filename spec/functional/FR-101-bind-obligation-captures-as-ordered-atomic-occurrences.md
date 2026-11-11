@@ -26,7 +26,7 @@ When the evaluator records the captures of an activated obligation, the evaluato
 
 ## Inputs
 
-The activation of FR-019 with its owner-issued FR-300 binding, and for each authored capture the value or the unavailable/undefined outcome that QSL's checked-package evaluation (FR-045) returns at the inclusive activation boundary. The evaluator evaluates no capture expression itself.
+The activation of FR-019 with its owner-issued FR-300 binding, and for each authored capture the value or the unavailable/undefined outcome that QSL's checked-package evaluation (FR-045) returns at the inclusive activation boundary. The evaluator evaluates no capture expression itself. Each supply names the authored capture it answers, so a missing supply is attributed to its own capture.
 
 ## Outputs
 
@@ -34,13 +34,13 @@ An ordered capture list on the activation, or a typed refusal naming the undefin
 
 ## Behavior
 
-The evaluator SHALL keep duplicate captures as separate occurrences with one value each. The evaluator SHALL NOT change a bound value after activation. When any one capture is undefined or unavailable, the evaluator SHALL refuse the whole activation.
+The evaluator SHALL keep duplicate captures as separate occurrences with one value each. The evaluator SHALL NOT change a bound value after activation. When any one capture is undefined, unavailable or without a supply, the evaluator SHALL refuse the whole activation.
 
 ## Acceptance Criteria
 
 | ID | Criteria | Verification |
 | --- | --- | --- |
-| FR-101-AC-1 | Supplied values are bound in authored order, and a later admitted fact changing a value's source leaves every bound value unchanged. | Test (TC-154) |
+| FR-101-AC-1 | Supplied values are bound in authored order whatever order they are supplied in, and a later admitted fact changing a value's source leaves every bound value unchanged. | Test (TC-154) |
 | FR-101-AC-2 | Two identical captures yield two occurrences with distinct identities. | Test (TC-154) |
 | FR-101-AC-3 | One undefined capture among three refuses the activation, binds no capture, and names the undefined one. | Test (TC-154) |
 | FR-101-AC-4 | The bound value is the one supplied for the inclusive activation boundary; a value supplied for any other boundary is refused. | Test (TC-154) |

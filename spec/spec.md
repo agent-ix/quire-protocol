@@ -155,11 +155,13 @@ premises. Missing or conflicting premises remain explicit.
 ### 10.1 Error Classification
 
 Failure classification is partitioned by owner and is never inferred across a
-boundary. Three external or semantic owners publish values used at their own
+boundary. Four external or semantic owners publish values used at their own
 boundaries:
 
 - Whether a requested evaluator ran:
   `ix://agent-ix/quire-specification/FR-241`, five members.
+- The truth of an assessed obligation:
+  `ix://agent-ix/quire-specification/FR-242`, four members.
 - Why a projection to E02 was refused:
   `ix://agent-ix/quire-specification/FR-283`, whose spellings are kebab-case
   and "distinct from the snake_case native producer codes of FR-271".
