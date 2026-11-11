@@ -69,3 +69,9 @@ PASS WITH FINDINGS. The PR is consistent with merged FR-057, FR-058 and FR-301-A
 | ID | Severity | Summary | Refs |
 | --- | --- | --- | --- |
 | FND-001 | medium | spec/tests.md conflicts with main e847803 (TL-6 #144 merged after this branch's base 9986cd8), and the PR leaves the prose totals (49 FRs, 24 TCs, 348 ACs) and the Test Execution Summary rows (40 FR rows, 24 TC rows) unchanged although it adds 4 FRs, 4 TCs and 25 ACs. The behavioural line is right against its base (50+4=54 rows, 275+25=300 ACs, 81+25=106 planned) but is stale on main. Rebased on e847803 the figures are: 56 rows, 313 ACs, 119 planned; prose 65 FRs, 35 TCs, 428 ACs; Summary FR rows 56 (9/0/0/28/19) and TC rows 35 (9/0/0/18/8). | spec/tests.md:217 |
+
+## Dispositions
+
+| FND | outcome | reason |
+| --- | --- | --- |
+| FND-001 | fixed | Verified at PR head ca84709. |

@@ -27,7 +27,7 @@ When a `local-projection` or `realizability` claim is requested and an accepted 
 
 One requested `local-projection` or `realizability` claim with its admitted fragment, optional named backend, assumptions and source identities; the FR-002 linked graph, used only to bind the returned result to source identities; and the QSL registry snapshot, from which `ix://agent-ix/quire-specification/FR-290` computes the claim's candidate set.
 
-The registry snapshot is QSL's, not a capability table of this library. A test installs its stand-in backend as a registration in that snapshot at the FR-331 provider boundary, exactly as TC-147 installs its refinement stand-in; the dispatcher receives no caller callback and the closed built-in table of FR-005 gains no entry for it.
+The registry snapshot is QSL's, not a capability table of this library. A test installs its stand-in backend as a registration in that snapshot at the FR-331 provider boundary. The dispatcher receives no caller callback and the closed built-in table of FR-005 gains no entry for it.
 
 ## Outputs
 

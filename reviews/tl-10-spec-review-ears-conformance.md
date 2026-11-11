@@ -37,3 +37,10 @@ PASS WITH FINDINGS. The PR is consistent with merged FR-057, FR-058 and FR-301-A
 | --- | --- | --- | --- |
 | FND-001 | medium | FR-151 Behavior 'When QSL reports an outcome that is not conclusive' and FR-151-AC-5 'a non-conclusive result' use a term neither QSL nor QSpec defines. QSL's verdict is `Inconclusive` (V-6, with `InconclusiveCause`); QSpec's are truth `pending`/`unavailable` (FR-242) and basis `unsettled` (FR-243). The trigger set is open, so two implementers can pick different outcomes. Name QSL's `Inconclusive` verdict (and the QSpec values it maps to) as the trigger. | spec/functional/FR-151-bind-communication-and-visibility-premises.md:51 |
 | FND-002 | low | The FR-152 statement fires 'When QSL's backend returns a witness or counterexample for a `local-projection` or `realizability` claim', but a local-projection result is a projected local artifact (FR-152 Inputs, AC-5), not a witness, and FR-302 covers only realizability and refinement. Split the trigger: a projected artifact for local-projection, a witness or counterexample for realizability. | spec/functional/FR-152-carry-projection-and-realizability-witness.md:19 |
+
+## Dispositions
+
+| FND | outcome | reason |
+| --- | --- | --- |
+| FND-001 | fixed | Verified at PR head ca84709. |
+| FND-002 | fixed | Verified at PR head ca84709. |

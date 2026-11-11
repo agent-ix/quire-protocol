@@ -36,3 +36,10 @@ PASS WITH FINDINGS. The PR is consistent with merged FR-057, FR-058 and FR-301-A
 | --- | --- | --- | --- |
 | FND-001 | medium | ADR-010 G2 puts the 'non-conclusive outcome on missing premises' inside QSL's realizability decision procedure, but FR-151 has the library refuse the disposition before dispatch with no backend call. Upstream admission already refuses a channel with a missing component (QSpec FR-054 through FR-216) and a role with absent internality (FR-217 Absence), so a checked package read through FR-044 cannot be in that state. AC-3's 'a request from which one channel premise or one role internality is removed' does not say whether the missing premise is in the requested premises or the read view. Name the seam where a premise can be absent, and record whether QSL's procedure or this library owns the missing-premise outcome. | spec/functional/FR-151-bind-communication-and-visibility-premises.md:49 |
 | FND-002 | low | FR-153 calls `unsupported-requested-capability` 'QSL's cause name' and its warning names only the claim kind. QSpec FR-290's empty-candidate row and ADR-010 spell it `unsupported_projection`/`unsupported-requested-capability`, and that row's warning also names the item's requirements and the named backend when given. This matches merged FR-057's wording, so the gap is low, but AC-4 can pass with a warning that omits a named backend FR-290 requires. | spec/functional/FR-153-settle-unsupported-while-no-qsl-backend-serves-the-kind.md:51 |
+
+## Dispositions
+
+| FND | outcome | reason |
+| --- | --- | --- |
+| FND-001 | fixed | Verified at PR head ca84709. |
+| FND-002 | fixed | Verified at PR head ca84709. |

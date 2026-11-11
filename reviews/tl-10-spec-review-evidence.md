@@ -42,3 +42,11 @@ PASS WITH FINDINGS. The PR is consistent with merged FR-057, FR-058 and FR-301-A
 | FND-001 | medium | FR-153-AC-6 ends with 'and the dispatch code path called is the same one', a code-structure claim that the dispatch result cannot show and only inspection could check. Earlier reviews in this wave flagged this AC pattern. State it as behaviour instead: with the stand-in added, the stand-in records exactly one call carrying the claim's premises, and the disposition equals its result. | spec/functional/FR-153-settle-unsupported-while-no-qsl-backend-serves-the-kind.md:53 |
 | FND-002 | low | FR-150-AC-4's oracle, 'a verdict opposite to the one a construction over the FR-002 linked graph would give', needs the test to compute a projection or realizability verdict, which ADR-010 and FR-150 say this library never computes. Use a fixture with a hand-labelled expected verdict, or a sentinel verdict that does not depend on the graph. | spec/functional/FR-150-dispatch-projection-and-realizability-to-qsl.md:52 |
 | FND-003 | low | FR-153-AC-7 'no field of them holds a value the library computed for the claim' does not list the fields, so a test cannot tell a computed value from a carried constant (the kind, the cause name, `unavailable`). List the fields and the source each must equal. | spec/functional/FR-153-settle-unsupported-while-no-qsl-backend-serves-the-kind.md:54 |
+
+## Dispositions
+
+| FND | outcome | reason |
+| --- | --- | --- |
+| FND-001 | fixed | Verified at PR head ca84709. |
+| FND-002 | fixed | Verified at PR head ca84709. |
+| FND-003 | fixed | Verified at PR head ca84709. |

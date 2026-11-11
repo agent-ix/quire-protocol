@@ -40,3 +40,17 @@ PASS WITH FINDINGS. The PR is consistent with merged FR-057, FR-058 and FR-301-A
 | FND-001 | medium | FR-150 takes 'the set of QSL analysis backends the request may select from' as an input and every AC dispatches to a stand-in backend, but merged FR-005 says the dispatcher 'SHALL invoke only a reviewed built-in backend selected by the closed capability table ... a test double or caller callback is not a capability' (FR-005-AC-4). FR-150 also says it adds nothing beyond FR-005's closed dispatch. State how a stand-in enters the closed table (a test-only registration of the table, not a request input), or the ACs exercise the caller-supplied capability path FR-005 forbids. | spec/functional/FR-150-dispatch-projection-and-realizability-to-qsl.md:23 |
 | FND-002 | medium | FR-150 Behavior 'select the backend by the claim kind and the advertised backend capability (FR-292) and by nothing else' restates candidate selection that QSpec FR-290's candidate table owns (implemented in QSL's route). That table also selects by named backend and requirements and settles >1 candidate with no named backend as invalid-request ambiguous-backend and an unregistered named backend as unknown-backend. TC-160 registers 'one serving both kinds, one serving only each kind' together, which FR-290 settles ambiguous-backend unless the request names one. Cite the FR-290 candidate table instead of a simplified local rule, and give TC-160's fixtures a named backend or one candidate per kind. | spec/functional/FR-150-dispatch-projection-and-realizability-to-qsl.md:23 |
 | FND-003 | low | FR-152-AC-5's second clause (an artifact whose identity disagrees with the one derived from its selected tuple is refused under FR-030) restates FR-030-AC-5 nearly word for word. Cite FR-030-AC-5 rather than holding a second copy that can drift. | spec/functional/FR-152-carry-projection-and-realizability-witness.md:46 |
+
+## New findings (disposition pass 1)
+
+| ID | Severity | Summary | Refs |
+| --- | --- | --- | --- |
+| FND-004 | low | FR-150 Inputs say the stand-in is installed 'at the FR-331 provider boundary, exactly as TC-147 installs its refinement stand-in', but TC-147 says only 'using a test QSL refinement backend' and names no registry snapshot, FR-331 boundary or install seam. The cross-reference claims a precedent that does not exist. Drop the TC-147 clause and let FR-150's own sentence define the seam, or align TC-147 in a separate change. | spec/functional/FR-150-dispatch-projection-and-realizability-to-qsl.md:30 |
+
+## Dispositions
+
+| FND | outcome | reason |
+| --- | --- | --- |
+| FND-001 | fixed | Verified at PR head ca84709. |
+| FND-002 | fixed | Verified at PR head ca84709. |
+| FND-003 | fixed | Verified at PR head ca84709. |

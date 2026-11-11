@@ -35,3 +35,9 @@ PASS WITH FINDINGS. The PR is consistent with merged FR-057, FR-058 and FR-301-A
 | ID | Severity | Summary | Refs |
 | --- | --- | --- | --- |
 | FND-001 | low | FR-153's Outputs bind the unsupported disposition 'to the request's exact premises (FR-030)' and FR-153-AC-7 tests that retention, but FR-153's relationships carry no FR-030 edge (FR-150, FR-151 and FR-152 all carry one). Add `FR-030 depends_on`. | spec/functional/FR-153-settle-unsupported-while-no-qsl-backend-serves-the-kind.md:22 |
+
+## Dispositions
+
+| FND | outcome | reason |
+| --- | --- | --- |
+| FND-001 | fixed | Verified at PR head ca84709. |

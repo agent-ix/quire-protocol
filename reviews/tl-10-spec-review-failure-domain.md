@@ -38,3 +38,17 @@ PASS WITH FINDINGS. The PR is consistent with merged FR-057, FR-058 and FR-301-A
 | FND-001 | medium | FR-152-AC-1/AC-2 require 'every source identity it names equals the identity of one node of the linked graph', but the QSpec FR-351 record's components are a deciding element (a value), a value path, a trace position (a string) and an optional deciding-quantifier occurrence key, none of which is required to be a linked-graph source identity. A witness that names no source identity passes the AC vacuously, so a missing join cannot fail it. Name the component(s) that join to the FR-002 graph (for example the trace position's step), and require each to resolve. | spec/functional/FR-152-carry-projection-and-realizability-witness.md:42 |
 | FND-002 | medium | FR-151-AC-6's second clause ('no premise value in the recorded backend calls is absent from the checked package') runs on a request with a premise absent, where FR-151-AC-3 requires the stand-in to record no call, so it holds over an empty record and cannot fail. Its first clause follows from AC-3's FR-030 refusal (execution `refused`, so truth `unavailable` under FR-241/FR-242). Move the no-invented-premise check onto a request with every premise present, or drop the AC. | spec/functional/FR-151-bind-communication-and-visibility-premises.md:52 |
 | FND-003 | low | FR-150 covers backend failure (`failed`) but not the tool-absence path QSpec FR-290-AC-8 defines for a routed backend: a missing or wrong-version tool records `unsupported`/`tool-unavailable` before the run, and `failed` with the same cause after a passing probe. Say whether that cause is carried unchanged under FR-150-AC-5, or add it to AC-6. | spec/functional/FR-150-dispatch-projection-and-realizability-to-qsl.md:54 |
+
+## New findings (disposition pass 1)
+
+| ID | Severity | Summary | Refs |
+| --- | --- | --- | --- |
+| FND-004 | medium | The fix makes the deciding element identity resolve to one linked-graph node and refuses the disposition otherwise. QSpec FR-351 defines the deciding element as 'the exact value that decided the result' (a String), with no mapping to a protocol graph node, and ADR-010 states the TL-10 join as 'trace-position correspondence to the linked graph'. The node mapping is one QSpec does not derive, and it can refuse a valid QSL witness whose deciding element is a value. Join the component ADR-010 names (the trace position's step or event identity), or cite the owner text that makes the deciding element a node identity. | spec/functional/FR-152-carry-projection-and-realizability-witness.md:33 |
+
+## Dispositions
+
+| FND | outcome | reason |
+| --- | --- | --- |
+| FND-001 | fixed | Verified at PR head ca84709. |
+| FND-002 | fixed | Verified at PR head ca84709. |
+| FND-003 | fixed | Verified at PR head ca84709. |

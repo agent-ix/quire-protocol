@@ -30,21 +30,24 @@ The disposition carrying the backend's witness or counterexample unchanged, with
 
 - The result producer shall carry the backend's witness, counterexample or projected local artifact unchanged.
 - The result producer shall carry the trace-position witness of a `realizability` claim settled `decisive-witness` or `decisive-counterexample` as FR-302 states.
-- The result producer shall resolve the deciding element identity of a carried witness to one node of the linked graph.
-- When the deciding element identity names no node of the linked graph, or the result names no source identity, the result producer shall refuse that disposition under FR-030.
-- When any other source identity the result names resolves to no node of the linked graph, the result producer shall refuse that disposition under FR-030.
+- The result producer shall join the carried trace position to the linked graph through the source identities the disposition retains under FR-030, and shall interpret the trace position as no graph identity itself.
+- Where the carried witness holds a deciding quantifier, the result producer shall resolve its `node_id` to one node of the linked graph.
+- When a deciding quantifier's `node_id` resolves to no node of the linked graph, the result producer shall refuse that disposition under FR-030.
+- When the disposition retains no source identity, the result producer shall refuse it under FR-030.
 - The result producer shall retain the derived-artifact correspondence FR-030 requires beside the source identities.
 - The result producer shall compute no witness, no minimisation and no reordering of a witness.
 - The result producer shall leave every independent disposition unchanged when it refuses one.
+
+`ix://agent-ix/quire-specification/FR-351` types the deciding element as the exact deciding value and the trace position as a position within the retained trace, and maps neither to a graph node. Its deciding quantifier carries the checked-package occurrence key (`node_id`, `role`, `ordinal`), which is a node identity; it is the only witness component this requirement resolves against the graph, and it is absent for a family whose decision has no quantifier occurrence.
 
 ## Acceptance Criteria
 
 | ID | Criteria | Verification |
 | --- | --- | --- |
-| FR-152-AC-1 | Given a stand-in returning a `realizability` result settled `decisive-witness`, the disposition carries one trace-position witness per FR-302 whose deciding element identity equals the identity of one node of the linked graph, and each other source identity it names equals one node identity. | Test (TC-162) |
-| FR-152-AC-2 | Given a stand-in returning a `realizability` result settled `decisive-counterexample`, the same holds. | Test (TC-162) |
+| FR-152-AC-1 | Given a stand-in returning a `realizability` result settled `decisive-witness` with a deciding quantifier, the disposition carries one trace-position witness per FR-302, the quantifier's `node_id` equals the identity of one linked-graph node, and the disposition retains the claim's source identities. | Test (TC-162) |
+| FR-152-AC-2 | Given a stand-in returning a `realizability` result settled `decisive-counterexample` with no deciding quantifier, the disposition carries the trace-position witness byte-for-byte, requires no graph node for it, and retains the claim's source identities. | Test (TC-162) |
 | FR-152-AC-3 | Given a stand-in returning a deliberately non-minimal witness, the disposition carries it byte-for-byte, with no step dropped, merged or reordered. | Test (TC-162) |
-| FR-152-AC-4 | Given a decisive result whose deciding element identity names no node of the linked graph, and a second decisive result naming no source identity at all, each disposition is refused under FR-030, and every independent disposition is unchanged. | Test (TC-162) |
+| FR-152-AC-4 | Given a decisive result whose deciding quantifier `node_id` names no node of the linked graph, and a decisive request that retains no source identity, each disposition is refused under FR-030, and every independent disposition is unchanged. | Test (TC-162) |
 | FR-152-AC-5 | Given a stand-in returning a projected local artifact for a `local-projection` claim, the disposition carries it unchanged, and an artifact identity that disagrees with the one derived from its selected tuple is refused as FR-030-AC-5 requires. | Test (TC-162) |
 
 ## Adopted vocabulary
@@ -52,7 +55,7 @@ The disposition carrying the backend's witness or counterexample unchanged, with
 | Noun | Upstream object | Identity kind |
 | --- | --- | --- |
 | Settlement basis | `ix://agent-ix/quire-specification/FR-243` | value |
-| Separating-witness record | `ix://agent-ix/quire-specification/FR-351` | value |
+| Separating-witness record (deciding quantifier, trace position) | `ix://agent-ix/quire-specification/FR-351` | value |
 
 ## Dependencies
 
