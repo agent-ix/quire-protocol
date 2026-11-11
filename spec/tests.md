@@ -60,6 +60,8 @@ relationships:
   - { target: ix://agent-ix/quire-protocol/FR-057, type: references }
   - { target: ix://agent-ix/quire-protocol/FR-058, type: references }
   - { target: ix://agent-ix/quire-protocol/FR-059, type: references }
+  - { target: ix://agent-ix/quire-protocol/FR-100, type: references }
+  - { target: ix://agent-ix/quire-protocol/FR-101, type: references }
   - { target: ix://agent-ix/quire-protocol/NFR-001, type: references }
   - { target: ix://agent-ix/quire-protocol/NFR-002, type: references }
   - { target: ix://agent-ix/quire-protocol/NFR-003, type: references }
@@ -76,20 +78,23 @@ paths and work that remains planned or blocked. The accepted frozen source basel
 Assurance producer, license, implementation plan, and retained corpus remain
 explicit gates.
 
-The repository carries 49 functional requirements, 8 non-functional
-requirements, 3 integration tests and 24 test cases, and 348 acceptance criteria
-across the 49 FRs and the 8 NFRs. The functional set divides into 9 aggregate or
+The repository carries 61 functional requirements, 8 non-functional
+requirements, 3 integration tests and 31 test cases, and 403 acceptance criteria
+across the 61 FRs and the 8 NFRs. The functional set divides into 9 aggregate or
 behavioural parents (FR-001..FR-009), 9 object requirements (FR-010..FR-018),
 24 atomic behavioural parts (FR-019..FR-042) that the parents aggregate
-through `contains`, and 2 independent behavioural requirements (FR-301, FR-302)
+through `contains`, 2 independent behavioural requirements (FR-301, FR-302)
 that extend FR-005 and FR-006's claim dispatch and result-wire obligations
-rather than being decomposed from them. FR-003 through FR-008 now state their
+rather than being decomposed from them, 5 checked-package requirements
+(FR-043..FR-047), 10 extension requirements for dynamic roles, queues, joins and
+loops (FR-050..FR-059, ADR-010), and 2 core-protocol delta requirements
+(FR-100, FR-101, ADR-010). FR-003 through FR-008 now state their
 obligations once each through those parts; the parent row and the part rows are
 therefore two views of one obligation and must not be added together as
 separate work.
 
-The 348 counts rows of a `## Acceptance Criteria` table on an FR or an NFR, and
-nothing else. `quire properties` reports 368 criteria over the same tree: the
+The 403 counts rows of a `## Acceptance Criteria` table on an FR or an NFR, and
+nothing else. `quire properties` reports 423 criteria over the same tree: the
 extra 20 are the `StR-0NN-VC-n` validation criteria of StR-001 through StR-005,
 which are stakeholder validation rather than FR/NFR acceptance and which this
 matrix carries no table for. NFR-005's five metrics are outside that figure;
@@ -205,8 +210,10 @@ in Domain Object Coverage instead.
 | FR-057 | FR-057-AC-1..AC-4 | TC-055 (AC-1..AC-4) | 🚧 Planned — spec only (ADR-010); binds all 4 criteria; awaits the implementation. |
 | FR-058 | FR-058-AC-1..AC-3 | TC-055 (AC-1..AC-3) | 🚧 Planned — spec only (ADR-010); binds all 3 criteria; awaits the implementation. |
 | FR-059 | FR-059-AC-1..AC-4 | TC-054 (AC-1..AC-4) | 🚧 Planned — spec only (ADR-010); binds all 4 criteria; awaits the implementation. |
+| FR-100 | FR-100-AC-1..AC-6 | TC-154 (AC-1..AC-6) | 🚧 Planned — spec only (ADR-010); binds all 6 criteria; closes V1-PROT-019 timeout branches; awaits the implementation. |
+| FR-101 | FR-101-AC-1..AC-5 | TC-154 (AC-1..AC-5) | 🚧 Planned — spec only (ADR-010); binds all 5 criteria; closes V1-PROT-019 captures; awaits the implementation. |
 
-Behavioural totals across these 50 rows: 275 acceptance criteria. 88 carry a living traced test, 106 belong to retired rows (their tests were deleted in QSL-1549 stage 1), 0 are blocked and 81 are planned or verify by Inspection or Analysis only. 88 + 106 + 0 + 81 = 275.
+Behavioural totals across these 52 rows: 288 acceptance criteria. 88 carry a living traced test, 106 belong to retired rows (their tests were deleted in QSL-1549 stage 1), 0 are blocked and 94 are planned or verify by Inspection or Analysis only. 88 + 106 + 0 + 94 = 288.
 
 ## Domain Object Coverage
 
@@ -295,6 +302,7 @@ a coverage claim in this matrix.
 | TC-053 | Assess join settlement per policy | Property | P0 | FR-055 | 🚧 Planned — spec only (ADR-010); awaits the implementation. |
 | TC-054 | Assess loop bound and report proof as undischarged | Property | P0 | FR-056, FR-059 | 🚧 Planned — spec only (ADR-010); awaits the implementation. |
 | TC-055 | Map QSL Unsupported and requires-bound outcomes to dispositions | Property | P0 | FR-057, FR-058 | 🚧 Planned — spec only (ADR-010); awaits the implementation. |
+| TC-154 | Settle deadline branches and bind captures | Property | P0 | FR-100, FR-101 | 🚧 Planned — spec only (ADR-010); awaits the implementation. |
 | TC-147 | Admit protocol refinement dispatch | Property | P0 | FR-301 | 🚧 Planned — binds all 6 FR-301 criteria; awaits the dispatch implementation; QSL implements FR-176/FR-177 (ADR-010). |
 | TC-148 | Carry a trace-position witness on the protocol result wire | Property | P0 | FR-302 | 🚧 Planned — binds all 5 FR-302 criteria; awaits `agent-ix/quire-specification#114`'s `native-run-result/2`. |
 
@@ -308,12 +316,12 @@ does not measure binding.
 
 | Category | Total | Passed | Failed | Blocked | Planned | Retired |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Functional requirement rows | 40 | 8 | 0 | 0 | 13 | 19 |
+| Functional requirement rows | 52 | 9 | 0 | 0 | 24 | 19 |
 | Domain object requirement rows | 9 | 3 | 0 | 0 | 3 | 3 |
 | Non-functional requirement rows | 8 | 3 | 0 | 0 | 4 | 1 |
 | Integration rows | 4 | 0 | 0 | 1 | 0 | 3 |
-| Test case rows | 24 | 8 | 0 | 0 | 8 | 8 |
-| Overall | 85 | 22 | 0 | 1 | 28 | 34 |
+| Test case rows | 31 | 9 | 0 | 0 | 14 | 8 |
+| Overall | 104 | 24 | 0 | 1 | 45 | 34 |
 
 The Integration count is four because IT-001 carries a separate version 1 and version 2
 row; the two contracts may not substitute for each other, so one row cannot
@@ -329,10 +337,10 @@ criterion is a zero inside it rather than a row removed from it.
 
 | Category | Total | Passed | Failed | Blocked | Planned | Retired |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Overall owed criteria | 344 | 136 | 0 | 0 | 75 | 133 |
+| Overall owed criteria | 403 | 134 | 0 | 0 | 136 | 133 |
 
 Passed means the criterion carries a living traced test in the current tree
-(136 of 344). Retired means the criterion's row lost every test in QSL-1549
+(134 of 403). Retired means the criterion's row lost every test in QSL-1549
 stage 1 (133). Blocked is none: QSL delivered the evaluation entries that FR-045 and FR-046 wait on. Planned
-(75) includes the criteria that verify by Inspection or Analysis only and
+(136) includes the criteria that verify by Inspection or Analysis only and
 FR-014-AC-6, which waits on IT-003's Quoin scenario-record handoff.
