@@ -60,10 +60,12 @@ repository owns its strict implementation and evidence-backed conformance.
 - Business-operation or compensation execution.
 - Generic producer execution, evidence persistence, method catalogues, sufficiency,
   qualification disposition, or public release policy.
-- General projection, realizability, or composition algorithms. Refinement is
-  in scope as the explicit-state product construction
-  [FR-301](functional/FR-301-admit-protocol-refinement-dispatch.md) dispatches
-  over the accepted upstream assume-guarantee and refinement contracts.
+- Projection, realizability, composition and refinement algorithms, and
+  protocol exploration semantics (dynamic roles, queues, joins, loops); QSL owns
+  them ([ADR-010](adr/ADR-010-consume-qsl-protocol-analysis-own-assessment-and-dispatch.md)).
+  This library dispatches the claims
+  ([FR-301](functional/FR-301-admit-protocol-refinement-dispatch.md)) and
+  carries the results.
 - An external choreography library before E03 admission.
 
 ## 3. System Overview
@@ -105,7 +107,7 @@ Local immutable identifiers begin at `StR-001`, `US-001`, `FR-001`, `NFR-001`,
 `IT-001`, `TC-001`, `ADR-001`, `TM-001`, `AP-001`, and `AD-001`.
 Each namespace is allocated sequentially with no gaps and no reuse; the highest
 allocated identifier is currently `StR-005`, `US-007`, `FR-042`, `NFR-008`,
-`IT-003`, `TC-017`, `ADR-009`, `TM-001`, `AP-001`, and `AD-001`.
+`IT-003`, `TC-017`, `ADR-010`, `TM-001`, `AP-001`, and `AD-001`.
 
 ## 7. Requirement Quality Policy
 

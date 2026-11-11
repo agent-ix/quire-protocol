@@ -18,6 +18,8 @@ relationships:
     type: references
   - target: ix://agent-ix/quire-protocol/ADR-009
     type: references
+  - target: ix://agent-ix/quire-protocol/ADR-010
+    type: references
   - target: ix://agent-ix/quire-protocol/FR-001
     type: realizes
   - target: ix://agent-ix/quire-protocol/FR-002
@@ -387,19 +389,13 @@ affected identity or refuses.
    No reverse edge or local substitute is allowed.
 6. Apply one transactional state model, one refusal envelope and one Protocol
    resource accountant across the path.
-7. Advanced projection, realizability and composition algorithms remain
-   unsupported until their accepted owner contracts exist; unsupported never
-   means false, satisfied or successful. Refinement is admitted: over the
-   accepted FR-176 assume-guarantee contract and FR-177 refinement relation,
-   which `agent-ix/quire-protocol#81` implements here,
-   [FR-301](../functional/FR-301-admit-protocol-refinement-dispatch.md)
-   checks it as one explicit-state product construction over the FR-002 linked
-   graph — paired correspondence between implementation and specification
-   states, the selected trace, failure or observation refinement relation, and
-   assumption discharge under FR-176 — using the same closed dispatch,
-   premise-binding and unsupported-absence discipline FR-005, FR-029 and FR-030
-   already apply to every claim kind. The construction is the sole check this
-   decision requires of a refinement claim.
+7. Projection, realizability, composition and refinement are decided by QSL
+   (ADR-010). This library dispatches each claim kind to QSL's backend,
+   [FR-301](../functional/FR-301-admit-protocol-refinement-dispatch.md) for
+   refinement, carries the result unchanged, and uses the same closed dispatch,
+   premise-binding and unsupported-absence discipline FR-005, FR-029 and
+   FR-030 apply to every claim kind. A kind QSL has no backend for settles
+   `unsupported`, never false, satisfied or successful.
 
 ## Conformance Rules
 

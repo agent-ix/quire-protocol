@@ -35,9 +35,9 @@ relationships:
 When a `refinement` claim is requested and the accepted assume-guarantee and
 refinement contracts (`ix://agent-ix/quire-specification/FR-176`,
 `ix://agent-ix/quire-specification/FR-177`) are admitted, the dispatcher SHALL
-check it as one explicit-state product construction over the FR-002 linked
-graph rather than treating it as an advanced claim without an accepted local
-implementation.
+route it to QSL's refinement backend over the FR-002 linked graph's source
+identities and carry that backend's result, rather than treating it as an
+advanced claim with no accepted backend.
 
 ## Inputs
 
@@ -55,11 +55,12 @@ when no admitted backend can discharge the claim.
 
 ## Behavior
 
-The dispatcher SHALL check an admitted refinement claim by one explicit-state
-product construction over the FR-002 linked graph: paired correspondence
-between implementation and specification states, the trace, failure or
-observation refinement relation FR-177 selects, and assumption discharge under
-FR-176's assume-guarantee composition.
+The dispatcher SHALL send an admitted refinement claim to QSL's refinement
+backend, which owns the explicit-state product construction (paired
+correspondence between implementation and specification states, the relation
+FR-177 selects, and assumption discharge under FR-176), and SHALL carry its
+result, counterexample or certificate unchanged
+([ADR-010](../adr/ADR-010-consume-qsl-protocol-analysis-own-assessment-and-dispatch.md)).
 
 A refinement disposition SHALL NOT carry the complete-global-conformance
 premise set as evidence for its own success, exactly as
@@ -85,7 +86,7 @@ introduces no separate dispatch path, resource guard or fallback backend.
 | --- | --- | --- |
 | FR-301-AC-1 | A refinement disposition never carries the complete-global-conformance premise set as evidence for its own success, exactly as `ix://agent-ix/quire-specification/FR-290`-AC-3 requires. | Test (TC-147) |
 | FR-301-AC-2 | A monitorable protocol whose refinement backend is absent or unaccepted retains its independent global conformance result and returns an explicit `unsupported` refinement disposition, exactly as `ix://agent-ix/quire-specification/FR-060`-AC-1's projection-absence pattern requires. | Test (TC-147) |
-| FR-301-AC-3 | Once FR-176 and FR-177 are admitted, a requested refinement claim is checked by one explicit-state product construction over the FR-002 linked graph, using paired correspondence, the selected refinement relation and assume-guarantee discharge; no separate refinement engine or local relation definition is introduced. | Test (TC-147) |
+| FR-301-AC-3 | Once FR-176 and FR-177 are admitted, a requested refinement claim is dispatched to QSL's refinement backend and its result carried unchanged, bound to the FR-002 linked graph's source identities; this library builds no product construction, separate refinement engine or local relation definition. | Test (TC-147) |
 | FR-301-AC-4 | A refinement request without an accepted FR-292 analysis backend settles `unsupported` with a warning naming the required capability, and this settlement is never a hold, blocker or refusal error. | Test (TC-147) |
 | FR-301-AC-5 | A refinement disposition retains its exact admitted fragment, backend, assumptions, communication/visibility/environment premises and source/derived-artifact correspondence exactly as [FR-030](./FR-030-bind-each-disposition-to-its-exact-premises.md) requires of every disposition. | Test (TC-147) |
 
@@ -103,16 +104,15 @@ introduces no separate dispatch path, resource guard or fallback backend.
 `ix://agent-ix/quire-specification/FR-176` and
 `ix://agent-ix/quire-specification/FR-177` are the accepted assume-guarantee and
 refinement owner contracts, landed and owned by `agent-ix/quire-specification`;
-`agent-ix/quire-protocol#81` is this repository's implementation ticket for
-them. This requirement consumes those contracts
+QSL implements them. This requirement consumes those contracts
 directly and defines no local refinement relation, correspondence rule or
-assumption-discharge algorithm; the explicit-state product construction is the
-dispatch shape this repository owns, not a restatement of FR-177's relation.
+assumption-discharge algorithm; the explicit-state product construction is
+QSL's (ADR-010), and this repository owns only the dispatch and carrying.
 
 ## Dependencies
 
 - [FR-002](./FR-002-link-finite-protocol-representation.md) supplies the linked graph
-  the product construction runs over.
+  whose source identities bind the dispatched claim.
 - [FR-005](./FR-005-dispatch-independent-protocol-claims.md) supplies closed
   claim dispatch.
 - [FR-029](./FR-029-return-one-disposition-per-requested-claim.md) and
@@ -122,7 +122,7 @@ dispatch shape this repository owns, not a restatement of FR-177's relation.
   pattern this requirement mirrors for refinement.
 - `ix://agent-ix/quire-specification/FR-176` and
   `ix://agent-ix/quire-specification/FR-177` supply the assume-guarantee and
-  refinement contracts this requirement dispatches;
-  `agent-ix/quire-protocol#81` implements them here.
+  refinement contracts this requirement dispatches
+  to QSL's backend.
 - `ix://agent-ix/quire-specification/FR-292` supplies the analysis backend whose
   accepted capability selects a refinement check.

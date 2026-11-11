@@ -10,8 +10,8 @@ relationships:
 
 ## Description
 
-Verify that a requested refinement claim is checked as one explicit-state
-product construction once FR-176 and FR-177 are admitted, that it never
+Verify that a requested refinement claim is dispatched to QSL's refinement
+backend and its result carried once FR-176 and FR-177 are admitted, that it never
 borrows the complete-global-conformance premise set as its own evidence, that
 its absence path preserves the independent global conformance result, and that
 an absent analysis backend settles `unsupported` rather than a hold, blocker or
