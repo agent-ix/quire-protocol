@@ -40,7 +40,7 @@ The linked deadline branch, the identity of the waiting instance, the admitted o
 
 ## Outputs
 
-For each waiting instance, keyed by that instance and not by the static branch, the selected branch (response or timeout) with its FR-242 truth disposition and FR-241 execution disposition, or no selection.
+For each waiting instance, keyed by that instance and not by the static branch, the selected branch (response or timeout) with its FR-241 execution disposition, or no selection with its FR-242 truth disposition and FR-241 execution disposition. A selected branch carries no truth disposition, because an absent truth compares only to absence (FR-242).
 
 ## Behavior
 
@@ -49,7 +49,8 @@ Two waits on the same static branch SHALL settle independently.
 Absent selection is truth `pending` (FR-242) while the deadline is not reached or progress is `open`.
 Absent selection under completeness `incomplete` or `contradicted` is truth `unavailable` (FR-242) with execution `completed` (FR-241).
 When progress is `open` and completeness is `incomplete` or `contradicted` at once, the truth is `unavailable`, because `pending` requires complete observations (QSpec FR-061).
-In both of those cases the completeness axis carries the FR-295 value, `incomplete` or `contradicted`, and the progress axis is unchanged.
+When progress is `closed`, completeness is `complete` and the only observations at or before the deadline have a bound constraint that is false or has no value, the evaluator SHALL select no branch and report truth `unavailable` with execution `completed`.
+In both of the completeness cases above the completeness axis carries the FR-295 value, `incomplete` or `contradicted`, and the progress axis is unchanged.
 When an observation observed at or before the deadline is admitted after timeout was selected, by arrival order in the admitted history, the evaluator SHALL emit a superseding or invalidating result under FR-033.
 The evaluator SHALL leave the earlier result unaltered.
 
@@ -63,6 +64,7 @@ The evaluator SHALL leave the earlier result unaltered.
 | FR-100-AC-4 | A matching response that arrives after timeout was selected, by position in the admitted history, but is observed at or before the deadline, yields a FR-033 superseding or invalidating result naming the earlier result and leaves its bytes and identity unchanged; a response observed after the deadline yields no such result, and batch and incremental runs agree on both. | Test (TC-154) |
 | FR-100-AC-5 | Two waiting instances of one static branch, one answered and one not, settle differently and independently. | Test (TC-154) |
 | FR-100-AC-6 | No business operation is invoked on any settlement path. | Test (TC-154) |
+| FR-100-AC-7 | With progress `closed`, completeness `complete` and only a false or valueless bound constraint at or before the deadline, no branch is selected and the truth is `unavailable` with execution `completed`. | Test (TC-154) |
 
 ## Dependencies
 
