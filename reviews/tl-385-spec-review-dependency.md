@@ -45,3 +45,4 @@ feature work (TL-6/9/10/11). Two low edge defects.
 | --- | --- | --- |
 | FND-001 | fixed | ec54159 cites QSL ADR-017 in Decision 1 as the protocol and frame boundaries the library reads |
 | FND-002 | fixed | ec54159 adds FR-301 edges to ADR-010 (references) and QSL ADR-020, FR-142, FR-144, FR-147 (depends_on); all exist on QSL main |
+| FND-003 | fixed | d514fe5 adds FR-301 depends_on edges to FR-043 and FR-044 |

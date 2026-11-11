@@ -60,3 +60,4 @@ are implemented here under quire-protocol#81.
 | FND-001 | fixed | ec54159 adds FR-301-AC-6 and TC-147 sentinel-backend runs comparing certificate, counterexample and refusal byte for byte, plus a disagreeing-backend run that fails if a verdict is computed locally |
 | FND-002 | fixed | ec54159 rewrites spec/tests.md FR-301 and TC-147 rows to QSL-implemented FR-176/FR-177 (ADR-010), AC-1..AC-6 |
 | FND-003 | fixed | ec54159 changes Decision 4 and Consequences to "spec.md section 2" and "AD-001 Decisions item 7" |
+| FND-004 | fixed | d514fe5 adds a fifth TC-147 run where the stand-in backend itself returns an unsupported cause, compared byte for byte |
