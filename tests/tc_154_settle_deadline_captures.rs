@@ -141,11 +141,12 @@ fn a_response_at_the_deadline_is_inside_the_wait() {
     let at_deadline = settle("w", &[response(1, 29), closed.clone()]);
     assert_eq!(
         current(&at_deadline).selected,
-        Some(Branch::Response {
-            observation: at(1)
-        })
+        Some(Branch::Response { observation: at(1) })
     );
-    assert_eq!(current(&at_deadline).execution, AssessmentExecution::Completed);
+    assert_eq!(
+        current(&at_deadline).execution,
+        AssessmentExecution::Completed
+    );
     let after = settle("w", &[response(1, 30), closed]);
     assert_eq!(current(&after).selected, Some(Branch::Timeout));
     assert!(after.supersessions.is_empty());
@@ -191,22 +192,39 @@ fn timeout_needs_closed_progress_and_complete_input() {
         let settlement = current(&assessment);
         let label = format!("{progress:?} {completeness:?}");
         assert_eq!(settlement.truth, truth, "{label}");
-        assert_eq!(settlement.execution, AssessmentExecution::Completed, "{label}");
+        assert_eq!(
+            settlement.execution,
+            AssessmentExecution::Completed,
+            "{label}"
+        );
         let timeout = matches!(
             (progress, completeness),
             (Progress::Closed, Completeness::Complete)
         );
-        assert_eq!(settlement.selected, timeout.then_some(Branch::Timeout), "{label}");
+        assert_eq!(
+            settlement.selected,
+            timeout.then_some(Branch::Timeout),
+            "{label}"
+        );
         // The completeness axis carries the owner's value and progress is unchanged.
         let owner_progress = match progress {
             Progress::Open => &views.progress_open,
             Progress::Closed => &views.progress_closed,
         };
-        assert_eq!(settlement.progress, Some(owner_progress.payload().state()), "{label}");
+        assert_eq!(
+            settlement.progress,
+            Some(owner_progress.payload().state()),
+            "{label}"
+        );
     }
     let incomplete = settle(
         "w",
-        &[authority(&views, 1, Progress::Closed, Completeness::Incomplete)],
+        &[authority(
+            &views,
+            1,
+            Progress::Closed,
+            Completeness::Incomplete,
+        )],
     );
     assert_eq!(
         current(&incomplete).completeness,
@@ -214,7 +232,12 @@ fn timeout_needs_closed_progress_and_complete_input() {
     );
     let contradicted = settle(
         "w",
-        &[authority(&views, 1, Progress::Closed, Completeness::Contradicted)],
+        &[authority(
+            &views,
+            1,
+            Progress::Closed,
+            Completeness::Contradicted,
+        )],
     );
     assert_eq!(
         current(&contradicted).completeness,
@@ -233,7 +256,10 @@ fn timeout_needs_closed_progress_and_complete_input() {
 fn a_false_constraint_selects_neither_branch() {
     let views = scope_views("ac3");
     assert_eq!(Constraint::of(&SlotOutcome::Holds), Constraint::Holds);
-    assert_eq!(Constraint::of(&SlotOutcome::DoesNotHold), Constraint::DoesNotHold);
+    assert_eq!(
+        Constraint::of(&SlotOutcome::DoesNotHold),
+        Constraint::DoesNotHold
+    );
     assert_eq!(
         Constraint::of(&SlotOutcome::NotBoolean(Value::Integer(Integer::from(1)))),
         Constraint::Unestablished
@@ -267,9 +293,7 @@ fn a_false_constraint_selects_neither_branch() {
     );
     assert_eq!(
         current(&later).selected,
-        Some(Branch::Response {
-            observation: at(2)
-        })
+        Some(Branch::Response { observation: at(2) })
     );
 }
 
@@ -297,12 +321,13 @@ fn a_late_admitted_response_supersedes_without_altering_the_timeout() {
     assert_eq!(supersession.corrected_input, at(2));
     assert_eq!(
         supersession.superseding.settlement().selected,
-        Some(Branch::Response {
-            observation: at(2)
-        })
+        Some(Branch::Response { observation: at(2) })
     );
     let incremental = wait.finish();
-    assert_eq!(incremental.results[0], timeout, "the earlier result is unaltered");
+    assert_eq!(
+        incremental.results[0], timeout,
+        "the earlier result is unaltered"
+    );
     assert_eq!(incremental.results.len(), 2);
 
     // Batch, with the facts presented out of order, agrees.
@@ -359,7 +384,11 @@ fn waiting_instances_of_one_branch_settle_independently() {
             WorkflowInstanceId::new(&bytes, "w"),
             Vec::new(),
         );
-        assert!(matches!(refused, Err(WaitRefusal::Key(_))), "{}", bytes.len());
+        assert!(
+            matches!(refused, Err(WaitRefusal::Key(_))),
+            "{}",
+            bytes.len()
+        );
     }
 }
 
@@ -369,14 +398,22 @@ fn waiting_instances_of_one_branch_settle_independently() {
 #[trace("TC-154", "FR-100-AC-6")]
 #[test]
 fn settlement_invokes_no_business_operation() {
-    for capability in [Capability::BusinessOperation, Capability::CompensationOperation] {
+    for capability in [
+        Capability::BusinessOperation,
+        Capability::CompensationOperation,
+    ] {
         let refused = PureAssessment::checked(&Surface(vec![capability]));
         assert_eq!(refused.expect_err("refused").capability(), capability);
     }
     let views = scope_views("ac6");
     let assessment = settle(
         "w",
-        &[authority(&views, 1, Progress::Closed, Completeness::Complete)],
+        &[authority(
+            &views,
+            1,
+            Progress::Closed,
+            Completeness::Complete,
+        )],
     );
     assert_eq!(current(&assessment).selected, Some(Branch::Timeout));
 }
@@ -501,22 +538,13 @@ fn captures_bind_in_authored_order_and_stay_bound() {
 #[test]
 fn identical_captures_are_distinct_occurrences() {
     let at_activation = boundary(10);
-    for authored in [
-        [node("c1"), node("c2")],
-        [node("c1"), node("c1")],
-    ] {
+    for authored in [[node("c1"), node("c2")], [node("c1"), node("c1")]] {
         let supplies = authored
             .iter()
             .map(|capture| supply(capture, at_activation, integer(7)))
             .collect();
-        let bound = bind_captures(
-            pure(),
-            &activation("t"),
-            at_activation,
-            &authored,
-            supplies,
-        )
-        .expect("binds");
+        let bound = bind_captures(pure(), &activation("t"), at_activation, &authored, supplies)
+            .expect("binds");
         let [one, two] = bound.occurrences() else {
             panic!("two occurrences");
         };
@@ -553,7 +581,11 @@ fn guard_outcome(ready: Option<bool>) -> SlotOutcome {
         .key(&compensation.node_id)
         .expect("key");
     let selected = bare
-        .select_protocol_slot(&ProtocolSlotDescriptor::new(key.clone(), "trigger.guard", None))
+        .select_protocol_slot(&ProtocolSlotDescriptor::new(
+            key.clone(),
+            "trigger.guard",
+            None,
+        ))
         .expect("slot selects");
     let source = selected
         .sources()
@@ -632,14 +664,8 @@ fn one_undefined_capture_refuses_the_whole_activation() {
         supply(&authored[1], at_activation, unavailable),
         supply(&authored[2], at_activation, integer(3)),
     ];
-    let refused = bind_captures(
-        pure(),
-        &activation("t"),
-        at_activation,
-        &authored,
-        supplies,
-    )
-    .expect_err("refused");
+    let refused = bind_captures(pure(), &activation("t"), at_activation, &authored, supplies)
+        .expect_err("refused");
     let [fault] = &refused.faults[..] else {
         panic!("exactly the undefined capture: {:?}", refused.faults);
     };
@@ -717,7 +743,10 @@ fn only_the_activation_boundary_binds() {
         ],
     )
     .expect_err("refused");
-    assert!(matches!(surplus.faults[0].failure, CaptureFailure::Unauthored));
+    assert!(matches!(
+        surplus.faults[0].failure,
+        CaptureFailure::Unauthored
+    ));
 }
 
 /// QSL supplies a value that differs from what the authored expression gives
