@@ -14,8 +14,8 @@ Verify identity inclusion of a result's retained assumptions in the request's an
 
 ## Test Procedure
 
-Request a refinement claim with assumptions. Feed stand-in results that retain the same set, one extra identity on a proof, one extra identity on a violation, a strict subset, and the backend's own `protocol-assumption-not-established` finding, beside conformance and composition claims. Tag each test with the exact acceptance criterion it verifies.
+Request a refinement claim with assumptions. Feed stand-in results that retain the same set, one extra identity on a proof, one extra identity on a violation, a strict subset, an empty set, an omitted field, and the backend's own `protocol-assumption-not-established` finding, beside conformance and composition claims. Tag each test with the exact acceptance criterion it verifies.
 
 ## Expected Results
 
-Equal and subset sets are carried; an extra identity refuses the disposition with `identity-mismatch` naming it and no success value; independent dispositions are unchanged; the backend's own finding is carried unchanged.
+Equal and subset sets are carried; an omitted field is refused naming it; an extra identity refuses the disposition with `identity-mismatch` naming it and no success value; independent dispositions are unchanged; the backend's own finding is carried unchanged.

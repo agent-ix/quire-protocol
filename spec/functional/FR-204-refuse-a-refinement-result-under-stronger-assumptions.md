@@ -32,6 +32,7 @@ The disposition carried under FR-202 when every retained assumption identity is 
 
 - The library shall compare the returned result's retained assumption identities with the request's by exact identity.
 - When a retained assumption identity is absent from the request's assumptions, the library shall refuse the refinement disposition with the cause `identity-mismatch` naming that identity.
+- When the returned result omits its retained assumption identities, the library shall refuse the refinement disposition with the cause `identity-mismatch` naming the absent field, because absence compares only to absence (FR-030-AC-4).
 - When every retained assumption identity is among the request's, the library shall carry the result, whether or not the request holds assumptions the result did not use.
 - When the refused disposition would have been success, the library shall emit no success value for it (FR-040).
 - The library shall leave every independent disposition unchanged (FR-029).
@@ -50,6 +51,7 @@ The library decides inclusion of identities only. Whether one assumption entails
 | FR-204-AC-4 | Given a stand-in result that reports a violation and retains an extra assumption identity, the disposition is refused with the same cause and the counterexample is not presented as a carried result of the request. | Test (TC-204) |
 | FR-204-AC-5 | Given the refused refinement beside a conformance claim and a composition claim, their dispositions equal those returned without the refinement claim, and no other backend is invoked for the refused claim. | Test (TC-204) |
 | FR-204-AC-6 | Given a stand-in that itself returns the `protocol-assumption-not-established` cause with a strengthened-assumption witness, the cause and witness appear unchanged and the disposition is not refused. | Test (TC-204) |
+| FR-204-AC-7 | Given a stand-in result that omits its retained assumption identities, and another that retains an empty set while the request holds assumptions, the first is refused with `identity-mismatch` naming the absent field and the second is carried as a strict subset. | Test (TC-204) |
 
 ## Dependencies
 

@@ -14,8 +14,8 @@ Verify separate premise lists, subject binding and undischarged-slot retention, 
 
 ## Test Procedure
 
-Request a composition claim with entries in all four premise lists. Feed stand-in results that name an unknown slot, name an unknown subject, return a slot undischarged although a supplied guarantee would discharge it by a local reading, and return an empty discharge record. Drop or merge one list from the disposition. Tag each test with the exact acceptance criterion it verifies.
+Request a composition claim with entries in all four premise lists. Feed stand-in results that name an unknown subject, carry `component-guarantee` and `fixed-point` entries, return a slot undischarged although a supplied guarantee would discharge it by a local reading, and return an empty discharge record. Drop or merge one list from the disposition. Tag each test with the exact acceptance criterion it verifies.
 
 ## Expected Results
 
-Four separate byte-equal lists reach the stand-in and stay in the disposition; unknown slot or subject refuses the disposition with `identity-mismatch` naming it; undischarged slots stay undischarged; no slot is marked discharged by the library.
+Four separate byte-equal lists reach the stand-in and stay in the disposition; an unknown subject refuses the disposition with `identity-mismatch` naming it; real discharge-record entries are carried byte-equal and none refused; undischarged slots stay undischarged; no slot is marked discharged by the library.
