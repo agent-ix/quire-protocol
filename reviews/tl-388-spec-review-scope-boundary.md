@@ -25,3 +25,11 @@ Ticket: TL-388. Whether the amended FR-100 Inputs allocates the `after` anchor h
 | ID | Severity | Summary | Refs |
 | --- | --- | --- | --- |
 | FND-001 | medium | FR-100 Inputs does not say that QSL publishes the `after` anchor on the checked `await` as `after = {kind, target}` with kinds `event` and `compensation` (qsl-package protocol_view.rs), nor allocate reading it. As written, a reader concludes the library has no way to know which event is the `after` event, when only the observation-to-node attribution is missing. The `compensation` kind, whose anchor is the forward body's entry rather than an event observation, is not mentioned at all. State the QSL fact, allocate reading it to this library (or a ticketed follow-up), and name the observation-to-node attribution as the remaining owner gap. | spec/functional/FR-100-settle-inclusive-deadline-branches-on-complete-progress.md:45, 49 |
+
+## Dispositions
+
+Round 1, fix commit 138d713 (reviewed as `git diff 98e95d0..138d713`).
+
+| FND | outcome | reason |
+| --- | --- | --- |
+| FND-001 | fixed | 138d713: Inputs states QSL's `after = {kind, target}`, the causal-relation port for both kinds, that this library reads it, and that observation-to-port attribution stays with the caller |

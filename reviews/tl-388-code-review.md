@@ -37,3 +37,22 @@ Ticket: TL-388. Code review with the Rust lane (rust-review, rust-style loaded) 
 | FND-004 | low | `AfterAnchor::of` maps an unparseable owner anchor text to `WindowOutOfRange`. Owner canonical text always fits u64/i128, so the branch is unreachable for a valid view and, if reached, reports a window-range failure for what is a malformed owner payload. It has no test. | src/deadline.rs:228-248 |
 | FND-005 | low | `Wait::new` gained a refusal (`UndeclaredAwait` when `declaration.control` is not `key.branch`) that no test exercises. | src/deadline.rs:662-673 |
 | FND-006 | low | `Wait::new` and `assess` take `family: TemporalBoundary`, a full boundary value whose numbers are ignored; only the variant is read. A caller can pass any bounds without effect, which reads as if the bounds mattered. | src/deadline.rs:662-668, 868-875 |
+
+## New findings (disposition pass 1)
+
+| ID | Severity | Summary | Refs |
+| --- | --- | --- | --- |
+| FND-007 | low | `Supersession::contradicted_premise` is still documented as "the authority fact that closed the wait", but an `AfterObservation` supersession sets it to whatever fact produced the earlier pre-anchor result (a response observation or an authority fact). Update the doc. | src/deadline.rs:590, 818 |
+
+## Dispositions
+
+Round 1, fix commit 138d713 (reviewed as `git diff 98e95d0..138d713`).
+
+| FND | outcome | reason |
+| --- | --- | --- |
+| FND-001 | fixed | 138d713: `judge` returns `unavailable` for every progress/completeness case before the anchor; AC-15 test crosses open/closed x complete/incomplete/contradicted |
+| FND-002 | fixed | 138d713: `AfterAnchor` carries `clock().identity`; `Deadline::of` refuses a mismatch with `AnchorNotOnClock` (AC-19 test) |
+| FND-003 | fixed | 138d713: private `Anchor` deleted; `AfterAnchor` holds `quire_observation::Anchor` with epoch and period |
+| FND-004 | fixed | 138d713: malformed owner text is now `WaitRefusal::AnchorMalformed`, documented as unreachable for a validated view |
+| FND-005 | fixed | 138d713: AC-12 test asserts `Wait::new` refuses a declaration that is not the key's await |
+| FND-006 | fixed | 138d713: `family` is the new `ClockFamily` tag; quire-observation publishes no data-free family enum (`TemporalBoundary`/`ClockRange` carry bounds), so this is not a mirror |

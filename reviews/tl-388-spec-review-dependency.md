@@ -26,3 +26,11 @@ Ticket: TL-388. Whether the new FR-046 relationship and Dependencies bullet poin
 | ID | Severity | Summary | Refs |
 | --- | --- | --- | --- |
 | FND-001 | medium | FR-100 adds `references FR-046` and "FR-046 supplies the QObs observation view whose anchor is the instant of the `after` event", but this repo's FR-046 is "Consume temporal evidence through the in-memory evidence types" (QSL's `EvidenceRequest`/`EvidenceResult`) and says nothing about `quire_observation::authority::observation::View`. The view and its `AnchorRef` are QObs owner artifacts (the `quire.observation.record/v2` record over QSpec FR-288). Point the edge and the bullet at the QObs/QSpec owner requirement and drop FR-046. | spec/functional/FR-100-settle-inclusive-deadline-branches-on-complete-progress.md:18, 118 |
+
+## Dispositions
+
+Round 1, fix commit 138d713 (reviewed as `git diff 98e95d0..138d713`).
+
+| FND | outcome | reason |
+| --- | --- | --- |
+| FND-001 | still-open | The FR-046 relationship and Dependencies bullet are replaced by quire-observation FR-004 and FR-006, which are the right owners (QSpec FR-288 is the protocol-definition identity, so the review's FR-288 pointer was imprecise). But Inputs (line 51) still reads "the admitted observation of the awaited `after` event with its QObs anchor (FR-046)" |

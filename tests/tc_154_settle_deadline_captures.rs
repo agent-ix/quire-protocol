@@ -993,13 +993,38 @@ fn an_after_observation_against_an_earlier_progress_view_is_refused() {
 }
 
 /// The declaration names the port QSL's causal relation anchors the `await`
-/// at: the exit of the awaited event, not the `await` itself.
+/// at: the exit of the event its `after` names, not the `await` or its
+/// sequence predecessor.
 #[trace("TC-154", "FR-100-AC-23")]
 #[test]
 fn the_declaration_names_the_port_the_await_is_anchored_at() {
     let after = &declaration().after;
     assert_eq!(after.port, Port::Exit);
-    assert_ne!(after.node, declaration().control);
+    assert!(
+        matches!(
+            after.node.path.last(),
+            Some(CheckedNodePathSegment::Name(name)) if &**name == "Armed"
+        ),
+        "{:?}",
+        after.node
+    );
+}
+
+/// A `compensation` anchor is the entry of the template's forward body.
+#[trace("TC-154", "FR-100-AC-23")]
+#[test]
+fn a_compensation_anchor_is_the_entry_of_the_forward_body() {
+    let compensating = Awaiting::after_compensation();
+    let declarations = compensating.linked().declarations();
+    let [declaration] = declarations.awaits() else {
+        panic!("one await: {:?}", declarations.awaits());
+    };
+    assert_eq!(declaration.after.port, Port::Enter);
+    assert_ne!(declaration.after.node, declaration.control);
+    assert!(!matches!(
+        declaration.after.node.path.last(),
+        Some(CheckedNodePathSegment::Name(name)) if &**name == "Armed"
+    ));
 }
 
 /// QSL's occurrence schema keys the wait: an undeclared control, a wrong

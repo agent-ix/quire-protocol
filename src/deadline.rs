@@ -587,7 +587,9 @@ impl Supersession {
         &self.earlier
     }
 
-    /// The contradicted premise: the authority fact that closed the wait.
+    /// The contradicted premise: the fact that produced the earlier result,
+    /// the authority fact that closed the wait for a timeout or the first
+    /// fact of a result that lacked the `after` observation.
     #[must_use]
     pub const fn contradicted_premise(&self) -> &ObservationRef {
         &self.contradicted_premise
