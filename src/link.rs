@@ -27,6 +27,7 @@
 //! use quire_protocol::wire::Package;
 //! ```
 
+use crate::declarations::Declarations;
 use qsl_package::protocol_view::{
     causal_relation, control_operation, delivery, locus, protocol_view, temporal_binding,
     CausalEdge, ControlOperation, ProtocolView, Scheduling, ViewRefusal,
@@ -52,6 +53,14 @@ pub enum LinkRefusal {
         /// The node read.
         node: CheckedNodeId,
         /// The member the linker needed.
+        member: &'static str,
+    },
+    /// A declaration member the linker reads is present but not a value the
+    /// QSL layout admits for it.
+    MalformedMember {
+        /// The node read.
+        node: CheckedNodeId,
+        /// The member that did not read.
         member: &'static str,
     },
     /// A repeat control has a maximum of zero and therefore cannot progress.
@@ -81,7 +90,7 @@ pub enum LinkRefusal {
     },
 }
 
-fn node<'a>(
+pub(crate) fn node<'a>(
     package: &'a CheckedPackageV2,
     id: &CheckedNodeId,
 ) -> Option<&'a CheckedSemanticNodeV2> {
@@ -92,7 +101,7 @@ fn node<'a>(
         .find(|node| &node.node_id == id)
 }
 
-fn argument<'a>(
+pub(crate) fn argument<'a>(
     package: &'a CheckedPackageV2,
     node: &CheckedNodeId,
     name: &str,
@@ -106,7 +115,7 @@ fn argument<'a>(
     })
 }
 
-fn reference(term: &CheckedTerm) -> Option<&CheckedNodeId> {
+pub(crate) fn reference(term: &CheckedTerm) -> Option<&CheckedNodeId> {
     match term {
         CheckedTerm::Reference { target } => Some(target),
         _ => None,
@@ -134,7 +143,10 @@ fn integer(term: &CheckedTerm) -> Option<u64> {
     }
 }
 
-fn source_locus(package: &CheckedPackageV2, node: &CheckedNodeId) -> Vec<CheckedSourceMapEntry> {
+pub(crate) fn source_locus(
+    package: &CheckedPackageV2,
+    node: &CheckedNodeId,
+) -> Vec<CheckedSourceMapEntry> {
     locus(package.source_map(), node)
         .map(|entries| entries.into_iter().cloned().collect())
         .unwrap_or_default()
@@ -179,6 +191,7 @@ pub struct LinkedProtocol {
     scheduling: Option<Scheduling>,
     activation: Vec<CheckedProtocolActivationRow>,
     edges: Vec<CausalEdge>,
+    declarations: Declarations,
 }
 
 fn owned(ids: &[&CheckedNodeId]) -> Vec<CheckedNodeId> {
@@ -191,6 +204,7 @@ impl LinkedProtocol {
         edges: &[CausalEdge],
         requirement_terms: Vec<CheckedTerm>,
         temporal_bindings: Vec<TemporalBinding>,
+        declarations: Declarations,
     ) -> Self {
         Self {
             clause: view.clause().clone(),
@@ -208,6 +222,7 @@ impl LinkedProtocol {
             scheduling: view.scheduling(),
             activation: view.activation().to_vec(),
             edges: edges.to_vec(),
+            declarations,
         }
     }
 
@@ -279,6 +294,12 @@ impl LinkedProtocol {
     /// The activation rows of the clause.
     pub fn activation(&self) -> &[CheckedProtocolActivationRow] {
         &self.activation
+    }
+
+    /// The authored role, channel, join and loop declarations (FR-050 to
+    /// FR-052).
+    pub fn declarations(&self) -> &Declarations {
+        &self.declarations
     }
 
     /// The causal edges, exactly as QSL's `causal_relation` returns them.
@@ -372,11 +393,13 @@ pub fn link(
         temporal_bindings.push(binding.clone());
     }
 
+    let declarations = Declarations::read(package, &view)?;
     let relation = causal_relation(package, protocol).map_err(LinkRefusal::View)?;
     Ok(LinkedProtocol::of(
         &view,
         relation.edges(),
         requirement_terms,
         temporal_bindings,
+        declarations,
     ))
 }
