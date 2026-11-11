@@ -14,7 +14,7 @@ Verify assess role lifetime and population bound over a checked package and an a
 
 ## Test Procedure
 
-Assess histories inside, before and after a lifetime, at the population bound and one over it, with an absent bound, and under permuted presentation orders. Tag each test with the exact acceptance criterion it verifies.
+Assess histories inside, before and after a lifetime, after the end of a workflow, scope and until(p) lifetime, at the population bound and one over it, with an absent bound, and under permuted presentation orders. Tag each test with the exact acceptance criterion it verifies.
 
 ## Expected Results
 

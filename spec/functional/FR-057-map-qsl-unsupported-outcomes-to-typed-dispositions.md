@@ -17,7 +17,7 @@ relationships:
 
 ## Description
 
-When QSL reports an `Unsupported` cause for a protocol construct, or the library meets a construct it cannot assess, the library SHALL return a typed `unsupported` disposition that names the construct. The library SHALL NOT approximate, truncate or repair the construct.
+When QSL reports an `Unsupported` cause for a protocol construct, the library SHALL return a typed `unsupported` disposition that names the construct. The library SHALL NOT approximate, truncate or repair the construct.
 
 ## Inputs
 
@@ -30,6 +30,8 @@ One `unsupported` disposition (FR-029) that carries the QSL cause name unchanged
 ## Behavior
 
 - The library shall carry the QSL cause name unchanged.
+- When the assessment of an observed history meets a construct for which QSL would report an `Unsupported` cause, QSL having reported none for that history, the library shall return the same disposition carrying the name of that QSL `Unsupported` variant (`SymbolicCapacity`, `JoinPredicate`, `UnruledOutstanding`, `UnorderedLossSelector`, `ActivationOnEachTemplate`, `Capture` or the other variants QSL defines).
+- When a discharge or other claim is requested that no QSL engine serves, the library shall carry QSL's `unsupported-requested-capability` cause as the name.
 - The library shall define no second name for it. The causes ADR-010 records for the extension are symbolic capacity, join predicate, a join with no `outstanding` rule, `activation on each` with a compensation template, a protocol capture, an `unordered` channel with a `head` or `tail` loss selector, and a step binder of an unenumerable record type.
 - The library shall report no `unsupported` disposition as false, satisfied, conformant or successful.
 - The library shall derive no result from it.

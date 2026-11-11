@@ -14,7 +14,7 @@ relationships:
 
 ## Description
 
-Verify link role, queue, join and loop declarations over a checked package and an admitted observation history, with no exploration of the protocol.
+Verify link role, queue, join and loop declarations over an admitted checked package, with no observation history and no exploration of the protocol.
 
 ## Test Procedure
 

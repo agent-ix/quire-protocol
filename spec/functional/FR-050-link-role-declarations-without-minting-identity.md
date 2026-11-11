@@ -40,7 +40,7 @@ The linked representation carrying, per role, the checked node id, the lifetime 
 | --- | --- | --- |
 | FR-050-AC-1 | Over a checked package declaring one role per lifetime kind (`workflow`, `scope`, `until(p)`), the linked representation lists each role with the checked node id and the lifetime kind that node carries. | Test (TC-050) |
 | FR-050-AC-2 | Over a replicated role with a `max` bound and one with none, the linked representation carries the bound exactly and carries absence as absence, with no default. | Test (TC-050) |
-| FR-050-AC-3 | Linking the same checked package twice yields equal representations, and no function of the crate generates a role instance identifier at link time. | Test (TC-050) |
+| FR-050-AC-3 | Linking the same checked package twice yields equal representations, and the representation holds no role instance identifier. | Test (TC-050) |
 | FR-050-AC-4 | A replicated role is linked as one declaration; the representation holds no per-instance expansion of it. | Test (TC-050) |
 
 ## Dependencies

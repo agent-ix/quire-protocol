@@ -16,7 +16,7 @@ Verify map QSL Unsupported and requires-bound outcomes to dispositions over a ch
 
 ## Test Procedure
 
-Feed each QSL Unsupported cause ADR-010 lists, an unknown cause, and requires-bound outcomes for a role, a channel and a loop, alongside independently supported claims. Inspect the arguments of the QSL calls made. Tag each test with the exact acceptance criterion it verifies.
+Feed each QSL Unsupported cause ADR-010 lists, an unknown cause, and requires-bound outcomes naming a Population, a Collection and a Loop domain, alongside independently supported claims. Inspect the arguments of the QSL calls made. Tag each test with the exact acceptance criterion it verifies.
 
 ## Expected Results
 

@@ -17,7 +17,7 @@ relationships:
 
 ## Description
 
-When QSL reports a requires-bound outcome for a protocol construct whose bound is missing, the library SHALL return a typed non-success disposition naming the missing bound. The library SHALL NOT truncate the construct at a finite bound to finish.
+When QSL reports a requires-bound outcome for a protocol construct whose bound is missing, the library SHALL return a typed non-success disposition carrying the unbounded domains QSL names. The library SHALL NOT truncate the construct at a finite bound to finish.
 
 ## Inputs
 
@@ -25,10 +25,11 @@ A QSL requires-bound outcome naming the construct, and the request's premises.
 
 ## Outputs
 
-A typed non-success disposition carrying the QSL outcome unchanged, the checked node id of the construct that lacks the bound, and the kind of bound missing (role population, queue capacity, loop maximum, or other as QSL names it).
+A typed non-success disposition carrying the QSL outcome unchanged, and each unbounded domain with the domain kind and domain key QSL names, unchanged (QSL kinds: `Collection`, `Population`, `Integer`, `Recursive`, `Loop`, `InfiniteTrace`, `Quantity`).
 
 ## Behavior
 
+- The library shall define no bound kind of its own; a channel with a symbolic capacity is the case of FR-057, not a requires-bound outcome.
 - The library shall not pick, default or search for a bound.
 - The library shall not complete the analysis over a bound it chose.
 - The library shall report the disposition as non-success on its own axis.
@@ -40,7 +41,7 @@ A typed non-success disposition carrying the QSL outcome unchanged, the checked 
 
 | ID | Criteria | Verification |
 | --- | --- | --- |
-| FR-058-AC-1 | Given a requires-bound outcome for a role without a population bound, a channel without a capacity and a loop without a maximum, each disposition is typed non-success, carries QSL's outcome unchanged and names the construct's checked node id and the missing bound kind. | Test (TC-055) |
+| FR-058-AC-1 | Given a requires-bound outcome naming a `Population`, a `Collection` and a `Loop` domain, each disposition is typed non-success and carries QSL's outcome unchanged, with each domain's kind and key equal to QSL's and no kind the library defined. | Test (TC-055) |
 | FR-058-AC-2 | The library calls no QSL analysis with a bound the library derived, and no disposition field holds a bound the library chose. | Test (TC-055) |
 | FR-058-AC-3 | A requires-bound disposition on one claim leaves every other requested claim's disposition unchanged and changes none of the conformance, progress or closure axis values. | Test (TC-055) |
 

@@ -14,6 +14,7 @@ relationships:
   - { target: ix://agent-ix/quire-spec-language/ADR-027, type: depends_on }
   - { target: ix://agent-ix/quire-protocol/FR-052, type: depends_on }
   - { target: ix://agent-ix/quire-protocol/FR-056, type: references }
+  - { target: ix://agent-ix/quire-protocol/FR-057, type: depends_on }
 ---
 # FR-059: Report loop invariant and variant discharge as unavailable, never as proved
 
@@ -27,7 +28,7 @@ A linked loop with declared invariant and variant (FR-052), and a request for th
 
 ## Outputs
 
-The loop's declarations referenced by checked node id, a discharge status of `undischarged`, and, for a discharge request, an `unsupported` disposition (FR-057) that names the missing capability.
+The loop's declarations referenced by checked node id, a discharge status of `undischarged`, and, for a discharge request, an `unsupported` disposition (FR-057) that carries QSL's `unsupported-requested-capability` cause (FR-057).
 
 ## Behavior
 
@@ -43,7 +44,7 @@ The loop's declarations referenced by checked node id, a discharge status of `un
 | FR-059-AC-1 | Over a loop with an invariant and a lexicographic variant, the result carries both by checked node id with discharge status `undischarged`. | Test (TC-054) |
 | FR-059-AC-2 | A request for the discharge of that loop returns an `unsupported` disposition naming the missing capability, bound to the request's premises, and no proved status. | Test (TC-054) |
 | FR-059-AC-3 | Over a history in which the loop ends within its maximum and exits, the loop's discharge status remains `undischarged` and the loop bound assessment (FR-056) reports no proof. | Test (TC-054) |
-| FR-059-AC-4 | No function of the crate checks an invariant, ranks a variant or constructs a termination argument; the crate's analysis surface names no such operation. | Inspection (TC-054) |
+| FR-059-AC-4 | Over a loop with an invariant and a variant, no result or disposition field reports an invariant checked, a variant rank or a termination verdict, and the only discharge status produced is `undischarged`. | Test (TC-054) |
 
 ## Dependencies
 

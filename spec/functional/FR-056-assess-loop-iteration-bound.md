@@ -33,6 +33,8 @@ Per loop occurrence: the observed iteration count, whether it stayed within the 
 - The evaluator shall report an iteration count above the authored maximum as a loop-bound violation naming the loop, the maximum and the observed count.
 - The evaluator shall report a loop whose history ends inside it as not exited.
 - The evaluator shall not infer that it exits.
+- For a loop with no authored maximum, the evaluator shall report the observed iteration count and the maximum as absent.
+- For a loop with no authored maximum, the evaluator shall report no loop-bound violation and infer no maximum from the history.
 - The evaluator shall keep the exit axis separate from the closure axis (FR-028).
 - The evaluator shall not evaluate the loop's invariant or variant against the history (FR-059).
 
@@ -43,6 +45,7 @@ Per loop occurrence: the observed iteration count, whether it stayed within the 
 | FR-056-AC-1 | Over a loop with maximum m, histories with m-1, m and m+1 iterations report a loop-bound violation only for m+1. | Test (TC-054) |
 | FR-056-AC-2 | A history that ends inside a loop reports the loop as not exited and reports no violation by that fact alone. | Test (TC-054) |
 | FR-056-AC-3 | The loop assessment of a history is unchanged by the closure axis value assessed for the same history. | Test (TC-054) |
+| FR-056-AC-4 | Over a loop with no authored maximum and a history of any iteration count, the assessment reports the observed count, reports the maximum as absent and reports no loop-bound violation. | Test (TC-054) |
 
 ## Dependencies
 

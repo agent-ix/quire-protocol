@@ -30,7 +30,7 @@ Per join: the control identity, the policy (`all`, `any`, `quorum(n)` or `predic
 - The library shall take every control identity from `protocol_view`.
 - The library shall mint none (FR-044).
 - The library shall carry a `predicate` join as a declared policy without evaluating its predicate.
-- The library shall carry a loop's invariant and variant declarations as authored text-free references to the checked nodes.
+- The library shall carry a loop's invariant and variant declarations as references to the checked nodes.
 - The library shall not interpret them. Their discharge is not this library's (FR-059).
 - The library shall carry a join with no `outstanding` rule as having none.
 

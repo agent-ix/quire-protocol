@@ -16,8 +16,8 @@ Verify assess loop bound and report proof as undischarged over a checked package
 
 ## Test Procedure
 
-Assess loops at the maximum minus one, the maximum and one over, a history ending inside a loop, and a loop with an invariant and a lexicographic variant, then request their discharge. Inspect the crate's analysis surface for any check, ranking or termination argument. Tag each test with the exact acceptance criterion it verifies.
+Assess loops at the maximum minus one, the maximum and one over, a loop with no maximum, a history ending inside a loop, and a loop with an invariant and a lexicographic variant, then request their discharge. Tag each test with the exact acceptance criterion it verifies.
 
 ## Expected Results
 
-The bound is judged exactly; an unfinished loop is not exited; declarations stay undischarged; the discharge request is unsupported; no proof code exists.
+The bound is judged exactly; an unfinished loop is not exited; declarations stay undischarged; the discharge request is unsupported; no proof status is produced.

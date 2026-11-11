@@ -14,7 +14,7 @@ Verify assess queue capacity, overflow outcome and order over a checked package 
 
 ## Test Procedure
 
-Assess histories within and over a literal capacity, one per overflow policy matching and mismatching, key-ordered and key-interleaved delivery, and a symbolic-capacity channel. Tag each test with the exact acceptance criterion it verifies.
+Assess histories within and over a literal capacity, one per overflow policy matching and mismatching, key-ordered and key-interleaved delivery, a channel whose premise forbids loss, `unordered` channels with and without a head or tail loss selector, and a symbolic-capacity channel. Tag each test with the exact acceptance criterion it verifies.
 
 ## Expected Results
 
