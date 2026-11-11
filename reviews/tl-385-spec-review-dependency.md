@@ -32,3 +32,16 @@ feature work (TL-6/9/10/11). Two low edge defects.
 | --- | --- | --- | --- |
 | FND-001 | low | ADR-010 declares `depends_on` QSL ADR-017, but the body never cites ADR-017; the boundary is grounded only in ADR-020 and ADR-027 | spec/adr/ADR-010-consume-qsl-protocol-analysis-own-assessment-and-dispatch.md:25-26 |
 | FND-002 | low | FR-301 now dispatches to QSL's refinement backend but has no relationship edge to that owner (QSL ADR-020 or FR-142..FR-149) or to ADR-010; its only owner edges remain QSpec FR-176/FR-177, and ADR-010 is linked only in body prose | spec/functional/FR-301-admit-protocol-refinement-dispatch.md:1-28 |
+
+## New findings (disposition pass 1)
+
+| ID | Severity | Summary | Refs |
+| --- | --- | --- | --- |
+| FND-003 | low | FR-301's rewritten Inputs now take the checked-package references of FR-043 and FR-044 as the dispatched subjects, but FR-301's relationships carry no edge to FR-043 or FR-044 | spec/functional/FR-301-admit-protocol-refinement-dispatch.md:1-40, 54-60 |
+
+## Dispositions
+
+| FND | outcome | reason |
+| --- | --- | --- |
+| FND-001 | fixed | ec54159 cites QSL ADR-017 in Decision 1 as the protocol and frame boundaries the library reads |
+| FND-002 | fixed | ec54159 adds FR-301 edges to ADR-010 (references) and QSL ADR-020, FR-142, FR-144, FR-147 (depends_on); all exist on QSL main |

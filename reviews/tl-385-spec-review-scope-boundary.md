@@ -48,3 +48,9 @@ FR-301's Inputs.
 | ID | Severity | Summary | Refs |
 | --- | --- | --- | --- |
 | FND-001 | medium | FR-301 Inputs still lists "the FR-002 linked participant/role/channel graph for the paired implementation and specification protocols" as the claim's input, as when the library built the product; after the amendment it is unstated what the library hands QSL's refinement backend (the checked package's protocol subjects, as `check_refinement` takes, or the linked graph), so two implementers could build different dispatch inputs | spec/functional/FR-301-admit-protocol-refinement-dispatch.md:44-47 |
+
+## Dispositions
+
+| FND | outcome | reason |
+| --- | --- | --- |
+| FND-001 | fixed | ec54159 states the library hands QSL the checked-package references (FR-043, FR-044) as the request item's subjects and uses the FR-002 graph only to bind the returned result |

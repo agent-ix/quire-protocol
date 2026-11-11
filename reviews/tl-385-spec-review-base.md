@@ -46,3 +46,17 @@ are implemented here under quire-protocol#81.
 | FND-001 | medium | FR-301-AC-3 now requires the QSL backend's result to be carried unchanged and forbids a local product construction, but TC-147's procedure and expected results contain no step that compares the carried result, counterexample or certificate with the backend's output, and the "builds no product construction" clause has no failing test (Verification: Test) | spec/functional/FR-301-admit-protocol-refinement-dispatch.md:89; spec/test-cases/TC-147-admit-protocol-refinement-dispatch.md:20-36 |
 | FND-002 | medium | spec/tests.md FR-301 and TC-147 rows still say refinement awaits `agent-ix/quire-protocol#81` landing FR-176/FR-177 here, contradicting amended FR-301 ("QSL implements them"; this repository owns only dispatch and carrying) | spec/tests.md:181; spec/tests.md:272 |
 | FND-003 | low | ADR-010 Decision 4 and Consequences name "spec.md section 5" and "AD-001 view 7"; the amended text is in spec.md section 2 (Scope, out-of-scope list) and AD-001's Decisions list item 7, not a view | spec/adr/ADR-010-consume-qsl-protocol-analysis-own-assessment-and-dispatch.md:136-139, 180 |
+
+## New findings (disposition pass 1)
+
+| ID | Severity | Summary | Refs |
+| --- | --- | --- | --- |
+| FND-004 | low | New FR-301-AC-6 requires a backend-returned `unsupported` cause to be carried unchanged, but TC-147's fix adds only a backend refusal run; case (3) is the library's own no-backend `unsupported`, so no step has the backend return an `unsupported` cause | spec/functional/FR-301-admit-protocol-refinement-dispatch.md:105; spec/test-cases/TC-147-admit-protocol-refinement-dispatch.md:22-48 |
+
+## Dispositions
+
+| FND | outcome | reason |
+| --- | --- | --- |
+| FND-001 | fixed | ec54159 adds FR-301-AC-6 and TC-147 sentinel-backend runs comparing certificate, counterexample and refusal byte for byte, plus a disagreeing-backend run that fails if a verdict is computed locally |
+| FND-002 | fixed | ec54159 rewrites spec/tests.md FR-301 and TC-147 rows to QSL-implemented FR-176/FR-177 (ADR-010), AC-1..AC-6 |
+| FND-003 | fixed | ec54159 changes Decision 4 and Consequences to "spec.md section 2" and "AD-001 Decisions item 7" |

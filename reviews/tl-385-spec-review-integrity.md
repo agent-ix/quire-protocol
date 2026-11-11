@@ -31,3 +31,9 @@ identification policy still forbids the gaps the blocks create.
 | ID | Severity | Summary | Refs |
 | --- | --- | --- | --- |
 | FND-001 | medium | spec.md section 6 says each namespace is allocated sequentially with no gaps, but ADR-010 Decision 5 reserves FR-050..FR-249 blocks (leaving FR-048/FR-049 unallocated) without amending that rule; the "highest allocated" line this PR edits still reads FR-042 and TC-017 although FR-047, FR-301, FR-302 and TC-147..TC-153 exist | spec/spec.md:104-110; spec/adr/ADR-010-consume-qsl-protocol-analysis-own-assessment-and-dispatch.md:143-157 |
+
+## Dispositions
+
+| FND | outcome | reason |
+| --- | --- | --- |
+| FND-001 | fixed | ec54159 rewrites spec.md section 6: no reuse, FR-001..FR-049 sequential, FR-050..FR-249 reserved by ADR-010, FR-301 onward separate; highest ids FR-047 and TC-153 |

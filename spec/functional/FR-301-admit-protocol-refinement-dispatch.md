@@ -29,6 +29,10 @@ relationships:
     type: references
   - target: ix://agent-ix/quire-protocol/ADR-010
     type: references
+  - target: ix://agent-ix/quire-protocol/FR-043
+    type: depends_on
+  - target: ix://agent-ix/quire-protocol/FR-044
+    type: depends_on
   - target: ix://agent-ix/quire-spec-language/ADR-020
     type: depends_on
   - target: ix://agent-ix/quire-spec-language/FR-142
