@@ -170,7 +170,7 @@ fn a_discharge_request_is_unsupported_naming_the_capability_with_the_requests_pr
         .expect("declared");
     let construct = dynamic.construct(&declaration.control);
     let premises = vec!["fragment-x".to_owned(), "backend-y".to_owned()];
-    let disposition = request_discharge(declaration, construct.clone(), premises.clone());
+    let disposition = request_discharge(dynamic.package(), declaration, premises.clone());
     assert_eq!(disposition.cause, UnsupportedCause::requested_capability());
     let UnsupportedCause::RequestedCapability(code) = &disposition.cause else {
         panic!("the requested-capability cause");
@@ -224,4 +224,62 @@ fn undischarged_is_the_only_discharge_status_and_no_proof_field_exists() {
     // An irrefutable pattern compiles only while `Undischarged` is the single
     // member of the status type.
     let DischargeStatus::Undischarged = status;
+}
+
+#[test]
+#[trace("TC-054", "FR-056-AC-6")]
+fn a_fact_naming_no_declared_loop_refuses_the_history() {
+    use quire_protocol::dynamics::HistoryRefusal;
+    let dynamic = Dynamic::with("workflow", 3);
+    let join = dynamic.named("control", "JoinAll");
+    let fact = LoopFact {
+        at: at(1),
+        control: join.clone(),
+        workflow: workflow("w1"),
+        repeat_ordinals: Vec::new(),
+        event: LoopEvent::Iteration,
+    };
+    assert_eq!(
+        assess_loops(dynamic.linked().declarations(), &[fact]),
+        Err(HistoryRefusal::UndeclaredSubject { node: join })
+    );
+}
+
+#[test]
+#[trace("TC-054", "FR-056-AC-7")]
+fn a_workflow_identity_qsl_cannot_key_refuses_the_history() {
+    use qsl_package::OccurrenceKeyError;
+    use quire_protocol::dynamics::HistoryRefusal;
+    use quire_protocol::ids::WorkflowInstanceId;
+    let dynamic = Dynamic::with("workflow", 3);
+    let refused = |identity: &[u8]| {
+        let fact = LoopFact {
+            at: at(1),
+            control: dynamic.named("control", "Free"),
+            workflow: WorkflowInstanceId::new(identity, "w"),
+            repeat_ordinals: Vec::new(),
+            event: LoopEvent::Iteration,
+        };
+        assess_loops(dynamic.linked().declarations(), &[fact])
+    };
+    assert_eq!(
+        refused(b"\xff\xfe"),
+        Err(HistoryRefusal::WorkflowNotText {
+            workflow: b"\xff\xfe".as_slice().into()
+        })
+    );
+    assert_eq!(
+        refused(b""),
+        Err(HistoryRefusal::Occurrence(
+            OccurrenceKeyError::EmptyWorkflowIdentity
+        ))
+    );
+    let long = vec![b'a'; 4097];
+    assert!(matches!(
+        refused(&long),
+        Err(HistoryRefusal::Occurrence(
+            OccurrenceKeyError::WorkflowIdentityTooLong { bytes: 4097 }
+        ))
+    ));
+    assert!(refused(&long[..4096]).is_ok());
 }

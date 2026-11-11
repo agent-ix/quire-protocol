@@ -148,6 +148,10 @@ pub struct RoleFact {
     pub at: ObservationRef,
     /// The checked `role` node.
     pub role: CheckedNodeId,
+    /// The workflow instance the role instance belongs to. A role's `max`
+    /// bounds the live instances of one workflow instance, and a workflow
+    /// end ends only that workflow's instances.
+    pub workflow: WorkflowInstanceId,
     /// The instance identity the observation names. Never minted here.
     pub instance: RoleInstanceId,
     /// What the instance did.
@@ -185,6 +189,8 @@ pub enum LifetimeViolation {
 pub struct PopulationViolation {
     /// The checked `role` node.
     pub role: CheckedNodeId,
+    /// The workflow instance whose live count exceeded the bound.
+    pub workflow: WorkflowInstanceId,
     /// The authored bound.
     pub bound: u64,
     /// The greatest number of simultaneously live instances observed.
@@ -196,6 +202,9 @@ pub struct PopulationViolation {
 pub struct RoleAssessment {
     /// The checked `role` node.
     pub role: CheckedNodeId,
+    /// The workflow instance assessed: one assessment for each role and
+    /// workflow instance the history names.
+    pub workflow: WorkflowInstanceId,
     /// Each observed instance and whether all its observed activity lies
     /// inside its authored lifetime.
     pub instances: BTreeMap<RoleInstanceId, bool>,
@@ -221,7 +230,7 @@ pub fn assess_roles(
     declarations: &Declarations,
     facts: &[RoleFact],
 ) -> Result<Vec<RoleAssessment>, HistoryRefusal> {
-    let mut by_role: BTreeMap<usize, Vec<&RoleFact>> = BTreeMap::new();
+    let mut by_role: BTreeMap<(usize, &WorkflowInstanceId), Vec<&RoleFact>> = BTreeMap::new();
     for fact in facts {
         let index = declarations
             .roles()
@@ -239,15 +248,18 @@ pub fn assess_roles(
                 role: fact.role.clone(),
             });
         }
-        by_role.entry(index).or_default().push(fact);
+        by_role
+            .entry((index, &fact.workflow))
+            .or_default()
+            .push(fact);
     }
-    let mut assessments = Vec::new();
-    for (index, role) in declarations.roles().iter().enumerate() {
-        let mut role_facts = by_role.remove(&index).unwrap_or_default();
-        role_facts.sort_by(|left, right| left.at.cmp(&right.at));
-        assessments.push(assess_role(role, &role_facts));
-    }
-    Ok(assessments)
+    Ok(by_role
+        .into_iter()
+        .map(|((index, workflow), mut role_facts)| {
+            role_facts.sort_by(|left, right| left.at.cmp(&right.at));
+            assess_role(&declarations.roles()[index], workflow, &role_facts)
+        })
+        .collect())
 }
 
 fn ends_lifetime(lifetime: Option<RoleLifetime>, event: &RoleEvent) -> bool {
@@ -259,7 +271,11 @@ fn ends_lifetime(lifetime: Option<RoleLifetime>, event: &RoleEvent) -> bool {
     )
 }
 
-fn assess_role(role: &RoleDeclaration, facts: &[&RoleFact]) -> RoleAssessment {
+fn assess_role(
+    role: &RoleDeclaration,
+    workflow: &WorkflowInstanceId,
+    facts: &[&RoleFact],
+) -> RoleAssessment {
     let lifetime = match &role.replication {
         RoleReplication::Static => None,
         RoleReplication::Replicated { lifetime, .. } => Some(*lifetime),
@@ -318,12 +334,14 @@ fn assess_role(role: &RoleDeclaration, facts: &[&RoleFact]) -> RoleAssessment {
     let population_violation = bound.and_then(|bound| {
         (max_live > bound).then(|| PopulationViolation {
             role: role.node.clone(),
+            workflow: workflow.clone(),
             bound,
             observed: max_live,
         })
     });
     RoleAssessment {
         role: role.node.clone(),
+        workflow: workflow.clone(),
         instances,
         max_live,
         bound,

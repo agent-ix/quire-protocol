@@ -84,3 +84,15 @@ Ticket: TL-11; PR: quire-protocol#147; reviewed head b9c6e01b4112066a4db8f01c02f
 ## Coverage
 
 Matrix: quire matrix --scope <worktree> --format json; FR-050..059: 45 tagged, 1 untagged (FR-051-AC-3). Focused tests: tc_050..tc_055, 46 passed. Plan completion: not assessed.
+
+## Dispositions
+
+| FND | outcome | reason |
+| --- | --- | --- |
+| FND-001 | fixed | Round 1, ecee04f: \| FR-051-AC-3 \| Over channels authoring `block`, `reject` and `loss` with each of `head`, `tail` and `new`, each linked channel's overflow policy is the authored one, and no channel is linked without one. \| Test (TC-050) \| (FR-050-AC-2 now: replicated roles of different `max` and a static role; FR-053-AC-4 now over a static role; ChannelDeclaration::overflow: ChannelOverflow) |
+| FND-002 | fixed | Round 1, ecee04f: let act = \|position, who: &str\| fact(position, who, RoleEvent::Act, &dynamic, "S"); let assessment = assess(&dynamic, &[act(1, "s1"), act(2, "s1"), act(3, "s2")], "S"); ... Err(HistoryRefusal::StaticRoleLifecycle { role: dynamic.named("role", "S") }) |
+| FND-003 | fixed | Round 1, ecee04f: let LoopAssessment { control: _, workflow: _, repeat_ordinals: _, iterations, maximum, within_maximum, exited, violation } = assessment.clone(); // Destructured with no rest pattern: a closure, progress or any other axis would have to be a new field |
+| FND-004 | fixed | Round 1, ecee04f: for order in [[2, 1, 3, 4, 5, 6], [1, 2, 3, 6, 5, 4], [1, 3, 2, 4, 6, 5]] { ... } // A reordering that is not permitted does change the value let broken = assess(&dynamic, &at_positions([4, 2, 3, 1, 5, 6]), "R"); assert_eq!(broken.lifetime_violations.len(), 1); |
+| FND-005 | fixed | Round 1, ecee04f: for dynamic in [Dynamic::with("workflow", 3), Dynamic::with_unordered_tail_loss()] { ... UnsupportedCause::Construct(Unsupported::UnorderedLossSelector) } |
+| FND-006 | fixed | Round 1, ecee04f: #[trace("TC-053", "FR-055-AC-7")] \| FR-055-AC-7 \| A fact naming a branch label the join does not list refuses the history with the join and label named. \| Test (TC-053) \| |
+| FND-007 | fixed | Round 1, ecee04f: FR-050: retain each authored role declaration (static, or replicated with its population, its `max` bound and its lifetime kind) as QSL's occurrence schema reads it ... the library carries no separate spawn or retire control and no per-role activation rule. FR-053..056 Inputs name RoleFact, ChannelFact, JoinFact, LoopFact. |

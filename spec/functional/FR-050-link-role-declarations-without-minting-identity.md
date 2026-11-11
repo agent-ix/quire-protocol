@@ -9,6 +9,7 @@ relationships:
   - { target: ix://agent-ix/quire-protocol/FR-044, type: depends_on }
   - { target: ix://agent-ix/quire-spec-language/ADR-027, type: references }
   - { target: ix://agent-ix/quire-protocol/FR-051, type: references }
+  - { target: ix://agent-ix/quire-spec-language/FR-384, type: depends_on }
 ---
 # FR-050: Link role declarations without minting identity
 
@@ -26,10 +27,12 @@ The linked representation carrying, per role, the checked node id and QSL's `Rol
 
 ## Behavior
 
-- The library shall read role replication through QSL's `protocol_occurrence_schemas_from_read` and parse none of it from the node terms itself.
+- The library shall read role replication through QSL's `protocol_occurrence_schemas_from_read`.
+- The library shall not parse role replication from the node terms itself.
 - The library shall keep no table of its own.
 - The library shall carry a replicated role's `max` as the authored value (QSL requires one).
-- The library shall carry a static role with no bound and shall not substitute a default bound for it.
+- The library shall carry a static role with no bound.
+- The library shall not substitute a default bound for a static role.
 - The library shall assign no instance identity at link time. A role instance identity exists only where an observation in the history names it (FR-053).
 - The library shall retain a role the checked package marks replicated as replicated.
 - The library shall not expand it into a finite set of roles.
@@ -47,3 +50,4 @@ The linked representation carrying, per role, the checked node id and QSL's `Rol
 
 - [ADR-010](../adr/ADR-010-consume-qsl-protocol-analysis-own-assessment-and-dispatch.md) fixes what this library owns for dynamic roles, bounded queues, joins and loops, and what QSL owns.
 - QSL ADR-027 states the step semantics this requirement does not restate; QSpec FR-170 and FR-171 state the thresholds and overflow rules the criteria cite.
+- QSL FR-384 states the occurrence schema and the runtime key this requirement reads and binds against; QSL owns both.

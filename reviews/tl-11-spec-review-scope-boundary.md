@@ -41,3 +41,11 @@ Findings above must be fixed or dispositioned before merge. Units examined:
 | --- | --- | --- |
 | FND-001 | fixed | Round 1, commit 5ef24e3: - When the assessment of an observed history meets a construct for which QSL would report an `Unsupported` cause, QSL having reported none for that history, the library shall return the same disposition carrying the name of that QSL `Unsupported` variant (`SymbolicCapacity`, `JoinPredicate`, `Unrule |
 | FND-002 | fixed | Round 1, commit 5ef24e3: Given a requires-bound outcome naming a `Population`, a `Collection` and a `Loop` domain, each disposition is typed non-success and carries QSL's outcome unchanged, with each domain's kind and key equal to QSL's and no kind the library defined. |
+
+## New findings (quire-protocol#147 spec delta)
+
+Spec delta of quire-protocol#147 at ecee04fb29b155ea52a4c4f576882992d03f85da (`git diff b9c6e01..ecee04f -- spec/`): FR-050, FR-051, FR-053..FR-056, TC-050..TC-054, spec/tests.md.
+
+| ID | Severity | Summary | Refs |
+| --- | --- | --- | --- |
+| FND-003 | medium | Join/loop facts now cross into QSL's text workflow-identity domain (UTF-8, <=4096 bytes) from byte identities; the spec does not state the boundary or its refusal | spec/functional/FR-055-assess-join-settlement-per-policy.md:Inputs |

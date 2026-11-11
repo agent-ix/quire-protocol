@@ -355,3 +355,22 @@ fn an_unordered_channel_has_no_order_violation_and_a_head_or_tail_loss_is_unsupp
         );
     }
 }
+
+#[test]
+#[trace("TC-052", "FR-054-AC-9")]
+fn a_fact_naming_no_declared_channel_refuses_the_history() {
+    use quire_protocol::dynamics::HistoryRefusal;
+    let dynamic = Dynamic::with("workflow", 3);
+    let role = dynamic.named("role", "S");
+    let fact = ChannelFact {
+        at: at(1),
+        channel: role.clone(),
+        event: enqueue("m1", "k"),
+    };
+    assert_eq!(
+        assess_channels(dynamic.linked().declarations(), &[fact], |node| {
+            dynamic.construct(node)
+        }),
+        Err(HistoryRefusal::UndeclaredSubject { node: role })
+    );
+}

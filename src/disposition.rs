@@ -268,18 +268,15 @@ impl LoopProof {
 
 /// The disposition of a request to discharge `declaration`'s invariant or
 /// variant: `unsupported`, carrying QSL's requested-capability cause, bound to
-/// the request's premises. The construct is always the loop's own control: the
-/// caller supplies only its locus.
+/// the request's premises. The construct and its locus are the loop's own
+/// control's, read from `package`.
 #[must_use]
 pub fn request_discharge<P>(
+    package: &CheckedPackageV2,
     declaration: &LoopDeclaration,
-    construct: Construct,
     premises: P,
 ) -> UnsupportedDisposition<P> {
-    let construct = Construct {
-        node: declaration.control.clone(),
-        locus: construct.locus,
-    };
+    let construct = Construct::of(package, &declaration.control);
     UnsupportedDisposition {
         cause: UnsupportedCause::requested_capability(),
         construct,

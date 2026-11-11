@@ -88,7 +88,7 @@ Assurance producer, license, implementation plan, and retained corpus remain
 explicit gates.
 
 The repository carries 70 functional requirements, 8 non-functional
-requirements, 3 integration tests and 40 test cases, and 467 acceptance criteria
+requirements, 3 integration tests and 40 test cases, and 474 acceptance criteria
 across the 70 FRs and the 8 NFRs. The functional set divides into 9 aggregate or
 behavioural parents (FR-001..FR-009), 9 object requirements (FR-010..FR-018),
 24 atomic behavioural parts (FR-019..FR-042) that the parents aggregate
@@ -103,8 +103,8 @@ obligations once each through those parts; the parent row and the part rows are
 therefore two views of one obligation and must not be added together as
 separate work.
 
-The 408 counts rows of a `## Acceptance Criteria` table on an FR or an NFR, and
-nothing else. `quire properties` reports 428 criteria over the same tree: the
+The 415 counts rows of a `## Acceptance Criteria` table on an FR or an NFR, and
+nothing else. `quire properties` reports 435 criteria over the same tree: the
 extra 20 are the `StR-0NN-VC-n` validation criteria of StR-001 through StR-005,
 which are stakeholder validation rather than FR/NFR acceptance and which this
 matrix carries no table for. NFR-005's five metrics are outside that figure;
@@ -136,7 +136,7 @@ as passing by this stage.
 ### What each status word in this matrix means
 
 - **Living-test** — the criterion carries a `#[trace(...)]` attribute on a test in
-  the current tree. 187 of 349 criteria. This is the only claim
+  the current tree. 194 of 356 criteria. This is the only claim
   of passing this matrix makes, and it is read from the tree, not from a
   `Verification` cell.
 - **Designated** — the criterion's `Verification` cell names a test case or an
@@ -213,10 +213,10 @@ in Domain Object Coverage instead.
 | FR-050 | FR-050-AC-1..AC-4 | TC-050 (AC-1..AC-4) | ✅ Implemented — all 4 criteria have living traced tests over a package compiled by QSL's writer: roles are read through QSL's occurrence schema (lifetime kinds, `max`, static role without a bound). |
 | FR-051 | FR-051-AC-1..AC-3 | TC-050 (AC-1..AC-3) | ✅ Implemented — all 3 criteria have living traced tests: delivery and capacity equal QSL's accessors, a symbolic capacity stays its name, every channel carries an authored overflow policy. |
 | FR-052 | FR-052-AC-1..AC-3 | TC-050 (AC-1..AC-3) | ✅ Implemented — all 3 criteria have living traced tests: each join policy, a predicate join and unruled joins, and a loop's invariant and variant by node. |
-| FR-053 | FR-053-AC-1..AC-9 | TC-051 (AC-1..AC-9) | ✅ Implemented — all 9 criteria have living traced tests over the library's `RoleFact` input. |
-| FR-054 | FR-054-AC-1..AC-8 | TC-052 (AC-1..AC-8) | ✅ Implemented — all 8 criteria have living traced tests over the library's `ChannelFact` input; a loss is judged against the queue. |
-| FR-055 | FR-055-AC-1..AC-8 | TC-053 (AC-1..AC-8) | ✅ Implemented — all 8 criteria have living traced tests over the library's `JoinFact` input, one occurrence per workflow and repeat ordinals. |
-| FR-056 | FR-056-AC-1..AC-5 | TC-054 (AC-1..AC-5) | ✅ Implemented — all 5 criteria have living traced tests over the library's `LoopFact` input. |
+| FR-053 | FR-053-AC-1..AC-11 | TC-051 (AC-1..AC-11) | ✅ Implemented — all 11 criteria have living traced tests over the library's `RoleFact` input. |
+| FR-054 | FR-054-AC-1..AC-9 | TC-052 (AC-1..AC-9) | ✅ Implemented — all 9 criteria have living traced tests over the library's `ChannelFact` input; a loss is judged against the queue. |
+| FR-055 | FR-055-AC-1..AC-10 | TC-053 (AC-1..AC-10) | ✅ Implemented — all 10 criteria have living traced tests over the library's `JoinFact` input, one occurrence per workflow and repeat ordinals. |
+| FR-056 | FR-056-AC-1..AC-7 | TC-054 (AC-1..AC-7) | ✅ Implemented — all 7 criteria have living traced tests over the library's `LoopFact` input. |
 | FR-057 | FR-057-AC-1..AC-4 | TC-055 (AC-1..AC-4) | ✅ Implemented — all 4 criteria have living traced tests; the cause is QSL's typed `Unsupported`, or its catalog code, or unrecognised bytes retained. |
 | FR-058 | FR-058-AC-1..AC-3 | TC-055 (AC-1..AC-3) | ✅ Implemented — all 3 criteria have living traced tests over QSL's `RequiresBound`. |
 | FR-059 | FR-059-AC-1..AC-4 | TC-054 (AC-1..AC-4) | ✅ Implemented — all 4 criteria have living traced tests; `Undischarged` is the only status. |
@@ -365,10 +365,10 @@ criterion is a zero inside it rather than a row removed from it.
 
 | Category | Total | Passed | Failed | Blocked | Planned | Retired |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Overall owed criteria | 467 | 185 | 0 | 0 | 149 | 133 |
+| Overall owed criteria | 474 | 192 | 0 | 0 | 149 | 133 |
 
 Passed means the criterion carries a living traced test in the current tree
-(185 of 467). Retired means the criterion's row lost every test in QSL-1549
+(192 of 474). Retired means the criterion's row lost every test in QSL-1549
 stage 1 (133). Blocked is none: QSL delivered the evaluation entries that FR-045 and FR-046 wait on. Planned
 (149) includes the criteria that verify by Inspection or Analysis only and
 FR-014-AC-6, which waits on IT-003's Quoin scenario-record handoff.

@@ -12,11 +12,13 @@ mod support {
 }
 
 use ix_trace_rs::trace;
+use qsl_package::protocol_view::{CausalEdge, PortRef};
+use quire_contract_model::CheckedNodeId;
 use quire_protocol::dynamics::{
     assess_roles, HistoryRefusal, LifetimeViolation, PopulationViolation, RoleAssessment,
     RoleEvent, RoleFact,
 };
-use support::dynamic::{at, instance, Dynamic};
+use support::dynamic::{at, instance, workflow, Dynamic};
 
 const UNTIL: &str = "until(input = input and R = R)";
 
@@ -24,6 +26,7 @@ fn fact(position: u64, who: &str, event: RoleEvent, dynamic: &Dynamic, role: &st
     RoleFact {
         at: at(position),
         role: dynamic.named("role", role),
+        workflow: workflow("w1"),
         instance: instance(who),
         event,
     }
@@ -124,6 +127,7 @@ fn reaching_the_bound_is_clean_and_one_more_names_role_bound_and_count() {
         over.population_violation,
         Some(PopulationViolation {
             role: dynamic.named("role", "R"),
+            workflow: workflow("w1"),
             bound: 2,
             observed: 3,
         })
@@ -142,7 +146,13 @@ fn a_static_role_has_no_bound_and_its_activity_is_never_a_lifetime_violation() {
     assert_eq!(assessment.population_violation, None);
     assert!(assessment.lifetime_violations.is_empty());
     assert!(assessment.instances.values().all(|inside| *inside));
-    // QSL never spawns a static role: a spawn fact for one is not a history.
+}
+
+#[test]
+#[trace("TC-051", "FR-053-AC-10")]
+fn a_spawn_retire_or_end_fact_for_a_static_role_refuses_the_history() {
+    let dynamic = Dynamic::with("workflow", 3);
+    // QSL never spawns a static role: a lifecycle fact for one is not a history.
     let spawn = fact(1, "s1", RoleEvent::Spawn, &dynamic, "S");
     assert_eq!(
         assess_roles(dynamic.linked().declarations(), &[spawn]),
@@ -152,13 +162,49 @@ fn a_static_role_has_no_bound_and_its_activity_is_never_a_lifetime_violation() {
     );
 }
 
+/// Whether any port of `to` is reachable from any port of `from` over the
+/// causal edges, following each edge from its source port to its target port.
+fn reaches(edges: &[CausalEdge], from: &CheckedNodeId, to: &CheckedNodeId) -> bool {
+    let mut frontier: Vec<&PortRef> = edges
+        .iter()
+        .map(|edge| &edge.from)
+        .filter(|port| &port.node == from)
+        .collect();
+    let mut seen: Vec<&PortRef> = Vec::new();
+    while let Some(port) = frontier.pop() {
+        if seen.contains(&port) {
+            continue;
+        }
+        seen.push(port);
+        for edge in edges.iter().filter(|edge| &edge.from == port) {
+            if &edge.to.node == to {
+                return true;
+            }
+            frontier.push(&edge.to);
+        }
+    }
+    false
+}
+
 #[test]
 #[trace("TC-051", "FR-053-AC-5")]
 fn a_permitted_reordering_of_concurrent_observations_changes_no_value() {
     let dynamic = Dynamic::with("workflow", 2);
-    // Three instances, one per observation; the spawns and the acts of
-    // different instances are concurrent (no causal edge relates them), so
-    // swapping their positions is a permitted presentation order.
+    // The authored causal relation, read from the linked protocol: the two
+    // branches of the `JoinAll` parallel are concurrent, neither reaches the
+    // other, so observations made in them may be presented in either order.
+    let edges = dynamic.linked().edges();
+    let left = dynamic.named("control", "JoinAlla");
+    let right = dynamic.named("control", "JoinAllb");
+    assert!(!reaches(edges, &left, &right) && !reaches(edges, &right, &left));
+    // The same relation does order a branch before the join that follows it.
+    assert!(reaches(
+        edges,
+        &left,
+        &dynamic.named("control", "AnyContinue")
+    ));
+    // Instance i1 acts in the left branch and i2 in the right: their
+    // observations are the concurrent pair whose positions are exchanged.
     let at_positions = |order: [u64; 6]| {
         vec![
             r(order[0], "i1", RoleEvent::Spawn, &dynamic),
@@ -172,8 +218,6 @@ fn a_permitted_reordering_of_concurrent_observations_changes_no_value() {
     let reference = assess(&dynamic, &at_positions([1, 2, 3, 4, 5, 6]), "R");
     assert!(reference.population_violation.is_some());
     assert!(reference.lifetime_violations.is_empty());
-    // Concurrent spawns exchanged; concurrent acts exchanged; a spawn moved
-    // after the other instances' acts (its own act still follows it).
     for order in [[2, 1, 3, 4, 5, 6], [1, 2, 3, 6, 5, 4], [1, 3, 2, 4, 6, 5]] {
         let assessment = assess(&dynamic, &at_positions(order), "R");
         assert_eq!(assessment.max_live, reference.max_live, "{order:?}");
@@ -187,10 +231,72 @@ fn a_permitted_reordering_of_concurrent_observations_changes_no_value() {
         );
         assert_eq!(assessment.instances, reference.instances);
     }
-    // A reordering that is not permitted does change the value: an instance's
-    // act moved before its own spawn.
+    // A reordering the relation does not permit does change the value: an
+    // instance's act moved before its own spawn.
     let broken = assess(&dynamic, &at_positions([4, 2, 3, 1, 5, 6]), "R");
     assert_eq!(broken.lifetime_violations.len(), 1);
+}
+
+#[test]
+#[trace("TC-051", "FR-053-AC-11")]
+fn population_and_workflow_end_are_judged_per_workflow_instance() {
+    let dynamic = Dynamic::with("workflow", 2);
+    let in_workflow = |position, flow: &str, who: &str, event| RoleFact {
+        at: at(position),
+        role: dynamic.named("role", "R"),
+        workflow: workflow(flow),
+        instance: instance(who),
+        event,
+    };
+    // Two workflow instances, two live instances each: under `max 2` in each,
+    // four together.
+    let facts = [
+        in_workflow(1, "w1", "a1", RoleEvent::Spawn),
+        in_workflow(2, "w1", "a2", RoleEvent::Spawn),
+        in_workflow(3, "w2", "b1", RoleEvent::Spawn),
+        in_workflow(4, "w2", "b2", RoleEvent::Spawn),
+    ];
+    let assessed = assess_roles(dynamic.linked().declarations(), &facts).expect("declared");
+    let for_r: Vec<_> = assessed
+        .iter()
+        .filter(|a| a.role == dynamic.named("role", "R"))
+        .collect();
+    assert_eq!(for_r.len(), 2);
+    assert!(for_r
+        .iter()
+        .all(|a| a.max_live == 2 && a.population_violation.is_none()));
+    // A third instance in w1 alone is a violation, and names w1.
+    let mut over = facts.to_vec();
+    over.push(in_workflow(5, "w1", "a3", RoleEvent::Spawn));
+    let violations: Vec<_> = assess_roles(dynamic.linked().declarations(), &over)
+        .expect("declared")
+        .into_iter()
+        .filter_map(|a| a.population_violation)
+        .collect();
+    assert_eq!(
+        violations,
+        [PopulationViolation {
+            role: dynamic.named("role", "R"),
+            workflow: workflow("w1"),
+            bound: 2,
+            observed: 3,
+        }]
+    );
+    // The end of w1's workflow ends w1's instances only: w2's instance acts on.
+    let ended = [
+        in_workflow(1, "w1", "x", RoleEvent::Spawn),
+        in_workflow(2, "w2", "x", RoleEvent::Spawn),
+        in_workflow(3, "w1", "x", RoleEvent::WorkflowEnd),
+        in_workflow(4, "w2", "x", RoleEvent::Act),
+        in_workflow(5, "w1", "x", RoleEvent::Act),
+    ];
+    let per_workflow: Vec<_> = assess_roles(dynamic.linked().declarations(), &ended)
+        .expect("declared")
+        .into_iter()
+        .filter(|a| a.role == dynamic.named("role", "R"))
+        .map(|a| (a.workflow, a.lifetime_violations.len()))
+        .collect();
+    assert_eq!(per_workflow, [(workflow("w1"), 1), (workflow("w2"), 0)]);
 }
 
 #[test]
@@ -273,6 +379,7 @@ fn a_fact_naming_no_declared_role_refuses_the_history() {
     let fact = RoleFact {
         at: at(1),
         role: channel.clone(),
+        workflow: workflow("w1"),
         instance: instance("i1"),
         event: RoleEvent::Act,
     };

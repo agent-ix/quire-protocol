@@ -29,7 +29,8 @@ Per channel: the checked node id, the delivery premise, the ordering (`fifo` wit
 - The library shall obtain the delivery premise and capacity through QSL's `delivery` and `queue_capacity` accessors wherever they own the value (FR-044).
 - The library shall keep a symbolic capacity as the authored expression.
 - The library shall not evaluate it to a number.
-- The library shall carry the overflow policy the queue node authors and shall supply none; a queue node without one is not an admitted package.
+- The library shall carry the overflow policy the queue node authors.
+- The library shall supply no overflow policy of its own; a queue node without one is not an admitted package.
 - Conflicting channel premises remain refused by FR-044; this requirement adds no second refusal for them.
 
 ## Acceptance Criteria

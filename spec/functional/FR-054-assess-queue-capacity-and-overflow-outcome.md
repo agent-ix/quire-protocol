@@ -41,6 +41,7 @@ Per channel: the observed maximum occupancy, whether it stayed within capacity, 
 - The evaluator shall report an observed loss, duplication or reordering that the channel's delivery premise does not permit as a premise violation naming the channel and the premise.
 - For an `unordered` channel whose overflow loses its `head` or `tail`, the evaluator shall return the disposition of FR-057 for that channel.
 - The evaluator shall report each violation without repairing it (FR-027).
+- The evaluator shall refuse a history that names a node that is not a declared channel, naming the node, and return no assessment.
 - This requirement states no step semantics. QSL owns the exploration semantics (QSL ADR-027); this library assesses one admitted observation history (ADR-010 Decision 2).
 
 ## Acceptance Criteria
@@ -55,6 +56,7 @@ Per channel: the observed maximum occupancy, whether it stayed within capacity, 
 | FR-054-AC-6 | Over a channel whose delivery premise forbids loss and a history with a lost message, and over one whose premise permits it, the assessment reports a premise violation naming channel and premise only for the first. | Test (TC-052) |
 | FR-054-AC-7 | Over an `unordered` channel, any delivery order of the same messages reports no order violation; over an `unordered` channel whose overflow loses `head` or `tail`, the assessment returns the FR-057 disposition for that channel. | Test (TC-052) |
 | FR-054-AC-8 | Over a `loss head` channel holding messages m1 to m4, a loss labelled `head` that drops m1 reports no violation, and one that drops m3, one labelled `tail` that drops m4 and a `head` loss of the arriving message on an empty queue each report an overflow violation. | Test (TC-052) |
+| FR-054-AC-9 | A fact naming a node that is not a declared channel refuses the history with the node named, and no channel assessment is returned. | Test (TC-052) |
 
 ## Dependencies
 

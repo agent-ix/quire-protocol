@@ -13,6 +13,7 @@ relationships:
   - { target: ix://agent-ix/quire-specification/FR-171, type: references }
   - { target: ix://agent-ix/quire-spec-language/ADR-027, type: references }
   - { target: ix://agent-ix/quire-protocol/FR-052, type: depends_on }
+  - { target: ix://agent-ix/quire-spec-language/FR-384, type: depends_on }
 ---
 # FR-056: Assess an observed loop against its iteration bound
 
@@ -36,6 +37,10 @@ Per loop occurrence: the observed iteration count, whether it stayed within the 
 - For a loop with no authored maximum, the evaluator shall report the observed iteration count and the maximum as absent.
 - For a loop with no authored maximum, the evaluator shall report no loop-bound violation and infer no maximum from the history.
 - The evaluator shall keep one occurrence for each workflow instance and enclosing repeat ordinals, so a loop inside a `repeat` counts each outer iteration alone.
+- The evaluator shall refuse a history that names a node that is not a declared loop, naming the node.
+- The evaluator shall refuse a history whose workflow instance identity QSL's occurrence key cannot take.
+- QSL takes a workflow identity as non-empty UTF-8 text of at most 4096 bytes, while this library's identities are exact bytes; the evaluator shall pass the bytes as text where they are UTF-8.
+- The evaluator shall not repair or lossily convert a workflow identity that is not such text.
 - The evaluator shall keep the exit axis separate from the closure axis (FR-028).
 - The evaluator shall not evaluate the loop's invariant or variant against the history (FR-059).
 
@@ -48,8 +53,11 @@ Per loop occurrence: the observed iteration count, whether it stayed within the 
 | FR-056-AC-3 | The loop assessment of a history is unchanged by the closure axis value assessed for the same history. | Test (TC-054) |
 | FR-056-AC-4 | Over a loop with no authored maximum and a history of any iteration count, the assessment reports the observed count, reports the maximum as absent and reports no loop-bound violation. | Test (TC-054) |
 | FR-056-AC-5 | Over a loop inside a `repeat`, iterations observed under two outer ordinals are two occurrences, each judged against the maximum alone, and an ordinal outside the outer repeat's maximum refuses the history. | Test (TC-054) |
+| FR-056-AC-6 | A fact naming a node that is not a declared loop refuses the history with the node named. | Test (TC-054) |
+| FR-056-AC-7 | A workflow instance identity that is not UTF-8, is empty or exceeds 4096 bytes refuses the history with QSL's refusal or the non-text identity named, and an identity of exactly 4096 UTF-8 bytes is accepted. | Test (TC-054) |
 
 ## Dependencies
 
 - [ADR-010](../adr/ADR-010-consume-qsl-protocol-analysis-own-assessment-and-dispatch.md) fixes what this library owns for dynamic roles, bounded queues, joins and loops, and what QSL owns.
 - QSL ADR-027 states the step semantics this requirement does not restate; QSpec FR-170 and FR-171 state the thresholds and overflow rules the criteria cite.
+- QSL FR-384 states the occurrence schema and the runtime key this requirement reads and binds against; QSL owns both.

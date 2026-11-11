@@ -75,3 +75,11 @@ Findings above must be fixed or dispositioned before merge. Units examined:
 | --- | --- | --- |
 | FND-001 | fixed | Round 1, commit 5ef24e3: Verify link role, queue, join and loop declarations over an admitted checked package, with no observation history and no exploration of the protocol. |
 | FND-002 | fixed | Round 1, commit 5ef24e3: Over a loop with an invariant and a variant, no result or disposition field reports an invariant checked, a variant rank or a termination verdict, and the only discharge status produced is `undischarged`. |
+
+## New findings (quire-protocol#147 spec delta)
+
+Spec delta of quire-protocol#147 at ecee04fb29b155ea52a4c4f576882992d03f85da (`git diff b9c6e01..ecee04f -- spec/`): FR-050, FR-051, FR-053..FR-056, TC-050..TC-054, spec/tests.md.
+
+| ID | Severity | Summary | Refs |
+| --- | --- | --- | --- |
+| FND-003 | low | FR-053-AC-5 cites the authored causal order, but its evidence never consults the causal relation | spec/functional/FR-053-assess-role-lifetime-and-population.md:AC-5 |

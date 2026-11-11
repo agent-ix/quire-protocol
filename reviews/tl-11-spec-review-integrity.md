@@ -41,3 +41,12 @@ Findings above must be fixed or dispositioned before merge. Units examined:
 | --- | --- | --- |
 | FND-001 | fixed | Round 1, commit 5ef24e3: - The evaluator shall report each violation without repairing it (FR-027). |
 | FND-002 | fixed | Round 1, commit 5ef24e3: - The evaluator shall report each violation without repairing it (FR-027). |
+
+## New findings (quire-protocol#147 spec delta)
+
+Spec delta of quire-protocol#147 at ecee04fb29b155ea52a4c4f576882992d03f85da (`git diff b9c6e01..ecee04f -- spec/`): FR-050, FR-051, FR-053..FR-056, TC-050..TC-054, spec/tests.md.
+
+| ID | Severity | Summary | Refs |
+| --- | --- | --- | --- |
+| FND-003 | medium | History refusals are specified for roles and joins but not for channels and loops (UndeclaredSubject, WorkflowNotText); FR-053's refusals have no Behavior line | spec/functional/FR-054-assess-queue-capacity-and-overflow-outcome.md:Behavior |
+| FND-004 | low | FR-053-AC-4 is compound: static-role assessment and lifecycle-fact refusal in one criterion | spec/functional/FR-053-assess-role-lifetime-and-population.md:AC-4 |

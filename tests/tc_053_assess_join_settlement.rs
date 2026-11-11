@@ -317,3 +317,47 @@ fn a_join_inside_a_repeat_is_one_occurrence_for_each_iteration() {
         ))
     ));
 }
+
+#[test]
+#[trace("TC-053", "FR-055-AC-9")]
+fn a_workflow_identity_qsl_cannot_key_refuses_the_history() {
+    use quire_protocol::ids::WorkflowInstanceId;
+    let dynamic = Dynamic::with("workflow", 3);
+    let refused = |identity: &[u8]| {
+        let mut facts = history(&dynamic, "JoinAll", "w1", vec![JoinEvent::Settled]);
+        facts[0].workflow = WorkflowInstanceId::new(identity, "w");
+        outcomes(&dynamic, &facts)
+    };
+    assert_eq!(
+        refused(b"\xff\xfe"),
+        Err(HistoryRefusal::WorkflowNotText {
+            workflow: b"\xff\xfe".as_slice().into()
+        })
+    );
+    assert_eq!(
+        refused(b""),
+        Err(HistoryRefusal::Occurrence(
+            OccurrenceKeyError::EmptyWorkflowIdentity
+        ))
+    );
+    assert!(matches!(
+        refused(&vec![b'a'; 4097]),
+        Err(HistoryRefusal::Occurrence(
+            OccurrenceKeyError::WorkflowIdentityTooLong { .. }
+        ))
+    ));
+    assert!(refused(&[b'a'; 4096]).is_ok());
+}
+
+#[test]
+#[trace("TC-053", "FR-055-AC-10")]
+fn a_fact_naming_no_declared_join_refuses_the_history() {
+    let dynamic = Dynamic::with("workflow", 3);
+    let node = dynamic.named("control", "Bounded");
+    let mut facts = history(&dynamic, "JoinAll", "w1", vec![JoinEvent::Settled]);
+    facts[0].join = node.clone();
+    assert_eq!(
+        outcomes(&dynamic, &facts),
+        Err(HistoryRefusal::UndeclaredSubject { node })
+    );
+}

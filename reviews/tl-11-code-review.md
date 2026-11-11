@@ -90,3 +90,25 @@ Ticket: TL-11; PR: quire-protocol#147; reviewed head b9c6e01b4112066a4db8f01c02f
 ## Coverage
 
 Focused checks on the head: cargo clippy --locked --all-targets -D warnings clean; cargo test for tc_050..tc_055: 46 passed, 0 failed. The full aggregate gate was not run (left to the lead). Owner types read in QSL main 91c6158: qsl-package protocol_occurrence.rs (RoleReplication, RoleLifetime, RepeatDimension, protocol_occurrence_schemas_from_read), protocol_occurrence_key.rs (ProtocolOccurrenceKey), qsl-semantics protocol_slots.rs (CheckedReplicatedRole.max: u64), protocol_controls.rs (CheckedChannel.overflow non-optional), qsl-eval simulation/protocol.rs (Unsupported, construct() only), qsl-route model_request.rs:449 (CatalogCode for unsupported-requested-capability). Plan completion: not assessed.
+
+## New findings (disposition pass 1)
+
+Reviewed head ecee04fb29b155ea52a4c4f576882992d03f85da (`git diff b9c6e01..ecee04f`).
+
+| ID | Severity | Summary | Refs |
+| --- | --- | --- | --- |
+| FND-009 | low | request_discharge keeps a caller-supplied locus under the loop's node; derive the whole Construct from the package | src/disposition.rs:274-288 |
+| FND-010 | medium | RoleFact has no workflow instance, so population is counted across workflow instances against a per-instance max | src/dynamics.rs:146-155, 220-250 |
+
+## Dispositions
+
+| FND | outcome | reason |
+| --- | --- | --- |
+| FND-001 | fixed | Round 1, ecee04f: RoleEvent::Act if lifetime.is_none() => {} ... if is_static && fact.event != RoleEvent::Act {     return Err(HistoryRefusal::StaticRoleLifecycle { role: fact.role.clone() }); } |
+| FND-002 | fixed | Round 1, ecee04f: let schema = protocol_occurrence_schemas_from_read(package)     .map_err(LinkRefusal::Occurrence)?     ...     .find(\|schema\| schema.workflow == clause_key) ... replication: slot.replication.clone(),   // RoleDeclaration { node, key, replication: RoleReplication } |
+| FND-003 | fixed | Round 1, ecee04f: pub repeat_ordinals: Vec<Integer>,   // on JoinFact and LoopFact ... schema.bind(identity, control, &owner, repeat_ordinals) ... type Key<'a> = (usize, &'a WorkflowInstanceId, Vec<String>); |
+| FND-004 | fixed | Round 1, ecee04f: let observed_matches_queue = match outcome {     OverflowOutcome::Blocked \| OverflowOutcome::Rejected => true,     OverflowOutcome::Lost { selector, dropped } => match selector {         LossSelector::Head => others.first().copied() == Some(dropped),         LossSelector::Tail => others.last().copied() == Some(dropped),         LossSelector::New => dropped == message,     }, }; |
+| FND-005 | fixed | Round 1, ecee04f: RequestedCapability(CatalogCode), ... pub const fn requested_capability() -> Self {     Self::RequestedCapability(CatalogCode::new(         "unsupported_projection",         "unsupported-requested-capability",     )) } |
+| FND-006 | deferred | Seam shape is a forward concern, not a defect for FR-057/058; the QslBoundary doc now records that TL-9 (FR-200..204) and TL-10 (FR-150..153) extend it with a refusal arm, an optional construct and a warning slot. Built by those tickets. |
+| FND-007 | fixed | Round 1, ecee04f: let capacity = match steppable_capacity(channel) {     Ok(capacity) => capacity,     Err(cause) => { return ChannelOutcome::Unsupported { .. } } }; ... let construct = Construct { node: declaration.control.clone(), locus: construct.locus }; |
+| FND-008 | fixed | Round 1, ecee04f: /// A join declaration with no fact yields no occurrence. A join QSL would /// report `Unsupported` for yields one [`JoinOutcome::Unsupported`] for each /// occurrence (workflow instance and enclosing repeat ordinals) the history /// names. |
