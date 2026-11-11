@@ -105,9 +105,12 @@ relationships identify normative owners without copying their clauses.
 
 Local immutable identifiers begin at `StR-001`, `US-001`, `FR-001`, `NFR-001`,
 `IT-001`, `TC-001`, `ADR-001`, `TM-001`, `AP-001`, and `AD-001`.
-Each namespace is allocated sequentially with no gaps and no reuse; the highest
-allocated identifier is currently `StR-005`, `US-007`, `FR-042`, `NFR-008`,
-`IT-003`, `TC-017`, `ADR-010`, `TM-001`, `AP-001`, and `AD-001`.
+Each namespace is allocated without reuse. FR ids are allocated sequentially
+from `FR-001` to `FR-049`; `FR-050` to `FR-249` are reserved in blocks by
+[ADR-010](adr/ADR-010-consume-qsl-protocol-analysis-own-assessment-and-dispatch.md),
+and `FR-301` onward are allocated separately. The highest allocated identifiers
+are currently `StR-005`, `US-007`, `FR-047` (`FR-301` and `FR-302` in the
+separate range), `NFR-008`, `IT-003`, `TC-153`, `ADR-010`, `TM-001`, `AP-001`, and `AD-001`.
 
 ## 7. Requirement Quality Policy
 

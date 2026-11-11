@@ -107,7 +107,9 @@ them (FR-005). Those are different questions, and the split follows them.
    composition decision procedure, and no queue, role, join or loop
    exploration semantics.** It consumes QSL's. It builds no product
    construction, strategy game or fixed-point engine. This is ADR-007 and
-   AD-001's boundary table applied to the extension.
+   AD-001's boundary table applied to the extension. The protocol and
+   frame boundaries QSL fixes for the checked package, which this library
+   reads and does not redefine, are QSL ADR-017.
 
 2. **The library owns exactly four things for these capabilities.**
    - *Linking:* retaining each authored role, population bound, channel
@@ -135,7 +137,7 @@ them (FR-005). Those are different questions, and the split follows them.
 
 4. **FR-301's "explicit-state product construction" is QSL's.** The product
    over the concrete and abstract protocol systems is `check_refinement`
-   (ADR-020 RE-1). FR-301, spec.md section 5, AD-001 view 7 and TC-147 are
+   (ADR-020 RE-1). FR-301, spec.md section 2, AD-001 Decisions item 7 and TC-147 are
    amended with this record to say that the library dispatches a refinement
    claim to QSL's refinement backend and carries its result, instead of
    building the product over the FR-002 graph.
@@ -151,7 +153,7 @@ them (FR-005). Those are different questions, and the split follows them.
    | FR-150 to FR-199 | Projection, realizability | TL-10 |
    | FR-200 to FR-249 | Assume-guarantee composition, refinement | TL-9 |
 
-   FR-301 and FR-302 stay where they are. The FR-050 to FR-054 ids that
+   FR-301 gains FR-301-AC-6 (result carried unchanged). FR-301 and FR-302 stay where they are. The FR-050 to FR-054 ids that
    artifacts cite as "source requirements" are QSpec ids, written
    `ix://agent-ix/quire-specification/FR-0nn`; they are not local ids and do
    not collide with these blocks.
@@ -177,7 +179,7 @@ them (FR-005). Those are different questions, and the split follows them.
 - The library keeps no copy of QSL's step semantics. Where a requirement here
   must state a threshold or overflow rule for assessment, it cites the QSpec
   clause (FR-170, FR-171) and the QSL record (ADR-027) and does not restate them.
-- FR-301, spec.md section 5, AD-001 and TC-147 lose their wording about a
+- FR-301, spec.md section 2, AD-001 and TC-147 lose their wording about a
   library-built product construction. Their dispatch, independence and
   premise-binding obligations are unchanged.
 

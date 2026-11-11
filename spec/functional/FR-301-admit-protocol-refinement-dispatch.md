@@ -27,6 +27,16 @@ relationships:
     type: references
   - target: ix://agent-ix/quire-specification/AD-007
     type: references
+  - target: ix://agent-ix/quire-protocol/ADR-010
+    type: references
+  - target: ix://agent-ix/quire-spec-language/ADR-020
+    type: depends_on
+  - target: ix://agent-ix/quire-spec-language/FR-142
+    type: depends_on
+  - target: ix://agent-ix/quire-spec-language/FR-144
+    type: depends_on
+  - target: ix://agent-ix/quire-spec-language/FR-147
+    type: depends_on
 ---
 # FR-301: Admit protocol refinement dispatch
 
@@ -42,9 +52,12 @@ advanced claim with no accepted backend.
 ## Inputs
 
 One requested `refinement` claim with its admitted fragment, selected backend,
-assumptions and source identities; the FR-002 linked participant/role/channel
-graph for the paired implementation and specification protocols; and the
-admitted FR-176/FR-177 assume-guarantee and refinement contracts.
+assumptions and source identities; the checked-package references (FR-043,
+FR-044) naming the paired implementation and specification protocols, which
+this library hands QSL's refinement backend as that request item's subjects;
+the FR-002 linked graph, used only to bind the returned result to source
+identities; and the admitted FR-176/FR-177 assume-guarantee and refinement
+contracts.
 
 ## Outputs
 
@@ -89,6 +102,7 @@ introduces no separate dispatch path, resource guard or fallback backend.
 | FR-301-AC-3 | Once FR-176 and FR-177 are admitted, a requested refinement claim is dispatched to QSL's refinement backend and its result carried unchanged, bound to the FR-002 linked graph's source identities; this library builds no product construction, separate refinement engine or local relation definition. | Test (TC-147) |
 | FR-301-AC-4 | A refinement request without an accepted FR-292 analysis backend settles `unsupported` with a warning naming the required capability, and this settlement is never a hold, blocker or refusal error. | Test (TC-147) |
 | FR-301-AC-5 | A refinement disposition retains its exact admitted fragment, backend, assumptions, communication/visibility/environment premises and source/derived-artifact correspondence exactly as [FR-030](./FR-030-bind-each-disposition-to-its-exact-premises.md) requires of every disposition. | Test (TC-147) |
+| FR-301-AC-6 | A refinement result, counterexample or certificate returned by QSL's backend appears in the disposition unchanged. When that backend returns a refusal or `unsupported` cause, the disposition carries the same cause without reinterpretation, and no refinement verdict is computed locally from the FR-002 linked graph. | Test (TC-147) |
 
 ## Adopted vocabulary
 

@@ -19,11 +19,15 @@ refusal error.
 
 ## Test Procedure
 
-Evaluate a monitorable protocol with a requested refinement claim under three
+Evaluate a monitorable protocol with a requested refinement claim, using a
+test QSL refinement backend that returns known sentinel results, under three
 conditions: (1) FR-176/FR-177 admitted with a satisfying implementation/
 specification pair, (2) FR-176/FR-177 admitted with a violating pair, and (3)
 no accepted FR-292 refinement backend. For each, also request finite global
-conformance in the same dispatch. Remove or substitute the refinement
+conformance in the same dispatch. In case (1) the backend returns a
+simulation certificate, in case (2) a counterexample and in a fourth run a
+refusal with a distinct cause; the library holds no local refinement
+algorithm to compute a substitute. Remove or substitute the refinement
 disposition's admitted fragment, backend, assumption identities and source
 identity one at a time.
 
@@ -35,3 +39,10 @@ explicit `unsupported` refinement disposition with a warning naming the
 required capability, and the finite global conformance result remains present
 and unchanged. Every removed or substituted component refuses only the
 refinement disposition without altering the global-conformance result.
+The certificate, counterexample and refusal cause in the disposition equal the
+sentinel values the backend returned, byte for byte, in the backend's own
+vocabulary (FR-301-AC-6). A backend that returns a verdict different from the
+one the paired implementation and specification would yield under a local
+construction still has its returned verdict carried: the disposition never
+differs from the backend's result, and no verdict appears when the backend
+returns none.
