@@ -62,6 +62,10 @@ relationships:
   - { target: ix://agent-ix/quire-protocol/FR-059, type: references }
   - { target: ix://agent-ix/quire-protocol/FR-100, type: references }
   - { target: ix://agent-ix/quire-protocol/FR-101, type: references }
+  - { target: ix://agent-ix/quire-protocol/FR-150, type: references }
+  - { target: ix://agent-ix/quire-protocol/FR-151, type: references }
+  - { target: ix://agent-ix/quire-protocol/FR-152, type: references }
+  - { target: ix://agent-ix/quire-protocol/FR-153, type: references }
   - { target: ix://agent-ix/quire-protocol/NFR-001, type: references }
   - { target: ix://agent-ix/quire-protocol/NFR-002, type: references }
   - { target: ix://agent-ix/quire-protocol/NFR-003, type: references }
@@ -212,8 +216,12 @@ in Domain Object Coverage instead.
 | FR-059 | FR-059-AC-1..AC-4 | TC-054 (AC-1..AC-4) | 🚧 Planned — spec only (ADR-010); binds all 4 criteria; awaits the implementation. |
 | FR-100 | FR-100-AC-1..AC-6 | TC-154 (AC-1..AC-6) | 🚧 Planned — spec only (ADR-010); binds all 6 criteria; closes V1-PROT-019 timeout branches; awaits the implementation. |
 | FR-101 | FR-101-AC-1..AC-5 | TC-154 (AC-1..AC-5) | 🚧 Planned — spec only (ADR-010); binds all 5 criteria; closes V1-PROT-019 captures; awaits the implementation. |
+| FR-150 | FR-150-AC-1..AC-7 | TC-160 (AC-1..AC-7) | 🚧 Planned — spec only (ADR-010); binds all 7 criteria; awaits the implementation and, for a live result, a QSL backend. |
+| FR-151 | FR-151-AC-1..AC-6 | TC-161 (AC-1..AC-6) | 🚧 Planned — spec only (ADR-010); binds all 6 criteria; awaits the implementation and, for a live result, a QSL backend. |
+| FR-152 | FR-152-AC-1..AC-5 | TC-162 (AC-1..AC-5) | 🚧 Planned — spec only (ADR-010); binds all 5 criteria; awaits the implementation and, for a live result, a QSL backend. |
+| FR-153 | FR-153-AC-1..AC-7 | TC-163 (AC-1..AC-7) | 🚧 Planned — spec only (ADR-010); binds all 7 criteria; awaits the implementation and, for a live result, a QSL backend. |
 
-Behavioural totals across these 52 rows: 288 acceptance criteria. 88 carry a living traced test, 106 belong to retired rows (their tests were deleted in QSL-1549 stage 1), 0 are blocked and 94 are planned or verify by Inspection or Analysis only. 88 + 106 + 0 + 94 = 288.
+Behavioural totals across these 54 rows: 300 acceptance criteria. 88 carry a living traced test, 106 belong to retired rows (their tests were deleted in QSL-1549 stage 1), 0 are blocked and 106 are planned or verify by Inspection or Analysis only. 88 + 106 + 0 + 106 = 300.
 
 ## Domain Object Coverage
 
@@ -305,6 +313,10 @@ a coverage claim in this matrix.
 | TC-154 | Settle deadline branches and bind captures | Property | P0 | FR-100, FR-101 | 🚧 Planned — spec only (ADR-010); awaits the implementation. |
 | TC-147 | Admit protocol refinement dispatch | Property | P0 | FR-301 | 🚧 Planned — binds all 6 FR-301 criteria; awaits the dispatch implementation; QSL implements FR-176/FR-177 (ADR-010). |
 | TC-148 | Carry a trace-position witness on the protocol result wire | Property | P0 | FR-302 | 🚧 Planned — binds all 5 FR-302 criteria; awaits `agent-ix/quire-specification#114`'s `native-run-result/2`. |
+| TC-160 | Dispatch local-projection and realizability claims to QSL's backend | Property | P0 | FR-150 | 🚧 Planned — binds all 7 FR-150 criteria; awaits the implementation (ADR-010). |
+| TC-161 | Bind communication and visibility premises | Property | P0 | FR-151 | 🚧 Planned — binds all 6 FR-151 criteria; awaits the implementation (ADR-010). |
+| TC-162 | Carry a projection or realizability witness joined to the linked graph | Property | P0 | FR-152 | 🚧 Planned — binds all 5 FR-152 criteria; awaits the implementation (ADR-010). |
+| TC-163 | Settle projection and realizability claims unsupported while no backend serves the kind | Property | P0 | FR-153 | 🚧 Planned — binds all 7 FR-153 criteria; awaits the implementation (ADR-010). |
 
 ## Test Execution Summary
 
