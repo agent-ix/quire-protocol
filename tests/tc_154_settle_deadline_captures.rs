@@ -20,6 +20,7 @@ use std::sync::OnceLock;
 
 use ix_trace_rs::trace;
 use qsl_eval::value::{ProtocolSlot, ProtocolSuppliedValue, ProtocolSupply, SuppliedValue};
+use qsl_package::protocol_view::Port;
 use qsl_package::{BarePackage, BareSupply, ProtocolSlotDescriptor};
 use qsl_semantics::check::wire_id::WireGraph;
 use quire_contract_model::{CheckedNodeId, CheckedNodePathSegment, CheckedPackageReadLimits};
@@ -32,7 +33,7 @@ use quire_protocol::closure::{AssessmentExecution, TruthDisposition};
 use quire_protocol::compensation::activate::Binding;
 use quire_protocol::compensation::purity::{Capability, CapabilityInventory, PureAssessment};
 use quire_protocol::deadline::{
-    assess, AfterAnchor, Branch, Constraint, Contradiction, Deadline, Verdict, Wait,
+    assess, AfterAnchor, Branch, ClockFamily, Constraint, Contradiction, Deadline, Verdict, Wait,
     WaitAssessment, WaitFact, WaitKey, WaitRefusal,
 };
 use quire_protocol::declarations::AwaitDeclaration;
@@ -100,24 +101,6 @@ fn key(who: &str) -> WaitKey {
 /// progress clock is `clock:{TAG}`.
 const TAG: &str = "t154";
 
-fn timestamped() -> TemporalBoundary {
-    TemporalBoundary::TimestampedEvent {
-        lower_nanos: 0,
-        upper_inclusive_nanos: 29,
-        carrier_end_exclusive_nanos: 30,
-        watermark_nanos: 30,
-    }
-}
-
-fn event_position() -> TemporalBoundary {
-    TemporalBoundary::EventPosition {
-        lower: 0,
-        upper_inclusive: 29,
-        carrier_end_exclusive: 30,
-        watermark: 30,
-    }
-}
-
 fn declaration() -> &'static AwaitDeclaration {
     awaiting()
         .linked()
@@ -132,8 +115,13 @@ fn clock() -> String {
 
 /// The admitted `after` observation of a timestamped event at `instant`.
 fn after_view(instant: i128) -> observation::View {
+    after_view_on(TAG, instant)
+}
+
+/// As [`after_view`], on the clock `clock:{tag}`.
+fn after_view_on(tag: &str, instant: i128) -> observation::View {
     after_observation(
-        TAG,
+        tag,
         (
             Anchor::TimestampNanos(instant),
             ClockRange::Timestamp {
@@ -152,13 +140,17 @@ fn after_fact(position: u64, instant: i128) -> WaitFact {
 /// owner fixtures' progress views name.
 fn deadline() -> Deadline {
     let anchor = AfterAnchor::of(&after_view(0)).expect("an anchor");
-    Deadline::of(declaration(), &anchor, &clock(), &timestamped()).expect("the window fits")
+    Deadline::of(declaration(), &anchor, &clock(), ClockFamily::Timestamped)
+        .expect("the window fits")
+}
+
+fn wait_in(family: ClockFamily, who: &str, declaration: &AwaitDeclaration, clock: &str) -> Wait {
+    Wait::new(pure(), key(who), declaration, clock, family).expect("a declared await")
 }
 
 fn wait_on(who: &str, declaration: &AwaitDeclaration, clock: &str) -> Wait {
-    Wait::new(pure(), key(who), declaration, clock, timestamped()).expect("a declared await")
+    wait_in(ClockFamily::Timestamped, who, declaration, clock)
 }
-
 /// A wait whose `after` observation, at position 0 and instant 0, is admitted.
 fn anchored_wait() -> Wait {
     let mut wait = wait_on("w", declaration(), &clock());
@@ -215,7 +207,7 @@ fn settle_unanchored(who: &str, facts: &[WaitFact]) -> WaitAssessment {
         key(who),
         declaration(),
         &clock(),
-        timestamped(),
+        ClockFamily::Timestamped,
         facts,
     )
     .expect("settles")
@@ -674,8 +666,11 @@ fn progress_through_another_boundary_or_clock_is_refused() {
         ("upper bound", upper_only, clock()),
         ("clock", declaration().clone(), "clock:other".to_owned()),
     ] {
+        let tag = clock.strip_prefix("clock:").expect("a clock identity");
+        let after =
+            |position| WaitFact::after(at(position), &after_view_on(tag, 0)).expect("an anchor");
         let mut anchored = wait_on("w", &declaration, &clock);
-        anchored.admit(after_fact(0, 0)).expect("anchors");
+        anchored.admit(after(0)).expect("anchors");
         assert_eq!(
             anchored.admit(closed()).err(),
             Some(WaitRefusal::ProgressNotThroughDeadline),
@@ -690,18 +685,44 @@ fn progress_through_another_boundary_or_clock_is_refused() {
             ))
             .expect("no window to compare yet");
         assert_eq!(
-            progressed.admit(after_fact(2, 0)).err(),
+            progressed.admit(after(2)).err(),
             Some(WaitRefusal::ProgressNotThroughDeadline),
             "{label} against an earlier progress view"
         );
     }
 }
 
+/// The admitted `after` observation of a fixed sample at `index`, whose epoch
+/// is far from the index so that reading the epoch for the index fails a test.
+fn fixed_view(index: u64) -> observation::View {
+    const EPOCH: i128 = 1_000_000_007;
+    after_observation(
+        TAG,
+        (
+            Anchor::FixedSample {
+                index,
+                epoch_nanos: EPOCH,
+                period_nanos: 5,
+            },
+            ClockRange::FixedSample {
+                start: 0,
+                end_exclusive: u64::MAX,
+                epoch_nanos: EPOCH,
+                period_nanos: 5,
+            },
+        ),
+    )
+}
+
 /// A window that overflows, or lies outside the integer range of the clock
-/// family, is refused.
+/// family, is refused, for each clock family.
 #[trace("TC-154", "FR-100-AC-13")]
 #[test]
 fn a_window_outside_the_clock_range_is_refused() {
+    let window = |view: &observation::View, family| {
+        let anchor = AfterAnchor::of(view).expect("an anchor");
+        Deadline::of(declaration(), &anchor, "clock:t154", family)
+    };
     let signed = |instant: i128| {
         let view = after_observation(
             TAG,
@@ -713,8 +734,7 @@ fn a_window_outside_the_clock_range_is_refused() {
                 },
             ),
         );
-        let anchor = AfterAnchor::of(&view).expect("an anchor");
-        Deadline::of(declaration(), &anchor, "clock:t154", &timestamped())
+        window(&view, ClockFamily::Timestamped)
     };
     // i128 overflow, with the widest range.
     assert_eq!(
@@ -736,13 +756,19 @@ fn a_window_outside_the_clock_range_is_refused() {
                 },
             ),
         );
-        let anchor = AfterAnchor::of(&view).expect("an anchor");
-        Deadline::of(declaration(), &anchor, "clock:t154", &event_position())
+        window(&view, ClockFamily::EventPosition)
     };
     assert!(unsigned(0).is_ok());
     assert!(unsigned(u64::MAX - 29).is_ok());
     assert_eq!(
         unsigned(u64::MAX - 28).err(),
+        Some(WaitRefusal::WindowOutOfRange)
+    );
+    // Fixed samples are unsigned 64-bit, counted by index.
+    let sampled = |index: u64| window(&fixed_view(index), ClockFamily::FixedSample);
+    assert!(sampled(u64::MAX - 29).is_ok());
+    assert_eq!(
+        sampled(u64::MAX - 28).err(),
         Some(WaitRefusal::WindowOutOfRange)
     );
 }
@@ -767,69 +793,92 @@ fn the_window_is_counted_from_the_admitted_after_observation() {
     // Anchored at 0, 39 is past the upper bound.
     assert_eq!(selected(0, 39), None);
     assert_eq!(selected(0, 29), response_at(2));
-    assert!(deadline().admits(29) && !deadline().admits(30));
 }
 
-/// With no admitted `after` observation neither branch is selected.
+/// Without the `after` observation the wait is not triggered: no branch is
+/// selected and the truth is unavailable, whatever the progress and the
+/// completeness.
 #[trace("TC-154", "FR-100-AC-15")]
 #[test]
 fn no_branch_is_selected_without_the_after_observation() {
     let views = scope_views(TAG);
-    for (completeness, truth) in [
-        (Completeness::Complete, TruthDisposition::Pending),
-        (Completeness::Incomplete, TruthDisposition::Unavailable),
-        (Completeness::Contradicted, TruthDisposition::Unavailable),
-    ] {
-        let assessment = settle_unanchored(
-            "w",
-            &[
-                response(1, 10),
-                authority(&views, 2, Progress::Closed, completeness),
-            ],
-        );
-        let settlement = current(&assessment);
-        assert_eq!(settlement.branch(), None, "{completeness:?}");
-        assert_eq!(settlement.truth(), Some(truth), "{completeness:?}");
-        assert_eq!(settlement.execution(), AssessmentExecution::Completed);
+    for progress in [Progress::Open, Progress::Closed] {
+        for completeness in [
+            Completeness::Complete,
+            Completeness::Incomplete,
+            Completeness::Contradicted,
+        ] {
+            let assessment = settle_unanchored(
+                "w",
+                &[
+                    response(1, 10),
+                    authority(&views, 2, progress, completeness),
+                ],
+            );
+            let settlement = current(&assessment);
+            let label = format!("{progress:?} {completeness:?}");
+            assert_eq!(settlement.branch(), None, "{label}");
+            assert_eq!(
+                settlement.truth(),
+                Some(TruthDisposition::Unavailable),
+                "{label}"
+            );
+            assert_eq!(settlement.execution(), AssessmentExecution::Completed);
+        }
     }
 }
 
 /// An `after` observation admitted after the response and the authority facts
 /// opens the window over them, in a batch and incrementally, and supersedes
-/// nothing.
+/// the earlier result that rested on its absence.
 #[trace("TC-154", "FR-100-AC-16")]
 #[test]
-fn a_late_after_observation_judges_the_earlier_facts_without_superseding() {
+fn a_late_after_observation_supersedes_the_result_that_lacked_it() {
     let views = scope_views(TAG);
     let closed = authority(&views, 2, Progress::Closed, Completeness::Complete);
     let mut wait = wait_on("w", declaration(), &clock());
     wait.admit(response(1, 29)).expect("admits");
     wait.admit(closed.clone()).expect("admits");
+    let earlier = wait.current().expect("unavailable").clone();
     assert_eq!(
-        wait.current().expect("pending").settlement().truth(),
-        Some(TruthDisposition::Pending)
+        earlier.settlement().truth(),
+        Some(TruthDisposition::Unavailable)
     );
-    assert!(wait.admit(after_fact(3, 0)).expect("anchors").is_none());
+    let supersession = wait
+        .admit(after_fact(3, 0))
+        .expect("anchors")
+        .expect("superseded")
+        .clone();
+    assert_eq!(supersession.earlier(), earlier.id());
+    assert_eq!(supersession.corrected_input(), &at(3));
+    assert_eq!(
+        supersession.contradiction(),
+        Contradiction::AfterObservation
+    );
     let incremental = wait.finish();
+    assert_eq!(
+        incremental.results()[1],
+        earlier,
+        "the earlier result is unaltered"
+    );
     assert_eq!(
         current(&incremental).branch().cloned(),
         response_at(1),
         "the response at the upper bound is inside the late window"
     );
-    assert!(incremental.supersessions().is_empty());
     let batch = settle_unanchored("w", &[response(1, 29), closed, after_fact(3, 0)]);
     assert_eq!(batch, incremental);
 }
 
 /// A second `after` observation for one waiting instance is refused and
-/// changes nothing; another waiting instance keeps its own anchor.
+/// changes nothing.
 #[trace("TC-154", "FR-100-AC-17")]
 #[test]
-fn a_second_after_observation_is_refused_and_waits_anchor_independently() {
+fn a_second_after_observation_is_refused() {
     let views = scope_views(TAG);
     let closed = authority(&views, 3, Progress::Closed, Completeness::Complete);
     let mut wait = anchored_wait();
-    wait.admit(closed.clone()).expect("admits");
+    wait.admit(closed).expect("admits");
     let before = wait.clone().finish();
     assert_eq!(
         wait.admit(after_fact(4, 5)).err(),
@@ -839,14 +888,6 @@ fn a_second_after_observation_is_refused_and_waits_anchor_independently() {
         })
     );
     assert_eq!(wait.finish(), before);
-    let mut other = wait_on("w2", declaration(), &clock());
-    other.admit(after_fact(0, 10)).expect("anchors");
-    other.admit(response(1, 39)).expect("admits");
-    assert_eq!(
-        current(&other.finish()).branch().cloned(),
-        response_at(1),
-        "the second instance is anchored at 10"
-    );
 }
 
 /// An `after` anchor of another clock family is refused.
@@ -869,7 +910,72 @@ fn an_after_observation_of_another_clock_family_is_refused() {
             .err(),
         Some(WaitRefusal::AnchorNotOnClockFamily)
     );
-    // An anchor whose window is not the boundary of an earlier progress view.
+}
+
+/// An `after` observation on another clock of the same family is refused.
+#[trace("TC-154", "FR-100-AC-19")]
+#[test]
+fn an_after_observation_on_another_clock_is_refused() {
+    let view = after_observation(
+        "other",
+        (
+            Anchor::TimestampNanos(0),
+            ClockRange::Timestamp {
+                start_nanos: -10,
+                end_nanos: 40,
+            },
+        ),
+    );
+    let mut wait = wait_on("w", declaration(), &clock());
+    assert_eq!(
+        wait.admit(WaitFact::after(at(1), &view).expect("an anchor"))
+            .err(),
+        Some(WaitRefusal::AnchorNotOnClock)
+    );
+}
+
+/// A fixed-sample window is counted from the sample index, not the epoch.
+#[trace("TC-154", "FR-100-AC-20")]
+#[test]
+fn a_fixed_sample_window_is_counted_from_the_sample_index() {
+    let selected = |observed: i128| {
+        let mut wait = wait_in(ClockFamily::FixedSample, "w", declaration(), &clock());
+        wait.admit(WaitFact::after(at(1), &fixed_view(10)).expect("an anchor"))
+            .expect("anchors");
+        wait.admit(response(2, observed)).expect("admits");
+        wait.finish()
+            .results()
+            .last()
+            .and_then(|result| result.settlement().branch().cloned())
+    };
+    assert_eq!(selected(39), response_at(2));
+    assert_eq!(selected(40), None);
+    assert_eq!(selected(9), None);
+}
+
+/// Another waiting instance of the same control keeps its own anchor.
+#[trace("TC-154", "FR-100-AC-21")]
+#[test]
+fn waiting_instances_keep_their_own_anchors() {
+    let mut first = wait_on("w1", declaration(), &clock());
+    first.admit(after_fact(0, 0)).expect("anchors");
+    first.admit(response(1, 39)).expect("admits");
+    let mut other = wait_on("w2", declaration(), &clock());
+    other.admit(after_fact(0, 10)).expect("anchors");
+    other.admit(response(1, 39)).expect("admits");
+    assert!(first.finish().results().is_empty());
+    assert_eq!(
+        current(&other.finish()).branch().cloned(),
+        response_at(1),
+        "the second instance is anchored at 10"
+    );
+}
+
+/// An `after` observation whose window is not the boundary of an earlier
+/// admitted progress view is refused.
+#[trace("TC-154", "FR-100-AC-22")]
+#[test]
+fn an_after_observation_against_an_earlier_progress_view_is_refused() {
     let views = scope_views(TAG);
     let mut progressed = wait_on("w", declaration(), &clock());
     progressed
@@ -886,11 +992,34 @@ fn an_after_observation_of_another_clock_family_is_refused() {
     );
 }
 
+/// The declaration names the port QSL's causal relation anchors the `await`
+/// at: the exit of the awaited event, not the `await` itself.
+#[trace("TC-154", "FR-100-AC-23")]
+#[test]
+fn the_declaration_names_the_port_the_await_is_anchored_at() {
+    let after = &declaration().after;
+    assert_eq!(after.port, Port::Exit);
+    assert_ne!(after.node, declaration().control);
+}
+
 /// QSL's occurrence schema keys the wait: an undeclared control, a wrong
 /// number of repeat ordinals and an unkeyable workflow identity are refused.
 #[trace("TC-154", "FR-100-AC-12")]
 #[test]
 fn the_wait_is_keyed_through_qsl_s_occurrence_schema() {
+    // A wait is built only for the declaration its key names.
+    let mut elsewhere_declaration = declaration().clone();
+    elsewhere_declaration.control = node("NotAnAwait");
+    assert!(matches!(
+        Wait::new(
+            pure(),
+            key("w"),
+            &elsewhere_declaration,
+            &clock(),
+            ClockFamily::Timestamped
+        ),
+        Err(WaitRefusal::UndeclaredAwait { .. })
+    ));
     let declarations = awaiting().linked().declarations();
     let workflow = |bytes: &[u8]| WorkflowInstanceId::new(bytes, "w");
     let elsewhere = node("NotAnAwait");

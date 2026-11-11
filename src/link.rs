@@ -400,8 +400,8 @@ pub fn link(
         temporal_bindings.push(binding.clone());
     }
 
-    let declarations = Declarations::read(package, &view)?;
     let relation = causal_relation(package, protocol).map_err(LinkRefusal::View)?;
+    let declarations = Declarations::read(package, &view, relation.edges())?;
     Ok(LinkedProtocol::of(
         &view,
         relation.edges(),

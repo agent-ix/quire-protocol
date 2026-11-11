@@ -24,9 +24,8 @@ use core::ops::RangeInclusive;
 
 use quire_contract_model::CheckedNodeId;
 use quire_exact::Integer;
-use quire_observation::authority::{
-    completeness, observation, progress, BoundaryRef, OpenClosed, TemporalBoundary,
-};
+use quire_observation::authority::{completeness, observation, progress, BoundaryRef, OpenClosed};
+use quire_observation::Anchor;
 
 use crate::closure::{AssessmentExecution, TruthDisposition};
 use crate::compensation::purity::PureAssessment;
@@ -49,9 +48,14 @@ pub enum WaitRefusal {
     /// The progress view's boundary is not the wait's window, or it is on
     /// another clock.
     ProgressNotThroughDeadline,
-    /// The `after` observation's anchor is not of the clock family of the
-    /// progress boundary the wait is judged through.
+    /// The `after` observation's anchor is not of the clock family the wait is
+    /// judged through.
     AnchorNotOnClockFamily,
+    /// The `after` observation is on another clock than the wait's.
+    AnchorNotOnClock,
+    /// The owner's anchor text is not an integer of its clock family. A
+    /// validated owner view never reports this.
+    AnchorMalformed,
     /// A second observation was offered as the `after` event of one waiting
     /// instance.
     AmbiguousAnchor {
@@ -60,8 +64,8 @@ pub enum WaitRefusal {
         /// The refused observation.
         offered: ObservationRef,
     },
-    /// The window counted from the anchor, or the anchor itself, does not fit
-    /// the integer range of the clock family.
+    /// The window counted from the anchor does not fit the integer range of
+    /// the clock family.
     WindowOutOfRange,
     /// A fact is not after the last admitted one in the history's order.
     OutOfOrder {
@@ -143,39 +147,29 @@ pub struct Deadline {
 }
 
 impl Deadline {
-    /// The instants a clock family admits, read from the owner's boundary
-    /// type: event positions and fixed samples are unsigned 64-bit, timestamped
-    /// events are signed 128-bit nanoseconds.
-    #[must_use]
-    pub const fn admitted_range(family: &TemporalBoundary) -> RangeInclusive<i128> {
-        match family {
-            TemporalBoundary::EventPosition { .. } | TemporalBoundary::FixedSample { .. } => {
-                0..=u64::MAX as i128
-            }
-            TemporalBoundary::TimestampedEvent { .. } => i128::MIN..=i128::MAX,
-        }
-    }
-
     /// The window `declaration` authors, counted from the anchor of the
     /// admitted `after` observation, on the QObs clock `clock_identity` that
-    /// the caller's clock selection binds to the authored clock, in the clock
-    /// family of `family`.
+    /// the caller's clock selection binds to the authored clock, in `family`.
     ///
     /// # Errors
     ///
     /// [`WaitRefusal::AnchorNotOnClockFamily`] when the anchor is of another
-    /// family; [`WaitRefusal::WindowOutOfRange`] when a bound overflows or
-    /// lies outside [`Self::admitted_range`].
+    /// family; [`WaitRefusal::AnchorNotOnClock`] when it is on another
+    /// clock; [`WaitRefusal::WindowOutOfRange`] when a bound overflows or lies
+    /// outside the integer range of the family.
     pub fn of(
         declaration: &AwaitDeclaration,
         after: &AfterAnchor,
         clock_identity: &str,
-        family: &TemporalBoundary,
+        family: ClockFamily,
     ) -> Result<Self, WaitRefusal> {
-        if !after.is_of(family) {
+        if after.family() != family {
             return Err(WaitRefusal::AnchorNotOnClockFamily);
         }
-        let admitted = Self::admitted_range(family);
+        if &*after.clock != clock_identity {
+            return Err(WaitRefusal::AnchorNotOnClock);
+        }
+        let admitted = family.admitted_range();
         let bound = |offset: u64| {
             after
                 .instant()
@@ -211,63 +205,88 @@ impl Deadline {
     }
 }
 
+/// The clock family a wait is judged through, which fixes the integer range of
+/// its instants.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum Anchor {
-    EventPosition(u64),
-    FixedSample(u64),
-    Timestamp(i128),
+pub enum ClockFamily {
+    /// Event positions: unsigned 64-bit.
+    EventPosition,
+    /// Fixed samples, counted by sample index: unsigned 64-bit.
+    FixedSample,
+    /// Timestamped events: signed 128-bit nanoseconds.
+    Timestamped,
+}
+
+impl ClockFamily {
+    const fn admitted_range(self) -> RangeInclusive<i128> {
+        match self {
+            Self::EventPosition | Self::FixedSample => 0..=u64::MAX as i128,
+            Self::Timestamped => i128::MIN..=i128::MAX,
+        }
+    }
 }
 
 /// The instant of an admitted `after` observation, read from the owner's
 /// observation view: the position of an event position, the sample index of a
-/// fixed sample, the signed nanosecond instant of a timestamped event.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct AfterAnchor(Anchor);
+/// fixed sample, the signed nanosecond instant of a timestamped event, on the
+/// clock the view names.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AfterAnchor {
+    anchor: Anchor,
+    clock: Box<str>,
+}
 
 impl AfterAnchor {
     /// The anchor of `view`.
     ///
     /// # Errors
     ///
-    /// [`WaitRefusal::WindowOutOfRange`] when the anchor text does not fit the
-    /// integer range of its clock family.
+    /// [`WaitRefusal::AnchorMalformed`] when the owner's anchor text is not
+    /// an integer of its clock family.
     pub fn of(view: &observation::View) -> Result<Self, WaitRefusal> {
-        let out_of_range = |_| WaitRefusal::WindowOutOfRange;
+        let malformed = |_| WaitRefusal::AnchorMalformed;
         let anchor = match view.payload().anchor() {
             observation::AnchorRef::EventPosition { position } => {
-                Anchor::EventPosition(position.parse().map_err(out_of_range)?)
+                Anchor::EventPosition(position.parse().map_err(malformed)?)
             }
-            observation::AnchorRef::FixedSample { index, .. } => {
-                Anchor::FixedSample(index.parse().map_err(out_of_range)?)
-            }
+            observation::AnchorRef::FixedSample {
+                index,
+                epoch_nanos,
+                period_nanos,
+            } => Anchor::FixedSample {
+                index: index.parse().map_err(malformed)?,
+                epoch_nanos: epoch_nanos.parse().map_err(malformed)?,
+                period_nanos: period_nanos.parse().map_err(malformed)?,
+            },
             observation::AnchorRef::Timestamp { instant_nanos } => {
-                Anchor::Timestamp(instant_nanos.parse().map_err(out_of_range)?)
+                Anchor::TimestampNanos(instant_nanos.parse().map_err(malformed)?)
             }
         };
-        Ok(Self(anchor))
+        Ok(Self {
+            anchor,
+            clock: view.payload().clock().identity.into(),
+        })
     }
 
-    /// The anchor instant in the unit of its clock.
+    /// The anchor instant in the unit of its clock: a position, a sample
+    /// index or nanoseconds.
     #[must_use]
     pub const fn instant(&self) -> i128 {
-        match self.0 {
-            Anchor::EventPosition(position) | Anchor::FixedSample(position) => position as i128,
-            Anchor::Timestamp(instant) => instant,
+        match self.anchor {
+            Anchor::EventPosition(position) => position as i128,
+            Anchor::FixedSample { index, .. } => index as i128,
+            Anchor::TimestampNanos(instant) => instant,
         }
     }
 
-    const fn is_of(&self, family: &TemporalBoundary) -> bool {
-        matches!(
-            (self.0, family),
-            (
-                Anchor::EventPosition(_),
-                TemporalBoundary::EventPosition { .. }
-            ) | (Anchor::FixedSample(_), TemporalBoundary::FixedSample { .. })
-                | (
-                    Anchor::Timestamp(_),
-                    TemporalBoundary::TimestampedEvent { .. }
-                )
-        )
+    /// The clock family of the anchor.
+    #[must_use]
+    pub const fn family(&self) -> ClockFamily {
+        match self.anchor {
+            Anchor::EventPosition(_) => ClockFamily::EventPosition,
+            Anchor::FixedSample { .. } => ClockFamily::FixedSample,
+            Anchor::TimestampNanos(_) => ClockFamily::Timestamped,
+        }
     }
 }
 
@@ -539,16 +558,19 @@ impl SettledResult {
     }
 }
 
-/// What contradicted a settled timeout.
+/// What contradicted an earlier result.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Contradiction {
     /// An observation inside the window, admitted late.
     Observation,
+    /// The `after` observation, admitted after a result that rested on its
+    /// absence.
+    AfterObservation,
     /// A progress and completeness fact that no longer supports timeout.
     Authority,
 }
 
-/// The FR-033 result for a settled timeout that a later fact contradicts.
+/// The FR-033 result for an earlier result that a later fact contradicts.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Supersession {
     earlier: ResultId,
@@ -622,7 +644,7 @@ impl WaitAssessment {
 struct Anchoring {
     declaration: AwaitDeclaration,
     clock_identity: Box<str>,
-    family: TemporalBoundary,
+    family: ClockFamily,
 }
 
 #[derive(Clone, Debug)]
@@ -652,8 +674,7 @@ impl Wait {
     /// A wait on the `await` that `declaration` authors, keyed by `key`, assessed under the
     /// pure-assessment witness: no business operation is reachable from any
     /// settlement path. The window opens when the `after` observation is
-    /// admitted, on the QObs clock `clock_identity` in the clock family of
-    /// `family`.
+    /// admitted, on the QObs clock `clock_identity` in `family`.
     ///
     /// # Errors
     ///
@@ -664,7 +685,7 @@ impl Wait {
         key: WaitKey,
         declaration: &AwaitDeclaration,
         clock_identity: &str,
-        family: TemporalBoundary,
+        family: ClockFamily,
     ) -> Result<Self, WaitRefusal> {
         if declaration.control != key.branch {
             return Err(WaitRefusal::UndeclaredAwait {
@@ -729,7 +750,7 @@ impl Wait {
                     &self.anchoring.declaration,
                     &anchor,
                     &self.anchoring.clock_identity,
-                    &self.anchoring.family,
+                    self.anchoring.family,
                 )?;
                 if !self.unanchored.iter().all(|window| deadline.names(window)) {
                     return Err(WaitRefusal::ProgressNotThroughDeadline);
@@ -737,7 +758,7 @@ impl Wait {
                 self.deadline = Some(deadline);
                 self.anchored_by = Some(fact.at.clone());
                 self.unanchored.clear();
-                None
+                Contradiction::AfterObservation
             }
             WaitEvent::Observation {
                 observed,
@@ -748,7 +769,7 @@ impl Wait {
                     constraint,
                     at: fact.at.clone(),
                 });
-                Some(Contradiction::Observation)
+                Contradiction::Observation
             }
             WaitEvent::Authority {
                 window,
@@ -764,7 +785,7 @@ impl Wait {
                 }
                 self.progress = Some(progress);
                 self.completeness = Some(completeness);
-                Some(Contradiction::Authority)
+                Contradiction::Authority
             }
         };
         self.last = Some(fact.at.clone());
@@ -772,7 +793,11 @@ impl Wait {
             return Ok(None);
         };
         let before = self.results.last().cloned();
-        if before.as_ref().map(|result| &result.settlement) == Some(&settlement) {
+        // The `after` observation contradicts the premise of every earlier
+        // result, so a new result follows it even when the settlement is equal.
+        if contradiction != Contradiction::AfterObservation
+            && before.as_ref().map(|result| &result.settlement) == Some(&settlement)
+        {
             return Ok(None);
         }
         let result = SettledResult {
@@ -783,12 +808,10 @@ impl Wait {
             settlement,
         };
         self.results.push(result.clone());
-        // No timeout is selected before the window exists, so the fact that
-        // opens it contradicts nothing.
-        let (Some(contradiction), Some(earlier)) = (
-            contradiction,
-            before.filter(|earlier| earlier.settlement.branch() == Some(&Branch::Timeout)),
-        ) else {
+        let Some(earlier) = before.filter(|earlier| {
+            contradiction == Contradiction::AfterObservation
+                || earlier.settlement.branch() == Some(&Branch::Timeout)
+        }) else {
             return Ok(None);
         };
         self.supersessions.push(Supersession {
@@ -808,13 +831,10 @@ impl Wait {
             completeness: self.completeness,
         };
         let unselected = |truth| settlement(Verdict::NotSelected(truth));
+        // Without the `after` observation the wait is not triggered, and
+        // `pending` requires activation `triggered` (QSpec FR-242, FR-061).
         let Some(deadline) = &self.deadline else {
-            return Some(match self.completeness? {
-                completeness::State::Incomplete | completeness::State::Contradicted => {
-                    unselected(Some(TruthDisposition::Unavailable))
-                }
-                completeness::State::Complete => unselected(Some(TruthDisposition::Pending)),
-            });
+            return Some(unselected(Some(TruthDisposition::Unavailable)));
         };
         let inside = || {
             self.seen
@@ -870,7 +890,7 @@ pub fn assess(
     key: WaitKey,
     declaration: &AwaitDeclaration,
     clock_identity: &str,
-    family: TemporalBoundary,
+    family: ClockFamily,
     facts: &[WaitFact],
 ) -> Result<WaitAssessment, WaitRefusal> {
     let mut ordered = facts.to_vec();
