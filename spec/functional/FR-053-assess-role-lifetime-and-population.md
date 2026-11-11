@@ -32,7 +32,8 @@ Per role: the observed instance identities, whether each instance's observed act
 
 - The evaluator shall treat an instance identity as the identity the observation names.
 - The evaluator shall mint none.
-- The evaluator shall take the end of a `workflow` lifetime at the observation that ends the workflow instance holding the role, the end of a `scope` lifetime at the first observation after which the linked graph leaves no branch able to reach a node the role owns, and the end of an `until(p)` lifetime at the observation at which `p` is observed to hold; a plain retire observation is not the only lifetime end.
+- The evaluator shall take the end of a `workflow` lifetime at the observation that ends the workflow instance holding the role, the end of a `scope` lifetime at the observation of the step that QSL ADR-027 RR-4 ends it by (no running thread can reach a node the role owns, the effect of a compensation template it owns, or an open registration of such a template), and the end of an `until(p)` lifetime at the observed `retire` of the instance.
+- The evaluator shall not evaluate `p`.
 - The evaluator shall report activity by an instance before its spawn or after its retirement as a lifetime violation naming the instance and the observation.
 - The evaluator shall report a live-instance count above the authored bound as a population violation naming the role, the bound and the observed count.
 - The evaluator shall report each violation without repairing it (FR-027).
@@ -49,7 +50,9 @@ Per role: the observed instance identities, whether each instance's observed act
 | FR-053-AC-3 | Over a history reaching exactly the bound and one reaching the bound plus one live instance, the assessment reports no violation for the first and a population violation naming role, bound and count for the second. | Test (TC-051) |
 | FR-053-AC-4 | Over a role with no authored population bound, the assessment reports no population violation and reports the bound as absent; it does not infer a bound from the history. | Test (TC-051) |
 | FR-053-AC-5 | Permuting the presentation order of the history within the permitted orders changes no role assessment value. | Test (TC-051) |
-| FR-053-AC-6 | Over one role per lifetime kind, activity after the observation that ends the workflow, after the first observation that leaves no branch able to reach a node the role owns, and after `p` is observed to hold is reported as a lifetime violation for `workflow`, `scope` and `until(p)` respectively, and activity before those observations is not. | Test (TC-051) |
+| FR-053-AC-6 | Over one role per lifetime kind, activity after the observation that ends the workflow, after the observed end of a `scope` lifetime and after the observed `retire` of an `until(p)` instance is reported as a lifetime violation for `workflow`, `scope` and `until(p)` respectively, and activity before those observations is not. | Test (TC-051) |
+| FR-053-AC-7 | Over a `scope` role that owns a compensation template, a compensation attempt observed while a registration of that template is open, or while a running branch can still reach its effect, is not reported as a lifetime violation. | Test (TC-051) |
+| FR-053-AC-8 | Over an `until(p)` role and a history in which `p` is observed to hold and the instance acts before its observed `retire`, the assessment reports no lifetime violation and does not evaluate `p`. | Test (TC-051) |
 
 ## Dependencies
 

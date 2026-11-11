@@ -68,3 +68,10 @@ Findings above must be fixed or dispositioned before merge. Units examined:
 - `FR-059-AC-2` (context_only)
 - `FR-059-AC-3` (context_only)
 - `FR-059-AC-4` (context_only)
+
+## Dispositions
+
+| FND | outcome | reason |
+| --- | --- | --- |
+| FND-001 | fixed | Round 1, commit 5ef24e3: Verify link role, queue, join and loop declarations over an admitted checked package, with no observation history and no exploration of the protocol. |
+| FND-002 | fixed | Round 1, commit 5ef24e3: Over a loop with an invariant and a variant, no result or disposition field reports an invariant checked, a variant rank or a termination verdict, and the only discharge status produced is `undischarged`. |

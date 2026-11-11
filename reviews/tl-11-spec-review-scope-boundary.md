@@ -34,3 +34,10 @@ Findings above must be fixed or dispositioned before merge. Units examined:
 - `FR-058` (examined)
 - `FR-059` (examined)
 - `ADR-010` (context_only)
+
+## Dispositions
+
+| FND | outcome | reason |
+| --- | --- | --- |
+| FND-001 | fixed | Round 1, commit 5ef24e3: - When the assessment of an observed history meets a construct for which QSL would report an `Unsupported` cause, QSL having reported none for that history, the library shall return the same disposition carrying the name of that QSL `Unsupported` variant (`SymbolicCapacity`, `JoinPredicate`, `Unrule |
+| FND-002 | fixed | Round 1, commit 5ef24e3: Given a requires-bound outcome naming a `Population`, a `Collection` and a `Loop` domain, each disposition is typed non-success and carries QSL's outcome unchanged, with each domain's kind and key equal to QSL's and no kind the library defined. |

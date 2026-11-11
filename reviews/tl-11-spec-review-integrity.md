@@ -34,3 +34,10 @@ Findings above must be fixed or dispositioned before merge. Units examined:
 - `FR-058` (examined)
 - `FR-059` (examined)
 - `ADR-010` (context_only)
+
+## Dispositions
+
+| FND | outcome | reason |
+| --- | --- | --- |
+| FND-001 | fixed | Round 1, commit 5ef24e3: - The evaluator shall report each violation without repairing it (FR-027). |
+| FND-002 | fixed | Round 1, commit 5ef24e3: - The evaluator shall report each violation without repairing it (FR-027). |

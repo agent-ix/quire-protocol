@@ -74,3 +74,12 @@ Findings above must be fixed or dispositioned before merge. Units examined:
 - `FR-059-AC-2` (examined)
 - `FR-059-AC-3` (examined)
 - `FR-059-AC-4` (examined)
+
+## Dispositions
+
+| FND | outcome | reason |
+| --- | --- | --- |
+| FND-001 | fixed | Round 1, commit 5ef24e3: Linking the same checked package twice yields equal representations, and the representation holds no role instance identifier. |
+| FND-002 | fixed | Round 1, commit 5ef24e3: Over a loop with an invariant and a variant, no result or disposition field reports an invariant checked, a variant rank or a termination verdict, and the only discharge status produced is `undischarged`. |
+| FND-003 | fixed | Round 1, commit 5ef24e3: Over a channel whose delivery premise forbids loss and a history with a lost message, and over one whose premise permits it, the assessment reports a premise violation naming channel and premise only for the first. / Over an `unordered` channel, any delivery order of the same messages reports no ord |
+| FND-004 | fixed | Round 1, commit 5ef24e3: Behavioural totals across these 50 rows: 273 acceptance criteria. 88 carry a living traced test, 106 belong to retired rows (their tests were deleted in QSL-1549 stage 1), 0 are blocked and 79 are planned or verify by Inspection or Analysis only. 88 + 106 + 0 + 79 = 273. |

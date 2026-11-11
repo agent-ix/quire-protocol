@@ -198,7 +198,7 @@ in Domain Object Coverage instead.
 | FR-050 | FR-050-AC-1..AC-4 | TC-050 (AC-1..AC-4) | 🚧 Planned — spec only (ADR-010); binds all 4 criteria; awaits the implementation. |
 | FR-051 | FR-051-AC-1..AC-3 | TC-050 (AC-1..AC-3) | 🚧 Planned — spec only (ADR-010); binds all 3 criteria; awaits the implementation. |
 | FR-052 | FR-052-AC-1..AC-3 | TC-050 (AC-1..AC-3) | 🚧 Planned — spec only (ADR-010); binds all 3 criteria; awaits the implementation. |
-| FR-053 | FR-053-AC-1..AC-6 | TC-051 (AC-1..AC-6) | 🚧 Planned — spec only (ADR-010); binds all 6 criteria; awaits the implementation. |
+| FR-053 | FR-053-AC-1..AC-8 | TC-051 (AC-1..AC-8) | 🚧 Planned — spec only (ADR-010); binds all 8 criteria; awaits the implementation. |
 | FR-054 | FR-054-AC-1..AC-7 | TC-052 (AC-1..AC-7) | 🚧 Planned — spec only (ADR-010); binds all 7 criteria; awaits the implementation. |
 | FR-055 | FR-055-AC-1..AC-6 | TC-053 (AC-1..AC-6) | 🚧 Planned — spec only (ADR-010); binds all 6 criteria; awaits the implementation. |
 | FR-056 | FR-056-AC-1..AC-4 | TC-054 (AC-1..AC-4) | 🚧 Planned — spec only (ADR-010); binds all 4 criteria; awaits the implementation. |
@@ -206,7 +206,7 @@ in Domain Object Coverage instead.
 | FR-058 | FR-058-AC-1..AC-3 | TC-055 (AC-1..AC-3) | 🚧 Planned — spec only (ADR-010); binds all 3 criteria; awaits the implementation. |
 | FR-059 | FR-059-AC-1..AC-4 | TC-054 (AC-1..AC-4) | 🚧 Planned — spec only (ADR-010); binds all 4 criteria; awaits the implementation. |
 
-Behavioural totals across these 50 rows: 273 acceptance criteria. 88 carry a living traced test, 106 belong to retired rows (their tests were deleted in QSL-1549 stage 1), 0 are blocked and 79 are planned or verify by Inspection or Analysis only. 88 + 106 + 0 + 79 = 273.
+Behavioural totals across these 50 rows: 275 acceptance criteria. 88 carry a living traced test, 106 belong to retired rows (their tests were deleted in QSL-1549 stage 1), 0 are blocked and 81 are planned or verify by Inspection or Analysis only. 88 + 106 + 0 + 81 = 275.
 
 ## Domain Object Coverage
 

@@ -32,3 +32,9 @@ Findings above must be fixed or dispositioned before merge. Units examined:
 - `FR-057` (examined)
 - `FR-058` (examined)
 - `FR-059` (examined)
+
+## Dispositions
+
+| FND | outcome | reason |
+| --- | --- | --- |
+| FND-001 | fixed | Round 1, commit 5ef24e3: - { target: ix://agent-ix/quire-protocol/FR-057, type: depends_on } (also in FR-055 and FR-059) |

@@ -33,3 +33,10 @@ Findings above must be fixed or dispositioned before merge. Units examined:
 - `FR-057` (examined)
 - `FR-058` (examined)
 - `FR-059` (examined)
+
+## Dispositions
+
+| FND | outcome | reason |
+| --- | --- | --- |
+| FND-001 | fixed | Round 1, commit 5ef24e3: When QSL reports an `Unsupported` cause for a protocol construct, the library SHALL return a typed `unsupported` disposition that names the construct. The library SHALL NOT approximate, truncate or repair the construct. |
+| FND-002 | fixed | Round 1, commit 5ef24e3: - For a join of policy `any` or `quorum(n)` with no authored `outstanding` rule, the evaluator shall return the disposition of FR-057. |
