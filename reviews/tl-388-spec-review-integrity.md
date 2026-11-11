@@ -45,3 +45,10 @@ Round 1, fix commit 138d713 (reviewed as `git diff 98e95d0..138d713`).
 | FND | outcome | reason |
 | --- | --- | --- |
 | FND-001 | still-open | Behavior line 78 is fixed, but the FR-100-AC-15 row (line 112) still reads "report truth `pending`" for progress `closed` with completeness `complete`, contradicting the new Behavior line and the rewritten AC-15 test, which asserts `unavailable` |
+
+Round 2, fix commit 753aabe (reviewed as `git diff 138d713..753aabe`).
+
+| FND | outcome | reason |
+| --- | --- | --- |
+| FND-001 | fixed | 753aabe: the AC-15 row reports truth `unavailable`, never `pending`, for every progress and completeness combination |
+| FND-002 | fixed | 753aabe: AC-16 requires the FR-033 supersession; AC-17 is the refusal only and AC-18 the family refusal only, matching their tests |

@@ -34,3 +34,9 @@ Round 1, fix commit 138d713 (reviewed as `git diff 98e95d0..138d713`).
 | FND | outcome | reason |
 | --- | --- | --- |
 | FND-001 | still-open | The FR-046 relationship and Dependencies bullet are replaced by quire-observation FR-004 and FR-006, which are the right owners (QSpec FR-288 is the protocol-definition identity, so the review's FR-288 pointer was imprecise). But Inputs (line 51) still reads "the admitted observation of the awaited `after` event with its QObs anchor (FR-046)" |
+
+Round 2, fix commit 753aabe (reviewed as `git diff 138d713..753aabe`).
+
+| FND | outcome | reason |
+| --- | --- | --- |
+| FND-001 | fixed | 753aabe: Inputs cites quire-observation FR-004 and FR-006; FR-100 no longer names FR-046 |

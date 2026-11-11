@@ -38,3 +38,9 @@ Round 1, fix commit 138d713 (reviewed as `git diff 98e95d0..138d713`).
 | --- | --- | --- |
 | FND-001 | still-open | Behavior now requires an FR-033 supersession and the code and test do it, but the FR-100-AC-16 row (line 113) still says "yields no superseding result" |
 | FND-002 | fixed | 138d713: Behavior refuses an `after` observation on another clock; AC-19 and its test added |
+
+Round 2, fix commit 753aabe (reviewed as `git diff 138d713..753aabe`).
+
+| FND | outcome | reason |
+| --- | --- | --- |
+| FND-001 | fixed | 753aabe: the AC-16 row requires a FR-033 superseding result naming the unaltered earlier result |

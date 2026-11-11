@@ -40,3 +40,9 @@ Round 1, fix commit 138d713 (reviewed as `git diff 98e95d0..138d713`).
 | --- | --- | --- |
 | FND-001 | fixed | 138d713: line 78 is one `While ..., the evaluator SHALL report ...` statement and the closing un-SHALLed paragraph is deleted |
 | FND-002 | still-open | AC-21 and AC-22 were added, but the AC-17 and AC-18 rows still carry both outcomes, so they are still compound and now overlap AC-21 and AC-22 |
+
+Round 2, fix commit 753aabe (reviewed as `git diff 138d713..753aabe`).
+
+| FND | outcome | reason |
+| --- | --- | --- |
+| FND-002 | fixed | 753aabe: AC-17 and AC-18 each state one outcome; the other halves are AC-21 and AC-22 |

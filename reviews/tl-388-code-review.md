@@ -56,3 +56,9 @@ Round 1, fix commit 138d713 (reviewed as `git diff 98e95d0..138d713`).
 | FND-004 | fixed | 138d713: malformed owner text is now `WaitRefusal::AnchorMalformed`, documented as unreachable for a validated view |
 | FND-005 | fixed | 138d713: AC-12 test asserts `Wait::new` refuses a declaration that is not the key's await |
 | FND-006 | fixed | 138d713: `family` is the new `ClockFamily` tag; quire-observation publishes no data-free family enum (`TemporalBoundary`/`ClockRange` carry bounds), so this is not a mirror |
+
+Round 2, fix commit 753aabe (reviewed as `git diff 138d713..753aabe`).
+
+| FND | outcome | reason |
+| --- | --- | --- |
+| FND-007 | fixed | 753aabe: doc names the fact that produced the earlier result, for a timeout and for a result that lacked the `after` observation |

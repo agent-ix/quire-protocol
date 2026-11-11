@@ -24,6 +24,7 @@ const AFTER_FORWARD: &str =
 fn awaiting_source(after: &str) -> String {
     format!(
         r#"        event Armed by Service as (armed: M::Notice) {{ true }};
+        event Spacer by Service as (spacer: M::Notice) {{ true }};
         await Wait after {after} using t clock "wait" within [0,29]
             match event Seen by Service as (seen: M::Notice) {{ true }};
             then sequence WaitThen {{ }} timeout sequence WaitTimeout {{ }}

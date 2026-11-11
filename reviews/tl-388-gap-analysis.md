@@ -39,6 +39,12 @@ Ticket: TL-388. Planless gap analysis (Plan completion: not assessed) of FR-100 
 | --- | --- | --- | --- |
 | FND-003 | medium | The AC-23 test asserts only that `after.port` is `Exit` and `after.node` is not the await. Dropping the `EdgeKind::AwaitAnchor` filter in `await_control` would pick the sequence predecessor's exit edge into the await's Enter, which also passes. Assert the node equals the event control the fixture's `after` names. The `compensation` kind (anchor at the forward body's Enter) has no test. | tests/tc_154_settle_deadline_captures.rs:996-1003; src/declarations.rs:572-578 |
 
+## New findings (disposition pass 2)
+
+| ID | Severity | Summary | Refs |
+| --- | --- | --- | --- |
+| FND-004 | low | In the event fixture `Armed` is both the `after` target and the sequence predecessor of `Wait`, so the AC-23 event test cannot tell the `AwaitAnchor` edge from a sequence edge, although its doc says it can. Only the compensation test's `Enter` assertion guards the `EdgeKind::AwaitAnchor` filter, and that test asserts the node only as not the await and not `Armed`, not as the forward body of `Full`. | tests/tc_154_settle_deadline_captures.rs:995-1028 |
+
 ## Dispositions
 
 Round 1, fix commit 138d713 (reviewed as `git diff 98e95d0..138d713`).
@@ -47,3 +53,9 @@ Round 1, fix commit 138d713 (reviewed as `git diff 98e95d0..138d713`).
 | --- | --- | --- |
 | FND-001 | fixed | 138d713: AC-13 adds the fixed-sample u64 edge and AC-20 asserts the window counts from the index with epoch 1_000_000_007 |
 | FND-002 | fixed | 138d713: `AwaitDeclaration.after` is read from QSL's `AwaitAnchor` causal edge into the await's Enter port; FR-100 Inputs names both kinds |
+
+Round 2, fix commit 753aabe (reviewed as `git diff 138d713..753aabe`).
+
+| FND | outcome | reason |
+| --- | --- | --- |
+| FND-003 | fixed | 753aabe: the AC-23 event test asserts port `Exit` on the node named `Armed`; new `a_compensation_anchor_is_the_entry_of_the_forward_body` asserts port `Enter` over the new `Awaiting::after_compensation()` fixture |
