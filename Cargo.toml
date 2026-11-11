@@ -27,7 +27,6 @@ quire-verification-contracts = { git = "https://github.com/agent-ix/quire-verifi
 # Owner of the claim-strength vocabulary (EA FR-022). Only the serde-only
 # `claim-strength` feature: no serde_json, no arbitrary_precision.
 engineering-assurance = { version = "=0.7.1", git = "https://github.com/agent-ix/engineering-assurance", branch = "main", default-features = false, features = ["claim-strength"] }
-serde_json = "=1.0.151"
 serde = { version = "=1.0.228", features = ["derive"] }
 jsonschema = { version = "=0.17.1", default-features = false, features = ["draft202012"] }
 sha2 = "=0.10.9"
