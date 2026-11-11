@@ -16,6 +16,9 @@
 use qsl_eval::simulation::protocol::Unsupported;
 use qsl_eval::simulation::RequiresBound;
 use qsl_foundation::bound::{DomainKey, DomainKind};
+use qsl_foundation::BackendId;
+use qsl_replay::{SettlementBasis, Truth};
+use qsl_semantics::check::Capability;
 use quire_contract_model::{CheckedNodeId, CheckedPackageV2, CheckedSourceMapEntry};
 use quire_semantic_value::catalog::CatalogCode;
 
@@ -97,16 +100,33 @@ impl UnsupportedCause {
     }
 }
 
+/// A warning a disposition carries beside its cause.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Warning {
+    /// No accepted backend serves the capability kind the claim requires
+    /// (QSL FR-290, this library's FR-153): the kind, and the backend the
+    /// request named when it named one.
+    UnservedCapability {
+        /// The required capability kind.
+        kind: Capability,
+        /// The backend the request named, when it named one.
+        backend: Option<BackendId>,
+    },
+}
+
 /// An `unsupported` disposition (FR-241 `unsupported`): never false,
 /// satisfied, conformant or successful, and the source of no derived result.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct UnsupportedDisposition<P> {
     /// QSL's cause, by name.
     pub cause: UnsupportedCause,
-    /// The construct, by checked node and locus.
-    pub construct: Construct,
+    /// The construct, by checked node and locus; absent when the cause
+    /// concerns the whole claim and no one construct.
+    pub construct: Option<Construct>,
     /// The exact premises the request carried, unchanged.
     pub premises: P,
+    /// The warnings the disposition carries.
+    pub warnings: Vec<Warning>,
 }
 
 impl<P> UnsupportedDisposition<P> {
@@ -114,6 +134,18 @@ impl<P> UnsupportedDisposition<P> {
     #[must_use]
     pub const fn execution(&self) -> AssessmentExecution {
         AssessmentExecution::Unsupported
+    }
+
+    /// The truth (FR-242): always `unavailable`.
+    #[must_use]
+    pub const fn truth(&self) -> Truth {
+        Truth::Unavailable
+    }
+
+    /// The settlement basis (FR-243): always `unavailable`.
+    #[must_use]
+    pub const fn basis(&self) -> SettlementBasis {
+        SettlementBasis::Unavailable
     }
 }
 
@@ -124,8 +156,9 @@ impl<P> UnsupportedDisposition<P> {
 pub struct RequiresBoundDisposition<P> {
     /// QSL's outcome, unchanged.
     pub outcome: RequiresBound,
-    /// The construct the bound is missing for.
-    pub construct: Construct,
+    /// The construct the bound is missing for; absent when the report names
+    /// none.
+    pub construct: Option<Construct>,
     /// The exact premises the request carried, unchanged.
     pub premises: P,
 }
@@ -144,6 +177,43 @@ pub enum Disposition<P> {
     Unsupported(UnsupportedDisposition<P>),
     /// QSL reported unbounded domains.
     RequiresBound(RequiresBoundDisposition<P>),
+    /// QSL's backend returned a refusal, by its catalog code.
+    Refused(RefusedDisposition<P>),
+    /// The selected backend failed for exactly this claim.
+    Failed(FailedDisposition<P>),
+}
+
+impl<P> Disposition<P> {
+    /// The execution state of the disposition (FR-241).
+    #[must_use]
+    pub const fn execution(&self) -> AssessmentExecution {
+        match self {
+            Self::Unsupported(_) => AssessmentExecution::Unsupported,
+            Self::RequiresBound(_) => AssessmentExecution::ResourceIncomplete,
+            Self::Refused(_) => AssessmentExecution::Refused,
+            Self::Failed(_) => AssessmentExecution::Failed,
+        }
+    }
+}
+
+/// A refusal the backend returned, carried by its catalog code. It holds no
+/// truth `satisfied` or `violated`.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RefusedDisposition<P> {
+    /// The backend's code, in its own vocabulary.
+    pub code: CatalogCode,
+    /// The exact premises the request carried, unchanged.
+    pub premises: P,
+}
+
+/// A selected backend's failure for one claim, with the diagnostic it
+/// reported when it reported one.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FailedDisposition<P> {
+    /// The backend's diagnostic code.
+    pub diagnostic: Option<CatalogCode>,
+    /// The exact premises the request carried, unchanged.
+    pub premises: P,
 }
 
 /// What QSL reported for one claim.
@@ -155,27 +225,29 @@ pub enum QslReport<R> {
     Unsupported {
         /// The cause.
         cause: UnsupportedCause,
-        /// The construct.
-        construct: Construct,
+        /// The construct, when the report names one.
+        construct: Option<Construct>,
     },
     /// QSL reported a requires-bound outcome for a construct.
     RequiresBound {
         /// The outcome, unchanged.
         outcome: RequiresBound,
-        /// The construct.
-        construct: Construct,
+        /// The construct, when the report names one.
+        construct: Option<Construct>,
     },
+    /// QSL's backend returned a refusal, by its catalog code.
+    Refusal(CatalogCode),
+    /// The selected backend failed.
+    Failed(Option<CatalogCode>),
 }
 
 /// The call boundary into QSL's protocol analysis.
 ///
-/// This seam is deliberately minimal. The dispatch requirements TL-9
-/// (FR-200..204) and TL-10 (FR-150..153) extend it, not fork it: they add an
-/// arm for a QSL refusal returned as such, an optional construct for a report
-/// that names none, and a slot for the warnings a disposition carries. None
-/// of those is built here. A request carries the
-/// claim and nothing else: there is no parameter through which this library
-/// could pass a bound it chose.
+/// This seam is deliberately minimal. A request carries the claim and nothing
+/// else: there is no parameter through which this library could pass a bound
+/// it chose. A report is a result, a refusal QSL's backend returned, an
+/// `Unsupported` cause or requires-bound outcome with an optional construct,
+/// or a failure of the backend; a disposition carries its own warnings.
 pub trait QslBoundary<C, R> {
     /// Ask QSL about `claim`.
     fn report(&mut self, claim: &C) -> QslReport<R>;
@@ -198,7 +270,7 @@ pub enum ClaimSettlement<R, P> {
 /// Settle each of `claims` against `boundary`: exactly one settlement per
 /// claim, in order, none derived from another claim's.
 pub fn settle_claims<C, R, P: Clone>(
-    boundary: &mut impl QslBoundary<C, R>,
+    boundary: &mut (impl QslBoundary<C, R> + ?Sized),
     claims: &[(C, P)],
 ) -> Vec<ClaimSettlement<R, P>> {
     claims
@@ -212,6 +284,19 @@ pub fn settle_claims<C, R, P: Clone>(
                 ClaimSettlement::Disposition(Disposition::Unsupported(UnsupportedDisposition {
                     cause,
                     construct,
+                    premises: premises.clone(),
+                    warnings: Vec::new(),
+                }))
+            }
+            QslReport::Refusal(code) => {
+                ClaimSettlement::Disposition(Disposition::Refused(RefusedDisposition {
+                    code,
+                    premises: premises.clone(),
+                }))
+            }
+            QslReport::Failed(diagnostic) => {
+                ClaimSettlement::Disposition(Disposition::Failed(FailedDisposition {
+                    diagnostic,
                     premises: premises.clone(),
                 }))
             }
@@ -279,7 +364,8 @@ pub fn request_discharge<P>(
     let construct = Construct::of(package, &declaration.control);
     UnsupportedDisposition {
         cause: UnsupportedCause::requested_capability(),
-        construct,
+        construct: Some(construct),
         premises,
+        warnings: Vec::new(),
     }
 }

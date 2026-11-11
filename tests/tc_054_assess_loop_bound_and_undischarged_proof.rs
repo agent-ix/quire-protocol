@@ -177,7 +177,7 @@ fn a_discharge_request_is_unsupported_naming_the_capability_with_the_requests_pr
     };
     assert_eq!(code.cause(), "unsupported-requested-capability");
     assert_eq!(code.code(), "unsupported_projection");
-    assert_eq!(disposition.construct, construct);
+    assert_eq!(disposition.construct, Some(construct));
     assert_eq!(disposition.premises, premises);
     assert_eq!(
         disposition.execution().label(),
