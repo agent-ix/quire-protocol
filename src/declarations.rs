@@ -152,6 +152,24 @@ pub struct LoopDeclaration {
     pub variant: Option<CheckedNodeId>,
 }
 
+/// One authored `await`: the closed window `within [lower, upper]` that QSL
+/// publishes on the checked node, in the units of the named clock and counted
+/// from the anchor instant of the awaited `after` event. Never interpreted
+/// here beyond its bounds.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AwaitDeclaration {
+    /// The `await` control node.
+    pub control: CheckedNodeId,
+    /// QSL's structural key of the control.
+    pub key: NodeKey,
+    /// The authored lower bound of the window.
+    pub lower: u64,
+    /// The authored upper bound of the window, inclusive.
+    pub upper: u64,
+    /// The authored clock name.
+    pub clock: Box<str>,
+}
+
 /// Every role, channel, join and loop declaration of one linked protocol, in
 /// the protocol view's order.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -160,6 +178,7 @@ pub struct Declarations {
     channels: Vec<ChannelDeclaration>,
     joins: Vec<JoinDeclaration>,
     loops: Vec<LoopDeclaration>,
+    awaits: Vec<AwaitDeclaration>,
     schema: ProtocolOccurrenceSchema,
 }
 
@@ -193,6 +212,20 @@ impl Declarations {
     #[must_use]
     pub fn loops(&self) -> &[LoopDeclaration] {
         &self.loops
+    }
+
+    /// The `await` declarations.
+    #[must_use]
+    pub fn awaits(&self) -> &[AwaitDeclaration] {
+        &self.awaits
+    }
+
+    /// The `await` declaration at control `id`.
+    #[must_use]
+    pub fn await_at(&self, id: &CheckedNodeId) -> Option<&AwaitDeclaration> {
+        self.awaits
+            .iter()
+            .find(|declaration| &declaration.control == id)
     }
 
     /// The role declaration at `id`.
@@ -246,6 +279,7 @@ impl Declarations {
             channels: Vec::new(),
             joins: Vec::new(),
             loops: Vec::new(),
+            awaits: Vec::new(),
             schema,
         };
         let schema = declarations.schema.clone();
@@ -277,6 +311,11 @@ impl Declarations {
                 }
                 Ok(ControlOperation::Repeat) => {
                     declarations.loops.push(repeat(package, id, key_of(id)?)?);
+                }
+                Ok(ControlOperation::Await) => {
+                    declarations
+                        .awaits
+                        .push(await_control(package, id, key_of(id)?)?);
                 }
                 Ok(_) | Err(_) => {}
             }
@@ -503,5 +542,30 @@ fn repeat(
         maximum,
         invariant,
         variant,
+    })
+}
+
+fn await_control(
+    package: &CheckedPackageV2,
+    id: &CheckedNodeId,
+    key: NodeKey,
+) -> Result<AwaitDeclaration, LinkRefusal> {
+    let bad = |member| malformed(id, member);
+    let within = members(member_of_node(package, id, "within")?).ok_or_else(|| bad("within"))?;
+    let bound = |name| {
+        named(within, name)
+            .and_then(integer)
+            .ok_or_else(|| bad("within"))
+    };
+    let (lower, upper) = (bound("lower")?, bound("upper")?);
+    let clock = text(member_of_node(package, id, "clock")?)
+        .map(Box::from)
+        .ok_or_else(|| bad("clock"))?;
+    Ok(AwaitDeclaration {
+        control: id.clone(),
+        key,
+        lower,
+        upper,
+        clock,
     })
 }

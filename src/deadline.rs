@@ -3,39 +3,44 @@
 //!
 //! A waiting instance (an `await` control of one workflow instance, with its
 //! repeat ordinals) is judged against one admitted history. The response
-//! branch is selected by a matching observation at or before the deadline,
-//! counting the deadline instant itself. The timeout branch is selected only
+//! branch is selected by a matching observation inside the authored window
+//! `within [lower, upper]`, both bounds inside. The timeout branch is selected only
 //! when the awaited scope's progress is `closed` through the deadline and the
 //! input completeness is `complete`, two separate owner facts that never stand
 //! in for each other (FR-028).
 //!
 //! Nothing here evaluates a constraint, a clock or an expression: the
 //! constraint outcome is QSL's slot outcome, progress and completeness are the
-//! QObs owner views, and the deadline is the owner's FR-289 boundary. A
+//! QObs owner views, and the window is the one QSL publishes on the checked
+//! `await` node, which the progress view's FR-289 boundary must name. A
 //! settlement is keyed by the waiting instance, never by the static branch.
-//! Results are immutable; a late matching observation is reported as an
-//! FR-033 supersession that names the earlier result and leaves it unaltered.
+//! Results are immutable; a settled timeout that a later observation, progress
+//! or completeness fact contradicts is reported as an FR-033 supersession that
+//! names the earlier result and leaves it unaltered.
 
-use qsl_package::WorkflowInstanceIdentity;
 use quire_contract_model::CheckedNodeId;
 use quire_exact::Integer;
-use quire_observation::authority::{
-    completeness, progress, BoundaryRef, OpenClosed, TemporalBoundary,
-};
+use quire_observation::authority::{completeness, progress, BoundaryRef, OpenClosed};
 
 use crate::closure::{AssessmentExecution, TruthDisposition};
 use crate::compensation::purity::PureAssessment;
-use crate::dynamics::{HistoryRefusal, ObservationRef};
+use crate::declarations::{AwaitDeclaration, Declarations};
+use crate::dynamics::{bind_occurrence, HistoryRefusal, ObservationRef};
 use crate::ids::WorkflowInstanceId;
 use crate::slot::SlotOutcome;
 
 /// Why a wait cannot be settled. Nothing is guessed or repaired.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum WaitRefusal {
-    /// The waiting instance's workflow identity is not a key QSL accepts
-    /// (non-UTF-8, empty or longer than 4096 bytes).
+    /// QSL's occurrence schema does not key this wait: the workflow identity,
+    /// the control or the repeat ordinals are refused.
     Key(HistoryRefusal),
-    /// The progress view does not name the wait's deadline as its boundary.
+    /// The control is not an `await` the linked protocol declares.
+    UndeclaredAwait {
+        /// The offered control.
+        control: CheckedNodeId,
+    },
+    /// The progress view's boundary is not the wait's window.
     ProgressNotThroughDeadline,
     /// A fact is not after the last admitted one in the history's order.
     OutOfOrder {
@@ -43,14 +48,6 @@ pub enum WaitRefusal {
         last: ObservationRef,
         /// The offered fact.
         offered: ObservationRef,
-    },
-    /// Progress or completeness regressed after timeout was selected; that is
-    /// an owner-side contradiction of a settled premise, not an input here.
-    PremiseRegressed {
-        /// The settled result whose premise regressed.
-        selected: Box<ResultId>,
-        /// The offending fact.
-        at: ObservationRef,
     },
 }
 
@@ -64,27 +61,31 @@ pub struct WaitKey {
 }
 
 impl WaitKey {
-    /// The waiting instance of `branch` in `workflow`.
+    /// The waiting instance of the `await` at `control` in `workflow`, keyed
+    /// through QSL's occurrence schema (QSL FR-384): this library's identities
+    /// are exact bytes, QSL's workflow identity is non-empty UTF-8 of at most
+    /// 4096 bytes, and there is one repeat ordinal for each enclosing `repeat`.
     ///
     /// # Errors
     ///
-    /// [`WaitRefusal::Key`] when the workflow identity is not text QSL keys an
-    /// occurrence by: this library's identities are exact bytes, QSL's are
-    /// non-empty UTF-8 of at most 4096 bytes.
+    /// [`WaitRefusal::UndeclaredAwait`] for a control that is not a declared
+    /// `await`; [`WaitRefusal::Key`] when QSL's schema refuses the key.
     pub fn new(
-        branch: CheckedNodeId,
+        declarations: &Declarations,
+        control: &CheckedNodeId,
         workflow: WorkflowInstanceId,
         repeat_ordinals: Vec<Integer>,
     ) -> Result<Self, WaitRefusal> {
-        let text = std::str::from_utf8(workflow.identity_bytes()).map_err(|_| {
-            WaitRefusal::Key(HistoryRefusal::WorkflowNotText {
-                workflow: workflow.identity_bytes().into(),
-            })
-        })?;
-        WorkflowInstanceIdentity::new(text)
-            .map_err(|error| WaitRefusal::Key(HistoryRefusal::Occurrence(error)))?;
+        let declaration =
+            declarations
+                .await_at(control)
+                .ok_or_else(|| WaitRefusal::UndeclaredAwait {
+                    control: control.clone(),
+                })?;
+        bind_occurrence(declarations, &declaration.key, &workflow, &repeat_ordinals)
+            .map_err(WaitRefusal::Key)?;
         Ok(Self {
-            branch,
+            branch: control.clone(),
             workflow,
             repeat_ordinals,
         })
@@ -109,73 +110,51 @@ impl WaitKey {
     }
 }
 
-/// The inclusive deadline: the owner's FR-289 boundary of the wait.
+/// The window of a wait: the authored `within [lower, upper]` counted from the
+/// anchor instant, closed at both ends. Observations and the progress
+/// boundary are in the unit of the authored clock.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Deadline {
-    boundary: TemporalBoundary,
+    lower: i128,
+    upper: i128,
 }
 
 impl Deadline {
-    /// The deadline of `boundary`.
+    /// The window `declaration` authors, counted from `anchor`.
     #[must_use]
-    pub const fn new(boundary: TemporalBoundary) -> Self {
-        Self { boundary }
-    }
-
-    fn upper(self) -> i128 {
-        match self.boundary {
-            TemporalBoundary::EventPosition {
-                upper_inclusive, ..
-            }
-            | TemporalBoundary::FixedSample {
-                upper_inclusive, ..
-            } => i128::from(upper_inclusive),
-            TemporalBoundary::TimestampedEvent {
-                upper_inclusive_nanos,
-                ..
-            } => upper_inclusive_nanos,
+    pub fn of(declaration: &AwaitDeclaration, anchor: i128) -> Self {
+        Self {
+            lower: anchor + i128::from(declaration.lower),
+            upper: anchor + i128::from(declaration.upper),
         }
     }
 
-    /// Whether an observation at `observed`, in the unit of the deadline's
-    /// clock family, is inside the wait. The deadline instant is inside.
+    /// Whether an observation at `observed` is inside the wait. Both bounds
+    /// are inside.
     #[must_use]
-    pub fn admits(self, observed: i128) -> bool {
-        observed <= self.upper()
+    pub const fn admits(self, observed: i128) -> bool {
+        self.lower <= observed && observed <= self.upper
     }
 
     fn named_by(self, reference: BoundaryRef<'_>) -> bool {
-        match (self.boundary, reference) {
-            (
-                TemporalBoundary::EventPosition {
-                    upper_inclusive, ..
-                },
-                BoundaryRef::EventPosition {
-                    upper_inclusive: text,
-                    ..
-                },
-            )
-            | (
-                TemporalBoundary::FixedSample {
-                    upper_inclusive, ..
-                },
-                BoundaryRef::FixedSample {
-                    upper_inclusive: text,
-                    ..
-                },
-            ) => upper_inclusive.to_string() == text,
-            (
-                TemporalBoundary::TimestampedEvent {
-                    upper_inclusive_nanos,
-                    ..
-                },
-                BoundaryRef::TimestampedEvent {
-                    upper_inclusive_nanos: text,
-                    ..
-                },
-            ) => upper_inclusive_nanos.to_string() == text,
-            _ => false,
-        }
+        let (lower, upper) = match reference {
+            BoundaryRef::EventPosition {
+                lower,
+                upper_inclusive,
+                ..
+            }
+            | BoundaryRef::FixedSample {
+                lower,
+                upper_inclusive,
+                ..
+            } => (lower, upper_inclusive),
+            BoundaryRef::TimestampedEvent {
+                lower_nanos,
+                upper_inclusive_nanos,
+                ..
+            } => (lower_nanos, upper_inclusive_nanos),
+        };
+        self.lower.to_string() == lower && self.upper.to_string() == upper
     }
 }
 
@@ -290,32 +269,91 @@ pub enum Branch {
     Timeout,
 }
 
-/// What one settlement says. A selected branch carries execution `completed`
-/// and no truth (an absent truth compares only to absence, FR-242); with no
-/// selection the truth is `pending` or `unavailable`. The progress and
-/// completeness axes are carried unchanged and absent until observed.
+/// What a settlement decides. A branch and a truth disposition cannot both be
+/// present: a selected branch carries its execution disposition only, and
+/// which truth, if any, a selection carries is an open question for the
+/// owner of FR-242 (see FR-100).
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Verdict {
+    /// A branch is selected.
+    Selected(Branch),
+    /// No branch is selected, with the truth FR-100 assigns, if any.
+    NotSelected(Option<TruthDisposition>),
+}
+
+/// One settlement. The progress and completeness axes are carried unchanged
+/// and are absent until observed.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Settlement {
+    verdict: Verdict,
+    progress: Option<OpenClosed>,
+    completeness: Option<completeness::State>,
+}
+
+impl Settlement {
+    /// What the settlement decides.
+    #[must_use]
+    pub const fn verdict(&self) -> &Verdict {
+        &self.verdict
+    }
+
     /// The selected branch, if any.
-    pub selected: Option<Branch>,
-    /// The truth disposition, carried when no branch is selected.
-    pub truth: Option<TruthDisposition>,
-    /// The assessment execution disposition.
-    pub execution: AssessmentExecution,
+    #[must_use]
+    pub const fn branch(&self) -> Option<&Branch> {
+        match &self.verdict {
+            Verdict::Selected(branch) => Some(branch),
+            Verdict::NotSelected(_) => None,
+        }
+    }
+
+    /// The truth disposition, when one is assigned.
+    #[must_use]
+    pub const fn truth(&self) -> Option<TruthDisposition> {
+        match &self.verdict {
+            Verdict::Selected(_) => None,
+            Verdict::NotSelected(truth) => *truth,
+        }
+    }
+
+    /// The assessment execution disposition: every settlement here completed.
+    #[must_use]
+    pub const fn execution(&self) -> AssessmentExecution {
+        AssessmentExecution::Completed
+    }
+
     /// Progress through the deadline, as the owner reported it.
-    pub progress: Option<OpenClosed>,
+    #[must_use]
+    pub const fn progress(&self) -> Option<OpenClosed> {
+        self.progress
+    }
+
     /// Input completeness, as the owner reported it.
-    pub completeness: Option<completeness::State>,
+    #[must_use]
+    pub const fn completeness(&self) -> Option<completeness::State> {
+        self.completeness
+    }
 }
 
 /// The identity of one result: the waiting instance and the fact that
 /// produced it.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ResultId {
+    wait: WaitKey,
+    produced_at: ObservationRef,
+}
+
+impl ResultId {
     /// The waiting instance.
-    pub wait: WaitKey,
+    #[must_use]
+    pub const fn wait(&self) -> &WaitKey {
+        &self.wait
+    }
+
     /// The fact that produced the result.
-    pub produced_at: ObservationRef,
+    #[must_use]
+    pub const fn produced_at(&self) -> &ObservationRef {
+        &self.produced_at
+    }
 }
 
 /// One immutable result of a wait.
@@ -339,29 +377,83 @@ impl SettledResult {
     }
 }
 
-/// The FR-033 result for a matching observation admitted after timeout was
-/// selected but observed at or before the deadline.
+/// What contradicted a settled timeout.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Contradiction {
+    /// An observation inside the window, admitted late.
+    Observation,
+    /// A progress and completeness fact that no longer supports timeout.
+    Authority,
+}
+
+/// The FR-033 result for a settled timeout that a later fact contradicts.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Supersession {
+    earlier: ResultId,
+    contradicted_premise: ObservationRef,
+    corrected_input: ObservationRef,
+    contradiction: Contradiction,
+    superseding: SettledResult,
+}
+
+impl Supersession {
     /// The earlier result, unaltered.
-    pub earlier: ResultId,
+    #[must_use]
+    pub const fn earlier(&self) -> &ResultId {
+        &self.earlier
+    }
+
     /// The contradicted premise: the authority fact that closed the wait.
-    pub contradicted_premise: ObservationRef,
-    /// The corrected input: the late observation.
-    pub corrected_input: ObservationRef,
-    /// The new result, a response selection.
-    pub superseding: SettledResult,
+    #[must_use]
+    pub const fn contradicted_premise(&self) -> &ObservationRef {
+        &self.contradicted_premise
+    }
+
+    /// The corrected input: the fact that contradicted it.
+    #[must_use]
+    pub const fn corrected_input(&self) -> &ObservationRef {
+        &self.corrected_input
+    }
+
+    /// What kind of fact contradicted it.
+    #[must_use]
+    pub const fn contradiction(&self) -> Contradiction {
+        self.contradiction
+    }
+
+    /// The new result.
+    #[must_use]
+    pub const fn superseding(&self) -> &SettledResult {
+        &self.superseding
+    }
 }
 
 /// Every result and supersession of one wait, in history order.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct WaitAssessment {
+    key: WaitKey,
+    results: Vec<SettledResult>,
+    supersessions: Vec<Supersession>,
+}
+
+impl WaitAssessment {
     /// The waiting instance.
-    pub key: WaitKey,
+    #[must_use]
+    pub const fn key(&self) -> &WaitKey {
+        &self.key
+    }
+
     /// Each result, earliest first; the last is current.
-    pub results: Vec<SettledResult>,
+    #[must_use]
+    pub fn results(&self) -> &[SettledResult] {
+        &self.results
+    }
+
     /// Each supersession, earliest first.
-    pub supersessions: Vec<Supersession>,
+    #[must_use]
+    pub fn supersessions(&self) -> &[Supersession] {
+        &self.supersessions
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -407,13 +499,12 @@ impl Wait {
         self.results.last()
     }
 
-    /// Admit the next fact of the history.
+    /// Admit the next fact of the history. A fact that changes a settled
+    /// timeout returns the FR-033 supersession it produced.
     ///
     /// # Errors
     ///
-    /// [`WaitRefusal::OutOfOrder`] when the fact is not after the last one;
-    /// [`WaitRefusal::PremiseRegressed`] when progress or completeness stops
-    /// supporting a selected timeout.
+    /// [`WaitRefusal::OutOfOrder`] when the fact is not after the last one.
     pub fn admit(&mut self, fact: WaitFact) -> Result<Option<&Supersession>, WaitRefusal> {
         if let Some(last) = &self.last {
             if fact.at <= *last {
@@ -423,38 +514,32 @@ impl Wait {
                 });
             }
         }
-        let before = self.current().cloned();
-        match fact.event {
+        let contradiction = match fact.event {
             WaitEvent::Observation {
                 observed,
                 constraint,
-            } => self.seen.push(Seen {
-                observed,
-                constraint,
-                at: fact.at.clone(),
-            }),
+            } => {
+                self.seen.push(Seen {
+                    observed,
+                    constraint,
+                    at: fact.at.clone(),
+                });
+                Contradiction::Observation
+            }
             WaitEvent::Authority {
                 progress,
                 completeness,
             } => {
-                if let Some(selected) = before.as_ref().filter(|result| {
-                    result.settlement.selected == Some(Branch::Timeout)
-                        && !(progress == OpenClosed::Closed
-                            && completeness == completeness::State::Complete)
-                }) {
-                    return Err(WaitRefusal::PremiseRegressed {
-                        selected: Box::new(selected.id.clone()),
-                        at: fact.at,
-                    });
-                }
                 self.progress = Some(progress);
                 self.completeness = Some(completeness);
+                Contradiction::Authority
             }
-        }
+        };
         self.last = Some(fact.at.clone());
         let Some(settlement) = self.judge() else {
             return Ok(None);
         };
+        let before = self.results.last().cloned();
         if before.as_ref().map(|result| &result.settlement) == Some(&settlement) {
             return Ok(None);
         }
@@ -465,62 +550,54 @@ impl Wait {
             },
             settlement,
         };
-        let supersedes = before.filter(|earlier| {
-            earlier.settlement.selected == Some(Branch::Timeout)
-                && matches!(result.settlement.selected, Some(Branch::Response { .. }))
-        });
         self.results.push(result.clone());
-        match supersedes {
-            Some(earlier) => {
-                self.supersessions.push(Supersession {
-                    contradicted_premise: earlier.id.produced_at.clone(),
-                    earlier: earlier.id,
-                    corrected_input: fact.at,
-                    superseding: result,
-                });
-                Ok(self.supersessions.last())
-            }
-            None => Ok(None),
-        }
+        let Some(earlier) =
+            before.filter(|earlier| earlier.settlement.branch() == Some(&Branch::Timeout))
+        else {
+            return Ok(None);
+        };
+        self.supersessions.push(Supersession {
+            contradicted_premise: earlier.id.produced_at.clone(),
+            earlier: earlier.id,
+            corrected_input: fact.at,
+            contradiction,
+            superseding: result,
+        });
+        Ok(self.supersessions.last())
     }
 
     fn judge(&self) -> Option<Settlement> {
-        let settlement = |selected, truth| Settlement {
-            selected,
-            truth,
-            execution: AssessmentExecution::Completed,
+        let settlement = |verdict| Settlement {
+            verdict,
             progress: self.progress,
             completeness: self.completeness,
         };
-        if let Some(first) = self
-            .seen
-            .iter()
-            .find(|seen| self.deadline.admits(seen.observed) && seen.constraint.matches())
-        {
-            return Some(settlement(
-                Some(Branch::Response {
-                    observation: first.at.clone(),
-                }),
-                None,
-            ));
+        let inside = || {
+            self.seen
+                .iter()
+                .filter(|seen| self.deadline.admits(seen.observed))
+        };
+        if let Some(first) = inside().find(|seen| seen.constraint.matches()) {
+            return Some(settlement(Verdict::Selected(Branch::Response {
+                observation: first.at.clone(),
+            })));
         }
         let (progress, completeness) = (self.progress?, self.completeness?);
+        let unselected = |truth| settlement(Verdict::NotSelected(truth));
         Some(match (completeness, progress) {
             (completeness::State::Incomplete | completeness::State::Contradicted, _) => {
-                settlement(None, Some(TruthDisposition::Unavailable))
+                unselected(Some(TruthDisposition::Unavailable))
             }
             (completeness::State::Complete, OpenClosed::Open) => {
-                settlement(None, Some(TruthDisposition::Pending))
+                unselected(Some(TruthDisposition::Pending))
             }
             (completeness::State::Complete, OpenClosed::Closed) => {
-                let blocked = self
-                    .seen
-                    .iter()
-                    .any(|seen| self.deadline.admits(seen.observed) && !seen.constraint.matches());
-                if blocked {
-                    settlement(None, Some(TruthDisposition::Unavailable))
+                if inside().any(|seen| seen.constraint == Constraint::Unestablished) {
+                    unselected(Some(TruthDisposition::Unavailable))
+                } else if inside().any(|seen| seen.constraint == Constraint::DoesNotHold) {
+                    unselected(None)
                 } else {
-                    settlement(Some(Branch::Timeout), None)
+                    settlement(Verdict::Selected(Branch::Timeout))
                 }
             }
         })

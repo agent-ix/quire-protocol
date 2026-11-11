@@ -69,7 +69,15 @@ impl CaptureOccurrence {
     }
 }
 
-/// The captures of one activation, in authored order.
+/// The captures of one activation, in authored order. The fields are private
+/// and no accessor returns a mutable reference, so a bound value cannot change
+/// after activation:
+///
+/// ```compile_fail
+/// fn change(mut captures: quire_protocol::captures::ActivationCaptures) {
+///     captures.occurrences.clear();
+/// }
+/// ```
 #[derive(Clone, Debug)]
 pub struct ActivationCaptures {
     activation: Binding,
@@ -102,14 +110,9 @@ impl ActivationCaptures {
 pub enum CaptureFailure {
     /// QSL supplied nothing for the authored capture.
     Missing,
-    /// QSL supplied a value for a capture the activation does not author at
-    /// this place.
+    /// QSL supplied a value for a capture the activation does not author, or
+    /// more times than it authors it.
     Unauthored,
-    /// The supply is for another capture than the one authored here.
-    OutOfOrder {
-        /// The capture the supply names.
-        supplied: CheckedNodeId,
-    },
     /// The value was evaluated at another boundary than the activation's.
     WrongBoundary {
         /// The boundary of the supply.
@@ -125,7 +128,8 @@ pub enum CaptureFailure {
 /// One capture that could not be bound.
 #[derive(Debug)]
 pub struct CaptureFault {
-    /// Zero-based place in the authored order.
+    /// Zero-based place in the authored order; for an unauthored supply, the
+    /// place after the last authored capture.
     pub ordinal: usize,
     /// The authored capture, or the unauthored one a surplus supply names.
     pub capture: CheckedNodeId,
@@ -156,12 +160,15 @@ fn completed(outcome: SlotOutcome) -> Result<Value, Box<SlotOutcome>> {
 }
 
 /// Bind the captures of `activation`, whose authored captures are `authored`
-/// in order, from QSL's `supplied` evaluations at `boundary`.
+/// in order, from QSL's `supplied` evaluations at `boundary`. Each supply
+/// answers the authored capture it names, whatever order it arrives in; the
+/// occurrences are in authored order.
 ///
 /// # Errors
 ///
-/// [`CaptureRefusal`] naming every capture that is missing, out of order,
-/// evaluated at another boundary or without a value; none is bound then.
+/// [`CaptureRefusal`] naming every capture that is missing, evaluated at
+/// another boundary or without a value, and every supply for a capture that
+/// is not authored; none is bound then.
 pub fn bind_captures(
     _pure: PureAssessment,
     activation: &Binding,
@@ -169,7 +176,7 @@ pub fn bind_captures(
     authored: &[CheckedNodeId],
     supplied: Vec<CaptureSupply>,
 ) -> Result<ActivationCaptures, CaptureRefusal> {
-    let mut supplies = supplied.into_iter();
+    let mut supplies: Vec<Option<CaptureSupply>> = supplied.into_iter().map(Some).collect();
     let mut occurrences = Vec::with_capacity(authored.len());
     let mut faults = Vec::new();
     for (ordinal, capture) in authored.iter().enumerate() {
@@ -178,33 +185,36 @@ pub fn bind_captures(
             capture: capture.clone(),
             failure,
         };
-        let Some(supply) = supplies.next() else {
+        let Some(supply) = supplies
+            .iter_mut()
+            .find(|slot| {
+                slot.as_ref()
+                    .is_some_and(|supply| supply.capture == *capture)
+            })
+            .and_then(Option::take)
+        else {
             faults.push(fault(CaptureFailure::Missing));
             continue;
         };
-        if supply.capture != *capture {
-            faults.push(fault(CaptureFailure::OutOfOrder {
-                supplied: supply.capture,
-            }));
-        } else if supply.boundary != boundary {
+        if supply.boundary != boundary {
             faults.push(fault(CaptureFailure::WrongBoundary {
                 supplied: supply.boundary,
             }));
-        } else {
-            match completed(supply.evaluation) {
-                Ok(value) => occurrences.push(CaptureOccurrence {
-                    id: CaptureOccurrenceId {
-                        activation: activation.clone(),
-                        ordinal,
-                    },
-                    capture: capture.clone(),
-                    value,
-                }),
-                Err(outcome) => faults.push(fault(CaptureFailure::Undefined { outcome: *outcome })),
-            }
+            continue;
+        }
+        match completed(supply.evaluation) {
+            Ok(value) => occurrences.push(CaptureOccurrence {
+                id: CaptureOccurrenceId {
+                    activation: activation.clone(),
+                    ordinal,
+                },
+                capture: capture.clone(),
+                value,
+            }),
+            Err(outcome) => faults.push(fault(CaptureFailure::Undefined { outcome: *outcome })),
         }
     }
-    for (offset, surplus) in supplies.enumerate() {
+    for (offset, surplus) in supplies.into_iter().flatten().enumerate() {
         faults.push(CaptureFault {
             ordinal: authored.len() + offset,
             capture: surplus.capture,
