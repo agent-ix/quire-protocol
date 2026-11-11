@@ -59,3 +59,9 @@ Round 2, fix commit 753aabe (reviewed as `git diff 138d713..753aabe`).
 | FND | outcome | reason |
 | --- | --- | --- |
 | FND-003 | fixed | 753aabe: the AC-23 event test asserts port `Exit` on the node named `Armed`; new `a_compensation_anchor_is_the_entry_of_the_forward_body` asserts port `Enter` over the new `Awaiting::after_compensation()` fixture |
+
+Round 3, fix commit 3ae1f09 (reviewed as `git diff 753aabe..3ae1f09`).
+
+| FND | outcome | reason |
+| --- | --- | --- |
+| FND-004 | fixed | 3ae1f09: the event fixture puts `Spacer` between `Armed` and `Wait`, so the AC-23 event test's `Armed` assertion now separates the anchor edge from the sequence edge; the compensation test asserts the anchor node is `Applied` at port `Enter` |
