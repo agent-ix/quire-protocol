@@ -33,3 +33,9 @@ Round 1, fix commit 138d713 (reviewed as `git diff 98e95d0..138d713`).
 | FND | outcome | reason |
 | --- | --- | --- |
 | FND-001 | fixed | 138d713: Inputs states QSL's `after = {kind, target}`, the causal-relation port for both kinds, that this library reads it, and that observation-to-port attribution stays with the caller |
+
+Round 4, fix commit 8aadf41 (reviewed as `git diff 38f379b..8aadf41`).
+
+| FND | outcome | reason |
+| --- | --- | --- |
+| FND-001 | deferred | QSL-1875: FR-100 Inputs at 8aadf41 states that QSL publishes `after = {kind, target}` but no public accessor exposes it (QSL-1875) and that QObs views carry no node or workflow instance (STD-659), so the caller attributes the `after` observation; reading the anchor is deferred to QSL-1875 |

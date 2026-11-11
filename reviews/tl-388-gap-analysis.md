@@ -65,3 +65,11 @@ Round 3, fix commit 3ae1f09 (reviewed as `git diff 753aabe..3ae1f09`).
 | FND | outcome | reason |
 | --- | --- | --- |
 | FND-004 | fixed | 3ae1f09: the event fixture puts `Spacer` between `Armed` and `Wait`, so the AC-23 event test's `Armed` assertion now separates the anchor edge from the sequence edge; the compensation test asserts the anchor node is `Applied` at port `Enter` |
+
+Round 4, fix commit 8aadf41 (reviewed as `git diff 38f379b..8aadf41`).
+
+| FND | outcome | reason |
+| --- | --- | --- |
+| FND-002 | deferred | QSL-1875: 8aadf41 removes the `AwaitDeclaration.after` read because this repo forbids naming causal edges (tc_150 `no_source_constructs_a_causal_edge`) and QSL exposes no public accessor for the await's `after` {kind, target}; FR-100 Inputs now says so and cites QSL-1875 and STD-659 |
+| FND-003 | deferred | QSL-1875: no longer applicable at 8aadf41, which removes FR-100-AC-23 and the event test; it applies again when the anchor read returns with QSL-1875 |
+| FND-004 | deferred | QSL-1875: no longer applicable at 8aadf41, which removes the compensation test, the `after_compensation` fixture and the `Spacer` node; it applies again when the anchor read returns with QSL-1875 |
