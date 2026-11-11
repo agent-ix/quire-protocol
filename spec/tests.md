@@ -88,7 +88,7 @@ Assurance producer, license, implementation plan, and retained corpus remain
 explicit gates.
 
 The repository carries 70 functional requirements, 8 non-functional
-requirements, 3 integration tests and 40 test cases, and 481 acceptance criteria
+requirements, 3 integration tests and 40 test cases, and 487 acceptance criteria
 across the 70 FRs and the 8 NFRs. The functional set divides into 9 aggregate or
 behavioural parents (FR-001..FR-009), 9 object requirements (FR-010..FR-018),
 24 atomic behavioural parts (FR-019..FR-042) that the parents aggregate
@@ -225,7 +225,7 @@ in Domain Object Coverage instead.
 | FR-203 | FR-203-AC-1..AC-6 | TC-203 (AC-1..AC-6) | 🚧 Planned — spec only (ADR-010); binds all 6 criteria; awaits the implementation. |
 | FR-204 | FR-204-AC-1..AC-7 | TC-204 (AC-1..AC-7) | 🚧 Planned — spec only (ADR-010); binds all 7 criteria; awaits the implementation. |
 
-Behavioural totals across these 61 rows: 353 acceptance criteria. 119 carry a living traced test, 106 belong to retired rows (their tests were deleted in QSL-1549 stage 1), 0 are blocked and 128 are planned or verify by Inspection or Analysis only. 119 + 106 + 0 + 128 = 353.
+Behavioural totals across these 61 rows: 372 acceptance criteria, of which 195 carry a living traced test (the criteria `quire matrix` computes as tagged). `quire matrix` computes no retired or planned split, so none is stated.
 
 ## Domain Object Coverage
 
@@ -233,7 +233,7 @@ Requirements carrying `object:` specify the consumer-boundary vocabulary. They
 are separated from the behavioural table because they define nouns rather than
 behaviour.
 
-The nine object requirements hold 62 acceptance criteria. 28 carry a living traced test, 19 belong to retired rows and 15 are planned or verify by Inspection or Analysis only.
+The nine object requirements hold 62 acceptance criteria, of which 27 carry a living traced test (the criteria `quire matrix` computes as tagged).
 
 | Object Req | Object type | Acceptance Criteria | Test Cases | Status |
 | --- | --- | --- | --- | --- |
@@ -260,7 +260,7 @@ The nine object requirements hold 62 acceptance criteria. 28 carry a living trac
 | NFR-007 | Public-surface inspection, two-revision surface analysis, and IT-001 cross-version and inherited-axis scenarios | no living test for AC-1..AC-8 | ⛔ Retired — every test of this row's 8 criteria was deleted in QSL-1549 stage 1 with the implementation it exercised. |
 | NFR-008 | Static site counts over the repository's own sources, a rendering-replacement mutation, a captured-stream control, an accessor compilation control, and reproduction comparison | TC-011 (AC-6); no living test for AC-1..AC-5, AC-7..AC-8 | 🚧 Planned — 1 of 8 criteria have a living traced test; 3 designated to tests deleted in QSL-1549 stage 1; 4 verify by Inspection or Analysis only. |
 
-Non-functional totals across these 8 rows: 53 acceptance criteria. 20 carry a living traced test, 8 belong to retired rows (their tests were deleted in QSL-1549 stage 1), 0 are blocked and 25 are planned or verify by Inspection or Analysis only. 20 + 8 + 0 + 25 = 53.
+Non-functional totals across these 8 rows: 53 acceptance criteria, of which 19 carry a living traced test (the criteria `quire matrix` computes as tagged).
 
 ## Integration Coverage
 
@@ -358,7 +358,7 @@ criterion is a zero inside it rather than a row removed from it.
 
 | Category | Total | Passed | Failed | Blocked |
 | --- | ---: | ---: | ---: | ---: |
-| Overall owed criteria | 481 | 210 | 0 | 0 |
+| Overall owed criteria | 487 | 241 | 0 | 0 |
 
 Passed means the criterion carries a living traced test in the current tree
-(210 of 481, the criteria `quire matrix` computes as tagged). Blocked is none: QSL delivered the evaluation entries that FR-045 and FR-046 wait on. The criteria not counted as passed include those that verify by Inspection or Analysis only and FR-014-AC-6, which waits on IT-003's Quoin scenario-record handoff; `quire matrix` computes no planned or retired split, so none is stated here.
+(241 of 487, the criteria `quire matrix` computes as tagged). Blocked is none: QSL delivered the evaluation entries that FR-045 and FR-046 wait on. The criteria not counted as passed include those that verify by Inspection or Analysis only and FR-014-AC-6, which waits on IT-003's Quoin scenario-record handoff; `quire matrix` computes no planned or retired split, so none is stated here.
