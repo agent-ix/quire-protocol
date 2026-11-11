@@ -112,3 +112,13 @@ Reviewed head ecee04fb29b155ea52a4c4f576882992d03f85da (`git diff b9c6e01..ecee0
 | FND-006 | deferred | Seam shape is a forward concern, not a defect for FR-057/058; the QslBoundary doc now records that TL-9 (FR-200..204) and TL-10 (FR-150..153) extend it with a refusal arm, an optional construct and a warning slot. Built by those tickets. |
 | FND-007 | fixed | Round 1, ecee04f: let capacity = match steppable_capacity(channel) {     Ok(capacity) => capacity,     Err(cause) => { return ChannelOutcome::Unsupported { .. } } }; ... let construct = Construct { node: declaration.control.clone(), locus: construct.locus }; |
 | FND-008 | fixed | Round 1, ecee04f: /// A join declaration with no fact yields no occurrence. A join QSL would /// report `Unsupported` for yields one [`JoinOutcome::Unsupported`] for each /// occurrence (workflow instance and enclosing repeat ordinals) the history /// names. |
+| FND-009 | fixed | Round 2, df16bc9: pub fn request_discharge<P>(     package: &CheckedPackageV2,     declaration: &LoopDeclaration,     premises: P, ) -> UnsupportedDisposition<P> {     let construct = Construct::of(package, &declaration.control); |
+| FND-010 | fixed | Round 2, df16bc9: /// The workflow instance the role instance belongs to. A role's `max` /// bounds the live instances of one workflow instance, and a workflow /// end ends only that workflow's instances. pub workflow: WorkflowInstanceId, ... let mut by_role: BTreeMap<(usize, &WorkflowInstanceId), Vec<&RoleFact>> = BTreeMap::new(); |
+
+## New findings (disposition pass 2)
+
+Reviewed head df16bc9a2231d7c2953a4efbb924a883a937761e (`git diff ecee04f..df16bc9`).
+
+| ID | Severity | Summary | Refs |
+| --- | --- | --- | --- |
+| FND-011 | medium | The PR deletes reviews/tl-11-spec-review-base.md (SR-2127018, merged with #143); restore it from main | reviews/tl-11-spec-review-base.md:1-85 |

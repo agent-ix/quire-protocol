@@ -41,6 +41,7 @@ Findings above must be fixed or dispositioned before merge. Units examined:
 | --- | --- | --- |
 | FND-001 | fixed | Round 1, commit 5ef24e3: - When the assessment of an observed history meets a construct for which QSL would report an `Unsupported` cause, QSL having reported none for that history, the library shall return the same disposition carrying the name of that QSL `Unsupported` variant (`SymbolicCapacity`, `JoinPredicate`, `Unrule |
 | FND-002 | fixed | Round 1, commit 5ef24e3: Given a requires-bound outcome naming a `Population`, a `Collection` and a `Loop` domain, each disposition is typed non-success and carries QSL's outcome unchanged, with each domain's kind and key equal to QSL's and no kind the library defined. |
+| FND-003 | fixed | Round 2, df16bc9: - The evaluator shall refuse a history whose workflow instance identity QSL's occurrence key cannot take. - QSL takes a workflow identity as non-empty UTF-8 text of at most 4096 bytes, while this library's identities are exact bytes; the evaluator shall pass the bytes as text where they are UTF-8. - The evaluator shall not repair or lossily convert a workflow identity that is not such text. (FR-05 |
 
 ## New findings (quire-protocol#147 spec delta)
 

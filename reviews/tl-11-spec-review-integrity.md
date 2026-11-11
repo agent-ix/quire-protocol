@@ -41,6 +41,8 @@ Findings above must be fixed or dispositioned before merge. Units examined:
 | --- | --- | --- |
 | FND-001 | fixed | Round 1, commit 5ef24e3: - The evaluator shall report each violation without repairing it (FR-027). |
 | FND-002 | fixed | Round 1, commit 5ef24e3: - The evaluator shall report each violation without repairing it (FR-027). |
+| FND-003 | fixed | Round 2, df16bc9: FR-054-AC-9 \| A fact naming a node that is not a declared channel refuses the history with the node named, and no channel assessment is returned. FR-056-AC-6 \| A fact naming a node that is not a declared loop refuses the history with the node named. FR-055-AC-9/FR-056-AC-7: workflow identity refusals; FR-053 Behavior: refuse a spawn, retire or end fact for a static role; refuse a node that is no |
+| FND-004 | fixed | Round 2, df16bc9: \| FR-053-AC-4 \| Over a static role, the assessment reports the bound as absent, reports no population violation and no lifetime violation for its activity, and does not infer a bound from the history. \| \| FR-053-AC-10 \| A spawn, retire or end fact for a static role refuses the history with the role named, and no role assessment is returned. \| |
 
 ## New findings (quire-protocol#147 spec delta)
 

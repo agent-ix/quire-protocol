@@ -96,3 +96,11 @@ Matrix: quire matrix --scope <worktree> --format json; FR-050..059: 45 tagged, 1
 | FND-005 | fixed | Round 1, ecee04f: for dynamic in [Dynamic::with("workflow", 3), Dynamic::with_unordered_tail_loss()] { ... UnsupportedCause::Construct(Unsupported::UnorderedLossSelector) } |
 | FND-006 | fixed | Round 1, ecee04f: #[trace("TC-053", "FR-055-AC-7")] \| FR-055-AC-7 \| A fact naming a branch label the join does not list refuses the history with the join and label named. \| Test (TC-053) \| |
 | FND-007 | fixed | Round 1, ecee04f: FR-050: retain each authored role declaration (static, or replicated with its population, its `max` bound and its lifetime kind) as QSL's occurrence schema reads it ... the library carries no separate spawn or retire control and no per-role activation rule. FR-053..056 Inputs name RoleFact, ChannelFact, JoinFact, LoopFact. |
+
+## New findings (disposition pass 2)
+
+Reviewed head df16bc9a2231d7c2953a4efbb924a883a937761e (`git diff ecee04f..df16bc9`).
+
+| ID | Severity | Summary | Refs |
+| --- | --- | --- | --- |
+| FND-008 | low | tests.md hand figures 415, 435 and '194 of 356' are not derivable (tools give 474, 494 and 192); delete them | spec/tests.md:106-107, 139 |

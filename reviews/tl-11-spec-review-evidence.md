@@ -75,6 +75,7 @@ Findings above must be fixed or dispositioned before merge. Units examined:
 | --- | --- | --- |
 | FND-001 | fixed | Round 1, commit 5ef24e3: Verify link role, queue, join and loop declarations over an admitted checked package, with no observation history and no exploration of the protocol. |
 | FND-002 | fixed | Round 1, commit 5ef24e3: Over a loop with an invariant and a variant, no result or disposition field reports an invariant checked, a variant rank or a termination verdict, and the only discharge status produced is `undischarged`. |
+| FND-003 | fixed | Round 2, df16bc9: let edges = dynamic.linked().edges(); let left = dynamic.named("control", "JoinAlla"); let right = dynamic.named("control", "JoinAllb"); assert!(!reaches(edges, &left, &right) && !reaches(edges, &right, &left)); |
 
 ## New findings (quire-protocol#147 spec delta)
 

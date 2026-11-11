@@ -103,13 +103,6 @@ obligations once each through those parts; the parent row and the part rows are
 therefore two views of one obligation and must not be added together as
 separate work.
 
-The 415 counts rows of a `## Acceptance Criteria` table on an FR or an NFR, and
-nothing else. `quire properties` reports 435 criteria over the same tree: the
-extra 20 are the `StR-0NN-VC-n` validation criteria of StR-001 through StR-005,
-which are stakeholder validation rather than FR/NFR acceptance and which this
-matrix carries no table for. NFR-005's five metrics are outside that figure;
-its six acceptance criteria are included.
-
 ### Stage 1 of the checked-package repoint (QSL-1549)
 
 QSL main removed the `wire::Package` admission, the compiled-protocol readers,
@@ -136,7 +129,7 @@ as passing by this stage.
 ### What each status word in this matrix means
 
 - **Living-test** — the criterion carries a `#[trace(...)]` attribute on a test in
-  the current tree. 194 of 356 criteria. This is the only claim
+  the current tree. This is the only claim
   of passing this matrix makes, and it is read from the tree, not from a
   `Verification` cell.
 - **Designated** — the criterion's `Verification` cell names a test case or an
