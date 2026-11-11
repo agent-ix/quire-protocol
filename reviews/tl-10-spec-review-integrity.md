@@ -57,6 +57,7 @@ PASS WITH FINDINGS. The PR is consistent with merged FR-057, FR-058 and FR-301-A
 | FND-004 | fixed | Verified at PR head df47610 (round 2). |
 | FND-005 | fixed | Round 1, 72743ff: Behavioural totals across these 61 rows: 353 acceptance criteria. 119 carry a living traced test, 106 belong to retired rows (their tests were deleted in QSL-1549 stage 1), 0 are blocked and 128 are planned or verify by Inspection or Analysis only. 119 + 106 + 0 + 128 = 353. |
 | FND-006 | fixed | Round 1, 72743ff: When a `local-projection` or `realizability` claim is dispatched, the dispatcher SHALL bind the communication and visibility premises of the claim's fragment to the disposition and hand them to QSL's backend, taking each from the checked package where QSL's read view publishes it. |
+| FND-007 | fixed | Round 2, 746d742: - The dispatcher shall give a disposition whose QSL verdict is `Inconclusive` the truth and settlement basis the backend states, and neither truth `satisfied` nor truth `violated`. |
 
 ## New findings (quire-protocol#148 spec delta)
 
