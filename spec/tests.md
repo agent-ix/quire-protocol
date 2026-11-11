@@ -66,6 +66,11 @@ relationships:
   - { target: ix://agent-ix/quire-protocol/FR-151, type: references }
   - { target: ix://agent-ix/quire-protocol/FR-152, type: references }
   - { target: ix://agent-ix/quire-protocol/FR-153, type: references }
+  - { target: ix://agent-ix/quire-protocol/FR-200, type: references }
+  - { target: ix://agent-ix/quire-protocol/FR-201, type: references }
+  - { target: ix://agent-ix/quire-protocol/FR-202, type: references }
+  - { target: ix://agent-ix/quire-protocol/FR-203, type: references }
+  - { target: ix://agent-ix/quire-protocol/FR-204, type: references }
   - { target: ix://agent-ix/quire-protocol/NFR-001, type: references }
   - { target: ix://agent-ix/quire-protocol/NFR-002, type: references }
   - { target: ix://agent-ix/quire-protocol/NFR-003, type: references }
@@ -82,9 +87,9 @@ paths and work that remains planned or blocked. The accepted frozen source basel
 Assurance producer, license, implementation plan, and retained corpus remain
 explicit gates.
 
-The repository carries 65 functional requirements, 8 non-functional
-requirements, 3 integration tests and 35 test cases, and 430 acceptance criteria
-across the 65 FRs and the 8 NFRs. The functional set divides into 9 aggregate or
+The repository carries 70 functional requirements, 8 non-functional
+requirements, 3 integration tests and 40 test cases, and 462 acceptance criteria
+across the 70 FRs and the 8 NFRs. The functional set divides into 9 aggregate or
 behavioural parents (FR-001..FR-009), 9 object requirements (FR-010..FR-018),
 24 atomic behavioural parts (FR-019..FR-042) that the parents aggregate
 through `contains`, 2 independent behavioural requirements (FR-301, FR-302)
@@ -92,7 +97,8 @@ that extend FR-005 and FR-006's claim dispatch and result-wire obligations
 rather than being decomposed from them, 5 checked-package requirements
 (FR-043..FR-047), 10 extension requirements for dynamic roles, queues, joins and
 loops (FR-050..FR-059, ADR-010), and 2 core-protocol delta requirements
-(FR-100, FR-101, ADR-010). FR-003 through FR-008 now state their
+(FR-100, FR-101, ADR-010), and 5 composition and refinement requirements
+(FR-200..FR-204, ADR-010). FR-003 through FR-008 now state their
 obligations once each through those parts; the parent row and the part rows are
 therefore two views of one obligation and must not be added together as
 separate work.
@@ -220,8 +226,13 @@ in Domain Object Coverage instead.
 | FR-151 | FR-151-AC-1..AC-6 | TC-161 (AC-1..AC-6) | 🚧 Planned — spec only (ADR-010); binds all 6 criteria; awaits the implementation and, for a live result, a QSL backend. |
 | FR-152 | FR-152-AC-1..AC-5 | TC-162 (AC-1..AC-5) | 🚧 Planned — spec only (ADR-010); binds all 5 criteria; awaits the implementation and, for a live result, a QSL backend. |
 | FR-153 | FR-153-AC-1..AC-7 | TC-163 (AC-1..AC-7) | 🚧 Planned — spec only (ADR-010); binds all 7 criteria; awaits the implementation and, for a live result, a QSL backend. |
+| FR-200 | FR-200-AC-1..AC-6 | TC-200 (AC-1..AC-6) | 🚧 Planned — spec only (ADR-010); binds all 6 criteria; awaits the implementation. |
+| FR-201 | FR-201-AC-1..AC-6 | TC-201 (AC-1..AC-6) | 🚧 Planned — spec only (ADR-010); binds all 6 criteria; awaits the implementation. |
+| FR-202 | FR-202-AC-1..AC-7 | TC-202 (AC-1..AC-7) | 🚧 Planned — spec only (ADR-010); binds all 7 criteria; awaits the implementation. |
+| FR-203 | FR-203-AC-1..AC-6 | TC-203 (AC-1..AC-6) | 🚧 Planned — spec only (ADR-010); binds all 6 criteria; awaits the implementation. |
+| FR-204 | FR-204-AC-1..AC-7 | TC-204 (AC-1..AC-7) | 🚧 Planned — spec only (ADR-010); binds all 7 criteria; awaits the implementation. |
 
-Behavioural totals across these 56 rows: 315 acceptance criteria. 88 carry a living traced test, 106 belong to retired rows (their tests were deleted in QSL-1549 stage 1), 0 are blocked and 121 are planned or verify by Inspection or Analysis only. 88 + 106 + 0 + 121 = 315.
+Behavioural totals across these 61 rows: 347 acceptance criteria. 88 carry a living traced test, 106 belong to retired rows (their tests were deleted in QSL-1549 stage 1), 0 are blocked and 153 are planned or verify by Inspection or Analysis only. 88 + 106 + 0 + 153 = 347.
 
 ## Domain Object Coverage
 
@@ -317,6 +328,11 @@ a coverage claim in this matrix.
 | TC-161 | Bind communication and visibility premises | Property | P0 | FR-151 | 🚧 Planned — binds all 6 FR-151 criteria; awaits the implementation (ADR-010). |
 | TC-162 | Carry a projection or realizability witness joined to the linked graph | Property | P0 | FR-152 | 🚧 Planned — binds all 5 FR-152 criteria; awaits the implementation (ADR-010). |
 | TC-163 | Settle projection and realizability claims unsupported while no backend serves the kind | Property | P0 | FR-153 | 🚧 Planned — binds all 7 FR-153 criteria; awaits the implementation (ADR-010). |
+| TC-200 | Dispatch composition claims to QSL's composition backend | Property | P0 | FR-200 | 🚧 Planned — binds all 6 FR-200 criteria; awaits the implementation (ADR-010). |
+| TC-201 | Bind composition dispositions to their premise lists and component subjects | Property | P0 | FR-201 | 🚧 Planned — binds all 6 FR-201 criteria; awaits the implementation (ADR-010). |
+| TC-202 | Carry composition and refinement results without reinterpretation | Property | P0 | FR-202 | 🚧 Planned — binds all 7 FR-202 criteria; awaits the implementation (ADR-010). |
+| TC-203 | Carry declared fixed-point cycles as typed unsupported | Property | P0 | FR-203 | 🚧 Planned — binds all 6 FR-203 criteria; awaits the implementation (ADR-010). |
+| TC-204 | Refuse a refinement result whose assumptions are stronger than the request's | Property | P0 | FR-204 | 🚧 Planned — binds all 7 FR-204 criteria; awaits the implementation (ADR-010). |
 
 ## Test Execution Summary
 
@@ -328,12 +344,12 @@ does not measure binding.
 
 | Category | Total | Passed | Failed | Blocked | Planned | Retired |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Functional requirement rows | 56 | 9 | 0 | 0 | 28 | 19 |
+| Functional requirement rows | 61 | 9 | 0 | 0 | 33 | 19 |
 | Domain object requirement rows | 9 | 3 | 0 | 0 | 3 | 3 |
 | Non-functional requirement rows | 8 | 3 | 0 | 0 | 4 | 1 |
 | Integration rows | 4 | 0 | 0 | 1 | 0 | 3 |
-| Test case rows | 35 | 9 | 0 | 0 | 18 | 8 |
-| Overall | 112 | 24 | 0 | 1 | 53 | 34 |
+| Test case rows | 40 | 9 | 0 | 0 | 23 | 8 |
+| Overall | 122 | 24 | 0 | 1 | 63 | 34 |
 
 The Integration count is four because IT-001 carries a separate version 1 and version 2
 row; the two contracts may not substitute for each other, so one row cannot
@@ -349,10 +365,10 @@ criterion is a zero inside it rather than a row removed from it.
 
 | Category | Total | Passed | Failed | Blocked | Planned | Retired |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Overall owed criteria | 430 | 134 | 0 | 0 | 163 | 133 |
+| Overall owed criteria | 462 | 134 | 0 | 0 | 195 | 133 |
 
 Passed means the criterion carries a living traced test in the current tree
-(134 of 430). Retired means the criterion's row lost every test in QSL-1549
+(134 of 462). Retired means the criterion's row lost every test in QSL-1549
 stage 1 (133). Blocked is none: QSL delivered the evaluation entries that FR-045 and FR-046 wait on. Planned
-(163) includes the criteria that verify by Inspection or Analysis only and
+(195) includes the criteria that verify by Inspection or Analysis only and
 FR-014-AC-6, which waits on IT-003's Quoin scenario-record handoff.
