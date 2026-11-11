@@ -20,7 +20,6 @@ use std::sync::OnceLock;
 
 use ix_trace_rs::trace;
 use qsl_eval::value::{ProtocolSlot, ProtocolSuppliedValue, ProtocolSupply, SuppliedValue};
-use qsl_package::protocol_view::Port;
 use qsl_package::{BarePackage, BareSupply, ProtocolSlotDescriptor};
 use qsl_semantics::check::wire_id::WireGraph;
 use quire_contract_model::{CheckedNodeId, CheckedNodePathSegment, CheckedPackageReadLimits};
@@ -989,46 +988,6 @@ fn an_after_observation_against_an_earlier_progress_view_is_refused() {
     assert_eq!(
         progressed.admit(after_fact(2, 10)).err(),
         Some(WaitRefusal::ProgressNotThroughDeadline)
-    );
-}
-
-/// The declaration names the port QSL's causal relation anchors the `await`
-/// at: the exit of the event its `after` names (`Armed`), not the `await` or
-/// its sequence predecessor (`Spacer`).
-#[trace("TC-154", "FR-100-AC-23")]
-#[test]
-fn the_declaration_names_the_port_the_await_is_anchored_at() {
-    let after = &declaration().after;
-    assert_eq!(after.port, Port::Exit);
-    assert!(
-        matches!(
-            after.node.path.last(),
-            Some(CheckedNodePathSegment::Name(name)) if &**name == "Armed"
-        ),
-        "{:?}",
-        after.node
-    );
-}
-
-/// A `compensation` anchor is the entry of the template's forward body, the
-/// effect `Applied` that `Full` compensates.
-#[trace("TC-154", "FR-100-AC-23")]
-#[test]
-fn a_compensation_anchor_is_the_entry_of_the_forward_body() {
-    let compensating = Awaiting::after_compensation();
-    let declarations = compensating.linked().declarations();
-    let [declaration] = declarations.awaits() else {
-        panic!("one await: {:?}", declarations.awaits());
-    };
-    assert_eq!(declaration.after.port, Port::Enter);
-    assert_ne!(declaration.after.node, declaration.control);
-    assert!(
-        matches!(
-            declaration.after.node.path.last(),
-            Some(CheckedNodePathSegment::Name(name)) if &**name == "Applied"
-        ),
-        "{:?}",
-        declaration.after.node
     );
 }
 

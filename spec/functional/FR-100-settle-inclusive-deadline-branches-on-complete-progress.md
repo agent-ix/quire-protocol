@@ -48,7 +48,7 @@ The window is the closed interval `[lower, upper]` that the checked `await` auth
 
 ## Inputs
 
-The linked `await` control, the identity of the waiting instance, the admitted observation of the awaited `after` event with its QObs anchor (quire-observation FR-004, FR-006), the admitted observation history, the awaited scope's progress state (FR-284) with the boundary and clock it is closed through (FR-289), the input completeness (FR-295), and any bound constraint on the awaited message as QSL's slot outcome (FR-045). Progress and completeness are independent facts and neither stands in for the other (FR-028). The anchor instant is read from the admitted `after` observation; no caller supplies it separately. QSL publishes the `after` anchor of each checked `await` as `after = {kind, target}` with kind `event` or `compensation`, and its causal relation anchors the `await` at the exit of the `event` control or at the entry of the `compensation` template's forward body; this library reads that port into the linked `await` declaration. A QObs observation carries neither the checked node nor the workflow instance, so the caller attributes an admitted observation to that port and to a waiting instance when it offers it, as it does for a response observation. For a `compensation` anchor the attributed observation is the one at the forward body's entry.
+The linked `await` control, the identity of the waiting instance, the admitted observation of the awaited `after` event with its QObs anchor (quire-observation FR-004, FR-006), the admitted observation history, the awaited scope's progress state (FR-284) with the boundary and clock it is closed through (FR-289), the input completeness (FR-295), and any bound constraint on the awaited message as QSL's slot outcome (FR-045). Progress and completeness are independent facts and neither stands in for the other (FR-028). The anchor instant is read from the admitted `after` observation; no caller supplies it separately. QSL publishes the `after` anchor of each checked `await` as `after = {kind, target}` with kind `event` or `compensation`, but no public accessor exposes it (the kind is a private enum in QSL's protocol view; QSL-1875 asks for one), so this library does not read it. A QObs observation carries neither the checked node nor the workflow instance (STD-659), so the caller attributes an admitted observation to a waiting instance's `after` event when it offers it, as it does for a response observation. For a `compensation` anchor the attributed observation is the one at the forward body's entry.
 
 ## Outputs
 
@@ -73,7 +73,6 @@ When progress or completeness is later admitted so that it no longer supports a 
 The evaluator SHALL leave the earlier result unaltered.
 The evaluator SHALL refuse a progress view whose boundary is not the wait's window or whose clock is not the wait's clock.
 The evaluator SHALL take the anchor instant of a wait from the anchor of the admitted `after` observation as the QObs observation view reports it: the position for an event position, the sample index (not the epoch) for a fixed sample and the signed nanosecond instant for a timestamped event.
-The evaluator SHALL read from QSL's causal relation the port at which a linked `await` is anchored.
 The evaluator SHALL NOT select the response branch or the timeout branch for a wait whose `after` observation is not admitted.
 While the `after` observation is not admitted, the evaluator SHALL report truth `unavailable` with execution `completed`, because the wait's activation is not `triggered` and truth `pending` requires activation `triggered` (QSpec FR-061, FR-242).
 When the `after` observation is admitted after a response observation or an authority fact of the same wait, the evaluator SHALL judge those facts against the resulting window by their place in the admitted history.
@@ -117,7 +116,6 @@ STD-657 carries both questions.
 | FR-100-AC-20 | A fixed-sample `after` observation counts the window from its sample index, not its epoch, and a window outside the unsigned 64-bit range of the sample index is refused. | Test (TC-154) |
 | FR-100-AC-21 | Two waiting instances of one control each count their window from their own `after` observation. | Test (TC-154) |
 | FR-100-AC-22 | An `after` observation whose window is not the boundary of an earlier admitted progress view is refused. | Test (TC-154) |
-| FR-100-AC-23 | The linked `await` declaration names the port at which QSL's causal relation anchors the `await`. | Test (TC-154) |
 
 ## Dependencies
 

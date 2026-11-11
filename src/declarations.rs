@@ -12,8 +12,8 @@
 //! stay references to their checked nodes.
 
 use qsl_package::protocol_view::{
-    control_operation, delivery, queue_capacity, CausalEdge, ControlOperation, Delivery, EdgeKind,
-    Port, PortRef, ProtocolView, QueueCapacity,
+    control_operation, delivery, queue_capacity, ControlOperation, Delivery, ProtocolView,
+    QueueCapacity,
 };
 use qsl_package::{
     protocol_occurrence_schemas_from_read, ProtocolOccurrenceSchema, RoleReplication,
@@ -155,7 +155,7 @@ pub struct LoopDeclaration {
 /// One authored `await`: the closed window `within [lower, upper]` that QSL
 /// publishes on the checked node, in the units of the named clock and counted
 /// from the anchor instant of the awaited `after` event. Never interpreted
-/// here beyond its bounds and the anchor QSL names.
+/// here beyond its bounds.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AwaitDeclaration {
     /// The `await` control node.
@@ -168,12 +168,6 @@ pub struct AwaitDeclaration {
     pub upper: u64,
     /// The authored clock name.
     pub clock: Box<str>,
-    /// The port QSL's causal relation anchors the `await` at: the exit of the
-    /// `event` control its `after` names, or, for a `compensation` anchor, the
-    /// entry of that template's forward body. A QObs observation carries
-    /// neither a node nor a workflow instance, so the caller attributes the
-    /// admitted `after` observation to this port.
-    pub after: PortRef,
 }
 
 /// Every role, channel, join and loop declaration of one linked protocol, in
@@ -264,7 +258,6 @@ impl Declarations {
     pub(crate) fn read(
         package: &CheckedPackageV2,
         view: &ProtocolView<'_>,
-        edges: &[CausalEdge],
     ) -> Result<Self, LinkRefusal> {
         let clause = view.clause();
         let unkeyed = |node: &CheckedNodeId| LinkRefusal::UnkeyedNode { node: node.clone() };
@@ -322,7 +315,7 @@ impl Declarations {
                 Ok(ControlOperation::Await) => {
                     declarations
                         .awaits
-                        .push(await_control(package, edges, id, key_of(id)?)?);
+                        .push(await_control(package, id, key_of(id)?)?);
                 }
                 Ok(_) | Err(_) => {}
             }
@@ -554,7 +547,6 @@ fn repeat(
 
 fn await_control(
     package: &CheckedPackageV2,
-    edges: &[CausalEdge],
     id: &CheckedNodeId,
     key: NodeKey,
 ) -> Result<AwaitDeclaration, LinkRefusal> {
@@ -569,19 +561,11 @@ fn await_control(
     let clock = text(member_of_node(package, id, "clock")?)
         .map(Box::from)
         .ok_or_else(|| bad("clock"))?;
-    let after = edges
-        .iter()
-        .find(|edge| {
-            edge.kind == EdgeKind::AwaitAnchor && edge.to.node == *id && edge.to.port == Port::Enter
-        })
-        .map(|edge| edge.from.clone())
-        .ok_or_else(|| bad("after"))?;
     Ok(AwaitDeclaration {
         control: id.clone(),
         key,
         lower,
         upper,
         clock,
-        after,
     })
 }

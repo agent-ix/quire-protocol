@@ -14,23 +14,11 @@ use super::handoff::{join_budget, request, written_request};
 const ANCHOR: &str =
     "        attempt Tried by Service on M::Workflow::apply contracts [BeforeApply,AfterApply]";
 
-/// Where an `await` after the compensation template `Full` goes: past the
-/// forward effect it compensates, so the causal relation stays acyclic.
-const AFTER_FORWARD: &str =
-    "        event Recovered by Service for Full as (recoveryEvent: M::Notice) { recoveryEvent.ready };";
-
-/// The awaiting protocol text with the `await` anchored `after` the named
-/// control or compensation template.
-fn awaiting_source(after: &str) -> String {
-    format!(
-        r#"        event Armed by Service as (armed: M::Notice) {{ true }};
-        event Spacer by Service as (spacer: M::Notice) {{ true }};
-        await Wait after {after} using t clock "wait" within [0,29]
-            match event Seen by Service as (seen: M::Notice) {{ true }};
-            then sequence WaitThen {{ }} timeout sequence WaitTimeout {{ }}
-"#
-    )
-}
+const AWAIT: &str = r#"        event Armed by Service as (armed: M::Notice) { true };
+        await Wait after Main::Armed using t clock "wait" within [0,29]
+            match event Seen by Service as (seen: M::Notice) { true };
+            then sequence WaitThen { } timeout sequence WaitTimeout { }
+"#;
 
 /// The admitted package and its linked protocol.
 pub struct Awaiting {
@@ -39,30 +27,15 @@ pub struct Awaiting {
 }
 
 impl Awaiting {
-    /// The `await` anchored after the event `Main::Armed`.
     pub fn new() -> Self {
-        Self::after("Main::Armed")
-    }
-
-    /// The `await` anchored after the compensation template `Full`.
-    pub fn after_compensation() -> Self {
-        Self::after("Full")
-    }
-
-    fn after(anchor: &str) -> Self {
         let dir = concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/tests/fixtures/checked-handoff"
         );
         let unit = std::fs::read_to_string(format!("{dir}/unit-event-position.native"))
             .expect("recipe unit");
-        let place = if anchor == "Full" {
-            AFTER_FORWARD
-        } else {
-            ANCHOR
-        };
-        assert!(unit.contains(place), "the recipe's anchor line moved");
-        let source = unit.replacen(place, &format!("{}{place}", awaiting_source(anchor)), 1);
+        assert!(unit.contains(ANCHOR), "the recipe's attempt line moved");
+        let source = unit.replacen(ANCHOR, &format!("{AWAIT}{ANCHOR}"), 1);
         let holder = tempfile::tempdir().expect("temporary directory");
         let path = holder.path().join("unit.native");
         std::fs::write(&path, source).expect("source file");
