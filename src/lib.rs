@@ -36,7 +36,7 @@ pub mod closure;
 pub mod compensation;
 /// Consumer-authored evidence index for one pinned producer delivery.
 pub mod delivery_index;
-/// Canonical JCS encoding for structured protocol values.
+/// Exact-byte SHA-256 digest carriers.
 pub mod digest;
 pub mod evidence;
 /// Protocol identity newtypes. Owner chunk: C-07.

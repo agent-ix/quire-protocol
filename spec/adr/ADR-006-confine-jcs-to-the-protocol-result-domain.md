@@ -88,7 +88,7 @@ alternative is a consumer that cannot tell a reformat from a substitution.
 
 **The canonicaliser is deliberately incomplete, and stays that way.** SR-027
 FND-010 recorded that "The RFC 8785 canonicaliser refuses JSON numbers rather
-than implementing ECMAScript number serialisation" (`src/digest/jcs.rs:60`). Its
+than implementing ECMAScript number serialisation". Its
 disposition is "open by design", with the reason stated: "Approximating
 ECMAScript number serialisation would produce a wrong canonical form that still
 looks well formed, which is the failure class this crate exists to refuse." A

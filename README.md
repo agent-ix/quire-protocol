@@ -84,7 +84,7 @@ checks.
 | `compensation` | Activation, registration, ordering and retry facts. |
 | `closure`, `outcome` | The closure axes and the closed operation and claim outcomes. |
 | `bounds` | Count, allocation and deadline guards. |
-| `digest` | Canonical JCS encoding and the exact-byte SHA-256 carrier. |
+| `digest` | The exact-byte SHA-256 carrier. |
 | `refusal` | The typed refusal envelope and its catalog. |
 | `repro`, `delivery_index` | The reproduction record and the evidence index for one pinned delivery. |
 
