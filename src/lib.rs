@@ -34,10 +34,16 @@ pub mod checked_package;
 pub mod closure;
 /// Compensation algebra, purity, activation and recovery. Owner chunks: C-16..C-19.
 pub mod compensation;
+/// Authored role, channel, join and loop declarations of a linked protocol.
+pub mod declarations;
 /// Consumer-authored evidence index for one pinned producer delivery.
 pub mod delivery_index;
 /// Exact-byte SHA-256 digest carriers.
 pub mod digest;
+/// Typed dispositions for QSL `Unsupported` and requires-bound outcomes.
+pub mod disposition;
+/// Assessment of an observed history against those declarations.
+pub mod dynamics;
 pub mod evidence;
 /// Protocol identity newtypes. Owner chunk: C-07.
 pub mod ids;

@@ -110,6 +110,7 @@ pub struct Handoff {
 
 /// Write the handoff of `kind` with `corpus` into a fresh directory and read
 /// every file back.
+#[allow(dead_code)] // The dynamic-protocol tests (TC-050 to TC-055) write their own source.
 pub fn written(kind: &str, corpus: Corpus) -> Handoff {
     let holder = tempfile::tempdir().expect("temporary directory");
     let out = holder.path().join("handoff");

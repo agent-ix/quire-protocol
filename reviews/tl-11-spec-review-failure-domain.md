@@ -66,3 +66,12 @@ Findings above must be fixed or dispositioned before merge. Units examined:
 | FND-004 | fixed | Round 1, commit 5ef24e3: Over an `unordered` channel, any delivery order of the same messages reports no order violation; over an `unordered` channel whose overflow loses `head` or `tail`, the assessment returns the FR-057 disposition for that channel. |
 | FND-005 | fixed | Round 2, commit 34ec96c: - The evaluator shall take the end of a `workflow` lifetime at the observation that ends the workflow instance holding the role, the end of a `scope` lifetime at the observation of the step that QSL ADR-027 RR-4 ends it by (no running thread can reach a node the role owns, the effect of a compensati |
 | FND-006 | fixed | Round 2, commit 34ec96c: Over one role per lifetime kind, activity after the observation that ends the workflow, after the observed end of a `scope` lifetime and after the observed `retire` of an `until(p)` instance is reported as a lifetime violation for `workflow`, `scope` and `until(p)` respectively, and activity before  |
+| FND-007 | fixed | Round 3, df16bc9: ...the checked role node, the workflow instance the role instance belongs to, the role instance identity the observation names... - The evaluator shall judge each role once for each workflow instance the history names: the authored `max` bounds the live instances of one workflow instance, and a workflow end ends only that workflow instance's role instances. (FR-053-AC-11) |
+
+## New findings (quire-protocol#147 spec delta)
+
+Spec delta of quire-protocol#147 at ecee04fb29b155ea52a4c4f576882992d03f85da (`git diff b9c6e01..ecee04f -- spec/`): FR-050, FR-051, FR-053..FR-056, TC-050..TC-054, spec/tests.md.
+
+| ID | Severity | Summary | Refs |
+| --- | --- | --- | --- |
+| FND-007 | medium | Amended FR-053 Inputs define RoleFact without a workflow instance, merging population and workflow-end across workflow instances | spec/functional/FR-053-assess-role-lifetime-and-population.md:Inputs |

@@ -38,3 +38,12 @@ Findings above must be fixed or dispositioned before merge. Units examined:
 | FND | outcome | reason |
 | --- | --- | --- |
 | FND-001 | fixed | Round 1, commit 5ef24e3: - { target: ix://agent-ix/quire-protocol/FR-057, type: depends_on } (also in FR-055 and FR-059) |
+| FND-002 | fixed | Round 2, df16bc9:   - { target: ix://agent-ix/quire-spec-language/FR-384, type: depends_on } (added to FR-050, FR-055 and FR-056; Dependencies: QSL FR-384 states the occurrence schema and the runtime key this requirement reads and binds against; QSL owns both.) |
+
+## New findings (quire-protocol#147 spec delta)
+
+Spec delta of quire-protocol#147 at ecee04fb29b155ea52a4c4f576882992d03f85da (`git diff b9c6e01..ecee04f -- spec/`): FR-050, FR-051, FR-053..FR-056, TC-050..TC-054, spec/tests.md.
+
+| ID | Severity | Summary | Refs |
+| --- | --- | --- | --- |
+| FND-002 | medium | FR-050, FR-055 and FR-056 now depend on QSL FR-384 (occurrence schema and key) with no relationships edge to it | spec/functional/FR-050-link-role-declarations-without-minting-identity.md:relationships |

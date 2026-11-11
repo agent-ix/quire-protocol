@@ -40,3 +40,12 @@ Findings above must be fixed or dispositioned before merge. Units examined:
 | --- | --- | --- |
 | FND-001 | fixed | Round 1, commit 5ef24e3: When QSL reports an `Unsupported` cause for a protocol construct, the library SHALL return a typed `unsupported` disposition that names the construct. The library SHALL NOT approximate, truncate or repair the construct. |
 | FND-002 | fixed | Round 1, commit 5ef24e3: - For a join of policy `any` or `quorum(n)` with no authored `outstanding` rule, the evaluator shall return the disposition of FR-057. |
+| FND-003 | fixed | Round 2, df16bc9: - The evaluator shall keep one occurrence for each workflow instance and repeat ordinals. - The evaluator shall refuse a history whose occurrence key QSL's occurrence schema refuses, naming QSL's refusal. - The evaluator shall refuse a history whose branch label the join does not list. (FR-051) - The library shall carry the overflow policy the queue node authors. - The library shall supply no over |
+
+## New findings (quire-protocol#147 spec delta)
+
+Spec delta of quire-protocol#147 at ecee04fb29b155ea52a4c4f576882992d03f85da (`git diff b9c6e01..ecee04f -- spec/`): FR-050, FR-051, FR-053..FR-056, TC-050..TC-054, spec/tests.md.
+
+| ID | Severity | Summary | Refs |
+| --- | --- | --- | --- |
+| FND-003 | low | New FR-055 and FR-051 Behavior bullets each state two obligations in one sentence | spec/functional/FR-055-assess-join-settlement-per-policy.md:Behavior |

@@ -17,6 +17,9 @@ qsl-foundation = { git = "https://github.com/agent-ix/quire-spec-language", bran
 qsl-package = { git = "https://github.com/agent-ix/quire-spec-language", branch = "main" }
 # The checked-package evaluation entries (QSL FR-390, FR-520, FR-531, FR-533).
 qsl-eval = { git = "https://github.com/agent-ix/quire-spec-language", branch = "main" }
+# The channel overflow, loss selector and outstanding vocabulary (QSL FR-308,
+# FR-218) the declarations retain, and the wire graph that keys protocol nodes in tests.
+qsl-semantics = { git = "https://github.com/agent-ix/quire-spec-language", branch = "main" }
 quire-eval = { git = "https://github.com/agent-ix/quire-eval", branch = "main" }
 quire-exact = { git = "https://github.com/agent-ix/quire-exact", branch = "main" }
 quire-semantic-value = { git = "https://github.com/agent-ix/quire-semantic-value", branch = "main" }
@@ -34,8 +37,6 @@ sha2 = "=0.10.9"
 [dev-dependencies]
 # The owner's static-bundle test fixture (tc_003_compensation).
 quire-observation = { git = "https://github.com/agent-ix/quire-observation", branch = "main", features = ["test-support"] }
-# Keys protocol nodes for the slot tests.
-qsl-semantics = { git = "https://github.com/agent-ix/quire-spec-language", branch = "main" }
 ix-trace-rs = { git = "https://github.com/agent-ix/ix-trace-rs", branch = "main" }
 serde_json = "=1.0.151"
 tempfile = "3"

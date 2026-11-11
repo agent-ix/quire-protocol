@@ -14,6 +14,7 @@ relationships:
   - { target: ix://agent-ix/quire-spec-language/ADR-027, type: references }
   - { target: ix://agent-ix/quire-protocol/FR-052, type: depends_on }
   - { target: ix://agent-ix/quire-protocol/FR-057, type: depends_on }
+  - { target: ix://agent-ix/quire-spec-language/FR-384, type: depends_on }
 ---
 # FR-055: Assess join settlement per policy
 
@@ -23,7 +24,7 @@ When an admitted observation history is assessed against a linked protocol, the 
 
 ## Inputs
 
-A linked protocol with its join declarations (FR-052), and an admitted observation fact set.
+A linked protocol with its join declarations (FR-052), and an admitted observation fact set, given to the assessment as the library's `JoinFact` values: each names the observation, the `parallel` control, the workflow instance, one repeat ordinal for each enclosing `repeat` as QSL's occurrence key binds them, and one of branch completed, settled or outstanding branch outcome.
 
 ## Outputs
 
@@ -41,6 +42,13 @@ Per join occurrence: the set of observed completed branches, whether the join se
 - For an `all` join with no authored `outstanding` rule, the evaluator shall assess settlement, because settlement requires every branch and none remains outstanding.
 - For a `predicate` join the evaluator shall return the disposition of FR-057.
 - For a `predicate` join the evaluator shall not evaluate the predicate.
+- The evaluator shall keep one occurrence for each workflow instance and repeat ordinals.
+- The evaluator shall refuse a history whose occurrence key QSL's occurrence schema refuses, naming QSL's refusal.
+- The evaluator shall refuse a history whose branch label the join does not list.
+- The evaluator shall refuse a history that names a node that is not a declared join, naming the node.
+- The evaluator shall refuse a history whose workflow instance identity QSL's occurrence key cannot take.
+- QSL takes a workflow identity as non-empty UTF-8 text of at most 4096 bytes, while this library's identities are exact bytes; the evaluator shall pass the bytes as text where they are UTF-8.
+- The evaluator shall not repair or lossily convert a workflow identity that is not such text.
 - This requirement states no step semantics. QSL owns the exploration semantics (QSL ADR-027); this library assesses one admitted observation history (ADR-010 Decision 2).
 
 ## Acceptance Criteria
@@ -53,8 +61,13 @@ Per join occurrence: the set of observed completed branches, whether the join se
 | FR-055-AC-4 | Over joins authored `outstanding continue` and `outstanding cancel`, a history whose outstanding branches behave as authored reports none, and one whose branches behave otherwise reports an outstanding violation. | Test (TC-053) |
 | FR-055-AC-5 | Over a `predicate` join and over an `any` and a `quorum(n)` join with no `outstanding` rule, the assessment returns the FR-057 disposition and reports neither a settled nor an unsettled join. | Test (TC-053) |
 | FR-055-AC-6 | Over an `all` join with no `outstanding` rule, a history settling with every branch complete reports no violation and no outstanding branch, and a history settling with a branch missing reports a join violation. | Test (TC-053) |
+| FR-055-AC-7 | A fact naming a branch label the join does not list refuses the history with the join and label named. | Test (TC-053) |
+| FR-055-AC-8 | Over a join inside a `repeat`, histories settling in two iterations are two occurrences, each judged alone, and an ordinal outside the repeat's maximum or a missing ordinal refuses the history. | Test (TC-053) |
+| FR-055-AC-9 | A workflow instance identity that is not UTF-8, is empty or exceeds 4096 bytes refuses the history with QSL's refusal or the non-text identity named, and an identity of exactly 4096 UTF-8 bytes is accepted. | Test (TC-053) |
+| FR-055-AC-10 | A fact naming a node that is not a declared join refuses the history with the node named. | Test (TC-053) |
 
 ## Dependencies
 
 - [ADR-010](../adr/ADR-010-consume-qsl-protocol-analysis-own-assessment-and-dispatch.md) fixes what this library owns for dynamic roles, bounded queues, joins and loops, and what QSL owns.
 - QSL ADR-027 states the step semantics this requirement does not restate; QSpec FR-170 and FR-171 state the thresholds and overflow rules the criteria cite.
+- QSL FR-384 states the occurrence schema and the runtime key this requirement reads and binds against; QSL owns both.
