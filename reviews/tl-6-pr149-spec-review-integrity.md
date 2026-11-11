@@ -31,3 +31,19 @@ Ticket: TL-6. Integrity of the PR #149 spec delta: FR-100 Outputs rewording, the
 | FND-001 | high | The Description's second SHALL selects timeout when progress is closed, completeness complete 'and no matching observation was admitted'. A false-constrained or valueless observation is not matching, so the Description requires timeout for exactly the case where the Behavior bullet, AC-3 and the new AC-7 forbid it. The PR amends this case and leaves the contradiction in the primary statement. Reword the Description condition (e.g. 'and no observation at or before the deadline was admitted'). | spec/functional/FR-100-settle-inclusive-deadline-branches-on-complete-progress.md:35 |
 | FND-002 | high | spec/tests.md marks FR-100 '✅ Implemented — all 7 criteria have living traced tests' and TC-154 Implemented, and counts 204 passed / 138 planned, FR rows 11/31, TC rows 10/22, overall 27/60. `quire matrix` computes FR-100-AC-7 untagged and 203 tagged. The numbers become true only once an AC-7-tagged test lands; as committed they are false. The 133 retired figure is not derivable from `quire matrix`. | spec/tests.md:216,317,340-366 |
 | FND-003 | low | 'In both of the completeness cases above' now follows the inserted AC-7 bullet, so 'above' spans three cases and 'both' no longer names its antecedents unambiguously. Name them: 'completeness `incomplete` or `contradicted`'. | spec/functional/FR-100-settle-inclusive-deadline-branches-on-complete-progress.md:52-53 |
+
+## New findings (disposition pass 1)
+
+| ID | Severity | Summary | Refs |
+| --- | --- | --- | --- |
+| FND-004 | low | Ruling on the retained hand count: delete it. `Retired 133` is a QSL-1549 history count that `quire matrix` cannot compute (it emits only tagged, untagged and method-without-symbol), so nothing checks it and it drifts with every edit. It records how a past stage went, not anything a reader acts on. Drop the Retired column and its prose, or replace it with a figure `quire matrix` derives. | spec/tests.md:359-365 |
+
+## Dispositions
+
+Round 1, fix commit 183d4f1.
+
+| FND | outcome | reason |
+| --- | --- | --- |
+| FND-001 | fixed | 183d4f1 |
+| FND-002 | fixed | 183d4f1 |
+| FND-003 | fixed | 183d4f1 |

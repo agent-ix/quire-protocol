@@ -43,3 +43,23 @@ Ticket: TL-6. Code review with the Rust lane (rust-review, rust-style loaded) fo
 | FND-004 | medium | The deadline is a caller-supplied `TemporalBoundary` of which only the upper bound is used. `admits` takes a raw `i128` with no clock-family or lower-bound check, so a response observed before the window's lower bound selects the response branch, and `named_by` ignores lower/carrier/watermark (`..`) and compares the upper bound by `to_string()` text equality, so a progress view for another boundary with the same upper bound passes. The checked clause `await ... within [lo,hi]` has a QSL `CheckedDeadline {lower, upper}`; read the deadline from the checked package if QSL publishes it, else ticket that, and compare the whole boundary. | src/deadline.rs:112-180 |
 | FND-005 | low | Supplies are paired with authored captures by position, so one missing supply in the middle reports every later capture as `OutOfOrder` plus a surplus `Unauthored`, misnaming the captures that failed. The refusal is still correct; match supplies to authored captures by `CheckedNodeId` so `Missing` names the one capture QSL omitted. | src/captures.rs:172-213 |
 | FND-006 | low | `Settlement` (and `Supersession`, `ResultId`, `WaitAssessment`) expose every field as `pub`, so a caller can construct a settlement with both a selected branch and a truth, contrary to the documented invariant 'A selected branch carries ... no truth'. Keep fields private with accessors, as `SettledResult` already does. | src/deadline.rs:297-309 |
+
+## New findings (disposition pass 1)
+
+| ID | Severity | Summary | Refs |
+| --- | --- | --- | --- |
+| FND-007 | low | `AwaitDeclaration.clock` is read from the checked node but never used. `Deadline::named_by` accepts a progress boundary of any family (EventPosition, FixedSample or TimestampedEvent) and compares only the two numbers, and `Deadline::of` adds the authored bounds to the anchor with no check that the boundary is in the await's clock. A progress view on another clock family with equal numbers passes. Check the boundary family against the await's clock, or ticket it if QObs does not expose the clock identity. | src/deadline.rs:139-157 |
+| FND-008 | low | `Deadline::of` computes `anchor + i128::from(declaration.lower)` and `anchor + i128::from(declaration.upper)` on a caller-supplied `anchor`. An anchor near `i128::MAX` overflows: a panic in debug builds and a wrapped, wrong window in release. Use `checked_add` and refuse. | src/deadline.rs:124-130 |
+
+## Dispositions
+
+Round 1, fix commit 183d4f1.
+
+| FND | outcome | reason |
+| --- | --- | --- |
+| FND-001 | fixed | 183d4f1 |
+| FND-002 | fixed | 183d4f1 |
+| FND-003 | fixed | 183d4f1 |
+| FND-004 | deferred | Fixed except the anchor. 183d4f1 reads the window from the checked await (`Deadline::of(declaration, anchor)` from `AwaitDeclaration{lower, upper}`), `admits` checks both bounds (AC-10) and `named_by` compares both bounds (AC-11). The anchor instant stays caller-supplied; FR-100 now states it as an Input ('the anchor instant') and the Description says the window is counted from the awaited `after` event. Acceptable for this PR because a progress view through a different window is refused, but a response settled before any authority fact uses the caller's anchor unchecked. Needs a ticket: derive the anchor from the admitted `after` observation. No ticket exists yet. |
+| FND-005 | fixed | 183d4f1 |
+| FND-006 | fixed | 183d4f1 |

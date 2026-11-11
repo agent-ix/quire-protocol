@@ -25,3 +25,11 @@ Ticket: TL-6. Whether FR-100-AC-7's verification method fits and is served.
 | ID | Severity | Summary | Refs |
 | --- | --- | --- | --- |
 | FND-001 | low | AC-7 names `Test (TC-154)`, but TC-154's Test Procedure lists 'a false constraint' and no valueless (unavailable / not-Boolean) constraint case, so it does not describe the procedure AC-7 needs. Add the case. | spec/test-cases/TC-154-settle-deadline-branches-and-bind-captures.md:19 |
+
+## Dispositions
+
+Round 1, fix commit 183d4f1.
+
+| FND | outcome | reason |
+| --- | --- | --- |
+| FND-001 | fixed | 183d4f1 |

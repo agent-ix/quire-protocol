@@ -94,11 +94,20 @@ fn key(who: &str) -> WaitKey {
     .expect("a declared await keys a wait")
 }
 
+/// The tag of the owner views every wait here is judged against; their
+/// progress clock is `clock:{TAG}`.
+const TAG: &str = "t154";
+
 /// The window the package authors, `within [0,29]`, from anchor 0: the one the
 /// owner fixtures' progress views name.
 fn deadline() -> Deadline {
     let declarations = awaiting().linked().declarations();
-    Deadline::of(declarations.await_at(&control()).expect("declared"), 0)
+    Deadline::of(
+        declarations.await_at(&control()).expect("declared"),
+        0,
+        &format!("clock:{TAG}"),
+    )
+    .expect("the window fits")
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -129,7 +138,7 @@ fn authority(
         Completeness::Incomplete => &views.completeness_incomplete,
         Completeness::Contradicted => &views.completeness_contradicted,
     };
-    WaitFact::authority(at(position), deadline(), progress, completeness).expect("the window")
+    WaitFact::authority(at(position), &deadline(), progress, completeness).expect("the window")
 }
 
 fn response(position: u64, observed: i128) -> WaitFact {
@@ -160,7 +169,7 @@ fn response_at(position: u64) -> Option<Branch> {
 #[trace("TC-154", "FR-100-AC-1")]
 #[test]
 fn a_response_at_the_deadline_is_inside_the_wait() {
-    let views = scope_views("ac1");
+    let views = scope_views(TAG);
     let closed = authority(&views, 2, Progress::Closed, Completeness::Complete);
     let at_deadline = settle("w", &[response(1, 29), closed.clone()]);
     assert_eq!(current(&at_deadline).branch().cloned(), response_at(1));
@@ -179,7 +188,7 @@ fn a_response_at_the_deadline_is_inside_the_wait() {
 #[trace("TC-154", "FR-100-AC-2")]
 #[test]
 fn timeout_needs_closed_progress_and_complete_input() {
-    let views = scope_views("ac2");
+    let views = scope_views(TAG);
     let expected = [
         (Progress::Closed, Completeness::Complete, None),
         (
@@ -275,7 +284,7 @@ fn timeout_needs_closed_progress_and_complete_input() {
 #[trace("TC-154", "FR-100-AC-3")]
 #[test]
 fn a_false_constraint_selects_neither_branch() {
-    let views = scope_views("ac3");
+    let views = scope_views(TAG);
     assert_eq!(Constraint::of(&SlotOutcome::Holds), Constraint::Holds);
     assert_eq!(
         Constraint::of(&SlotOutcome::DoesNotHold),
@@ -310,7 +319,7 @@ fn a_false_constraint_selects_neither_branch() {
 #[trace("TC-154", "FR-100-AC-7")]
 #[test]
 fn a_false_or_valueless_constraint_with_complete_progress_selects_no_branch() {
-    let views = scope_views("ac7");
+    let views = scope_views(TAG);
     let closed = authority(&views, 2, Progress::Closed, Completeness::Complete);
     let settled = |constraint| {
         settle(
@@ -363,7 +372,7 @@ fn a_false_or_valueless_constraint_with_complete_progress_selects_no_branch() {
 #[trace("TC-154", "FR-100-AC-4")]
 #[test]
 fn a_late_admitted_response_supersedes_without_altering_the_timeout() {
-    let views = scope_views("ac4");
+    let views = scope_views(TAG);
     let closed = authority(&views, 1, Progress::Closed, Completeness::Complete);
 
     let mut wait = Wait::new(pure(), key("w"), deadline());
@@ -418,7 +427,7 @@ fn a_late_admitted_response_supersedes_without_altering_the_timeout() {
 #[trace("TC-154", "FR-100-AC-5")]
 #[test]
 fn waiting_instances_of_one_branch_settle_independently() {
-    let views = scope_views("ac5");
+    let views = scope_views(TAG);
     let closed = authority(&views, 2, Progress::Closed, Completeness::Complete);
     let answered = settle("w1", &[response(1, 29), closed.clone()]);
     let unanswered = settle("w2", &[closed]);
@@ -448,7 +457,7 @@ fn settlement_invokes_no_business_operation() {
         let refused = PureAssessment::checked(&Surface(vec![capability]));
         assert_eq!(refused.expect_err("refused").capability(), capability);
     }
-    let views = scope_views("ac6");
+    let views = scope_views(TAG);
     let assessment = settle(
         "w",
         &[authority(
@@ -466,7 +475,7 @@ fn settlement_invokes_no_business_operation() {
 #[trace("TC-154", "FR-100-AC-8")]
 #[test]
 fn a_late_false_or_valueless_observation_supersedes_the_timeout() {
-    let views = scope_views("ac8");
+    let views = scope_views(TAG);
     let closed = authority(&views, 1, Progress::Closed, Completeness::Complete);
     for (constraint, truth) in [
         (Constraint::DoesNotHold, None),
@@ -506,7 +515,7 @@ fn a_late_false_or_valueless_observation_supersedes_the_timeout() {
 #[trace("TC-154", "FR-100-AC-9")]
 #[test]
 fn a_regressed_premise_supersedes_the_timeout_without_aborting_the_batch() {
-    let views = scope_views("ac9");
+    let views = scope_views(TAG);
     let closed = authority(&views, 1, Progress::Closed, Completeness::Complete);
     for (progress, completeness, truth) in [
         (
@@ -564,11 +573,11 @@ fn a_regressed_premise_supersedes_the_timeout_without_aborting_the_batch() {
 #[trace("TC-154", "FR-100-AC-10")]
 #[test]
 fn a_response_before_the_window_does_not_select_the_response_branch() {
-    let views = scope_views("ac10");
+    let views = scope_views(TAG);
     let declarations = awaiting().linked().declarations();
     let declaration = declarations.await_at(&control()).expect("declared");
     // The same window counted from an anchor of 10 starts at 10 and ends at 39.
-    let shifted = Deadline::of(declaration, 10);
+    let shifted = Deadline::of(declaration, 10, "clock:t154").expect("fits");
     assert!(!shifted.admits(9) && shifted.admits(10) && shifted.admits(39) && !shifted.admits(40));
     let facts = [
         response(1, -1),
@@ -579,27 +588,53 @@ fn a_response_before_the_window_does_not_select_the_response_branch() {
     assert!(!deadline().admits(-1));
 }
 
-/// The progress view must be the one for this wait's window.
+/// The progress view must be the one for this wait's window and clock: a
+/// different lower bound alone, a different upper bound alone, and another
+/// clock are each refused.
 #[trace("TC-154", "FR-100-AC-11")]
 #[test]
-fn progress_through_another_boundary_is_refused() {
-    let views = scope_views("other");
+fn progress_through_another_boundary_or_clock_is_refused() {
+    let views = scope_views(TAG);
     let declarations = awaiting().linked().declarations();
     let declaration = declarations.await_at(&control()).expect("declared");
-    for anchor in [1, -1] {
-        let other = Deadline::of(declaration, anchor);
-        let refused = WaitFact::authority(
+    let clock = format!("clock:{TAG}");
+    let fact = |deadline: &Deadline| {
+        WaitFact::authority(
             at(1),
-            other,
+            deadline,
             &views.progress_closed,
             &views.completeness_complete,
-        );
+        )
+    };
+    assert!(fact(&Deadline::of(declaration, 0, &clock).expect("fits")).is_ok());
+    let mut lower_only = declaration.clone();
+    lower_only.lower += 1;
+    let mut upper_only = declaration.clone();
+    upper_only.upper += 1;
+    for (label, deadline) in [
+        ("lower bound", Deadline::of(&lower_only, 0, &clock)),
+        ("upper bound", Deadline::of(&upper_only, 0, &clock)),
+        ("clock", Deadline::of(declaration, 0, "clock:other")),
+    ] {
         assert_eq!(
-            refused.err(),
+            fact(&deadline.expect("fits")).err(),
             Some(WaitRefusal::ProgressNotThroughDeadline),
-            "anchor {anchor}"
+            "{label}"
         );
     }
+}
+
+/// A window that does not fit the clock's integer range is refused.
+#[trace("TC-154", "FR-100-AC-13")]
+#[test]
+fn a_window_that_overflows_is_refused() {
+    let declarations = awaiting().linked().declarations();
+    let declaration = declarations.await_at(&control()).expect("declared");
+    assert_eq!(
+        Deadline::of(declaration, i128::MAX, "clock:t154").err(),
+        Some(WaitRefusal::WindowOutOfRange)
+    );
+    assert!(Deadline::of(declaration, i128::MAX - 29, "clock:t154").is_ok());
 }
 
 /// QSL's occurrence schema keys the wait: an undeclared control, a wrong

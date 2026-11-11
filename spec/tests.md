@@ -88,7 +88,7 @@ Assurance producer, license, implementation plan, and retained corpus remain
 explicit gates.
 
 The repository carries 70 functional requirements, 8 non-functional
-requirements, 3 integration tests and 40 test cases, and 480 acceptance criteria
+requirements, 3 integration tests and 40 test cases, and 481 acceptance criteria
 across the 70 FRs and the 8 NFRs. The functional set divides into 9 aggregate or
 behavioural parents (FR-001..FR-009), 9 object requirements (FR-010..FR-018),
 24 atomic behavioural parts (FR-019..FR-042) that the parents aggregate
@@ -213,7 +213,7 @@ in Domain Object Coverage instead.
 | FR-057 | FR-057-AC-1..AC-4 | TC-055 (AC-1..AC-4) | ✅ Implemented — all 4 criteria have living traced tests; the cause is QSL's typed `Unsupported`, or its catalog code, or unrecognised bytes retained. |
 | FR-058 | FR-058-AC-1..AC-3 | TC-055 (AC-1..AC-3) | ✅ Implemented — all 3 criteria have living traced tests over QSL's `RequiresBound`. |
 | FR-059 | FR-059-AC-1..AC-4 | TC-054 (AC-1..AC-4) | ✅ Implemented — all 4 criteria have living traced tests; `Undischarged` is the only status. |
-| FR-100 | FR-100-AC-1..AC-12 | TC-154 (AC-1..AC-12) | ✅ Implemented — all 12 criteria have living traced tests; closes V1-PROT-019 timeout branches; the owner facts are QObs progress and completeness views and QSL's slot outcome. |
+| FR-100 | FR-100-AC-1..AC-13 | TC-154 (AC-1..AC-13) | ✅ Implemented — all 13 criteria have living traced tests; closes V1-PROT-019 timeout branches; the owner facts are QObs progress and completeness views and QSL's slot outcome. |
 | FR-101 | FR-101-AC-1..AC-5 | TC-154 (AC-1..AC-5) | ✅ Implemented — all 5 criteria have living traced tests; closes V1-PROT-019 captures; the values are QSL's slot outcomes, bound without evaluation. |
 | FR-150 | FR-150-AC-1..AC-11 | TC-160 (AC-1..AC-11) | ✅ Implemented — all 11 criteria have living traced tests against a stand-in registered at the provider boundary under a descriptor QSL's registry accepts; a live QSL backend is not required. |
 | FR-151 | FR-151-AC-1..AC-8 | TC-161 (AC-1..AC-6, AC-8); no living test for AC-7 | 🚧 Partial — 7 of 8 criteria have living traced tests; AC-7 awaits QSL's read view (`ix://agent-ix/quire-spec-language/ADR-017`) publishing a channel's sender, receiver and message type and a role's internality. |
@@ -356,10 +356,9 @@ fully blocked integration cannot score 100%. These totals follow that rule: the
 denominator is every authored acceptance criterion, and an unexecutable
 criterion is a zero inside it rather than a row removed from it.
 
-| Category | Total | Passed | Failed | Blocked | Retired |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| Overall owed criteria | 480 | 209 | 0 | 0 | 133 |
+| Category | Total | Passed | Failed | Blocked |
+| --- | ---: | ---: | ---: | ---: |
+| Overall owed criteria | 481 | 210 | 0 | 0 |
 
 Passed means the criterion carries a living traced test in the current tree
-(209 of 480, the criteria `quire matrix` computes as tagged). Retired means the criterion's row lost every test in QSL-1549
-stage 1 (133). Blocked is none: QSL delivered the evaluation entries that FR-045 and FR-046 wait on. The criteria not counted as passed include those that verify by Inspection or Analysis only and FR-014-AC-6, which waits on IT-003's Quoin scenario-record handoff; `quire matrix` does not compute a planned split, so none is stated here, and the retired figure is the QSL-1549 hand count, unchanged.
+(210 of 481, the criteria `quire matrix` computes as tagged). Blocked is none: QSL delivered the evaluation entries that FR-045 and FR-046 wait on. The criteria not counted as passed include those that verify by Inspection or Analysis only and FR-014-AC-6, which waits on IT-003's Quoin scenario-record handoff; `quire matrix` computes no planned or retired split, so none is stated here.

@@ -44,7 +44,7 @@ The window is the closed interval `[lower, upper]` that the checked `await` auth
 
 ## Inputs
 
-The linked `await` control, the identity of the waiting instance, the anchor instant, the admitted observation history, the awaited scope's progress state (FR-284) with the boundary it is closed through (FR-289), the input completeness (FR-295), and any bound constraint on the awaited message as QSL's slot outcome (FR-045). Progress and completeness are independent facts and neither stands in for the other (FR-028).
+The linked `await` control, the identity of the waiting instance, the anchor instant, the admitted observation history, the awaited scope's progress state (FR-284) with the boundary and clock it is closed through (FR-289), the input completeness (FR-295), and any bound constraint on the awaited message as QSL's slot outcome (FR-045). Progress and completeness are independent facts and neither stands in for the other (FR-028). The anchor instant is supplied by the caller; reading it from the admitted history is carried by TL-388.
 
 ## Outputs
 
@@ -67,9 +67,12 @@ When progress is `closed`, completeness is `complete` and the only observations 
 When an observation inside the window is admitted after timeout was selected, by arrival order in the admitted history, the evaluator SHALL emit a superseding or invalidating result under FR-033.
 When progress or completeness is later admitted so that it no longer supports a selected timeout, the evaluator SHALL emit a superseding or invalidating result under FR-033.
 The evaluator SHALL leave the earlier result unaltered.
-The evaluator SHALL refuse a progress view whose boundary is not the wait's window.
+The evaluator SHALL refuse a progress view whose boundary is not the wait's window or whose clock is not the wait's clock.
+The evaluator SHALL refuse a window whose bounds counted from the anchor do not fit the clock's integer range.
 
 ## Open questions for the quire-specification owner
+
+TL-389 carries both questions.
 
 - QSpec FR-242 names no truth disposition for a wait whose progress is `closed`, whose completeness is `complete` and whose only observations have a false bound constraint. FR-049-AC-9 says only that timeout never substitutes for a false constraint. This requirement assigns no truth for that case and does not settle it locally.
 - QSpec FR-242 and FR-061 do not state whether the selection of a response or timeout branch is an FR-061 result that carries a truth disposition. This requirement carries the selected branch with its execution disposition only and does not settle it locally.
@@ -88,8 +91,9 @@ The evaluator SHALL refuse a progress view whose boundary is not the wait's wind
 | FR-100-AC-8 | A false or valueless observation inside the window that is admitted after timeout was selected yields a FR-033 superseding or invalidating result naming the earlier result, and the earlier result is unaltered. | Test (TC-154) |
 | FR-100-AC-9 | A progress or completeness fact admitted after timeout was selected that reports progress `open`, or completeness `incomplete` or `contradicted`, yields a FR-033 superseding or invalidating result naming the earlier result, and the batch settles to the same results as the incremental run. | Test (TC-154) |
 | FR-100-AC-10 | A matching response observed before the window's lower bound does not select the response branch, and with progress `closed` and completeness `complete` timeout is selected. | Test (TC-154) |
-| FR-100-AC-11 | A progress view whose boundary is not the wait's window is refused. | Test (TC-154) |
+| FR-100-AC-11 | A progress view whose lower bound differs, whose upper bound differs, or whose clock differs from the wait's is refused. | Test (TC-154) |
 | FR-100-AC-12 | A wait keyed by a control that QSL's occurrence schema does not declare as an `await`, or by a wrong number of repeat ordinals, is refused, and a workflow identity that QSL cannot key is refused. | Test (TC-154) |
+| FR-100-AC-13 | A window whose bounds counted from the anchor overflow the clock's integer range is refused. | Test (TC-154) |
 
 ## Dependencies
 

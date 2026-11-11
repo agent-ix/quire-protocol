@@ -12,7 +12,7 @@
 //! Nothing here evaluates a constraint, a clock or an expression: the
 //! constraint outcome is QSL's slot outcome, progress and completeness are the
 //! QObs owner views, and the window is the one QSL publishes on the checked
-//! `await` node, which the progress view's FR-289 boundary must name. A
+//! `await` node, which the progress view's FR-289 boundary and clock must name. A
 //! settlement is keyed by the waiting instance, never by the static branch.
 //! Results are immutable; a settled timeout that a later observation, progress
 //! or completeness fact contradicts is reported as an FR-033 supersession that
@@ -40,8 +40,12 @@ pub enum WaitRefusal {
         /// The offered control.
         control: CheckedNodeId,
     },
-    /// The progress view's boundary is not the wait's window.
+    /// The progress view's boundary is not the wait's window, or it is on
+    /// another clock.
     ProgressNotThroughDeadline,
+    /// The window counted from the anchor does not fit the clock's integer
+    /// range.
+    WindowOutOfRange,
     /// A fact is not after the last admitted one in the history's order.
     OutOfOrder {
         /// The last admitted fact.
@@ -111,33 +115,57 @@ impl WaitKey {
 }
 
 /// The window of a wait: the authored `within [lower, upper]` counted from the
-/// anchor instant, closed at both ends. Observations and the progress
-/// boundary are in the unit of the authored clock.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+/// anchor instant, closed at both ends, on one clock. Observations and the
+/// progress boundary are in the unit of that clock.
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Deadline {
     lower: i128,
     upper: i128,
+    authored_clock: Box<str>,
+    clock_identity: Box<str>,
 }
 
 impl Deadline {
-    /// The window `declaration` authors, counted from `anchor`.
+    /// The window `declaration` authors, counted from `anchor`, on the QObs
+    /// clock `clock_identity` that the caller's clock selection binds to the
+    /// authored clock.
+    ///
+    /// # Errors
+    ///
+    /// [`WaitRefusal::WindowOutOfRange`] when a bound does not fit.
+    pub fn of(
+        declaration: &AwaitDeclaration,
+        anchor: i128,
+        clock_identity: &str,
+    ) -> Result<Self, WaitRefusal> {
+        let bound = |offset: u64| {
+            anchor
+                .checked_add(i128::from(offset))
+                .ok_or(WaitRefusal::WindowOutOfRange)
+        };
+        Ok(Self {
+            lower: bound(declaration.lower)?,
+            upper: bound(declaration.upper)?,
+            authored_clock: declaration.clock.clone(),
+            clock_identity: clock_identity.into(),
+        })
+    }
+
+    /// The authored clock name.
     #[must_use]
-    pub fn of(declaration: &AwaitDeclaration, anchor: i128) -> Self {
-        Self {
-            lower: anchor + i128::from(declaration.lower),
-            upper: anchor + i128::from(declaration.upper),
-        }
+    pub fn authored_clock(&self) -> &str {
+        &self.authored_clock
     }
 
     /// Whether an observation at `observed` is inside the wait. Both bounds
     /// are inside.
     #[must_use]
-    pub const fn admits(self, observed: i128) -> bool {
+    pub const fn admits(&self, observed: i128) -> bool {
         self.lower <= observed && observed <= self.upper
     }
 
-    fn named_by(self, reference: BoundaryRef<'_>) -> bool {
-        let (lower, upper) = match reference {
+    fn named_by(&self, view: &progress::View) -> bool {
+        let (lower, upper) = match view.payload().boundary() {
             BoundaryRef::EventPosition {
                 lower,
                 upper_inclusive,
@@ -154,7 +182,9 @@ impl Deadline {
                 ..
             } => (lower_nanos, upper_inclusive_nanos),
         };
-        self.lower.to_string() == lower && self.upper.to_string() == upper
+        view.payload().clock_identity() == &*self.clock_identity
+            && self.lower.to_string() == lower
+            && self.upper.to_string() == upper
     }
 }
 
@@ -234,11 +264,11 @@ impl WaitFact {
     /// boundary is not the deadline's.
     pub fn authority(
         at: ObservationRef,
-        deadline: Deadline,
+        deadline: &Deadline,
         progress: &progress::View,
         completeness: &completeness::View,
     ) -> Result<Self, WaitRefusal> {
-        if !deadline.named_by(progress.payload().boundary()) {
+        if !deadline.named_by(progress) {
             return Err(WaitRefusal::ProgressNotThroughDeadline);
         }
         Ok(Self {
