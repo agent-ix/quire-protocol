@@ -98,6 +98,24 @@ fn key(who: &str) -> WaitKey {
 /// progress clock is `clock:{TAG}`.
 const TAG: &str = "t154";
 
+fn timestamped() -> TemporalBoundary {
+    TemporalBoundary::TimestampedEvent {
+        lower_nanos: 0,
+        upper_inclusive_nanos: 29,
+        carrier_end_exclusive_nanos: 30,
+        watermark_nanos: 30,
+    }
+}
+
+fn event_position() -> TemporalBoundary {
+    TemporalBoundary::EventPosition {
+        lower: 0,
+        upper_inclusive: 29,
+        carrier_end_exclusive: 30,
+        watermark: 30,
+    }
+}
+
 /// The window the package authors, `within [0,29]`, from anchor 0: the one the
 /// owner fixtures' progress views name.
 fn deadline() -> Deadline {
@@ -106,6 +124,7 @@ fn deadline() -> Deadline {
         declarations.await_at(&control()).expect("declared"),
         0,
         &format!("clock:{TAG}"),
+        &Deadline::admitted_range(&timestamped()),
     )
     .expect("the window fits")
 }
@@ -577,7 +596,13 @@ fn a_response_before_the_window_does_not_select_the_response_branch() {
     let declarations = awaiting().linked().declarations();
     let declaration = declarations.await_at(&control()).expect("declared");
     // The same window counted from an anchor of 10 starts at 10 and ends at 39.
-    let shifted = Deadline::of(declaration, 10, "clock:t154").expect("fits");
+    let shifted = Deadline::of(
+        declaration,
+        10,
+        "clock:t154",
+        &Deadline::admitted_range(&timestamped()),
+    )
+    .expect("fits");
     assert!(!shifted.admits(9) && shifted.admits(10) && shifted.admits(39) && !shifted.admits(40));
     let facts = [
         response(1, -1),
@@ -598,6 +623,7 @@ fn progress_through_another_boundary_or_clock_is_refused() {
     let declarations = awaiting().linked().declarations();
     let declaration = declarations.await_at(&control()).expect("declared");
     let clock = format!("clock:{TAG}");
+    let any = Deadline::admitted_range(&timestamped());
     let fact = |deadline: &Deadline| {
         WaitFact::authority(
             at(1),
@@ -606,15 +632,15 @@ fn progress_through_another_boundary_or_clock_is_refused() {
             &views.completeness_complete,
         )
     };
-    assert!(fact(&Deadline::of(declaration, 0, &clock).expect("fits")).is_ok());
+    assert!(fact(&Deadline::of(declaration, 0, &clock, &any).expect("fits")).is_ok());
     let mut lower_only = declaration.clone();
     lower_only.lower += 1;
     let mut upper_only = declaration.clone();
     upper_only.upper += 1;
     for (label, deadline) in [
-        ("lower bound", Deadline::of(&lower_only, 0, &clock)),
-        ("upper bound", Deadline::of(&upper_only, 0, &clock)),
-        ("clock", Deadline::of(declaration, 0, "clock:other")),
+        ("lower bound", Deadline::of(&lower_only, 0, &clock, &any)),
+        ("upper bound", Deadline::of(&upper_only, 0, &clock, &any)),
+        ("clock", Deadline::of(declaration, 0, "clock:other", &any)),
     ] {
         assert_eq!(
             fact(&deadline.expect("fits")).err(),
@@ -624,17 +650,32 @@ fn progress_through_another_boundary_or_clock_is_refused() {
     }
 }
 
-/// A window that does not fit the clock's integer range is refused.
+/// A window that overflows, or lies outside the integer range of the clock
+/// family, is refused.
 #[trace("TC-154", "FR-100-AC-13")]
 #[test]
-fn a_window_that_overflows_is_refused() {
+fn a_window_outside_the_clock_range_is_refused() {
     let declarations = awaiting().linked().declarations();
     let declaration = declarations.await_at(&control()).expect("declared");
+    let signed = Deadline::admitted_range(&timestamped());
+    let unsigned = Deadline::admitted_range(&event_position());
+    let of = |anchor, range: &_| Deadline::of(declaration, anchor, "clock:t154", range);
+    // i128 overflow, with the widest range.
     assert_eq!(
-        Deadline::of(declaration, i128::MAX, "clock:t154").err(),
+        of(i128::MAX, &signed).err(),
         Some(WaitRefusal::WindowOutOfRange)
     );
-    assert!(Deadline::of(declaration, i128::MAX - 29, "clock:t154").is_ok());
+    assert!(of(i128::MAX - 29, &signed).is_ok());
+    // Event positions and fixed samples are unsigned 64-bit.
+    assert!(of(0, &unsigned).is_ok());
+    assert!(of(i128::from(u64::MAX) - 29, &unsigned).is_ok());
+    assert_eq!(of(-1, &unsigned).err(), Some(WaitRefusal::WindowOutOfRange));
+    assert_eq!(
+        of(i128::from(u64::MAX) - 28, &unsigned).err(),
+        Some(WaitRefusal::WindowOutOfRange)
+    );
+    // A negative instant is fine on the signed timestamped family.
+    assert!(of(-1, &signed).is_ok());
 }
 
 /// QSL's occurrence schema keys the wait: an undeclared control, a wrong

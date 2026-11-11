@@ -18,9 +18,13 @@
 //! or completeness fact contradicts is reported as an FR-033 supersession that
 //! names the earlier result and leaves it unaltered.
 
+use core::ops::RangeInclusive;
+
 use quire_contract_model::CheckedNodeId;
 use quire_exact::Integer;
-use quire_observation::authority::{completeness, progress, BoundaryRef, OpenClosed};
+use quire_observation::authority::{
+    completeness, progress, BoundaryRef, OpenClosed, TemporalBoundary,
+};
 
 use crate::closure::{AssessmentExecution, TruthDisposition};
 use crate::compensation::purity::PureAssessment;
@@ -43,8 +47,8 @@ pub enum WaitRefusal {
     /// The progress view's boundary is not the wait's window, or it is on
     /// another clock.
     ProgressNotThroughDeadline,
-    /// The window counted from the anchor does not fit the clock's integer
-    /// range.
+    /// The window counted from the anchor does not fit the integer range of
+    /// the clock family.
     WindowOutOfRange,
     /// A fact is not after the last admitted one in the history's order.
     OutOfOrder {
@@ -126,21 +130,38 @@ pub struct Deadline {
 }
 
 impl Deadline {
+    /// The instants a clock family admits, read from the owner's boundary
+    /// type: event positions and fixed samples are unsigned 64-bit, timestamped
+    /// events are signed 128-bit nanoseconds.
+    #[must_use]
+    pub const fn admitted_range(family: &TemporalBoundary) -> RangeInclusive<i128> {
+        match family {
+            TemporalBoundary::EventPosition { .. } | TemporalBoundary::FixedSample { .. } => {
+                0..=u64::MAX as i128
+            }
+            TemporalBoundary::TimestampedEvent { .. } => i128::MIN..=i128::MAX,
+        }
+    }
+
     /// The window `declaration` authors, counted from `anchor`, on the QObs
     /// clock `clock_identity` that the caller's clock selection binds to the
-    /// authored clock.
+    /// authored clock, whose instants lie in `admitted` (see
+    /// [`Self::admitted_range`]).
     ///
     /// # Errors
     ///
-    /// [`WaitRefusal::WindowOutOfRange`] when a bound does not fit.
+    /// [`WaitRefusal::WindowOutOfRange`] when a bound overflows or lies
+    /// outside `admitted`.
     pub fn of(
         declaration: &AwaitDeclaration,
         anchor: i128,
         clock_identity: &str,
+        admitted: &RangeInclusive<i128>,
     ) -> Result<Self, WaitRefusal> {
         let bound = |offset: u64| {
             anchor
                 .checked_add(i128::from(offset))
+                .filter(|instant| admitted.contains(instant))
                 .ok_or(WaitRefusal::WindowOutOfRange)
         };
         Ok(Self {

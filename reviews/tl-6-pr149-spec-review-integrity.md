@@ -47,3 +47,9 @@ Round 1, fix commit 183d4f1.
 | FND-001 | fixed | 183d4f1 |
 | FND-002 | fixed | 183d4f1 |
 | FND-003 | fixed | 183d4f1 |
+
+Round 2, fix commit fb68003.
+
+| FND | outcome | reason |
+| --- | --- | --- |
+| FND-004 | fixed | fb68003 |

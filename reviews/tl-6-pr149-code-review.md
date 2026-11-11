@@ -51,6 +51,12 @@ Ticket: TL-6. Code review with the Rust lane (rust-review, rust-style loaded) fo
 | FND-007 | low | `AwaitDeclaration.clock` is read from the checked node but never used. `Deadline::named_by` accepts a progress boundary of any family (EventPosition, FixedSample or TimestampedEvent) and compares only the two numbers, and `Deadline::of` adds the authored bounds to the anchor with no check that the boundary is in the await's clock. A progress view on another clock family with equal numbers passes. Check the boundary family against the await's clock, or ticket it if QObs does not expose the clock identity. | src/deadline.rs:139-157 |
 | FND-008 | low | `Deadline::of` computes `anchor + i128::from(declaration.lower)` and `anchor + i128::from(declaration.upper)` on a caller-supplied `anchor`. An anchor near `i128::MAX` overflows: a panic in debug builds and a wrapped, wrong window in release. Use `checked_add` and refuse. | src/deadline.rs:124-130 |
 
+## New findings (disposition pass 2)
+
+| ID | Severity | Summary | Refs |
+| --- | --- | --- | --- |
+| FND-009 | low | FR-100 and AC-13 refuse a window that does not fit 'the clock's integer range', but `Deadline::of` checks only `i128` overflow. Event-position and fixed-sample boundaries are `u64`, so a negative window or one above `u64::MAX` on those clocks is accepted. The test covers only `i128::MAX`. Either say `i128` in the spec, or check the range of the clock's boundary family. | src/deadline.rs:137-149 |
+
 ## Dispositions
 
 Round 1, fix commit 183d4f1.
@@ -63,3 +69,11 @@ Round 1, fix commit 183d4f1.
 | FND-004 | deferred | Fixed except the anchor. 183d4f1 reads the window from the checked await (`Deadline::of(declaration, anchor)` from `AwaitDeclaration{lower, upper}`), `admits` checks both bounds (AC-10) and `named_by` compares both bounds (AC-11). The anchor instant stays caller-supplied; FR-100 now states it as an Input ('the anchor instant') and the Description says the window is counted from the awaited `after` event. Acceptable for this PR because a progress view through a different window is refused, but a response settled before any authority fact uses the caller's anchor unchecked. Needs a ticket: derive the anchor from the admitted `after` observation. No ticket exists yet. |
 | FND-005 | fixed | 183d4f1 |
 | FND-006 | fixed | 183d4f1 |
+
+Round 2, fix commit fb68003.
+
+| FND | outcome | reason |
+| --- | --- | --- |
+| FND-004 | deferred | TL-388 (FR-100: derive the await window anchor from the admitted after-event observation). FR-100 Inputs now cite it: 'The anchor instant is supplied by the caller; reading it from the admitted history is carried by TL-388.' |
+| FND-007 | fixed | fb68003 |
+| FND-008 | fixed | fb68003 |

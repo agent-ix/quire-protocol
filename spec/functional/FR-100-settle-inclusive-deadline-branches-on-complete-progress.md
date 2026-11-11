@@ -68,11 +68,11 @@ When an observation inside the window is admitted after timeout was selected, by
 When progress or completeness is later admitted so that it no longer supports a selected timeout, the evaluator SHALL emit a superseding or invalidating result under FR-033.
 The evaluator SHALL leave the earlier result unaltered.
 The evaluator SHALL refuse a progress view whose boundary is not the wait's window or whose clock is not the wait's clock.
-The evaluator SHALL refuse a window whose bounds counted from the anchor do not fit the clock's integer range.
+The evaluator SHALL refuse a window whose bounds counted from the anchor do not fit the integer range of the progress boundary's clock family: non-negative 64-bit for event positions and fixed samples, signed 128-bit nanoseconds for timestamped events (FR-289).
 
 ## Open questions for the quire-specification owner
 
-TL-389 carries both questions.
+STD-657 carries both questions.
 
 - QSpec FR-242 names no truth disposition for a wait whose progress is `closed`, whose completeness is `complete` and whose only observations have a false bound constraint. FR-049-AC-9 says only that timeout never substitutes for a false constraint. This requirement assigns no truth for that case and does not settle it locally.
 - QSpec FR-242 and FR-061 do not state whether the selection of a response or timeout branch is an FR-061 result that carries a truth disposition. This requirement carries the selected branch with its execution disposition only and does not settle it locally.
@@ -93,7 +93,7 @@ TL-389 carries both questions.
 | FR-100-AC-10 | A matching response observed before the window's lower bound does not select the response branch, and with progress `closed` and completeness `complete` timeout is selected. | Test (TC-154) |
 | FR-100-AC-11 | A progress view whose lower bound differs, whose upper bound differs, or whose clock differs from the wait's is refused. | Test (TC-154) |
 | FR-100-AC-12 | A wait keyed by a control that QSL's occurrence schema does not declare as an `await`, or by a wrong number of repeat ordinals, is refused, and a workflow identity that QSL cannot key is refused. | Test (TC-154) |
-| FR-100-AC-13 | A window whose bounds counted from the anchor overflow the clock's integer range is refused. | Test (TC-154) |
+| FR-100-AC-13 | A window whose bounds counted from the anchor fall outside the integer range of the progress boundary's clock family (non-negative 64-bit for event positions and fixed samples, signed 128-bit for timestamped events) is refused. | Test (TC-154) |
 
 ## Dependencies
 
