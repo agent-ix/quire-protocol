@@ -16,11 +16,11 @@ relationships:
 
 ## Description
 
-When QSL's backend returns a witness or counterexample for a `local-projection` or `realizability` claim, the result producer SHALL carry it unchanged, with every source identity it names joined to the FR-002 linked graph.
+When QSL's backend returns a witness or counterexample for a `realizability` claim, or a projected local artifact for a `local-projection` claim, the result producer SHALL carry it unchanged, with every source identity it names joined to the FR-002 linked graph.
 
 ## Inputs
 
-One disposition from FR-150 whose backend result carries a witness, counterexample or projected local artifact, and the FR-002 linked graph.
+One disposition from FR-150 whose backend result carries a `realizability` witness or counterexample, or a `local-projection` projected artifact, and the FR-002 linked graph.
 
 ## Outputs
 
@@ -30,7 +30,9 @@ The disposition carrying the backend's witness or counterexample unchanged, with
 
 - The result producer shall carry the backend's witness, counterexample or projected local artifact unchanged.
 - The result producer shall carry the trace-position witness of a `realizability` claim settled `decisive-witness` or `decisive-counterexample` as FR-302 states.
-- When a source identity the result names resolves to no node of the linked graph, the result producer shall refuse that disposition under FR-030.
+- The result producer shall resolve the deciding element identity of a carried witness to one node of the linked graph.
+- When the deciding element identity names no node of the linked graph, or the result names no source identity, the result producer shall refuse that disposition under FR-030.
+- When any other source identity the result names resolves to no node of the linked graph, the result producer shall refuse that disposition under FR-030.
 - The result producer shall retain the derived-artifact correspondence FR-030 requires beside the source identities.
 - The result producer shall compute no witness, no minimisation and no reordering of a witness.
 - The result producer shall leave every independent disposition unchanged when it refuses one.
@@ -39,11 +41,11 @@ The disposition carrying the backend's witness or counterexample unchanged, with
 
 | ID | Criteria | Verification |
 | --- | --- | --- |
-| FR-152-AC-1 | Given a stand-in backend returning a `realizability` result settled `decisive-witness`, the disposition carries one trace-position witness per FR-302 and every source identity it names equals the identity of one node of the linked graph. | Test (TC-162) |
-| FR-152-AC-2 | Given a stand-in backend returning a `realizability` result settled `decisive-counterexample`, the disposition carries one trace-position witness per FR-302 and every source identity it names equals the identity of one node of the linked graph. | Test (TC-162) |
-| FR-152-AC-3 | Given a stand-in backend returning a deliberately non-minimal witness, the disposition carries it byte-for-byte, with no step dropped, merged or reordered. | Test (TC-162) |
-| FR-152-AC-4 | Given a result naming a source identity absent from the linked graph, that disposition is refused under FR-030 and every independent disposition is unchanged. | Test (TC-162) |
-| FR-152-AC-5 | Given a stand-in backend returning a projected local artifact for a `local-projection` claim, the disposition carries it unchanged with its derived-artifact correspondence, and an artifact whose identity disagrees with the one derived from its selected tuple is refused under FR-030. | Test (TC-162) |
+| FR-152-AC-1 | Given a stand-in returning a `realizability` result settled `decisive-witness`, the disposition carries one trace-position witness per FR-302 whose deciding element identity equals the identity of one node of the linked graph, and each other source identity it names equals one node identity. | Test (TC-162) |
+| FR-152-AC-2 | Given a stand-in returning a `realizability` result settled `decisive-counterexample`, the same holds. | Test (TC-162) |
+| FR-152-AC-3 | Given a stand-in returning a deliberately non-minimal witness, the disposition carries it byte-for-byte, with no step dropped, merged or reordered. | Test (TC-162) |
+| FR-152-AC-4 | Given a decisive result whose deciding element identity names no node of the linked graph, and a second decisive result naming no source identity at all, each disposition is refused under FR-030, and every independent disposition is unchanged. | Test (TC-162) |
+| FR-152-AC-5 | Given a stand-in returning a projected local artifact for a `local-projection` claim, the disposition carries it unchanged, and an artifact identity that disagrees with the one derived from its selected tuple is refused as FR-030-AC-5 requires. | Test (TC-162) |
 
 ## Adopted vocabulary
 

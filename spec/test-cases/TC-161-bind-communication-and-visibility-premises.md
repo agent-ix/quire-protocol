@@ -10,12 +10,12 @@ relationships:
 
 ## Description
 
-Verify that the backend receives, and the disposition retains, the exact channel premises and role internality, that a missing premise refuses only its disposition, and that a missing premise or non-conclusive outcome yields no truth `satisfied` or `violated`.
+Verify that the backend receives, and the disposition retains, the exact channel premises and role internality, that an omitted per-claim premise refuses only its disposition, and that an omitted premise or an `Inconclusive` outcome yields no truth `satisfied` or `violated`.
 
 ## Test Procedure
 
-Dispatch both claim kinds over a checked package with channels and internal and external roles, using a call-recording stand-in backend. Vary one component of one channel premise; remove one channel premise and one role internality in turn; have the stand-in return a requires-bound outcome and a non-conclusive result. Tag each test with the exact acceptance criterion it verifies.
+Dispatch both claim kinds over a checked package with channels and internal and external roles, using a call-recording stand-in backend registered in QSL's registry snapshot. Vary one component of one channel premise; omit one channel premise and one role internality from the requester's per-claim premise set in turn, then restore each; have the stand-in return the `Inconclusive` verdict with an `InconclusiveCause` and a requires-bound outcome. Tag each test with the exact acceptance criterion it verifies.
 
 ## Expected Results
 
-Recorded calls carry the authored premises and nothing else, with `external` unchanged. Request identity and provenance differ per varied component. A removed premise refuses that disposition under FR-030 with no backend call and leaves independent dispositions unchanged. Non-conclusive and premise-absent dispositions hold neither `satisfied` nor `violated`, and the library supplies no bound.
+Recorded calls carry the authored premises and nothing else, with `external` unchanged. Request identity and provenance differ per varied component. An omitted premise refuses that disposition under FR-030 with no backend call, retains no value for it and leaves independent dispositions unchanged; restoring it sends exactly the restored value. `Inconclusive`, requires-bound and premise-absent dispositions hold neither `satisfied` nor `violated`, and the library supplies no bound.
