@@ -121,8 +121,6 @@ fn clock_of(tag: &str) -> String {
     format!("clock:{tag}")
 }
 
-/// The declared role mapping: the binding of the records tagged `tag` resolves
-/// to the node the checked await names as its anchor.
 /// The FR-287 subject key of the workflow instance the records tagged `tag`
 /// are of.
 fn subject(tag: &str) -> QualifiedSubject {
@@ -133,6 +131,8 @@ fn link(tag: &str) -> Link {
     Link::new(mapping(tag), subject(tag))
 }
 
+/// The declared role mapping: the binding of the records tagged `tag` resolves
+/// to the node the checked await names as its anchor.
 fn mapping(tag: &str) -> RoleMapping {
     RoleMapping::new().resolving(&format!("binding:{tag}"), [declaration().anchor.clone()])
 }

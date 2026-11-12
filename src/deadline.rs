@@ -698,7 +698,8 @@ impl Wait {
     /// # Errors
     ///
     /// [`WaitRefusal::UndeclaredAwait`] when `key` is not the wait of
-    /// `declaration`.
+    /// `declaration`; [`WaitRefusal::SubjectNotInstance`] when the link's
+    /// subject does not carry the workflow instance's identity.
     pub fn new(
         _pure: PureAssessment,
         key: WaitKey,
