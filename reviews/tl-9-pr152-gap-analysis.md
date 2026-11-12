@@ -63,6 +63,12 @@ Units examined:
 - `FR-204-AC-6` (examined)
 - `FR-204-AC-7` (examined)
 
+## New findings (disposition pass 2)
+
+| ID | Severity | Summary | Refs |
+| --- | --- | --- | --- |
+| FND-008 | low | The test fixture spells QSL's cycle refusal as CatalogCode::new("invalid_capability", "malformed-declaration"), but the FR-489 Settlement table spells it `invalid_model_binding`/`malformed-declaration`. It is a hand-typed owner code in the wrong namespace (present since c492bdb; missed in the review pass). Use QSL's published constant, or at least the FR-489 spelling. The library carries any code unchanged, so behaviour is unaffected. | tests/tc_200_dispatch_composition_and_refinement.rs:149 |
+
 ## Dispositions
 
 | FND | outcome | reason |
@@ -74,3 +80,4 @@ Units examined:
 | FND-005 | fixed | 6eb955c: let mut member = request(&dynamic, COMPOSITION); member.subjects = vec![cycle.cycles[0][0].clone()]; ... assert_eq!(member.label_reading().map(|r| r.truth), Some(Some(Truth::Satisfied))); ... assert!(matches!(disposition(cycle), Disposition::Unsupported(_))); |
 | FND-006 | fixed | 6eb955c: vec![conformance(), Claims::AssumeGuarantee(request(&dynamic, REFINEMENT)), Claims::AssumeGuarantee(composition)] ... assert_eq!(beside[0], alone[0]); assert_eq!(beside[2], alone[1]); assert_eq!(refining.len(), 1); |
 | FND-007 | still-open | 6eb955c now builds UnsupportedCause::RequestedCapability(CatalogCode::new("unsupported_projection", "premise-unproved")) and the same for protocol-assumption-not-established. That invents owner catalog codes in the test (repo CLAUDE.md: do not mirror owner vocabulary, not even in tests) and files both causes under the requested-capability kind, which is the mapping AC-4 forbids; per FR-489 `premise-unproved` arrives on an `inconclusive` result. Feed premise-unproved on an inconclusive result and the FR-148 cause as QSL spells it (or as unrecognised bytes) instead. Low. |
+| FND-007 | fixed | 1313c39: fn unproved() -> InconclusiveCause { InconclusiveCause::PremiseUnproved { premise: 0, result: PremiseOutcome::Absent } } ... for cause in [unproved(), strengthened()] { serving(Out { cause: Some(cause.clone()), ..Out::new(ItemLabel::Inconclusive) }) ... assert_eq!(carried(outcome).cause, Some(cause)); } |

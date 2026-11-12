@@ -146,7 +146,7 @@ fn strengthened() -> InconclusiveCause {
 }
 
 fn malformed() -> CatalogCode {
-    CatalogCode::new("invalid_capability", "malformed-declaration")
+    CatalogCode::new("invalid_model_binding", "malformed-declaration")
 }
 
 // ---------------------------------------------------------------- TC-200

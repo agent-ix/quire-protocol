@@ -42,3 +42,4 @@ Units examined:
 | --- | --- | --- |
 | FND-001 | fixed | 6eb955c: QSpec adds FR-479 and closes the event-triggered bridge: an activation binding is the exact source for a dynamic FR-230 instance. |
 | FND-002 | fixed | 6eb955c: FR-004: - target: ix://agent-ix/quire-specification/FR-479 / type: depends_on; AD-001: '----> FR-479 activation binding'; FR-101: 'supplied through the FR-479 binding and FR-045'; no FR-300 reference remains outside FR-300's own file. |
+| FND-003 | fixed | 1313c39: | IT-002-SC-02 | IT-002-SC-01/02/05 cover reachable compensation and temporal outcomes and refusals; the retired activation-binding producer contract is not consumed; the live activation binding is FR-479. | |
