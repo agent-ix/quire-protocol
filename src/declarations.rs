@@ -229,6 +229,12 @@ impl Declarations {
             .find(|declaration| &declaration.control == id)
     }
 
+    /// The name of the checked package these declarations were read from.
+    #[must_use]
+    pub fn package(&self) -> &str {
+        &self.clause.package
+    }
+
     /// Whether `id` is the protocol clause or a node it declares: a role,
     /// channel, queue, join, loop or `await` control. A reference to any
     /// other node is not a reference into this checked package's protocol.

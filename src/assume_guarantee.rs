@@ -25,9 +25,9 @@ use quire_contract_model::CheckedNodeId;
 use crate::closure::AssessmentExecution;
 use crate::declarations::Declarations;
 use crate::dispatch::{
-    select, Claim, DispositionRefusal, Fragment, ProtocolOutcome, ProviderBoundary,
+    settle_bound, Answer, DispositionRefusal, Fragment, ProtocolOutcome, ProviderBoundary,
 };
-use crate::disposition::{settle_claim, ClaimSettlement};
+use crate::disposition::ClaimSettlement;
 
 /// The two claim kinds this module dispatches.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -160,6 +160,25 @@ pub trait AssumeGuaranteeResult<T> {
     fn retained_assumptions(&self) -> Option<&[CheckedNodeId]>;
 }
 
+/// A boundary that is never asked a kind has no result of that kind.
+impl<T> AssumeGuaranteeResult<T> for std::convert::Infallible {
+    fn label(&self) -> ItemLabel {
+        match *self {}
+    }
+    fn stated_execution(&self) -> Option<AssessmentExecution> {
+        match *self {}
+    }
+    fn subjects(&self) -> &[CheckedNodeId] {
+        match *self {}
+    }
+    fn retained_premises(&self) -> Option<&PremiseLists<T>> {
+        match *self {}
+    }
+    fn retained_assumptions(&self) -> Option<&[CheckedNodeId]> {
+        match *self {}
+    }
+}
+
 /// The values a result's label reads into (FR-202). A value is `None` where
 /// no owner table derives it.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -236,28 +255,36 @@ pub const fn read_refinement_label(label: ItemLabel) -> LabelReading {
     }
 }
 
-/// Bind `request` to the checked package's declarations (FR-030, FR-200): the
-/// fragment, subjects, assumption identities and source identities must each
-/// be declared by the package, and no guarantee of a declared cycle may be
-/// offered as an assumption (FR-203).
+/// The declarations of the component package that owns `node`.
+fn owner<'a>(components: &[&'a Declarations], node: &CheckedNodeId) -> Option<&'a Declarations> {
+    components.iter().copied().find(|declarations| {
+        declarations.package() == &*node.package && declarations.declares(node)
+    })
+}
+
+/// Bind `request` to its component packages (FR-030, FR-200). The components
+/// live in separate checked packages (FR-043, FR-044), so `components` holds
+/// the declarations of each, and every fragment node, subject, assumption
+/// identity and source identity is checked against the package that owns it.
+/// No guarantee of a declared cycle may be offered as an assumption (FR-203).
 ///
 /// # Errors
 ///
 /// [`DispositionRefusal`] naming the absent, undeclared or offending node.
 pub fn bind<T: Clone>(
-    declarations: &Declarations,
+    components: &[&Declarations],
     request: &AssumeGuaranteeRequest<T>,
 ) -> Result<AssumeGuaranteeBinding<T>, DispositionRefusal> {
     if request.fragment.channels.is_empty() && request.fragment.roles.is_empty() {
         return Err(DispositionRefusal::NoFragment);
     }
     for node in &request.fragment.channels {
-        if declarations.channel(node).is_none() {
+        if owner(components, node).is_none_or(|owner| owner.channel(node).is_none()) {
             return Err(DispositionRefusal::UndeclaredChannel(node.clone()));
         }
     }
     for node in &request.fragment.roles {
-        if declarations.role(node).is_none() {
+        if owner(components, node).is_none_or(|owner| owner.role(node).is_none()) {
             return Err(DispositionRefusal::UndeclaredRole(node.clone()));
         }
     }
@@ -267,14 +294,14 @@ pub fn bind<T: Clone>(
     if let Some(node) = request
         .subjects
         .iter()
-        .find(|node| !declarations.declares(node))
+        .find(|node| owner(components, node).is_none())
     {
         return Err(DispositionRefusal::UndeclaredSubject(node.clone()));
     }
     if let Some(node) = request
         .assumptions
         .iter()
-        .find(|node| !declarations.declares(node))
+        .find(|node| owner(components, node).is_none())
     {
         return Err(DispositionRefusal::UndeclaredAssumption(node.clone()));
     }
@@ -284,7 +311,7 @@ pub fn bind<T: Clone>(
     if let Some(node) = request
         .sources
         .iter()
-        .find(|node| !declarations.declares(node))
+        .find(|node| owner(components, node).is_none())
     {
         return Err(DispositionRefusal::UndeclaredSource(node.clone()));
     }
@@ -302,45 +329,34 @@ fn cycle_member(cycles: &[Vec<CheckedNodeId>], offered: &[CheckedNodeId]) -> Opt
         .cloned()
 }
 
-/// Settle one claim: bind it, take FR-290's candidate set from QSL's registry,
-/// send the claim to the one candidate, and carry what returns.
-pub fn dispatch<A, C, I, T, R>(
-    boundary: &mut ProviderBoundary<'_, Claim<A, C, I, T>, R>,
-    declarations: &Declarations,
+/// Settle one claim: bind it to its component packages, then take the steps
+/// every claim kind shares ([`settle_bound`]).
+pub fn dispatch<K, P, Q, T>(
+    boundary: &mut ProviderBoundary<'_, K, Answer<P, Q>>,
+    components: &[&Declarations],
     request: &AssumeGuaranteeRequest<T>,
-) -> ProtocolOutcome<R, AssumeGuaranteeBinding<T>>
+) -> ProtocolOutcome<Q, AssumeGuaranteeBinding<T>>
 where
-    A: Clone,
-    C: Clone,
-    I: Clone,
+    K: From<AssumeGuaranteeBinding<T>>,
     T: Clone + PartialEq,
-    R: AssumeGuaranteeResult<T>,
+    Q: AssumeGuaranteeResult<T>,
 {
-    let binding = match bind(declarations, request) {
+    let binding = match bind(components, request) {
         Ok(binding) => binding,
         Err(refusal) => return ProtocolOutcome::Refused(refusal),
     };
-    let (selected, mut binding) = match select(
-        boundary.registry(),
-        request.kind.capability(),
-        request.backend.as_ref(),
+    settle_bound(
+        boundary,
         binding,
-    ) {
-        Ok(selected) => selected,
-        Err(outcome) => return *outcome,
-    };
-    binding.selected = Some(selected.clone());
-    let Some(provider) = boundary.provider_mut(&selected) else {
-        return ProtocolOutcome::Refused(DispositionRefusal::NoProvider(selected));
-    };
-    let claim = Claim::AssumeGuarantee(binding.clone());
-    let settlement = settle_claim(provider.as_mut(), &claim, binding);
-    if let ClaimSettlement::Result { result, premises } = &settlement {
-        if let Some(refusal) = carry_refusal(&premises.request, result) {
-            return ProtocolOutcome::Refused(refusal);
-        }
-    }
-    ProtocolOutcome::Settled(settlement)
+        (request.kind.capability(), request.backend.as_ref()),
+        |binding| K::from(binding.clone()),
+        |binding, selected| binding.selected = Some(selected),
+        |answer| match answer {
+            Answer::AssumeGuarantee(result) => Some(result),
+            Answer::Protocol(_) => None,
+        },
+        |result, binding| carry_refusal(&binding.request, result),
+    )
 }
 
 impl<T, R: AssumeGuaranteeResult<T>> ProtocolOutcome<R, AssumeGuaranteeBinding<T>> {

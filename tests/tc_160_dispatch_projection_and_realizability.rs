@@ -282,6 +282,7 @@ fn a_failed_backend_fails_exactly_its_claim_and_no_other_backend_is_called() {
         let settled = dispatch_claims(
             &mut boundary,
             dynamic.linked().declarations(),
+            &[],
             &claims(&dynamic),
         );
         assert_eq!(spare.len(), 0);
@@ -315,13 +316,14 @@ fn global_conformance_is_the_same_whether_or_not_the_advanced_claims_are_request
     let together = dispatch_claims(
         &mut boundary,
         declarations,
+        &[],
         &[
             ClaimRequest::Protocol(request(&dynamic, PROJECTION, &["Head"])),
             ClaimRequest::Protocol(request(&dynamic, REALIZABILITY, &["Head"])),
             global(),
         ],
     );
-    let alone = dispatch_claims(&mut boundary, declarations, &[global()]);
+    let alone = dispatch_claims(&mut boundary, declarations, &[], &[global()]);
     assert_eq!(together.len(), 3);
     assert_eq!(together[2], alone[0]);
     assert_eq!(alone[0], ClaimDisposition::GlobalConformance("conformant"));

@@ -127,7 +127,7 @@ each former scenario is accounted for below.
 | Retired scenario | Recipe R counterpart or reason it ends |
 | --- | --- |
 | IT-002-SC-01 | IT-002-SC-01 and IT-002-SC-04 exercise checked compensation and temporal outcomes over R. The previous pinned producer inventory is retired. |
-| IT-002-SC-02 | IT-002-SC-01/02/05 cover reachable compensation and temporal outcomes and refusals; the old FR-479 activation-binding producer contract is retired. |
+| IT-002-SC-02 | IT-002-SC-01/02/05 cover reachable compensation and temporal outcomes and refusals; the retired activation-binding producer contract is not consumed; the live activation binding is FR-479. |
 | IT-002-SC-03 | Ends: R and these evaluation entries do not supply the former QObs scope/progress/closure product; result assembly obligations remain in FR-003/FR-004 and their own evidence. |
 | IT-002-SC-04 | Ends: R does not provide complete-global-conformance execution, branch or workflow premise histories; this QSL checked-package integration does not synthesize those inputs. |
 | IT-002-SC-05a..05d | Ends: the old batch/incremental replay and equal-time permutation inputs were owned by retired temporal procedures; R's temporal calls are exercised in IT-002-SC-04/06. |

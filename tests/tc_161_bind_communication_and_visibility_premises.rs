@@ -169,6 +169,7 @@ fn an_omitted_premise_refuses_only_that_disposition_and_calls_no_backend() {
     let settled = dispatch_claims(
         &mut boundary,
         declarations,
+        &[],
         &[
             ClaimRequest::GlobalConformance("conformant"),
             ClaimRequest::Protocol(no_channel),
@@ -351,6 +352,7 @@ fn a_requester_premise_that_disagrees_with_the_package_is_refused_alone() {
     let settled = dispatch_claims(
         &mut boundary,
         dynamic.linked().declarations(),
+        &[],
         &[
             ClaimRequest::Protocol(wrong_ordering),
             ClaimRequest::Protocol(wrong_delivery),

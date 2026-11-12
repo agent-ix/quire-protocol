@@ -7,10 +7,11 @@
 #![allow(dead_code)]
 
 use std::cell::RefCell;
+use std::convert::Infallible;
 use std::rc::Rc;
 
 use qsl_foundation::BackendId;
-use qsl_replay::{InconclusiveCause, ItemLabel, SeparatingWitnessRecord, SettlementBasis, Truth};
+use qsl_replay::{InconclusiveCause, ItemLabel};
 use qsl_route::{BackendDescriptor, Candidate, Mode, ProviderOrigin};
 use qsl_semantics::check::Capability;
 use quire_contract_model::CheckedNodeId;
@@ -20,7 +21,7 @@ use quire_protocol::assume_guarantee::{
 };
 use quire_protocol::closure::AssessmentExecution;
 use quire_protocol::dispatch::{
-    BackendResult, Claim, ClaimDisposition, ClaimRequest, Fragment, ProviderBoundary,
+    Answer, Claim, ClaimDisposition, ClaimRequest, Fragment, ProviderBoundary,
 };
 use quire_protocol::disposition::{QslBoundary, QslReport};
 
@@ -32,9 +33,9 @@ pub type Req = AssumeGuaranteeRequest<Entry>;
 /// The unified claim a provider is asked about; these tests ask no
 /// projection or realizability, whose components are therefore `()`.
 pub type Asked = Claim<(), (), (), Entry>;
-pub type Boundary = ProviderBoundary<'static, Asked, Out>;
+pub type Boundary = ProviderBoundary<'static, Asked, Answer<Infallible, Out>>;
 pub type Claims = ClaimRequest<&'static str, (), (), (), Entry>;
-pub type Settled = ClaimDisposition<&'static str, (), (), (), Entry, Out>;
+pub type Settled = ClaimDisposition<&'static str, (), (), (), Entry, Infallible, Out>;
 
 /// The result a stand-in returns: opaque artifacts the dispatcher must carry
 /// and the parts it reads.
@@ -42,6 +43,7 @@ pub type Settled = ClaimDisposition<&'static str, (), (), (), Entry, Out>;
 pub struct Out {
     pub label: ItemLabel,
     pub execution: Option<AssessmentExecution>,
+    pub cause: Option<InconclusiveCause>,
     pub subjects: Vec<CheckedNodeId>,
     pub premises: Option<PremiseLists<Entry>>,
     pub assumptions: Option<Vec<CheckedNodeId>>,
@@ -56,6 +58,7 @@ impl Out {
         Self {
             label,
             execution: None,
+            cause: None,
             subjects: Vec::new(),
             premises: None,
             assumptions: Some(Vec::new()),
@@ -85,7 +88,7 @@ impl AssumeGuaranteeResult<Entry> for Out {
     }
 }
 
-pub type Answer = Box<dyn Fn(&Bind) -> QslReport<Out>>;
+pub type Reply = Box<dyn Fn(&Bind) -> QslReport<Out>>;
 
 #[derive(Clone, Default)]
 pub struct Calls(Rc<RefCell<Vec<Bind>>>);
@@ -100,38 +103,21 @@ impl Calls {
 }
 
 pub struct Standin {
-    answer: Answer,
+    answer: Reply,
     calls: Calls,
 }
 
-impl QslBoundary<Asked, Out> for Standin {
-    fn report(&mut self, claim: &Asked) -> QslReport<Out> {
+impl QslBoundary<Asked, Answer<Infallible, Out>> for Standin {
+    fn report(&mut self, claim: &Asked) -> QslReport<Answer<Infallible, Out>> {
         let Claim::AssumeGuarantee(bound) = claim else {
             return QslReport::Failed(None);
         };
         self.calls.0.borrow_mut().push(bound.clone());
-        (self.answer)(bound)
+        (self.answer)(bound).map(Answer::AssumeGuarantee)
     }
 }
 
-/// The projection and realizability parts of a result are not asked of these
-/// stand-ins.
-impl BackendResult for Out {
-    fn truth(&self) -> Truth {
-        Truth::Unavailable
-    }
-    fn basis(&self) -> SettlementBasis {
-        SettlementBasis::Unavailable
-    }
-    fn witness(&self) -> Option<&SeparatingWitnessRecord> {
-        None
-    }
-    fn inconclusive(&self) -> Option<&InconclusiveCause> {
-        None
-    }
-}
-
-pub fn serve(boundary: &mut Boundary, name: &str, kinds: &[Capability], answer: Answer) -> Calls {
+pub fn serve(boundary: &mut Boundary, name: &str, kinds: &[Capability], answer: Reply) -> Calls {
     let calls = Calls::default();
     let descriptor = BackendDescriptor::new(
         Candidate::new(BackendId::new(name)),
@@ -153,7 +139,7 @@ pub fn serve(boundary: &mut Boundary, name: &str, kinds: &[Capability], answer: 
     calls
 }
 
-pub fn always(result: Out) -> Answer {
+pub fn always(result: Out) -> Reply {
     Box::new(move |_| QslReport::Result(result.clone()))
 }
 

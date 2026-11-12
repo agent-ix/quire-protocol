@@ -228,6 +228,21 @@ pub enum QslReport<R> {
     Failed(Option<CatalogCode>),
 }
 
+impl<R> QslReport<R> {
+    /// The same report with its result, when it has one, passed through `f`.
+    pub fn map<S>(self, f: impl FnOnce(R) -> S) -> QslReport<S> {
+        match self {
+            Self::Result(result) => QslReport::Result(f(result)),
+            Self::Unsupported { cause, construct } => QslReport::Unsupported { cause, construct },
+            Self::RequiresBound { outcome, construct } => {
+                QslReport::RequiresBound { outcome, construct }
+            }
+            Self::Refusal(code) => QslReport::Refusal(code),
+            Self::Failed(diagnostic) => QslReport::Failed(diagnostic),
+        }
+    }
+}
+
 /// The call boundary into QSL's protocol analysis.
 ///
 /// This seam is deliberately minimal. A request carries the claim and nothing

@@ -10,8 +10,12 @@ mod support {
 }
 
 use ix_trace_rs::trace;
+use qsl_eval::simulation::StateKey;
 use qsl_foundation::BackendId;
-use qsl_replay::{ItemLabel, SettlementBasis, Truth};
+use qsl_replay::{
+    InconclusiveCause, ItemLabel, PairedAssumptionPath, PremiseOutcome, ProtocolAssumptionReason,
+    ProtocolAssumptionWitness, SettlementBasis, Truth,
+};
 use qsl_semantics::check::Capability;
 use quire_contract_model::CheckedNodeId;
 use quire_protocol::assume_guarantee::{
@@ -41,7 +45,12 @@ type Outcome = ProtocolOutcome<Out, Bind>;
 
 /// Settle `requests` through the one dispatch path, in order.
 fn settle(boundary: &mut Boundary, dynamic: &Dynamic, requests: Vec<Claims>) -> Vec<Settled> {
-    dispatch_claims(boundary, dynamic.linked().declarations(), &requests)
+    dispatch_claims(
+        boundary,
+        dynamic.linked().declarations(),
+        &[dynamic.linked().declarations()],
+        &requests,
+    )
 }
 
 fn one(boundary: &mut Boundary, dynamic: &Dynamic, asked: &Req) -> Outcome {
@@ -110,6 +119,30 @@ fn serving(result: Out) -> (Boundary, Calls) {
         Box::new(move |bound| QslReport::Result(honest(&bound.request, result.clone()))),
     );
     (boundary, calls)
+}
+
+/// QSL's typed `premise-unproved` cause, which belongs to an `inconclusive`
+/// result (FR-489).
+fn unproved() -> InconclusiveCause {
+    InconclusiveCause::PremiseUnproved {
+        premise: 0,
+        result: PremiseOutcome::Absent,
+    }
+}
+
+/// QSL FR-148's typed strengthened-assumption cause and witness.
+fn strengthened() -> InconclusiveCause {
+    InconclusiveCause::ProtocolAssumptionNotEstablished(ProtocolAssumptionWitness {
+        reason: ProtocolAssumptionReason::Strengthened,
+        identities: Vec::new(),
+        path: PairedAssumptionPath {
+            concrete_initial: StateKey::default(),
+            protocol_initial: Vec::new(),
+            steps: Vec::new(),
+            loop_entry: None,
+        },
+        undecided_locus: None,
+    })
 }
 
 fn malformed() -> CatalogCode {
@@ -298,6 +331,16 @@ fn an_empty_subject_list_or_fragment_is_refused_by_name() {
     assert_eq!(
         refused(one(&mut boundary, &dynamic, &no_fragment)),
         DispositionRefusal::NoFragment
+    );
+    // A component of a package whose declarations were not supplied has no
+    // owner to be checked against.
+    let mut elsewhere = dynamic.named("role", "S");
+    elsewhere.package = "another-checked-package".into();
+    let mut other_package = whole.clone();
+    other_package.subjects = vec![elsewhere.clone()];
+    assert_eq!(
+        refused(one(&mut boundary, &dynamic, &other_package)),
+        DispositionRefusal::UndeclaredSubject(elsewhere)
     );
     let stranger = foreign(&dynamic);
     let mut substituted = whole;
@@ -507,16 +550,24 @@ fn a_one_halved_counterexample_gains_no_second_half() {
 fn causes_are_carried_unchanged_and_none_is_a_success() {
     let dynamic = Dynamic::with("workflow", 3);
     let asked = request(&dynamic, COMPOSITION);
-    let named = |name: &'static str| {
-        UnsupportedCause::RequestedCapability(CatalogCode::new("unsupported_projection", name))
-    };
-    let causes = [
+    // The owner's typed inconclusive causes ride inside the result.
+    for cause in [unproved(), strengthened()] {
+        let (mut boundary, _) = serving(Out {
+            cause: Some(cause.clone()),
+            ..Out::new(ItemLabel::Inconclusive)
+        });
+        let outcome = one(&mut boundary, &dynamic, &asked);
+        assert_eq!(
+            outcome.label_reading().map(|reading| reading.truth),
+            Some(Some(Truth::Pending))
+        );
+        assert_eq!(carried(outcome).cause, Some(cause));
+    }
+    // Causes carried as the disposition's own are unchanged and unmapped.
+    for cause in [
         UnsupportedCause::requested_capability(),
-        named("premise-unproved"),
-        named("protocol-assumption-not-established"),
         UnsupportedCause::unrecognised(b"a-cause-the-library-does-not-recognise"),
-    ];
-    for cause in causes {
+    ] {
         let mut boundary = unsupported_with(cause.clone());
         let Disposition::Unsupported(unsupported) =
             disposition(one(&mut boundary, &dynamic, &asked))
@@ -524,10 +575,6 @@ fn causes_are_carried_unchanged_and_none_is_a_success() {
             panic!("not unsupported");
         };
         assert_eq!(unsupported.cause, cause);
-        assert!(
-            std::mem::discriminant(&unsupported.cause) == std::mem::discriminant(&cause),
-            "the cause was mapped to another kind"
-        );
         assert_eq!(unsupported.truth(), Truth::Unavailable);
         assert_eq!(unsupported.basis(), SettlementBasis::Unavailable);
     }
@@ -995,17 +1042,15 @@ fn a_refused_refinement_leaves_other_claims_unchanged_and_calls_no_fallback() {
 #[trace("TC-204", "FR-204-AC-6")]
 fn the_backends_own_strengthened_assumption_finding_is_carried_not_refused() {
     let dynamic = Dynamic::with("workflow", 3);
-    let cause = UnsupportedCause::RequestedCapability(CatalogCode::new(
-        "unsupported_projection",
-        "protocol-assumption-not-established",
-    ));
-    let mut boundary = unsupported_with(cause.clone());
-    let Disposition::Unsupported(unsupported) =
-        disposition(one(&mut boundary, &dynamic, &request(&dynamic, REFINEMENT)))
-    else {
-        panic!("not carried");
+    let asked = request(&dynamic, REFINEMENT);
+    let finding = Out {
+        cause: Some(strengthened()),
+        ..Out::new(ItemLabel::Inconclusive)
     };
-    assert_eq!(unsupported.cause, cause);
+    let (mut boundary, _) = serving(finding.clone());
+    let result = carried(one(&mut boundary, &dynamic, &asked));
+    assert_eq!(result, honest(&asked, finding));
+    assert_eq!(result.cause, Some(strengthened()));
 }
 
 #[test]

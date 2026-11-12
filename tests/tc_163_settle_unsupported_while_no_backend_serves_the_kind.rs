@@ -41,6 +41,7 @@ fn protocol(
         &'static str,
         (),
         Sentinel,
+        std::convert::Infallible,
     >,
 ) -> ProtocolOutcome<Sentinel, support::standin::Bind> {
     match disposition {
@@ -59,13 +60,14 @@ fn an_empty_registry_settles_both_claims_unsupported_and_leaves_global_conforman
     let settled = dispatch_claims(
         &mut boundary,
         declarations,
+        &[],
         &[
             ClaimRequest::Protocol(request(&dynamic, PROJECTION, &["Head"])),
             ClaimRequest::Protocol(request(&dynamic, REALIZABILITY, &["Head"])),
             global(),
         ],
     );
-    let alone = dispatch_claims(&mut boundary, declarations, &[global()]);
+    let alone = dispatch_claims(&mut boundary, declarations, &[], &[global()]);
     for claim in settled.iter().take(2) {
         let disposition = unsupported(protocol(claim.clone()));
         assert_eq!(disposition.execution(), AssessmentExecution::Unsupported);
@@ -100,6 +102,7 @@ fn a_conformant_global_result_yields_no_projection_or_realizability_result() {
     let settled = dispatch_claims(
         &mut boundary,
         dynamic.linked().declarations(),
+        &[],
         &[
             ClaimRequest::GlobalConformance("conformant"),
             ClaimRequest::Protocol(request(&dynamic, PROJECTION, &["Head"])),
