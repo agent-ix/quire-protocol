@@ -12,8 +12,8 @@
 //! stay references to their checked nodes.
 
 use qsl_package::protocol_view::{
-    control_operation, delivery, queue_capacity, ControlOperation, Delivery, ProtocolView,
-    QueueCapacity,
+    await_anchor, control_operation, delivery, queue_capacity, ControlOperation, Delivery,
+    ProtocolView, QueueCapacity,
 };
 use qsl_package::{
     protocol_occurrence_schemas_from_read, ProtocolOccurrenceSchema, RoleReplication,
@@ -168,6 +168,10 @@ pub struct AwaitDeclaration {
     pub upper: u64,
     /// The authored clock name.
     pub clock: Box<str>,
+    /// The `event` control or `compensation` template the await follows
+    /// (the target of QSL's published `after = {kind, target}`), read from
+    /// QSL's checked await accessor.
+    pub anchor: CheckedNodeId,
 }
 
 /// Every role, channel, join and loop declaration of one linked protocol, in
@@ -561,11 +565,15 @@ fn await_control(
     let clock = text(member_of_node(package, id, "clock")?)
         .map(Box::from)
         .ok_or_else(|| bad("clock"))?;
+    let checked =
+        node(package, id).ok_or_else(|| LinkRefusal::UnreadableNode { node: id.clone() })?;
+    let anchor = await_anchor(checked).map_err(LinkRefusal::View)?;
     Ok(AwaitDeclaration {
         control: id.clone(),
         key,
         lower,
         upper,
         clock,
+        anchor: anchor.target.clone(),
     })
 }

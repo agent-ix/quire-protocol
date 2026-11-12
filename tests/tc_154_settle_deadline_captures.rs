@@ -25,7 +25,7 @@ use qsl_semantics::check::wire_id::WireGraph;
 use quire_contract_model::{CheckedNodeId, CheckedNodePathSegment, CheckedPackageReadLimits};
 use quire_exact::{FieldValue, Integer, Meter, NodeKey, Value, ValueType};
 use quire_observation::authority::{observation, TemporalBoundary};
-use quire_observation::{Anchor, ClockRange};
+use quire_observation::{Anchor, ClockRange, QualifiedSubject, SubjectIdentity, SubjectKind};
 use quire_protocol::captures::{bind_captures, CaptureFailure, CaptureSupply};
 use quire_protocol::checked_package::{admit, AdmittedHandoff, HandoffFiles};
 use quire_protocol::closure::{AssessmentExecution, TruthDisposition};
@@ -38,13 +38,16 @@ use quire_protocol::deadline::{
 use quire_protocol::declarations::AwaitDeclaration;
 use quire_protocol::dynamics::ObservationRef;
 use quire_protocol::ids::{EffectId, RoleInstanceId, WorkflowInstanceId};
+use quire_protocol::observation_link::{Link, RoleMapping, Unlinked};
 use quire_protocol::slot::{evaluate, SlotOutcome};
 use quire_spec_language::checked_handoff::Corpus;
 
 use awaiting::Awaiting;
 use handoff::{join_budget, written};
 use limits::UNLIMITED;
-use observation_owner::{after_observation, scope_views, ScopeViews};
+use observation_owner::{
+    admitted_producer, after_observation, qualified_subject, scope_views, ScopeViews,
+};
 
 struct Surface(Vec<Capability>);
 
@@ -86,11 +89,13 @@ fn control() -> CheckedNodeId {
     declaration.control.clone()
 }
 
+/// The wait of the workflow instance the observations tagged `who` are of: the
+/// subject of those records is `order:{who}`.
 fn key(who: &str) -> WaitKey {
     WaitKey::new(
         awaiting().linked().declarations(),
         &control(),
-        WorkflowInstanceId::new(who.as_bytes(), who),
+        WorkflowInstanceId::new(format!("order:{who}").as_bytes(), who),
         Vec::new(),
     )
     .expect("a declared await keys a wait")
@@ -109,7 +114,27 @@ fn declaration() -> &'static AwaitDeclaration {
 }
 
 fn clock() -> String {
-    format!("clock:{TAG}")
+    clock_of(TAG)
+}
+
+fn clock_of(tag: &str) -> String {
+    format!("clock:{tag}")
+}
+
+/// The FR-287 subject key of the workflow instance the records tagged `tag`
+/// are of.
+fn subject(tag: &str) -> QualifiedSubject {
+    qualified_subject(&admitted_producer(), tag)
+}
+
+fn link(tag: &str) -> Link {
+    Link::new(mapping(tag), subject(tag))
+}
+
+/// The declared role mapping: the binding of the records tagged `tag` resolves
+/// to the node the checked await names as its anchor.
+fn mapping(tag: &str) -> RoleMapping {
+    RoleMapping::new().resolving(&format!("binding:{tag}"), [declaration().anchor.clone()])
 }
 
 /// The admitted `after` observation of a timestamped event at `instant`.
@@ -132,7 +157,11 @@ fn after_view_on(tag: &str, instant: i128) -> observation::View {
 }
 
 fn after_fact(position: u64, instant: i128) -> WaitFact {
-    WaitFact::after(at(position), &after_view(instant)).expect("an anchor")
+    after_fact_on(TAG, position, instant)
+}
+
+fn after_fact_on(tag: &str, position: u64, instant: i128) -> WaitFact {
+    WaitFact::after(at(position), &after_view_on(tag, instant)).expect("an anchor")
 }
 
 /// The window the package authors, `within [0,29]`, from anchor 0: the one the
@@ -144,7 +173,7 @@ fn deadline() -> Deadline {
 }
 
 fn wait_in(family: ClockFamily, who: &str, declaration: &AwaitDeclaration, clock: &str) -> Wait {
-    Wait::new(pure(), key(who), declaration, clock, family).expect("a declared await")
+    Wait::new(pure(), key(who), declaration, &link(who), clock, family).expect("a declared await")
 }
 
 fn wait_on(who: &str, declaration: &AwaitDeclaration, clock: &str) -> Wait {
@@ -152,7 +181,7 @@ fn wait_on(who: &str, declaration: &AwaitDeclaration, clock: &str) -> Wait {
 }
 /// A wait whose `after` observation, at position 0 and instant 0, is admitted.
 fn anchored_wait() -> Wait {
-    let mut wait = wait_on("w", declaration(), &clock());
+    let mut wait = wait_on(TAG, declaration(), &clock());
     wait.admit(after_fact(0, 0))
         .expect("the anchor opens the window");
     wait
@@ -195,7 +224,7 @@ fn response(position: u64, observed: i128) -> WaitFact {
 
 /// The facts, with the `after` observation at position 0 and instant 0.
 fn settle(who: &str, facts: &[WaitFact]) -> WaitAssessment {
-    let mut anchored = vec![after_fact(0, 0)];
+    let mut anchored = vec![after_fact_on(who, 0, 0)];
     anchored.extend_from_slice(facts);
     settle_unanchored(who, &anchored)
 }
@@ -205,7 +234,8 @@ fn settle_unanchored(who: &str, facts: &[WaitFact]) -> WaitAssessment {
         pure(),
         key(who),
         declaration(),
-        &clock(),
+        &link(who),
+        &clock_of(who),
         ClockFamily::Timestamped,
         facts,
     )
@@ -234,13 +264,13 @@ fn response_at(position: u64) -> Option<Branch> {
 fn a_response_at_the_deadline_is_inside_the_wait() {
     let views = scope_views(TAG);
     let closed = authority(&views, 2, Progress::Closed, Completeness::Complete);
-    let at_deadline = settle("w", &[response(1, 29), closed.clone()]);
+    let at_deadline = settle(TAG, &[response(1, 29), closed.clone()]);
     assert_eq!(current(&at_deadline).branch().cloned(), response_at(1));
     assert_eq!(
         current(&at_deadline).execution(),
         AssessmentExecution::Completed
     );
-    let after = settle("w", &[response(1, 30), closed]);
+    let after = settle(TAG, &[response(1, 30), closed]);
     assert_eq!(current(&after).branch(), Some(&Branch::Timeout));
     assert!(after.supersessions().is_empty());
 }
@@ -281,7 +311,7 @@ fn timeout_needs_closed_progress_and_complete_input() {
         ),
     ];
     for (progress, completeness, truth) in expected {
-        let assessment = settle("w", &[authority(&views, 1, progress, completeness)]);
+        let assessment = settle(TAG, &[authority(&views, 1, progress, completeness)]);
         let settlement = current(&assessment);
         let label = format!("{progress:?} {completeness:?}");
         assert_eq!(settlement.truth(), truth, "{label}");
@@ -311,7 +341,7 @@ fn timeout_needs_closed_progress_and_complete_input() {
         );
     }
     let incomplete = settle(
-        "w",
+        TAG,
         &[authority(
             &views,
             1,
@@ -324,7 +354,7 @@ fn timeout_needs_closed_progress_and_complete_input() {
         Some(views.completeness_incomplete.payload().state())
     );
     let contradicted = settle(
-        "w",
+        TAG,
         &[authority(
             &views,
             1,
@@ -355,7 +385,7 @@ fn a_false_constraint_selects_neither_branch() {
     );
     let false_response = WaitFact::observation(at(1), 10, Constraint::DoesNotHold);
     let closed = settle(
-        "w",
+        TAG,
         &[
             false_response.clone(),
             authority(&views, 2, Progress::Closed, Completeness::Complete),
@@ -363,7 +393,7 @@ fn a_false_constraint_selects_neither_branch() {
     );
     assert_eq!(current(&closed).branch(), None);
     let open = settle(
-        "w",
+        TAG,
         &[
             false_response.clone(),
             authority(&views, 2, Progress::Open, Completeness::Complete),
@@ -371,7 +401,7 @@ fn a_false_constraint_selects_neither_branch() {
     );
     assert_eq!(current(&open).branch(), None);
     assert_eq!(current(&open).truth(), Some(TruthDisposition::Pending));
-    let later = settle("w", &[false_response, response(2, 11)]);
+    let later = settle(TAG, &[false_response, response(2, 11)]);
     assert_eq!(current(&later).branch().cloned(), response_at(2));
 }
 
@@ -386,7 +416,7 @@ fn a_false_or_valueless_constraint_with_complete_progress_selects_no_branch() {
     let closed = authority(&views, 2, Progress::Closed, Completeness::Complete);
     let settled = |constraint| {
         settle(
-            "w",
+            TAG,
             &[WaitFact::observation(at(1), 10, constraint), closed.clone()],
         )
     };
@@ -418,7 +448,7 @@ fn a_false_or_valueless_constraint_with_complete_progress_selects_no_branch() {
     }
     // A false and a valueless observation together: the missing value wins.
     let both = settle(
-        "w",
+        TAG,
         &[
             WaitFact::observation(at(1), 10, Constraint::DoesNotHold),
             WaitFact::observation(at(2), 11, Constraint::Unestablished),
@@ -464,7 +494,7 @@ fn a_late_admitted_response_supersedes_without_altering_the_timeout() {
     assert_eq!(incremental.results().len(), 2);
 
     // Batch, with the facts presented out of order, agrees.
-    let batch = settle("w", &[response(2, 29), closed.clone()]);
+    let batch = settle(TAG, &[response(2, 29), closed.clone()]);
     assert_eq!(batch, incremental);
 
     // A response observed after the deadline contradicts nothing.
@@ -474,7 +504,7 @@ fn a_late_admitted_response_supersedes_without_altering_the_timeout() {
     let incremental = wait.finish();
     assert!(incremental.supersessions().is_empty());
     assert_eq!(incremental.results().len(), 1);
-    assert_eq!(settle("w", &[response(2, 30), closed.clone()]), incremental);
+    assert_eq!(settle(TAG, &[response(2, 30), closed.clone()]), incremental);
 
     // The history's order is not negotiable.
     let mut wait = anchored_wait();
@@ -490,10 +520,16 @@ fn a_late_admitted_response_supersedes_without_altering_the_timeout() {
 #[trace("TC-154", "FR-100-AC-5")]
 #[test]
 fn waiting_instances_of_one_branch_settle_independently() {
-    let views = scope_views(TAG);
-    let closed = authority(&views, 2, Progress::Closed, Completeness::Complete);
-    let answered = settle("w1", &[response(1, 29), closed.clone()]);
-    let unanswered = settle("w2", &[closed]);
+    let closed = |tag| {
+        authority(
+            &scope_views(tag),
+            2,
+            Progress::Closed,
+            Completeness::Complete,
+        )
+    };
+    let answered = settle("w1", &[response(1, 29), closed("w1")]);
+    let unanswered = settle("w2", &[closed("w2")]);
     assert_eq!(answered.key().branch(), unanswered.key().branch());
     assert_ne!(answered.key(), unanswered.key());
     assert!(matches!(
@@ -522,7 +558,7 @@ fn settlement_invokes_no_business_operation() {
     }
     let views = scope_views(TAG);
     let assessment = settle(
-        "w",
+        TAG,
         &[authority(
             &views,
             1,
@@ -565,7 +601,7 @@ fn a_late_false_or_valueless_observation_supersedes_the_timeout() {
         let incremental = wait.finish();
         assert_eq!(incremental.results()[0], timeout);
         let batch = settle(
-            "w",
+            TAG,
             &[WaitFact::observation(at(2), 29, constraint), closed.clone()],
         );
         assert_eq!(batch, incremental);
@@ -614,13 +650,13 @@ fn a_regressed_premise_supersedes_the_timeout_without_aborting_the_batch() {
         let incremental = wait.finish();
         assert_eq!(incremental.results()[0], timeout);
         // The batch does not abort, and agrees with the incremental run.
-        let batch = settle("w", &[regressed, closed.clone()]);
+        let batch = settle(TAG, &[regressed, closed.clone()]);
         assert_eq!(batch, incremental);
     }
     // Support that returns selects timeout again; that is a new result, not a
     // supersession of one that was never settled.
     let again = settle(
-        "w",
+        TAG,
         &[
             closed,
             authority(&views, 2, Progress::Open, Completeness::Complete),
@@ -641,7 +677,7 @@ fn a_response_before_the_window_does_not_select_the_response_branch() {
         response(1, -1),
         authority(&views, 2, Progress::Closed, Completeness::Complete),
     ];
-    let before = settle("w", &facts);
+    let before = settle(TAG, &facts);
     assert_eq!(current(&before).branch(), Some(&Branch::Timeout));
     assert!(!deadline().admits(-1));
 }
@@ -666,16 +702,15 @@ fn progress_through_another_boundary_or_clock_is_refused() {
         ("clock", declaration().clone(), "clock:other".to_owned()),
     ] {
         let tag = clock.strip_prefix("clock:").expect("a clock identity");
-        let after =
-            |position| WaitFact::after(at(position), &after_view_on(tag, 0)).expect("an anchor");
-        let mut anchored = wait_on("w", &declaration, &clock);
+        let after = |position| after_fact_on(tag, position, 0);
+        let mut anchored = wait_on(tag, &declaration, &clock);
         anchored.admit(after(0)).expect("anchors");
         assert_eq!(
             anchored.admit(closed()).err(),
             Some(WaitRefusal::ProgressNotThroughDeadline),
             "{label}"
         );
-        let mut progressed = wait_on("w", &declaration, &clock);
+        let mut progressed = wait_on(tag, &declaration, &clock);
         progressed
             .admit(WaitFact::authority(
                 at(1),
@@ -777,7 +812,7 @@ fn a_window_outside_the_clock_range_is_refused() {
 #[test]
 fn the_window_is_counted_from_the_admitted_after_observation() {
     let selected = |anchor: i128, observed: i128| {
-        let mut wait = wait_on("w", declaration(), &clock());
+        let mut wait = wait_on(TAG, declaration(), &clock());
         wait.admit(after_fact(1, anchor)).expect("anchors");
         wait.admit(response(2, observed)).expect("admits");
         wait.finish()
@@ -808,7 +843,7 @@ fn no_branch_is_selected_without_the_after_observation() {
             Completeness::Contradicted,
         ] {
             let assessment = settle_unanchored(
-                "w",
+                TAG,
                 &[
                     response(1, 10),
                     authority(&views, 2, progress, completeness),
@@ -835,7 +870,7 @@ fn no_branch_is_selected_without_the_after_observation() {
 fn a_late_after_observation_supersedes_the_result_that_lacked_it() {
     let views = scope_views(TAG);
     let closed = authority(&views, 2, Progress::Closed, Completeness::Complete);
-    let mut wait = wait_on("w", declaration(), &clock());
+    let mut wait = wait_on(TAG, declaration(), &clock());
     wait.admit(response(1, 29)).expect("admits");
     wait.admit(closed.clone()).expect("admits");
     let earlier = wait.current().expect("unavailable").clone();
@@ -865,7 +900,7 @@ fn a_late_after_observation_supersedes_the_result_that_lacked_it() {
         response_at(1),
         "the response at the upper bound is inside the late window"
     );
-    let batch = settle_unanchored("w", &[response(1, 29), closed, after_fact(3, 0)]);
+    let batch = settle_unanchored(TAG, &[response(1, 29), closed, after_fact(3, 0)]);
     assert_eq!(batch, incremental);
 }
 
@@ -903,7 +938,7 @@ fn an_after_observation_of_another_clock_family_is_refused() {
             },
         ),
     );
-    let mut wait = wait_on("w", declaration(), &clock());
+    let mut wait = wait_on(TAG, declaration(), &clock());
     assert_eq!(
         wait.admit(WaitFact::after(at(1), &view).expect("an anchor"))
             .err(),
@@ -925,7 +960,7 @@ fn an_after_observation_on_another_clock_is_refused() {
             },
         ),
     );
-    let mut wait = wait_on("w", declaration(), &clock());
+    let mut wait = wait_on("other", declaration(), &clock());
     assert_eq!(
         wait.admit(WaitFact::after(at(1), &view).expect("an anchor"))
             .err(),
@@ -938,7 +973,7 @@ fn an_after_observation_on_another_clock_is_refused() {
 #[test]
 fn a_fixed_sample_window_is_counted_from_the_sample_index() {
     let selected = |observed: i128| {
-        let mut wait = wait_in(ClockFamily::FixedSample, "w", declaration(), &clock());
+        let mut wait = wait_in(ClockFamily::FixedSample, TAG, declaration(), &clock());
         wait.admit(WaitFact::after(at(1), &fixed_view(10)).expect("an anchor"))
             .expect("anchors");
         wait.admit(response(2, observed)).expect("admits");
@@ -956,11 +991,11 @@ fn a_fixed_sample_window_is_counted_from_the_sample_index() {
 #[trace("TC-154", "FR-100-AC-21")]
 #[test]
 fn waiting_instances_keep_their_own_anchors() {
-    let mut first = wait_on("w1", declaration(), &clock());
-    first.admit(after_fact(0, 0)).expect("anchors");
+    let mut first = wait_on("w1", declaration(), &clock_of("w1"));
+    first.admit(after_fact_on("w1", 0, 0)).expect("anchors");
     first.admit(response(1, 39)).expect("admits");
-    let mut other = wait_on("w2", declaration(), &clock());
-    other.admit(after_fact(0, 10)).expect("anchors");
+    let mut other = wait_on("w2", declaration(), &clock_of("w2"));
+    other.admit(after_fact_on("w2", 0, 10)).expect("anchors");
     other.admit(response(1, 39)).expect("admits");
     assert!(first.finish().results().is_empty());
     assert_eq!(
@@ -976,7 +1011,7 @@ fn waiting_instances_keep_their_own_anchors() {
 #[test]
 fn an_after_observation_against_an_earlier_progress_view_is_refused() {
     let views = scope_views(TAG);
-    let mut progressed = wait_on("w", declaration(), &clock());
+    let mut progressed = wait_on(TAG, declaration(), &clock());
     progressed
         .admit(authority(
             &views,
@@ -991,6 +1026,107 @@ fn an_after_observation_against_an_earlier_progress_view_is_refused() {
     );
 }
 
+/// The anchor is the target of the `after` that QSL's checked await accessor
+/// publishes on the `await` node.
+#[trace("TC-154", "FR-100-AC-23")]
+#[test]
+fn the_anchor_is_read_from_the_checked_await() {
+    assert!(
+        declaration().anchor.path.iter().any(|segment| matches!(
+            segment,
+            CheckedNodePathSegment::Name(name) if name.contains("Armed")
+        )),
+        "the await follows the Armed event: {:?}",
+        declaration().anchor
+    );
+}
+
+/// An observation is the `after` observation of a wait only when it links, by
+/// derivation, to the anchor node and the waiting instance. One that does not
+/// is refused with its cause and leaves the wait unaltered: a linked
+/// observation at the same position still anchors it.
+#[trace("TC-154", "FR-100-AC-24")]
+#[test]
+fn an_unlinked_observation_is_unavailable_as_the_after_observation() {
+    let other = "other";
+    let elsewhere = || vec![node("SomewhereElse")];
+    let binding = format!("binding:{other}");
+    let at_anchor = || vec![declaration().anchor.clone()];
+    let cases = [
+        (mapping(TAG), Unlinked::BindingUnresolved),
+        (
+            mapping(TAG).resolving(&binding, elsewhere()),
+            Unlinked::NotAnchorNode,
+        ),
+        (
+            mapping(TAG).resolving(&binding, at_anchor()),
+            Unlinked::OtherInstance,
+        ),
+    ];
+    for (mapping, cause) in cases {
+        let mut wait = Wait::new(
+            pure(),
+            key(TAG),
+            declaration(),
+            &Link::new(mapping, subject(TAG)),
+            &clock(),
+            ClockFamily::Timestamped,
+        )
+        .expect("a declared await");
+        assert_eq!(
+            wait.admit(after_fact_on(other, 1, 0)).err(),
+            Some(WaitRefusal::ObservationUnlinked(cause))
+        );
+        wait.admit(after_fact(1, 0))
+            .expect("the refused observation changed nothing");
+    }
+}
+
+/// The FR-287 subject key is the whole of the instance: the same identity
+/// bytes under another kind are another instance, and a subject that does not
+/// carry the waiting instance's identity keys no wait.
+#[trace("TC-154", "FR-100-AC-24")]
+#[test]
+fn the_subject_key_is_compared_whole() {
+    let producer = admitted_producer();
+    let kind = SubjectKind::new(b"ix://example/other-kind".to_vec()).expect("a kind");
+    let same_bytes = QualifiedSubject::new(
+        &producer,
+        kind.clone(),
+        SubjectIdentity::new(format!("order:{TAG}").into_bytes()).expect("an identity"),
+    );
+    let mut wait = Wait::new(
+        pure(),
+        key(TAG),
+        declaration(),
+        &Link::new(mapping(TAG), same_bytes),
+        &clock(),
+        ClockFamily::Timestamped,
+    )
+    .expect("the identity bytes are the instance's");
+    assert_eq!(
+        wait.admit(after_fact(1, 0)).err(),
+        Some(WaitRefusal::ObservationUnlinked(Unlinked::OtherInstance))
+    );
+    let foreign = QualifiedSubject::new(
+        &producer,
+        kind,
+        SubjectIdentity::new(b"another".to_vec()).expect("an identity"),
+    );
+    assert_eq!(
+        Wait::new(
+            pure(),
+            key(TAG),
+            declaration(),
+            &Link::new(mapping(TAG), foreign),
+            &clock(),
+            ClockFamily::Timestamped,
+        )
+        .err(),
+        Some(WaitRefusal::SubjectNotInstance)
+    );
+}
+
 /// QSL's occurrence schema keys the wait: an undeclared control, a wrong
 /// number of repeat ordinals and an unkeyable workflow identity are refused.
 #[trace("TC-154", "FR-100-AC-12")]
@@ -1002,8 +1138,9 @@ fn the_wait_is_keyed_through_qsl_s_occurrence_schema() {
     assert!(matches!(
         Wait::new(
             pure(),
-            key("w"),
+            key(TAG),
             &elsewhere_declaration,
+            &link(TAG),
             &clock(),
             ClockFamily::Timestamped
         ),

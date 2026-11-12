@@ -6,7 +6,9 @@
 //! branch is selected by a matching observation inside the authored window
 //! `within [lower, upper]`, both bounds inside, counted from the anchor of the
 //! admitted `after` observation of that wait: the window does not exist until
-//! that observation is admitted. The timeout branch is selected only
+//! that observation is admitted. That observation is the one the record links
+//! to the wait's anchor node (QSL's checked await accessor) and workflow
+//! instance (QSpec FR-260-AC-5, FR-260-AC-6, FR-260-AC-9); a caller attributes nothing. The timeout branch is selected only
 //! when the awaited scope's progress is `closed` through the deadline and the
 //! input completeness is `complete`, two separate owner facts that never stand
 //! in for each other (FR-028).
@@ -32,6 +34,7 @@ use crate::compensation::purity::PureAssessment;
 use crate::declarations::{AwaitDeclaration, Declarations};
 use crate::dynamics::{bind_occurrence, HistoryRefusal, ObservationRef};
 use crate::ids::WorkflowInstanceId;
+use crate::observation_link::{Basis, Link, Unlinked};
 use crate::slot::SlotOutcome;
 
 /// Why a wait cannot be settled. Nothing is guessed or repaired.
@@ -56,6 +59,13 @@ pub enum WaitRefusal {
     /// The owner's anchor text is not an integer of its clock family. A
     /// validated owner view never reports this.
     AnchorMalformed,
+    /// The observation is not linked to the checked anchor node and the
+    /// workflow instance of the wait, so it is unavailable as the wait's
+    /// `after` observation (QSpec FR-260-AC-5, FR-260-AC-6).
+    ObservationUnlinked(Unlinked),
+    /// The subject key offered for the wait does not carry the waiting
+    /// workflow instance's identity.
+    SubjectNotInstance,
     /// A second observation was offered as the `after` event of one waiting
     /// instance.
     AmbiguousAnchor {
@@ -373,6 +383,7 @@ enum WaitEvent {
     },
     After {
         anchor: AfterAnchor,
+        basis: Basis,
     },
 }
 
@@ -396,9 +407,11 @@ impl WaitFact {
         }
     }
 
-    /// The admitted observation of the awaited `after` event of this wait,
-    /// whose anchor opens the window. The caller attributes the observation
-    /// to the wait's `after` event; the owner's view names neither.
+    /// An admitted observation offered as the awaited `after` event of this
+    /// wait, whose anchor opens the window. The caller attributes nothing:
+    /// the wait derives the observation's checked node and workflow instance
+    /// from the record and admits it only when they are the wait's anchor
+    /// node and instance (see [`Basis::verify`]).
     ///
     /// # Errors
     ///
@@ -408,6 +421,7 @@ impl WaitFact {
             at,
             event: WaitEvent::After {
                 anchor: AfterAnchor::of(view)?,
+                basis: Basis::of(view),
             },
         })
     }
@@ -645,6 +659,7 @@ impl WaitAssessment {
 #[derive(Clone, Debug)]
 struct Anchoring {
     declaration: AwaitDeclaration,
+    link: Link,
     clock_identity: Box<str>,
     family: ClockFamily,
 }
@@ -676,19 +691,26 @@ impl Wait {
     /// A wait on the `await` that `declaration` authors, keyed by `key`, assessed under the
     /// pure-assessment witness: no business operation is reachable from any
     /// settlement path. The window opens when the `after` observation is
-    /// admitted, on the QObs clock `clock_identity` in `family`.
+    /// admitted, on the QObs clock `clock_identity` in `family`; an
+    /// observation is that of `declaration`'s anchor when the link's role mapping resolves
+    /// its binding to the anchor node QSL publishes on the checked `await`.
     ///
     /// # Errors
     ///
     /// [`WaitRefusal::UndeclaredAwait`] when `key` is not the wait of
-    /// `declaration`.
+    /// `declaration`; [`WaitRefusal::SubjectNotInstance`] when the link's
+    /// subject does not carry the workflow instance's identity.
     pub fn new(
         _pure: PureAssessment,
         key: WaitKey,
         declaration: &AwaitDeclaration,
+        link: &Link,
         clock_identity: &str,
         family: ClockFamily,
     ) -> Result<Self, WaitRefusal> {
+        if link.subject().identity().as_bytes() != key.workflow.identity_bytes() {
+            return Err(WaitRefusal::SubjectNotInstance);
+        }
         if declaration.control != key.branch {
             return Err(WaitRefusal::UndeclaredAwait {
                 control: key.branch,
@@ -698,6 +720,7 @@ impl Wait {
             key,
             anchoring: Anchoring {
                 declaration: declaration.clone(),
+                link: link.clone(),
                 clock_identity: clock_identity.into(),
                 family,
             },
@@ -726,6 +749,8 @@ impl Wait {
     /// # Errors
     ///
     /// [`WaitRefusal::OutOfOrder`] when the fact is not after the last one;
+    /// [`WaitRefusal::ObservationUnlinked`] for an `after` observation that is
+    /// not linked to the wait's anchor node and workflow instance;
     /// [`WaitRefusal::AmbiguousAnchor`] for a second `after` observation;
     /// [`WaitRefusal::AnchorNotOnClockFamily`] and
     /// [`WaitRefusal::WindowOutOfRange`] for an `after` observation the clock
@@ -741,7 +766,10 @@ impl Wait {
             }
         }
         let contradiction = match fact.event {
-            WaitEvent::After { anchor } => {
+            WaitEvent::After { anchor, basis } => {
+                basis
+                    .verify(&self.anchoring.link, &self.anchoring.declaration.anchor)
+                    .map_err(WaitRefusal::ObservationUnlinked)?;
                 if let Some(first) = &self.anchored_by {
                     return Err(WaitRefusal::AmbiguousAnchor {
                         first: first.clone(),
@@ -891,13 +919,14 @@ pub fn assess(
     pure: PureAssessment,
     key: WaitKey,
     declaration: &AwaitDeclaration,
+    link: &Link,
     clock_identity: &str,
     family: ClockFamily,
     facts: &[WaitFact],
 ) -> Result<WaitAssessment, WaitRefusal> {
     let mut ordered = facts.to_vec();
     ordered.sort_by(|left, right| left.at.cmp(&right.at));
-    let mut wait = Wait::new(pure, key, declaration, clock_identity, family)?;
+    let mut wait = Wait::new(pure, key, declaration, link, clock_identity, family)?;
     for fact in ordered {
         wait.admit(fact)?;
     }
