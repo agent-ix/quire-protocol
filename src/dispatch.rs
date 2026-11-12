@@ -25,6 +25,7 @@ use qsl_semantics::check::Capability;
 use quire_contract_model::CheckedNodeId;
 use quire_semantic_value::catalog::CatalogCode;
 
+use crate::assume_guarantee::{IdentityMismatch, PremiseList};
 use crate::declarations::{ChannelDeclaration, Declarations, Ordering, RoleDeclaration};
 use crate::disposition::{
     settle_claim, ClaimSettlement, Disposition, QslBoundary, UnsupportedCause,
@@ -152,6 +153,14 @@ pub enum DispositionRefusal {
     DecisiveWithoutWitness,
     /// QSL's registry selected a backend that has no provider.
     NoProvider(BackendId),
+    /// A `composition` or `refinement` request names no component subject
+    /// (FR-200).
+    NoSubjects,
+    /// A result names an identity the request does not (FR-201, FR-204).
+    IdentityMismatch(IdentityMismatch),
+    /// A result retains a premise list that differs from the request's
+    /// (FR-201).
+    RetainedPremiseList(PremiseList),
 }
 
 /// What the dispatcher reads of a backend's result. The result itself is
@@ -246,16 +255,19 @@ pub enum RegistrationError {
 }
 
 /// The call into one registered backend.
-type Provider<'p, A, C, I, R> = Box<dyn QslBoundary<Binding<A, C, I>, R> + 'p>;
+type Provider<'p, K, R> = Box<dyn QslBoundary<K, R> + 'p>;
 
 /// The provider boundary: QSL's registry, and the call into each backend
-/// registered in it. A caller supplies no callback per request.
-pub struct ProviderBoundary<'p, A, C, I, R> {
+/// registered in it. A caller supplies no callback per request. `K` is the
+/// claim a provider is asked about: a [`Binding`] for the protocol claims, an
+/// [`AssumeGuaranteeBinding`](crate::assume_guarantee::AssumeGuaranteeBinding)
+/// for composition and refinement.
+pub struct ProviderBoundary<'p, K, R> {
     registry: Registry,
-    providers: BTreeMap<BackendId, Provider<'p, A, C, I, R>>,
+    providers: BTreeMap<BackendId, Provider<'p, K, R>>,
 }
 
-impl<A, C, I, R> Default for ProviderBoundary<'_, A, C, I, R> {
+impl<K, R> Default for ProviderBoundary<'_, K, R> {
     fn default() -> Self {
         Self {
             registry: Registry::new(),
@@ -264,7 +276,7 @@ impl<A, C, I, R> Default for ProviderBoundary<'_, A, C, I, R> {
     }
 }
 
-impl<'p, A, C, I, R> ProviderBoundary<'p, A, C, I, R> {
+impl<'p, K, R> ProviderBoundary<'p, K, R> {
     /// An empty boundary: no backend serves any kind.
     #[must_use]
     pub fn new() -> Self {
@@ -289,7 +301,7 @@ impl<'p, A, C, I, R> ProviderBoundary<'p, A, C, I, R> {
     pub fn register(
         &mut self,
         descriptor: BackendDescriptor,
-        provider: impl QslBoundary<Binding<A, C, I>, R> + 'p,
+        provider: impl QslBoundary<K, R> + 'p,
     ) -> Result<(), RegistrationError> {
         let id = descriptor.id().clone();
         match self.registry.register(descriptor) {
@@ -306,6 +318,57 @@ impl<'p, A, C, I, R> ProviderBoundary<'p, A, C, I, R> {
             }
         }
     }
+
+    /// The provider registered under `id`.
+    pub(crate) fn provider_mut(&mut self, id: &BackendId) -> Option<&mut Provider<'p, K, R>> {
+        self.providers.get_mut(id)
+    }
+}
+
+/// FR-290's selection of the one backend that serves `capability`, or the
+/// outcome that settles the request without calling a backend: `unsupported`
+/// while none serves it, `invalid-request` when the named backend is unknown
+/// or the candidates are ambiguous. `binding` is what that outcome retains.
+pub(crate) fn select<R, B>(
+    registry: &Registry,
+    capability: Capability,
+    requested: Option<&BackendId>,
+    binding: B,
+) -> Result<(BackendId, B), Box<ProtocolOutcome<R, B>>> {
+    let set = match registry.candidates(capability, requested) {
+        CandidateOutcome::UnknownBackend(_) => {
+            return Err(Box::new(ProtocolOutcome::InvalidRequest {
+                // IR-1513: the owner (quire-contract-codegen) is to publish this code.
+                code: CatalogCode::new("invalid_capability", "unknown-backend"),
+                candidates: Vec::new(),
+                binding,
+            }));
+        }
+        CandidateOutcome::Candidates(set) => set,
+    };
+    let [candidate] = set.candidates() else {
+        return Err(Box::new(if set.is_empty() {
+            ProtocolOutcome::Settled(ClaimSettlement::Disposition(Disposition::Unsupported(
+                UnsupportedDisposition {
+                    cause: UnsupportedCause::requested_capability(),
+                    construct: None,
+                    premises: binding,
+                    warnings: vec![Warning::UnservedCapability {
+                        kind: set.kind(),
+                        backend: set.requested_backend().cloned(),
+                    }],
+                },
+            )))
+        } else {
+            ProtocolOutcome::InvalidRequest {
+                // IR-1513: the owner (quire-contract-codegen) is to publish this code.
+                code: CatalogCode::new("invalid_capability", "ambiguous-backend"),
+                candidates: set.candidates().to_vec(),
+                binding,
+            }
+        }));
+    };
+    Ok((candidate.id().clone(), binding))
 }
 
 /// Bind `request` to the checked package's declarations and to the
@@ -356,7 +419,7 @@ pub fn bind<A: Clone, C: Clone, I: Clone>(
 /// QSL's registry, send the claim to the one candidate, and carry what
 /// returns.
 pub fn dispatch<'p, A, C, I, R>(
-    boundary: &mut ProviderBoundary<'p, A, C, I, R>,
+    boundary: &mut ProviderBoundary<'p, Binding<A, C, I>, R>,
     declarations: &Declarations,
     request: &ProtocolRequest<A, C, I>,
 ) -> ProtocolOutcome<R, Binding<A, C, I>>
@@ -370,47 +433,18 @@ where
         Ok(binding) => binding,
         Err(refusal) => return ProtocolOutcome::Refused(refusal),
     };
-    let capability = request.kind.capability();
-    let set = match boundary
-        .registry
-        .candidates(capability, request.backend.as_ref())
-    {
-        CandidateOutcome::UnknownBackend(_) => {
-            return ProtocolOutcome::InvalidRequest {
-                // IR-1513: the owner (quire-contract-codegen) is to publish this code.
-                code: CatalogCode::new("invalid_capability", "unknown-backend"),
-                candidates: Vec::new(),
-                binding,
-            };
-        }
-        CandidateOutcome::Candidates(set) => set,
+    let (selected, mut binding) = match select(
+        &boundary.registry,
+        request.kind.capability(),
+        request.backend.as_ref(),
+        binding,
+    ) {
+        Ok(selected) => selected,
+        Err(outcome) => return *outcome,
     };
-    let [candidate] = set.candidates() else {
-        return if set.is_empty() {
-            ProtocolOutcome::Settled(ClaimSettlement::Disposition(Disposition::Unsupported(
-                UnsupportedDisposition {
-                    cause: UnsupportedCause::requested_capability(),
-                    construct: None,
-                    premises: binding,
-                    warnings: vec![Warning::UnservedCapability {
-                        kind: set.kind(),
-                        backend: set.requested_backend().cloned(),
-                    }],
-                },
-            )))
-        } else {
-            ProtocolOutcome::InvalidRequest {
-                // IR-1513: the owner (quire-contract-codegen) is to publish this code.
-                code: CatalogCode::new("invalid_capability", "ambiguous-backend"),
-                candidates: set.candidates().to_vec(),
-                binding,
-            }
-        };
-    };
-    let mut binding = binding;
-    binding.selected = Some(candidate.id().clone());
-    let Some(provider) = boundary.providers.get_mut(candidate.id()) else {
-        return ProtocolOutcome::Refused(DispositionRefusal::NoProvider(candidate.id().clone()));
+    binding.selected = Some(selected.clone());
+    let Some(provider) = boundary.providers.get_mut(&selected) else {
+        return ProtocolOutcome::Refused(DispositionRefusal::NoProvider(selected));
     };
     let claim = binding.clone();
     let settlement = settle_claim(provider.as_mut(), &claim, binding);
@@ -449,7 +483,7 @@ fn carry_refusal<R: BackendResult>(
 /// Settle every requested claim, in request order and independently of one
 /// another (FR-029). Global conformance results pass through untouched.
 pub fn dispatch_claims<'p, G, A, C, I, R>(
-    boundary: &mut ProviderBoundary<'p, A, C, I, R>,
+    boundary: &mut ProviderBoundary<'p, Binding<A, C, I>, R>,
     declarations: &Declarations,
     requests: &[ClaimRequest<G, A, C, I>],
 ) -> Vec<ClaimDisposition<G, A, C, I, R>>

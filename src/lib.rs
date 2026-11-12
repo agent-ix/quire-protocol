@@ -27,6 +27,8 @@ extern crate self as quire_protocol;
 // established here.
 // ---------------------------------------------------------------------------
 
+/// Dispatch of `composition` and `refinement` claims to QSL's backends (FR-200..204).
+pub mod assume_guarantee;
 /// Count, allocation and deadline guards. Owner chunk: C-29 (submodule: C-30).
 pub mod bounds;
 /// Obligation-activation captures bound as ordered, immutable occurrences (FR-101).

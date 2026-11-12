@@ -38,7 +38,7 @@ pub struct Rest {
 pub type Assumptions = &'static str;
 pub type Req = ProtocolRequest<Assumptions, Rest, &'static str>;
 pub type Bind = Binding<Assumptions, Rest, &'static str>;
-pub type Boundary = ProviderBoundary<'static, Assumptions, Rest, &'static str, Sentinel>;
+pub type Boundary = ProviderBoundary<'static, Bind, Sentinel>;
 
 /// The result a stand-in returns, with the parts the dispatcher reads.
 #[derive(Clone, Debug, Eq, PartialEq)]
