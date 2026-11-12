@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Exact trigger/capture/anchor activation over QObs owner facts.
 
-use qsl_package::protocol_view::ChoiceVisibility;
-use quire_contract_model::CheckedNodeId;
+use qsl_package::protocol_view::{choice_visibility, ChoiceVisibility, ViewRefusal};
+use quire_contract_model::{CheckedNodeId, CheckedSemanticNodeV2};
 use quire_observation::authority::{completeness, observation, OpenClosed};
 
 use crate::ids::{EffectId, RoleInstanceId, WorkflowInstanceId};
@@ -11,18 +11,26 @@ use super::purity::PureAssessment;
 
 /// Owned choice-visibility evidence read from QSL's checked accessor
 /// (QSpec FR-172-AC-6): the `choice` control, the node that owns the decision
-/// and the exact visible set in carried order.
+/// and the exact visible set in carried order. Only the accessor's result
+/// constructs it.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ChoiceVisibilityEvidence {
-    /// The `choice` control the evidence belongs to.
-    pub choice: CheckedNodeId,
-    /// The `protocol` or `role` node that owns the decision.
-    pub owner: CheckedNodeId,
-    /// The `expression` nodes the owner sees, in carried order.
-    pub visible: Box<[CheckedNodeId]>,
+    choice: CheckedNodeId,
+    owner: CheckedNodeId,
+    visible: Box<[CheckedNodeId]>,
 }
 
 impl ChoiceVisibilityEvidence {
+    /// Read the evidence of one checked `choice` control through
+    /// `qsl_package::protocol_view::choice_visibility`.
+    ///
+    /// # Errors
+    ///
+    /// QSL's refusal when `node` is no well-formed `choice` control.
+    pub fn read(node: &CheckedSemanticNodeV2) -> Result<Self, ViewRefusal> {
+        choice_visibility(node).map(|checked| Self::from_checked(&checked))
+    }
+
     /// Retain the identities of one checked accessor result unchanged.
     #[must_use]
     pub fn from_checked(checked: &ChoiceVisibility<'_>) -> Self {
@@ -31,6 +39,24 @@ impl ChoiceVisibilityEvidence {
             owner: checked.owner.clone(),
             visible: checked.visible.iter().map(|node| (*node).clone()).collect(),
         }
+    }
+
+    /// The `choice` control the evidence belongs to.
+    #[must_use]
+    pub const fn choice(&self) -> &CheckedNodeId {
+        &self.choice
+    }
+
+    /// The `protocol` or `role` node that owns the decision.
+    #[must_use]
+    pub const fn owner(&self) -> &CheckedNodeId {
+        &self.owner
+    }
+
+    /// The `expression` nodes the owner sees, in carried order.
+    #[must_use]
+    pub fn visible(&self) -> &[CheckedNodeId] {
+        &self.visible
     }
 }
 

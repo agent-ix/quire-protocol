@@ -3,13 +3,15 @@
 
 use std::cell::Cell;
 use std::num::NonZeroU32;
+use std::sync::OnceLock;
 
 use ix_trace_rs::trace;
-use qsl_package::protocol_view::ChoiceVisibility;
-use quire_contract_model::{CheckedNodeId, CheckedNodePathSegment};
+use qsl_package::protocol_view::{control_operation, ChoiceVisibility, ControlOperation};
+use quire_contract_model::{CheckedNodeId, CheckedNodePathSegment, CheckedPackageReadLimits};
 use quire_protocol::bounds::inventory::{
     production_inventory, Budget, BudgetDimension, OperationOutcome, ResourceAccountant,
 };
+use quire_protocol::checked_package::{admit, HandoffFiles};
 use quire_protocol::compensation::activate::{
     assess as assess_activation, Activation, Binding, ChoiceVisibilityEvidence, Guard,
     IdentityAxis, TriggerEvidence,
@@ -33,11 +35,17 @@ use quire_protocol::ids::{
     AttemptId, CommitId, DefinitionId, DeliveryId, EffectId, ReceiveId, RecoveryId, RegistrationId,
     RoleInstanceId, SendId, WorkflowInstanceId,
 };
+use quire_spec_language::checked_handoff::Corpus;
+
+#[path = "support/handoff.rs"]
+#[allow(dead_code)]
+mod handoff;
 
 #[path = "support/observation_owner.rs"]
 #[allow(dead_code)]
 mod observation_owner;
 
+use handoff::{join_budget, written};
 use observation_owner::{scope_views, ScopeViews};
 
 #[derive(Default)]
@@ -80,11 +88,44 @@ fn node(name: &str) -> CheckedNodeId {
     }
 }
 
-/// Evidence read through QSL's checked `ChoiceVisibility` accessor shape.
-fn choice_evidence(owner: &CheckedNodeId, visible: &[CheckedNodeId]) -> ChoiceVisibilityEvidence {
-    let choice = node("choice");
+/// Recipe R's `choice` control evidence, read through QSL's accessor from the
+/// checked package.
+fn recipe_choice() -> &'static ChoiceVisibilityEvidence {
+    static EVIDENCE: OnceLock<ChoiceVisibilityEvidence> = OnceLock::new();
+    EVIDENCE.get_or_init(|| {
+        let handoff = written("event_position", Corpus::None);
+        let files = HandoffFiles {
+            checked_package: &handoff.files["checked-package.json"],
+            selection: &handoff.files["selection.json"],
+            identities: &handoff.files["identities.json"],
+            equality: &handoff.files["equality.json"],
+        };
+        let admitted = admit(
+            &files,
+            &handoff.evidence,
+            CheckedPackageReadLimits::bounded(),
+            &mut join_budget(),
+        )
+        .expect("recipe R admitted");
+        let choice = admitted
+            .package()
+            .graph()
+            .nodes
+            .iter()
+            .find(|node| control_operation(node) == Ok(ControlOperation::Choice))
+            .expect("recipe R includes a choice control");
+        ChoiceVisibilityEvidence::read(choice).expect("accessor reads the choice")
+    })
+}
+
+/// The same accessor shape over different identities, for substitution.
+fn evidence_of(
+    choice: &CheckedNodeId,
+    owner: &CheckedNodeId,
+    visible: &[CheckedNodeId],
+) -> ChoiceVisibilityEvidence {
     ChoiceVisibilityEvidence::from_checked(&ChoiceVisibility {
-        choice: &choice,
+        choice,
         owner,
         visible: visible.iter().collect(),
     })
@@ -98,7 +139,7 @@ fn binding(views: &ScopeViews) -> Binding {
         predicate: b"predicate:checked".to_vec().into_boxed_slice(),
         capture: b"capture:immutable".to_vec().into_boxed_slice(),
         anchor: b"anchor:exact".to_vec().into_boxed_slice(),
-        choice_visibility: choice_evidence(&node("owner"), &[node("seen")]),
+        choice_visibility: recipe_choice().clone(),
         trigger_observation: views
             .observation
             .payload()
@@ -247,7 +288,11 @@ fn tc_003_activation_refuses_each_identity_substitution() {
             IdentityAxis::Capture => offered.capture = Box::from(&b"capture:other"[..]),
             IdentityAxis::Anchor => offered.anchor = Box::from(&b"anchor:other"[..]),
             IdentityAxis::ChoiceVisibility => {
-                offered.choice_visibility = choice_evidence(&node("other"), &[node("seen")])
+                offered.choice_visibility = evidence_of(
+                    &node("other"),
+                    recipe_choice().owner(),
+                    recipe_choice().visible(),
+                )
             }
             IdentityAxis::Trigger => {
                 offered.trigger_observation = Box::from(&b"observation:other"[..])
@@ -271,13 +316,22 @@ fn tc_003_activation_refuses_each_identity_substitution() {
         mutations.push(axis);
     }
     assert_eq!(mutations.len(), 10);
-    for (owner, visible) in [
-        ("owner", vec![node("seen"), node("extra")]),
-        ("owner", Vec::new()),
-        ("owner", vec![node("other")]),
+    let real = recipe_choice();
+    let extra: Vec<CheckedNodeId> = real
+        .visible()
+        .iter()
+        .cloned()
+        .chain([node("extra")])
+        .collect();
+    for offered_evidence in [
+        evidence_of(&node("other"), real.owner(), real.visible()),
+        evidence_of(real.choice(), &node("other"), real.visible()),
+        evidence_of(real.choice(), real.owner(), &extra),
+        evidence_of(real.choice(), real.owner(), &[]),
+        evidence_of(real.choice(), real.owner(), &[node("other")]),
     ] {
         let mut offered = selected.clone();
-        offered.choice_visibility = choice_evidence(&node(owner), &visible);
+        offered.choice_visibility = offered_evidence;
         let refusal = assess_activation(
             pure(&surface),
             &selected,

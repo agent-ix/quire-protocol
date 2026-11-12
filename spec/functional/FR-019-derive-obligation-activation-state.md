@@ -41,9 +41,10 @@ Protocol validates those owner facts against its linked definition and control,
 then retains its constructor-private complete event-triggered `FR-479` activation
 binding. The binding carries the exact qualified definition, declaration-local
 control, clause subject, admitted semantic trigger, checked activation state,
-immutable captures, choice-visibility evidence (`FR-479`) and evaluation anchor. Closure and completeness remain
-owner-issued facts. A caller-built obligation label, control coordinate, trigger
-identity, capture or anchor is not a production input.
+immutable captures, choice-visibility evidence (`FR-479`) and evaluation
+anchor. Closure and completeness remain owner-issued facts. A caller-built
+obligation label, control coordinate, trigger identity, capture,
+choice-visibility evidence or anchor is not a production input.
 
 ## Outputs
 
