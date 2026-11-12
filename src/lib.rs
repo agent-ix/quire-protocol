@@ -54,6 +54,8 @@ pub mod evidence;
 /// Protocol identity newtypes. Owner chunk: C-07.
 pub mod ids;
 pub mod link;
+/// The derivation of an observation's checked node and workflow instance (QSpec FR-260-AC-5..9).
+pub mod observation_link;
 /// Closed public operation and claim outcome algebras.
 pub mod outcome;
 /// B-owned typed refusal envelope. Owner chunk: C-01 (submodules: C-02, C-03).

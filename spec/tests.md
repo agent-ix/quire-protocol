@@ -213,7 +213,7 @@ in Domain Object Coverage instead.
 | FR-057 | FR-057-AC-1..AC-4 | TC-055 (AC-1..AC-4) | ✅ Implemented — all 4 criteria have living traced tests; the cause is QSL's typed `Unsupported`, or its catalog code, or unrecognised bytes retained. |
 | FR-058 | FR-058-AC-1..AC-3 | TC-055 (AC-1..AC-3) | ✅ Implemented — all 3 criteria have living traced tests over QSL's `RequiresBound`. |
 | FR-059 | FR-059-AC-1..AC-4 | TC-054 (AC-1..AC-4) | ✅ Implemented — all 4 criteria have living traced tests; `Undischarged` is the only status. |
-| FR-100 | FR-100-AC-1..AC-22 | TC-154 | ✅ Implemented — closes V1-PROT-019 timeout branches; the owner facts are QObs progress and completeness views and QSL's slot outcome. |
+| FR-100 | FR-100-AC-1..AC-24 | TC-154 | ✅ Implemented — closes V1-PROT-019 timeout branches; the owner facts are QObs progress and completeness views and QSL's slot outcome. |
 | FR-101 | FR-101-AC-1..AC-5 | TC-154 (AC-1..AC-5) | ✅ Implemented — all 5 criteria have living traced tests; closes V1-PROT-019 captures; the values are QSL's slot outcomes, bound without evaluation. |
 | FR-150 | FR-150-AC-1..AC-11 | TC-160 (AC-1..AC-11) | ✅ Implemented — all 11 criteria have living traced tests against a stand-in registered at the provider boundary under a descriptor QSL's registry accepts; a live QSL backend is not required. |
 | FR-151 | FR-151-AC-1..AC-8 | TC-161 (AC-1..AC-6, AC-8); no living test for AC-7 | 🚧 Partial — 7 of 8 criteria have living traced tests; AC-7 awaits QSL's read view (`ix://agent-ix/quire-spec-language/ADR-017`) publishing a channel's sender, receiver and message type and a role's internality. |
