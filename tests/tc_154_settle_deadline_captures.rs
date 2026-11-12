@@ -20,6 +20,7 @@ use std::sync::OnceLock;
 
 use ix_trace_rs::trace;
 use qsl_eval::value::{ProtocolSlot, ProtocolSuppliedValue, ProtocolSupply, SuppliedValue};
+use qsl_package::protocol_view::ChoiceVisibility;
 use qsl_package::{BarePackage, BareSupply, ProtocolSlotDescriptor};
 use qsl_semantics::check::wire_id::WireGraph;
 use quire_contract_model::{CheckedNodeId, CheckedNodePathSegment, CheckedPackageReadLimits};
@@ -29,7 +30,7 @@ use quire_observation::{Anchor, ClockRange, QualifiedSubject, SubjectIdentity, S
 use quire_protocol::captures::{bind_captures, CaptureFailure, CaptureSupply};
 use quire_protocol::checked_package::{admit, AdmittedHandoff, HandoffFiles};
 use quire_protocol::closure::{AssessmentExecution, TruthDisposition};
-use quire_protocol::compensation::activate::Binding;
+use quire_protocol::compensation::activate::{Binding, ChoiceVisibilityEvidence};
 use quire_protocol::compensation::purity::{Capability, CapabilityInventory, PureAssessment};
 use quire_protocol::deadline::{
     assess, AfterAnchor, Branch, ClockFamily, Constraint, Contradiction, Deadline, Verdict, Wait,
@@ -1211,6 +1212,11 @@ fn activation(trigger: &str) -> Binding {
         predicate: id("p"),
         capture: id("c"),
         anchor: id("a"),
+        choice_visibility: ChoiceVisibilityEvidence::from_checked(&ChoiceVisibility {
+            choice: &node("choice"),
+            owner: &node("owner"),
+            visible: vec![&node("seen")],
+        }),
         trigger_observation: id(trigger),
         scope_identity: "scope".into(),
         population_identity: "population".into(),

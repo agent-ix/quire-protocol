@@ -1,11 +1,64 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Exact trigger/capture/anchor activation over QObs owner facts.
 
+use qsl_package::protocol_view::{choice_visibility, ChoiceVisibility, ViewRefusal};
+use quire_contract_model::{CheckedNodeId, CheckedSemanticNodeV2};
 use quire_observation::authority::{completeness, observation, OpenClosed};
 
 use crate::ids::{EffectId, RoleInstanceId, WorkflowInstanceId};
 
 use super::purity::PureAssessment;
+
+/// Owned choice-visibility evidence read from QSL's checked accessor
+/// (QSpec FR-172-AC-6): the `choice` control, the node that owns the decision
+/// and the exact visible set in carried order. Only the accessor's result
+/// constructs it.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ChoiceVisibilityEvidence {
+    choice: CheckedNodeId,
+    owner: CheckedNodeId,
+    visible: Box<[CheckedNodeId]>,
+}
+
+impl ChoiceVisibilityEvidence {
+    /// Read the evidence of one checked `choice` control through
+    /// `qsl_package::protocol_view::choice_visibility`.
+    ///
+    /// # Errors
+    ///
+    /// QSL's refusal when `node` is no well-formed `choice` control.
+    pub fn read(node: &CheckedSemanticNodeV2) -> Result<Self, ViewRefusal> {
+        choice_visibility(node).map(|checked| Self::from_checked(&checked))
+    }
+
+    /// Retain the identities of one checked accessor result unchanged.
+    #[must_use]
+    pub fn from_checked(checked: &ChoiceVisibility<'_>) -> Self {
+        Self {
+            choice: checked.choice.clone(),
+            owner: checked.owner.clone(),
+            visible: checked.visible.iter().map(|node| (*node).clone()).collect(),
+        }
+    }
+
+    /// The `choice` control the evidence belongs to.
+    #[must_use]
+    pub const fn choice(&self) -> &CheckedNodeId {
+        &self.choice
+    }
+
+    /// The `protocol` or `role` node that owns the decision.
+    #[must_use]
+    pub const fn owner(&self) -> &CheckedNodeId {
+        &self.owner
+    }
+
+    /// The `expression` nodes the owner sees, in carried order.
+    #[must_use]
+    pub fn visible(&self) -> &[CheckedNodeId] {
+        &self.visible
+    }
+}
 
 /// Immutable activation-binding dependencies.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -22,6 +75,8 @@ pub struct Binding {
     pub capture: Box<[u8]>,
     /// Exact evaluation-anchor identity bytes.
     pub anchor: Box<[u8]>,
+    /// Exact choice-visibility evidence (FR-479 activation binding).
+    pub choice_visibility: ChoiceVisibilityEvidence,
     /// Exact expected QObs observation identity bytes.
     pub trigger_observation: Box<[u8]>,
     /// Exact trigger scope selected for closure authority.
@@ -45,6 +100,8 @@ pub enum IdentityAxis {
     Capture,
     /// The evaluation-anchor identity.
     Anchor,
+    /// The choice-visibility evidence identity (choice, owner, visible set).
+    ChoiceVisibility,
     /// The expected trigger observation identity.
     Trigger,
     /// The trigger scope selected for closure authority.
@@ -200,6 +257,9 @@ fn mismatches(
         &selected.anchor,
         &offered.anchor,
     );
+    if selected.choice_visibility != offered.choice_visibility {
+        axes.push(IdentityAxis::ChoiceVisibility);
+    }
     let offered_trigger = match trigger {
         TriggerEvidence::Available(view) => Some(view.payload().observation_identity().as_bytes()),
         TriggerEvidence::Absent | TriggerEvidence::Refused => None,
