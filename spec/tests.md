@@ -161,7 +161,7 @@ successor requirement yet; their rows stay retired until one is specified.
 Parent and atomic rows are both listed. FR-010..FR-018 carry `object:` and are
 in Domain Object Coverage instead.
 
-| Functional Req | Acceptance Criteria | Test Cases | Coverage Status |
+| Functional Req | Acceptance Criteria | Test Cases | Status |
 | --- | --- | --- | --- |
 | FR-001 | FR-001-AC-1, FR-001-AC-2, FR-001-AC-3, FR-001-AC-4, FR-001-AC-5 | no living test for AC-1..AC-5 | ⛔ Retired — every test of this row's 5 criteria was deleted in QSL-1549 stage 1 with the implementation it exercised (successor: FR-043). |
 | FR-002 | FR-002-AC-1, FR-002-AC-2, FR-002-AC-3, FR-002-AC-4, FR-002-AC-5 | no living test for AC-1..AC-5 | ⛔ Retired — every test of this row's 5 criteria was deleted in QSL-1549 stage 1 with the implementation it exercised (successor: FR-044). |
