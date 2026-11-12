@@ -19,17 +19,22 @@ use std::collections::BTreeMap;
 
 use qsl_foundation::BackendId;
 use qsl_package::protocol_view::Delivery;
-use qsl_replay::{InconclusiveCause, SeparatingWitnessRecord, SettlementBasis, Truth};
+use qsl_replay::{InconclusiveCause, ItemLabel, SeparatingWitnessRecord, SettlementBasis, Truth};
 use qsl_route::{BackendDescriptor, Candidate, CandidateOutcome, RegistrationRefusal, Registry};
 use qsl_semantics::check::Capability;
 use quire_contract_model::CheckedNodeId;
 use quire_semantic_value::catalog::CatalogCode;
 
+use crate::assume_guarantee::{
+    AssumeGuaranteeBinding, AssumeGuaranteeRequest, AssumeGuaranteeResult, IdentityMismatch,
+    PremiseList,
+};
 use crate::declarations::{ChannelDeclaration, Declarations, Ordering, RoleDeclaration};
 use crate::disposition::{
     settle_claim, ClaimSettlement, Disposition, QslBoundary, UnsupportedCause,
     UnsupportedDisposition, Warning,
 };
+use crate::refusal::ProtocolCauseKind;
 
 /// The two claim kinds this module dispatches.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -152,6 +157,48 @@ pub enum DispositionRefusal {
     DecisiveWithoutWitness,
     /// QSL's registry selected a backend that has no provider.
     NoProvider(BackendId),
+    /// The provider answered with the other claim kind's result.
+    WrongAnswerKind,
+    /// A `composition` or `refinement` request names no component subject
+    /// (FR-200).
+    NoSubjects,
+    /// A `composition` or `refinement` request names no admitted fragment
+    /// (FR-200).
+    NoFragment,
+    /// A component subject is not a node of the checked package's protocol.
+    UndeclaredSubject(CheckedNodeId),
+    /// An assumption identity is not a node of the checked package's
+    /// protocol.
+    UndeclaredAssumption(CheckedNodeId),
+    /// A source identity is not a node of the checked package's protocol.
+    UndeclaredSource(CheckedNodeId),
+    /// A guarantee of a declared cycle is offered as an assumption, in the
+    /// request or in the result's retained assumptions (FR-203).
+    CycleGuaranteeAsAssumption(CheckedNodeId),
+    /// A result states an assessment-execution value its label does not read
+    /// into (FR-202).
+    ContradictoryExecution(ItemLabel),
+    /// A result names an identity the request does not, or omits a field it
+    /// must retain (FR-201, FR-204).
+    IdentityMismatch(IdentityMismatch),
+    /// A result retains a premise list that differs from the request's
+    /// (FR-201).
+    RetainedPremiseList(PremiseList),
+}
+
+impl DispositionRefusal {
+    /// The FR-008 cause this refusal is raised under, where the closed
+    /// vocabulary names one: the two exact identities that must agree
+    /// differ.
+    #[must_use]
+    pub const fn cause(&self) -> Option<ProtocolCauseKind> {
+        match self {
+            Self::IdentityMismatch(_)
+            | Self::RetainedPremiseList(_)
+            | Self::SubstitutedChannelPremise(_) => Some(ProtocolCauseKind::IdentityMismatch),
+            _ => None,
+        }
+    }
 }
 
 /// What the dispatcher reads of a backend's result. The result itself is
@@ -217,11 +264,13 @@ impl<R: BackendResult, B> ProtocolOutcome<R, B> {
 /// computed (FR-004) and this dispatcher carries untouched, or a protocol
 /// claim.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum ClaimRequest<G, A, C, I> {
+pub enum ClaimRequest<G, A, C, I, T> {
     /// `global-conformance`, with its result.
     GlobalConformance(G),
     /// `local-projection` or `realizability`.
     Protocol(ProtocolRequest<A, C, I>),
+    /// `composition` or `refinement` (FR-200).
+    AssumeGuarantee(AssumeGuaranteeRequest<T>),
 }
 
 /// The disposition of one requested claim, in request order (FR-029).
@@ -229,11 +278,35 @@ pub enum ClaimRequest<G, A, C, I> {
 // settlement the caller matches on.
 #[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum ClaimDisposition<G, A, C, I, R> {
+pub enum ClaimDisposition<G, A, C, I, T, P, Q> {
     /// The global conformance result, unchanged.
     GlobalConformance(G),
     /// The protocol claim's settlement.
-    Protocol(ProtocolOutcome<R, Binding<A, C, I>>),
+    Protocol(ProtocolOutcome<P, Binding<A, C, I>>),
+    /// The composition or refinement claim's settlement.
+    AssumeGuarantee(ProtocolOutcome<Q, AssumeGuaranteeBinding<T>>),
+}
+
+/// The claim a registered provider is asked about: one boundary, registry and
+/// dispatch path serve every claim kind (FR-200).
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Claim<A, C, I, T> {
+    /// A `local-projection` or `realizability` claim.
+    Protocol(Binding<A, C, I>),
+    /// A `composition` or `refinement` claim.
+    AssumeGuarantee(AssumeGuaranteeBinding<T>),
+}
+
+impl<A, C, I, T> From<Binding<A, C, I>> for Claim<A, C, I, T> {
+    fn from(binding: Binding<A, C, I>) -> Self {
+        Self::Protocol(binding)
+    }
+}
+
+impl<A, C, I, T> From<AssumeGuaranteeBinding<T>> for Claim<A, C, I, T> {
+    fn from(binding: AssumeGuaranteeBinding<T>) -> Self {
+        Self::AssumeGuarantee(binding)
+    }
 }
 
 /// Why a provider was not registered.
@@ -246,16 +319,19 @@ pub enum RegistrationError {
 }
 
 /// The call into one registered backend.
-type Provider<'p, A, C, I, R> = Box<dyn QslBoundary<Binding<A, C, I>, R> + 'p>;
+type Provider<'p, K, R> = Box<dyn QslBoundary<K, R> + 'p>;
 
 /// The provider boundary: QSL's registry, and the call into each backend
-/// registered in it. A caller supplies no callback per request.
-pub struct ProviderBoundary<'p, A, C, I, R> {
+/// registered in it. A caller supplies no callback per request. `K` is the
+/// claim a provider is asked about: a [`Binding`] for the protocol claims, an
+/// [`AssumeGuaranteeBinding`]
+/// for composition and refinement.
+pub struct ProviderBoundary<'p, K, R> {
     registry: Registry,
-    providers: BTreeMap<BackendId, Provider<'p, A, C, I, R>>,
+    providers: BTreeMap<BackendId, Provider<'p, K, R>>,
 }
 
-impl<A, C, I, R> Default for ProviderBoundary<'_, A, C, I, R> {
+impl<K, R> Default for ProviderBoundary<'_, K, R> {
     fn default() -> Self {
         Self {
             registry: Registry::new(),
@@ -264,7 +340,7 @@ impl<A, C, I, R> Default for ProviderBoundary<'_, A, C, I, R> {
     }
 }
 
-impl<'p, A, C, I, R> ProviderBoundary<'p, A, C, I, R> {
+impl<'p, K, R> ProviderBoundary<'p, K, R> {
     /// An empty boundary: no backend serves any kind.
     #[must_use]
     pub fn new() -> Self {
@@ -289,7 +365,7 @@ impl<'p, A, C, I, R> ProviderBoundary<'p, A, C, I, R> {
     pub fn register(
         &mut self,
         descriptor: BackendDescriptor,
-        provider: impl QslBoundary<Binding<A, C, I>, R> + 'p,
+        provider: impl QslBoundary<K, R> + 'p,
     ) -> Result<(), RegistrationError> {
         let id = descriptor.id().clone();
         match self.registry.register(descriptor) {
@@ -306,6 +382,52 @@ impl<'p, A, C, I, R> ProviderBoundary<'p, A, C, I, R> {
             }
         }
     }
+}
+
+/// FR-290's selection of the one backend that serves `capability`, or the
+/// outcome that settles the request without calling a backend: `unsupported`
+/// while none serves it, `invalid-request` when the named backend is unknown
+/// or the candidates are ambiguous. `binding` is what that outcome retains.
+pub(crate) fn select<R, B>(
+    registry: &Registry,
+    capability: Capability,
+    requested: Option<&BackendId>,
+    binding: B,
+) -> Result<(BackendId, B), Box<ProtocolOutcome<R, B>>> {
+    let set = match registry.candidates(capability, requested) {
+        CandidateOutcome::UnknownBackend(_) => {
+            return Err(Box::new(ProtocolOutcome::InvalidRequest {
+                // IR-1513: the owner (quire-contract-codegen) is to publish this code.
+                code: CatalogCode::new("invalid_capability", "unknown-backend"),
+                candidates: Vec::new(),
+                binding,
+            }));
+        }
+        CandidateOutcome::Candidates(set) => set,
+    };
+    let [candidate] = set.candidates() else {
+        return Err(Box::new(if set.is_empty() {
+            ProtocolOutcome::Settled(ClaimSettlement::Disposition(Disposition::Unsupported(
+                UnsupportedDisposition {
+                    cause: UnsupportedCause::requested_capability(),
+                    construct: None,
+                    premises: binding,
+                    warnings: vec![Warning::UnservedCapability {
+                        kind: set.kind(),
+                        backend: set.requested_backend().cloned(),
+                    }],
+                },
+            )))
+        } else {
+            ProtocolOutcome::InvalidRequest {
+                // IR-1513: the owner (quire-contract-codegen) is to publish this code.
+                code: CatalogCode::new("invalid_capability", "ambiguous-backend"),
+                candidates: set.candidates().to_vec(),
+                binding,
+            }
+        }));
+    };
+    Ok((candidate.id().clone(), binding))
 }
 
 /// Bind `request` to the checked package's declarations and to the
@@ -352,74 +474,102 @@ pub fn bind<A: Clone, C: Clone, I: Clone>(
     })
 }
 
+/// A boundary that is never asked a kind has no result of that kind.
+impl BackendResult for std::convert::Infallible {
+    fn truth(&self) -> Truth {
+        match *self {}
+    }
+    fn basis(&self) -> SettlementBasis {
+        match *self {}
+    }
+    fn witness(&self) -> Option<&SeparatingWitnessRecord> {
+        match *self {}
+    }
+    fn inconclusive(&self) -> Option<&InconclusiveCause> {
+        match *self {}
+    }
+}
+
+/// The result a provider returns: its protocol result or its composition or
+/// refinement result, each QSL's own and carried unchanged. The two are
+/// separate types, so a caller that asks one kind implements the other's
+/// reading for nothing.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Answer<P, Q> {
+    /// The answer to a `local-projection` or `realizability` claim.
+    Protocol(P),
+    /// The answer to a `composition` or `refinement` claim.
+    AssumeGuarantee(Q),
+}
+
+/// The steps every claim kind shares once its premises are bound: take
+/// FR-290's candidate set from QSL's registry, send the claim to the one
+/// candidate, carry what returns, and refuse a result that `refuse` rejects.
+pub(crate) fn settle_bound<K, P, Q, R, B: Clone>(
+    boundary: &mut ProviderBoundary<'_, K, Answer<P, Q>>,
+    binding: B,
+    (capability, requested): (Capability, Option<&BackendId>),
+    claim_of: impl FnOnce(&B) -> K,
+    mark_selected: impl FnOnce(&mut B, BackendId),
+    extract: impl FnOnce(Answer<P, Q>) -> Option<R>,
+    refuse: impl FnOnce(&R, &B) -> Option<DispositionRefusal>,
+) -> ProtocolOutcome<R, B> {
+    let (selected, mut binding) = match select(&boundary.registry, capability, requested, binding) {
+        Ok(selected) => selected,
+        Err(outcome) => return *outcome,
+    };
+    mark_selected(&mut binding, selected.clone());
+    let Some(provider) = boundary.providers.get_mut(&selected) else {
+        return ProtocolOutcome::Refused(DispositionRefusal::NoProvider(selected));
+    };
+    let claim = claim_of(&binding);
+    match settle_claim(provider.as_mut(), &claim, binding) {
+        ClaimSettlement::Result { result, premises } => {
+            let Some(result) = extract(result) else {
+                return ProtocolOutcome::Refused(DispositionRefusal::WrongAnswerKind);
+            };
+            match refuse(&result, &premises) {
+                Some(refusal) => ProtocolOutcome::Refused(refusal),
+                None => ProtocolOutcome::Settled(ClaimSettlement::Result { result, premises }),
+            }
+        }
+        ClaimSettlement::Disposition(disposition) => {
+            ProtocolOutcome::Settled(ClaimSettlement::Disposition(disposition))
+        }
+    }
+}
+
 /// Settle one claim: bind its premises, take FR-290's candidate set from
 /// QSL's registry, send the claim to the one candidate, and carry what
 /// returns.
-pub fn dispatch<'p, A, C, I, R>(
-    boundary: &mut ProviderBoundary<'p, A, C, I, R>,
+pub fn dispatch<K, A, C, I, P, Q>(
+    boundary: &mut ProviderBoundary<'_, K, Answer<P, Q>>,
     declarations: &Declarations,
     request: &ProtocolRequest<A, C, I>,
-) -> ProtocolOutcome<R, Binding<A, C, I>>
+) -> ProtocolOutcome<P, Binding<A, C, I>>
 where
+    K: From<Binding<A, C, I>>,
     A: Clone,
     C: Clone,
     I: Clone,
-    R: BackendResult,
+    P: BackendResult,
 {
     let binding = match bind(declarations, request) {
         Ok(binding) => binding,
         Err(refusal) => return ProtocolOutcome::Refused(refusal),
     };
-    let capability = request.kind.capability();
-    let set = match boundary
-        .registry
-        .candidates(capability, request.backend.as_ref())
-    {
-        CandidateOutcome::UnknownBackend(_) => {
-            return ProtocolOutcome::InvalidRequest {
-                // IR-1513: the owner (quire-contract-codegen) is to publish this code.
-                code: CatalogCode::new("invalid_capability", "unknown-backend"),
-                candidates: Vec::new(),
-                binding,
-            };
-        }
-        CandidateOutcome::Candidates(set) => set,
-    };
-    let [candidate] = set.candidates() else {
-        return if set.is_empty() {
-            ProtocolOutcome::Settled(ClaimSettlement::Disposition(Disposition::Unsupported(
-                UnsupportedDisposition {
-                    cause: UnsupportedCause::requested_capability(),
-                    construct: None,
-                    premises: binding,
-                    warnings: vec![Warning::UnservedCapability {
-                        kind: set.kind(),
-                        backend: set.requested_backend().cloned(),
-                    }],
-                },
-            )))
-        } else {
-            ProtocolOutcome::InvalidRequest {
-                // IR-1513: the owner (quire-contract-codegen) is to publish this code.
-                code: CatalogCode::new("invalid_capability", "ambiguous-backend"),
-                candidates: set.candidates().to_vec(),
-                binding,
-            }
-        };
-    };
-    let mut binding = binding;
-    binding.selected = Some(candidate.id().clone());
-    let Some(provider) = boundary.providers.get_mut(candidate.id()) else {
-        return ProtocolOutcome::Refused(DispositionRefusal::NoProvider(candidate.id().clone()));
-    };
-    let claim = binding.clone();
-    let settlement = settle_claim(provider.as_mut(), &claim, binding);
-    if let ClaimSettlement::Result { result, premises } = &settlement {
-        if let Some(refusal) = carry_refusal(request.kind, result, &premises.request.sources) {
-            return ProtocolOutcome::Refused(refusal);
-        }
-    }
-    ProtocolOutcome::Settled(settlement)
+    settle_bound(
+        boundary,
+        binding,
+        (request.kind.capability(), request.backend.as_ref()),
+        |binding| K::from(binding.clone()),
+        |binding, selected| binding.selected = Some(selected),
+        |answer| match answer {
+            Answer::Protocol(result) => Some(result),
+            Answer::AssumeGuarantee(_) => None,
+        },
+        |result, binding| carry_refusal(request.kind, result, &binding.request.sources),
+    )
 }
 
 /// FR-152: a decisive result is carried beside the source identities the
@@ -448,17 +598,21 @@ fn carry_refusal<R: BackendResult>(
 
 /// Settle every requested claim, in request order and independently of one
 /// another (FR-029). Global conformance results pass through untouched.
-pub fn dispatch_claims<'p, G, A, C, I, R>(
-    boundary: &mut ProviderBoundary<'p, A, C, I, R>,
+pub fn dispatch_claims<K, G, A, C, I, T, P, Q>(
+    boundary: &mut ProviderBoundary<'_, K, Answer<P, Q>>,
     declarations: &Declarations,
-    requests: &[ClaimRequest<G, A, C, I>],
-) -> Vec<ClaimDisposition<G, A, C, I, R>>
+    components: &[&Declarations],
+    requests: &[ClaimRequest<G, A, C, I, T>],
+) -> Vec<ClaimDisposition<G, A, C, I, T, P, Q>>
 where
+    K: From<Binding<A, C, I>> + From<AssumeGuaranteeBinding<T>>,
     G: Clone,
     A: Clone,
     C: Clone,
     I: Clone,
-    R: BackendResult,
+    T: Clone + PartialEq,
+    P: BackendResult,
+    Q: AssumeGuaranteeResult<T>,
 {
     requests
         .iter()
@@ -469,6 +623,9 @@ where
             ClaimRequest::Protocol(request) => {
                 ClaimDisposition::Protocol(dispatch(boundary, declarations, request))
             }
+            ClaimRequest::AssumeGuarantee(request) => ClaimDisposition::AssumeGuarantee(
+                crate::assume_guarantee::dispatch(boundary, components, request),
+            ),
         })
         .collect()
 }

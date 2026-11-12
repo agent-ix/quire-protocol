@@ -19,7 +19,7 @@ relationships:
     type: references
   - target: ix://agent-ix/quire-specification/FR-253
     type: references
-  - target: ix://agent-ix/quire-specification/FR-300
+  - target: ix://agent-ix/quire-specification/FR-479
     type: depends_on
 ---
 # FR-019: Derive obligation activation state
@@ -38,7 +38,7 @@ When activation is derived, the evaluator SHALL execute no business action.
 A linked finite protocol representation (FR-002), QSL's strict version-two
 temporal request/result facts, and QObs's authority-qualified admitted subject.
 Protocol validates those owner facts against its linked definition and control,
-then retains its constructor-private complete event-triggered `FR-300` activation
+then retains its constructor-private complete event-triggered `FR-479` activation
 binding. The binding carries the exact qualified definition, declaration-local
 control, clause subject, admitted semantic trigger, checked activation state,
 immutable captures and evaluation anchor. Closure and completeness remain
@@ -70,7 +70,7 @@ Absence is not a state. An obligation whose activation has not been reported has
 an absent activation state, and absence is never defaulted to `inactive`, which
 is itself a positive assertion about closure and completeness.
 
-The complete FR-300 binding is the sole event-triggered producer-to-consumer
+The complete FR-479 binding is the sole event-triggered producer-to-consumer
 bridge. Protocol validates that its qualified definition equals the linked
 definition and that its control is in that graph before retaining the FR-230
 instance it derives. A missing, foreign, cross-control, cross-subject,
@@ -96,7 +96,7 @@ one from independently supplied static and runtime fragments.
 | Activation state label vocabulary | `FR-244-activation-state` | value |
 | Immutable activation capture | `FR-232-activation-capture` | value |
 | Temporal evaluation anchor | `FR-253-temporal-evaluation-anchor` | value |
-| Protocol-obligation activation binding | `FR-300-obligation-activation-binding` | value; selection key (qualified definition, control, clause subject, semantic trigger) |
+| Protocol-obligation activation binding | `FR-479-obligation-activation-binding` | value; selection key (qualified definition, control, clause subject, semantic trigger) |
 
 `FR-055-AC-4` already states the substitution rule this requirement's AC-2
 exercises: "Substituting O2's trigger, a changed capture or a different
@@ -111,7 +111,7 @@ independent. A false admitted guard creates no obligation instance and no
 activation value. The implementation imports that ruling and invents no
 pre-report lifecycle state.
 
-QSpec main `316743b` adds FR-300 and closes the event-triggered bridge: an
+QSpec adds FR-479 and closes the event-triggered bridge: an
 activation binding is the exact source for a dynamic FR-230 instance. This
 library owns the graph-validated binding operation and does not define a
 parallel QObs/QSL join. QSL `2736b62` retains FR-053's strict v2 views with the
@@ -127,6 +127,6 @@ opaque trigger remains byte-exact for comparison to QObs's qualified subject.
   representation the trigger and captures are read from.
 - `ix://agent-ix/quire-specification/FR-055` establishes activation, its
   independence from truth and the no-business-action rule.
-- `ix://agent-ix/quire-specification/FR-300` establishes the complete
+- `ix://agent-ix/quire-specification/FR-479` establishes the complete
   event-triggered activation binding required before Protocol can construct an
   assessed obligation.

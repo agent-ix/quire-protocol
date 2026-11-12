@@ -7,6 +7,7 @@
 #![allow(dead_code)]
 
 use std::cell::RefCell;
+use std::convert::Infallible;
 use std::rc::Rc;
 
 use qsl_foundation::source::provenance::OccurrenceKey;
@@ -20,8 +21,8 @@ use qsl_replay::{
 use qsl_route::{BackendDescriptor, Candidate, Mode, ProviderOrigin};
 use qsl_semantics::check::Capability;
 use quire_protocol::dispatch::{
-    BackendResult, Binding, ChannelPremise, Fragment, Premises, ProtocolClaimKind, ProtocolRequest,
-    ProviderBoundary,
+    Answer, BackendResult, Binding, ChannelPremise, Claim, Fragment, Premises, ProtocolClaimKind,
+    ProtocolRequest, ProviderBoundary,
 };
 use quire_protocol::disposition::{QslBoundary, QslReport};
 
@@ -38,7 +39,10 @@ pub struct Rest {
 pub type Assumptions = &'static str;
 pub type Req = ProtocolRequest<Assumptions, Rest, &'static str>;
 pub type Bind = Binding<Assumptions, Rest, &'static str>;
-pub type Boundary = ProviderBoundary<'static, Assumptions, Rest, &'static str, Sentinel>;
+/// The unified claim a provider is asked about; these tests ask no
+/// composition or refinement, whose entries are therefore `()`.
+pub type Asked = Claim<Assumptions, Rest, &'static str, ()>;
+pub type Boundary = ProviderBoundary<'static, Asked, Answer<Sentinel, Infallible>>;
 
 /// The result a stand-in returns, with the parts the dispatcher reads.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -79,7 +83,7 @@ impl BackendResult for Sentinel {
     }
 }
 
-pub type Answer = Box<dyn Fn(&Bind) -> QslReport<Sentinel>>;
+pub type Reply = Box<dyn Fn(&Bind) -> QslReport<Sentinel>>;
 
 /// The calls a stand-in received.
 #[derive(Clone, Default)]
@@ -95,20 +99,23 @@ impl Calls {
 }
 
 pub struct Standin {
-    answer: Answer,
+    answer: Reply,
     calls: Calls,
 }
 
 impl Standin {
-    pub fn new(answer: Answer, calls: Calls) -> Self {
+    pub fn new(answer: Reply, calls: Calls) -> Self {
         Self { answer, calls }
     }
 }
 
-impl QslBoundary<Bind, Sentinel> for Standin {
-    fn report(&mut self, claim: &Bind) -> QslReport<Sentinel> {
-        self.calls.0.borrow_mut().push(claim.clone());
-        (self.answer)(claim)
+impl QslBoundary<Asked, Answer<Sentinel, Infallible>> for Standin {
+    fn report(&mut self, claim: &Asked) -> QslReport<Answer<Sentinel, Infallible>> {
+        let Claim::Protocol(bound) = claim else {
+            return QslReport::Failed(None);
+        };
+        self.calls.0.borrow_mut().push(bound.clone());
+        (self.answer)(bound).map(Answer::Protocol)
     }
 }
 
@@ -122,7 +129,7 @@ pub fn candidate(name: &str) -> Candidate {
 
 /// Register a stand-in named `name` serving `kinds`; its calls are the
 /// returned record.
-pub fn serve(boundary: &mut Boundary, name: &str, kinds: &[Capability], answer: Answer) -> Calls {
+pub fn serve(boundary: &mut Boundary, name: &str, kinds: &[Capability], answer: Reply) -> Calls {
     let calls = Calls::default();
     let descriptor = BackendDescriptor::new(
         candidate(name),
@@ -145,7 +152,7 @@ pub fn serve(boundary: &mut Boundary, name: &str, kinds: &[Capability], answer: 
 }
 
 /// An answer that returns `result` for every call.
-pub fn always(result: Sentinel) -> Answer {
+pub fn always(result: Sentinel) -> Reply {
     Box::new(move |_| QslReport::Result(result.clone()))
 }
 

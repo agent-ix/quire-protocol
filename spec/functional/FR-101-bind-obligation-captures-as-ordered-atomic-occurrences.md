@@ -18,7 +18,7 @@ relationships:
 ---
 # FR-101: Bind obligation captures as ordered atomic occurrences
 
-Closes V1-PROT-019 (immutable captures) for the assessment of an observed run. Extends FR-019, whose AC-2 refuses a substituted capture identity but does not state ordering, duplicates or atomicity. This requirement binds the captures of an obligation activation, supplied through the FR-300 binding and FR-045. It does not cover QSL's `Unsupported::Capture`, which is a capture of the protocol clause itself; FR-057 carries that cause unchanged as an `unsupported` disposition, in exploration and in assessment of an observed history alike. An obligation-activation capture is never reported under that cause.
+Closes V1-PROT-019 (immutable captures) for the assessment of an observed run. Extends FR-019, whose AC-2 refuses a substituted capture identity but does not state ordering, duplicates or atomicity. This requirement binds the captures of an obligation activation, supplied through the FR-479 binding and FR-045. It does not cover QSL's `Unsupported::Capture`, which is a capture of the protocol clause itself; FR-057 carries that cause unchanged as an `unsupported` disposition, in exploration and in assessment of an observed history alike. An obligation-activation capture is never reported under that cause.
 
 ## Description
 
@@ -26,7 +26,7 @@ When the evaluator records the captures of an activated obligation, the evaluato
 
 ## Inputs
 
-The activation of FR-019 with its owner-issued FR-300 binding, and for each authored capture the value or the unavailable/undefined outcome that QSL's checked-package evaluation (FR-045) returns at the inclusive activation boundary. The evaluator evaluates no capture expression itself. Each supply names the authored capture it answers, so a missing supply is attributed to its own capture.
+The activation of FR-019 with its owner-issued FR-479 binding, and for each authored capture the value or the unavailable/undefined outcome that QSL's checked-package evaluation (FR-045) returns at the inclusive activation boundary. The evaluator evaluates no capture expression itself. Each supply names the authored capture it answers, so a missing supply is attributed to its own capture.
 
 ## Outputs
 
