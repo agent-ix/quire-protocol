@@ -18,7 +18,7 @@ missing-fact, duplicate, and finite-bound states.
 
 Exercise an established trigger, an absent trigger under complete closure, and an
 unavailable trigger under open/incomplete input. Independently substitute its
-workflow, role, effect, predicate, capture, and evaluation-anchor identities.
+workflow, role, effect, predicate, capture, choice-visibility evidence (owner and visible set), and evaluation-anchor identities.
 Replay one successful effect twice; separately submit a send, receive, duplicate
 delivery, failed attempt, early compensation, late registration, forbidden
 post-commit compensation, bounded and one-over retries, timed-out attempt, and

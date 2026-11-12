@@ -29,7 +29,7 @@ relationships:
 When a linked protocol carries an admitted trigger observation for an obligation, the evaluator SHALL report that obligation's activation as exactly one member of the `ix://agent-ix/quire-specification/FR-244` vocabulary.
 When the trigger scope is authoritatively closed and complete with no admitted trigger, the evaluator SHALL report `inactive` rather than absence, a default or a truth value.
 When the trigger scope is open, or trigger evidence is missing or refused, the evaluator SHALL report `activation-unknown` rather than `inactive`.
-When any of the obligation's workflow, role, effect, predicate, capture or evaluation-anchor identities is substituted, the evaluator SHALL refuse the activation binding.
+When any of the obligation's workflow, role, effect, predicate, capture, choice-visibility evidence or evaluation-anchor identities is substituted, the evaluator SHALL refuse the activation binding.
 When activation is `inactive` or `activation-unknown`, the evaluator SHALL NOT report the obligation as satisfied or demonstrated.
 When activation is derived, the evaluator SHALL execute no business action.
 
@@ -41,7 +41,7 @@ Protocol validates those owner facts against its linked definition and control,
 then retains its constructor-private complete event-triggered `FR-479` activation
 binding. The binding carries the exact qualified definition, declaration-local
 control, clause subject, admitted semantic trigger, checked activation state,
-immutable captures and evaluation anchor. Closure and completeness remain
+immutable captures, choice-visibility evidence (`FR-479`) and evaluation anchor. Closure and completeness remain
 owner-issued facts. A caller-built obligation label, control coordinate, trigger
 identity, capture or anchor is not a production input.
 
@@ -82,7 +82,7 @@ one from independently supplied static and runtime fragments.
 | ID | Criteria | Verification |
 | --- | --- | --- |
 | FR-019-AC-1 | An established admitted trigger reports `triggered`, an absent trigger under authoritatively closed and complete input reports `inactive`, and an unavailable trigger under open or incomplete input reports `activation-unknown`. | Test (TC-003) |
-| FR-019-AC-2 | Independently substituting the workflow, role, effect, predicate, capture or evaluation-anchor identity refuses the activation binding and names the substituted axis. | Test (TC-003) |
+| FR-019-AC-2 | Independently substituting the workflow, role, effect, predicate, capture, choice-visibility evidence (choice, owner or visible set, read from QSL's checked accessor) or evaluation-anchor identity refuses the activation binding and names the substituted axis. | Test (TC-003) |
 | FR-019-AC-3 | An `inactive` or `activation-unknown` activation is readable as neither satisfied nor demonstrated, and neither is evidence that recovery behavior was exercised. | Test (TC-003) |
 | FR-019-AC-4 | An obligation with no reported activation compares only to absence and receives no default activation value. | Test (TC-003) |
 | FR-019-AC-5 | No business-action invocation occurs on any activation path, including the refusing ones. | Test (TC-003) |

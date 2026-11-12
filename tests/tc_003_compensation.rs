@@ -5,11 +5,14 @@ use std::cell::Cell;
 use std::num::NonZeroU32;
 
 use ix_trace_rs::trace;
+use qsl_package::protocol_view::ChoiceVisibility;
+use quire_contract_model::{CheckedNodeId, CheckedNodePathSegment};
 use quire_protocol::bounds::inventory::{
     production_inventory, Budget, BudgetDimension, OperationOutcome, ResourceAccountant,
 };
 use quire_protocol::compensation::activate::{
-    assess as assess_activation, Activation, Binding, Guard, IdentityAxis, TriggerEvidence,
+    assess as assess_activation, Activation, Binding, ChoiceVisibilityEvidence, Guard,
+    IdentityAxis, TriggerEvidence,
 };
 use quire_protocol::compensation::algebra::{
     assess_ordering, AttemptAdmission, AttemptFact, AttemptLedger, AttemptOutcome, AuthoredOrder,
@@ -69,6 +72,24 @@ fn effect(value: &str) -> EffectId {
     EffectId::new(value.as_bytes(), value)
 }
 
+fn node(name: &str) -> CheckedNodeId {
+    CheckedNodeId {
+        package: "ix://p".into(),
+        path: vec![CheckedNodePathSegment::Name(name.into())],
+        ordinal: 0,
+    }
+}
+
+/// Evidence read through QSL's checked `ChoiceVisibility` accessor shape.
+fn choice_evidence(owner: &CheckedNodeId, visible: &[CheckedNodeId]) -> ChoiceVisibilityEvidence {
+    let choice = node("choice");
+    ChoiceVisibilityEvidence::from_checked(&ChoiceVisibility {
+        choice: &choice,
+        owner,
+        visible: visible.iter().collect(),
+    })
+}
+
 fn binding(views: &ScopeViews) -> Binding {
     Binding {
         workflow: WorkflowInstanceId::new(b"workflow:one", "workflow one"),
@@ -77,6 +98,7 @@ fn binding(views: &ScopeViews) -> Binding {
         predicate: b"predicate:checked".to_vec().into_boxed_slice(),
         capture: b"capture:immutable".to_vec().into_boxed_slice(),
         anchor: b"anchor:exact".to_vec().into_boxed_slice(),
+        choice_visibility: choice_evidence(&node("owner"), &[node("seen")]),
         trigger_observation: views
             .observation
             .payload()
@@ -209,6 +231,7 @@ fn tc_003_activation_refuses_each_identity_substitution() {
         IdentityAxis::Predicate,
         IdentityAxis::Capture,
         IdentityAxis::Anchor,
+        IdentityAxis::ChoiceVisibility,
         IdentityAxis::Trigger,
         IdentityAxis::ClosureScope,
         IdentityAxis::CompletenessPopulation,
@@ -223,6 +246,9 @@ fn tc_003_activation_refuses_each_identity_substitution() {
             IdentityAxis::Predicate => offered.predicate = Box::from(&b"predicate:other"[..]),
             IdentityAxis::Capture => offered.capture = Box::from(&b"capture:other"[..]),
             IdentityAxis::Anchor => offered.anchor = Box::from(&b"anchor:other"[..]),
+            IdentityAxis::ChoiceVisibility => {
+                offered.choice_visibility = choice_evidence(&node("other"), &[node("seen")])
+            }
             IdentityAxis::Trigger => {
                 offered.trigger_observation = Box::from(&b"observation:other"[..])
             }
@@ -244,7 +270,26 @@ fn tc_003_activation_refuses_each_identity_substitution() {
         assert_eq!(refusal.axes(), &[axis]);
         mutations.push(axis);
     }
-    assert_eq!(mutations.len(), 9);
+    assert_eq!(mutations.len(), 10);
+    for (owner, visible) in [
+        ("owner", vec![node("seen"), node("extra")]),
+        ("owner", Vec::new()),
+        ("owner", vec![node("other")]),
+    ] {
+        let mut offered = selected.clone();
+        offered.choice_visibility = choice_evidence(&node(owner), &visible);
+        let refusal = assess_activation(
+            pure(&surface),
+            &selected,
+            &offered,
+            Guard::True,
+            TriggerEvidence::Available(&views.observation),
+            &views.closure_closed,
+            &views.completeness_complete,
+        )
+        .expect_err("substituted visible set must refuse");
+        assert_eq!(refusal.axes(), &[IdentityAxis::ChoiceVisibility]);
+    }
     let other = scope_views("activation-cross-wire");
     let closure_refusal = assess_activation(
         pure(&surface),

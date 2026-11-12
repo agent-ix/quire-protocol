@@ -1,11 +1,38 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Exact trigger/capture/anchor activation over QObs owner facts.
 
+use qsl_package::protocol_view::ChoiceVisibility;
+use quire_contract_model::CheckedNodeId;
 use quire_observation::authority::{completeness, observation, OpenClosed};
 
 use crate::ids::{EffectId, RoleInstanceId, WorkflowInstanceId};
 
 use super::purity::PureAssessment;
+
+/// Owned choice-visibility evidence read from QSL's checked accessor
+/// (QSpec FR-172-AC-6): the `choice` control, the node that owns the decision
+/// and the exact visible set in carried order.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ChoiceVisibilityEvidence {
+    /// The `choice` control the evidence belongs to.
+    pub choice: CheckedNodeId,
+    /// The `protocol` or `role` node that owns the decision.
+    pub owner: CheckedNodeId,
+    /// The `expression` nodes the owner sees, in carried order.
+    pub visible: Box<[CheckedNodeId]>,
+}
+
+impl ChoiceVisibilityEvidence {
+    /// Retain the identities of one checked accessor result unchanged.
+    #[must_use]
+    pub fn from_checked(checked: &ChoiceVisibility<'_>) -> Self {
+        Self {
+            choice: checked.choice.clone(),
+            owner: checked.owner.clone(),
+            visible: checked.visible.iter().map(|node| (*node).clone()).collect(),
+        }
+    }
+}
 
 /// Immutable activation-binding dependencies.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -22,6 +49,8 @@ pub struct Binding {
     pub capture: Box<[u8]>,
     /// Exact evaluation-anchor identity bytes.
     pub anchor: Box<[u8]>,
+    /// Exact choice-visibility evidence (FR-479 activation binding).
+    pub choice_visibility: ChoiceVisibilityEvidence,
     /// Exact expected QObs observation identity bytes.
     pub trigger_observation: Box<[u8]>,
     /// Exact trigger scope selected for closure authority.
@@ -45,6 +74,8 @@ pub enum IdentityAxis {
     Capture,
     /// The evaluation-anchor identity.
     Anchor,
+    /// The choice-visibility evidence identity (choice, owner, visible set).
+    ChoiceVisibility,
     /// The expected trigger observation identity.
     Trigger,
     /// The trigger scope selected for closure authority.
@@ -200,6 +231,9 @@ fn mismatches(
         &selected.anchor,
         &offered.anchor,
     );
+    if selected.choice_visibility != offered.choice_visibility {
+        axes.push(IdentityAxis::ChoiceVisibility);
+    }
     let offered_trigger = match trigger {
         TriggerEvidence::Available(view) => Some(view.payload().observation_identity().as_bytes()),
         TriggerEvidence::Absent | TriggerEvidence::Refused => None,
