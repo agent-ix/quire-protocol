@@ -29,3 +29,10 @@ Units examined:
 - `FR-019` (context_only)
 - `src/compensation/activate.rs` (examined)
 - `tests/tc_003_compensation.rs` (examined)
+
+## Dispositions
+
+| FND | outcome | reason |
+| --- | --- | --- |
+| FND-001 | fixed | fc4a824: "evidence_of(&node(\"other\"), real.owner(), real.visible()), evidence_of(real.choice(), &node(\"other\"), real.visible()), evidence_of(real.choice(), real.owner(), &extra), ..." -- choice, owner and visible set are each substituted alone and must refuse with exactly [ChoiceVisibility] |
+| FND-002 | fixed | fc4a824: "let choice = admitted.package().graph().nodes.iter().find(\|node\| control_operation(node) == Ok(ControlOperation::Choice)).expect(\"recipe R includes a choice control\"); ChoiceVisibilityEvidence::read(choice).expect(\"accessor reads the choice\")" -- the selected binding's evidence is read through qsl_package::protocol_view::choice_visibility on recipe R's admitted checked package |

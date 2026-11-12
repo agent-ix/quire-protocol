@@ -30,3 +30,10 @@ Units examined:
 - `tests/tc_154_settle_deadline_captures.rs` (examined)
 - `Cargo.lock` (examined)
 - `qsl-package protocol_view::choice_visibility at 465bf2e` (context_only)
+
+## Dispositions
+
+| FND | outcome | reason |
+| --- | --- | --- |
+| FND-001 | fixed | fc4a824: "pub struct ChoiceVisibilityEvidence { choice: CheckedNodeId, owner: CheckedNodeId, visible: Box<[CheckedNodeId]>, } ... pub fn read(node: &CheckedSemanticNodeV2) -> Result<Self, ViewRefusal> { choice_visibility(node).map(\|checked\| Self::from_checked(&checked)) }" -- fields private with getters; the only constructors take QSL's accessor or its result type |
+| FND-002 | still-open | fc4a824 does not touch Cargo.lock: quire-contract-model is still moved a156efd -> 270410b, and nothing in the fix round (CheckedSemanticNodeV2, CheckedPackageReadLimits, admit) needs 270410b. Low and harmless. Either restore a156efd for that one entry, or the lead records accepted-no-change. |

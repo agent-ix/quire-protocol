@@ -29,3 +29,10 @@ Units examined:
 - `FR-019-AC-2` (examined)
 - `TC-003` (examined)
 - `spec/tests.md FR-019 row` (examined)
+
+## Dispositions
+
+| FND | outcome | reason |
+| --- | --- | --- |
+| FND-001 | fixed | fc4a824 TC-003: "workflow, role, effect, predicate, capture, choice-visibility evidence (choice, owner or visible set), and evaluation-anchor identities." |
+| FND-002 | fixed | fc4a824 FR-019: "immutable captures, choice-visibility evidence (`FR-479`) and evaluation anchor. Closure and completeness remain owner-issued facts. A caller-built obligation label, control coordinate, trigger identity, capture, choice-visibility evidence or anchor is not a production input." (paragraph re-wrapped) |
