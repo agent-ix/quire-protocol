@@ -180,6 +180,7 @@ pub struct Declarations {
     loops: Vec<LoopDeclaration>,
     awaits: Vec<AwaitDeclaration>,
     schema: ProtocolOccurrenceSchema,
+    clause: CheckedNodeId,
 }
 
 impl Declarations {
@@ -226,6 +227,22 @@ impl Declarations {
         self.awaits
             .iter()
             .find(|declaration| &declaration.control == id)
+    }
+
+    /// Whether `id` is the protocol clause or a node it declares: a role,
+    /// channel, queue, join, loop or `await` control. A reference to any
+    /// other node is not a reference into this checked package's protocol.
+    #[must_use]
+    pub fn declares(&self, id: &CheckedNodeId) -> bool {
+        &self.clause == id
+            || self.role(id).is_some()
+            || self
+                .channels
+                .iter()
+                .any(|channel| &channel.node == id || &channel.queue == id)
+            || self.join(id).is_some()
+            || self.loop_at(id).is_some()
+            || self.await_at(id).is_some()
     }
 
     /// The role declaration at `id`.
@@ -281,6 +298,7 @@ impl Declarations {
             loops: Vec::new(),
             awaits: Vec::new(),
             schema,
+            clause: clause.clone(),
         };
         let schema = declarations.schema.clone();
         for id in view.roles().iter().copied() {

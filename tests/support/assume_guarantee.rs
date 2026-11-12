@@ -10,7 +10,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use qsl_foundation::BackendId;
-use qsl_replay::ItemLabel;
+use qsl_replay::{InconclusiveCause, ItemLabel, SeparatingWitnessRecord, SettlementBasis, Truth};
 use qsl_route::{BackendDescriptor, Candidate, Mode, ProviderOrigin};
 use qsl_semantics::check::Capability;
 use quire_contract_model::CheckedNodeId;
@@ -19,7 +19,9 @@ use quire_protocol::assume_guarantee::{
     PremiseLists,
 };
 use quire_protocol::closure::AssessmentExecution;
-use quire_protocol::dispatch::ProviderBoundary;
+use quire_protocol::dispatch::{
+    BackendResult, Claim, ClaimDisposition, ClaimRequest, Fragment, ProviderBoundary,
+};
 use quire_protocol::disposition::{QslBoundary, QslReport};
 
 use super::dynamic::Dynamic;
@@ -27,7 +29,12 @@ use super::dynamic::Dynamic;
 pub type Entry = &'static str;
 pub type Bind = AssumeGuaranteeBinding<Entry>;
 pub type Req = AssumeGuaranteeRequest<Entry>;
-pub type Boundary = ProviderBoundary<'static, Bind, Out>;
+/// The unified claim a provider is asked about; these tests ask no
+/// projection or realizability, whose components are therefore `()`.
+pub type Asked = Claim<(), (), (), Entry>;
+pub type Boundary = ProviderBoundary<'static, Asked, Out>;
+pub type Claims = ClaimRequest<&'static str, (), (), (), Entry>;
+pub type Settled = ClaimDisposition<&'static str, (), (), (), Entry, Out>;
 
 /// The result a stand-in returns: opaque artifacts the dispatcher must carry
 /// and the parts it reads.
@@ -35,7 +42,6 @@ pub type Boundary = ProviderBoundary<'static, Bind, Out>;
 pub struct Out {
     pub label: ItemLabel,
     pub execution: Option<AssessmentExecution>,
-    pub decisive: bool,
     pub subjects: Vec<CheckedNodeId>,
     pub premises: Option<PremiseLists<Entry>>,
     pub assumptions: Option<Vec<CheckedNodeId>>,
@@ -50,7 +56,6 @@ impl Out {
         Self {
             label,
             execution: None,
-            decisive: false,
             subjects: Vec::new(),
             premises: None,
             assumptions: Some(Vec::new()),
@@ -68,9 +73,6 @@ impl AssumeGuaranteeResult<Entry> for Out {
     }
     fn stated_execution(&self) -> Option<AssessmentExecution> {
         self.execution
-    }
-    fn is_decisive(&self) -> bool {
-        self.decisive
     }
     fn subjects(&self) -> &[CheckedNodeId] {
         &self.subjects
@@ -102,10 +104,30 @@ pub struct Standin {
     calls: Calls,
 }
 
-impl QslBoundary<Bind, Out> for Standin {
-    fn report(&mut self, claim: &Bind) -> QslReport<Out> {
-        self.calls.0.borrow_mut().push(claim.clone());
-        (self.answer)(claim)
+impl QslBoundary<Asked, Out> for Standin {
+    fn report(&mut self, claim: &Asked) -> QslReport<Out> {
+        let Claim::AssumeGuarantee(bound) = claim else {
+            return QslReport::Failed(None);
+        };
+        self.calls.0.borrow_mut().push(bound.clone());
+        (self.answer)(bound)
+    }
+}
+
+/// The projection and realizability parts of a result are not asked of these
+/// stand-ins.
+impl BackendResult for Out {
+    fn truth(&self) -> Truth {
+        Truth::Unavailable
+    }
+    fn basis(&self) -> SettlementBasis {
+        SettlementBasis::Unavailable
+    }
+    fn witness(&self) -> Option<&SeparatingWitnessRecord> {
+        None
+    }
+    fn inconclusive(&self) -> Option<&InconclusiveCause> {
+        None
     }
 }
 
@@ -141,6 +163,10 @@ pub fn always(result: Out) -> Answer {
 pub fn request(dynamic: &Dynamic, kind: AssumeGuaranteeKind) -> Req {
     Req {
         kind,
+        fragment: Fragment {
+            channels: vec![dynamic.named("channel", "Head")],
+            roles: vec![dynamic.named("role", "S")],
+        },
         subjects: vec![dynamic.named("role", "S"), dynamic.named("role", "R")],
         backend: None,
         assumptions: vec![
@@ -165,4 +191,17 @@ pub fn honest(request: &Req, mut out: Out) -> Out {
     out.premises = Some(request.premises.clone());
     out.assumptions = Some(request.assumptions.clone());
     out
+}
+
+/// A node of the checked package that its protocol does not declare.
+pub fn foreign(dynamic: &Dynamic) -> CheckedNodeId {
+    let declarations = dynamic.linked().declarations();
+    dynamic
+        .package()
+        .graph()
+        .nodes
+        .iter()
+        .map(|node| node.node_id.clone())
+        .find(|node| !declarations.declares(node))
+        .expect("a node the protocol does not declare")
 }

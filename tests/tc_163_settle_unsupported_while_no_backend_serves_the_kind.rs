@@ -39,12 +39,13 @@ fn protocol(
         support::standin::Assumptions,
         support::standin::Rest,
         &'static str,
+        (),
         Sentinel,
     >,
 ) -> ProtocolOutcome<Sentinel, support::standin::Bind> {
     match disposition {
         ClaimDisposition::Protocol(outcome) => outcome,
-        other @ ClaimDisposition::GlobalConformance(_) => panic!("{other:?}"),
+        other => panic!("{other:?}"),
     }
 }
 

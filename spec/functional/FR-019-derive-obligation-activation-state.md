@@ -111,7 +111,7 @@ independent. A false admitted guard creates no obligation instance and no
 activation value. The implementation imports that ruling and invents no
 pre-report lifecycle state.
 
-QSpec main `316743b` adds FR-479 and closes the event-triggered bridge: an
+QSpec adds FR-479 and closes the event-triggered bridge: an
 activation binding is the exact source for a dynamic FR-230 instance. This
 library owns the graph-validated binding operation and does not define a
 parallel QObs/QSL join. QSL `2736b62` retains FR-053's strict v2 views with the

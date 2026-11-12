@@ -23,7 +23,10 @@ use qsl_semantics::check::Capability;
 use quire_contract_model::CheckedNodeId;
 
 use crate::closure::AssessmentExecution;
-use crate::dispatch::{select, DispositionRefusal, ProtocolOutcome, ProviderBoundary};
+use crate::declarations::Declarations;
+use crate::dispatch::{
+    select, Claim, DispositionRefusal, Fragment, ProtocolOutcome, ProviderBoundary,
+};
 use crate::disposition::{settle_claim, ClaimSettlement};
 
 /// The two claim kinds this module dispatches.
@@ -112,6 +115,8 @@ impl<T: PartialEq> PremiseLists<T> {
 pub struct AssumeGuaranteeRequest<T> {
     /// The claim kind.
     pub kind: AssumeGuaranteeKind,
+    /// The admitted fragment the claim ranges over.
+    pub fragment: Fragment,
     /// The component subjects: the component protocols of a composition, the
     /// implementation and specification protocols of a refinement.
     pub subjects: Vec<CheckedNodeId>,
@@ -146,9 +151,6 @@ pub trait AssumeGuaranteeResult<T> {
     fn label(&self) -> ItemLabel;
     /// The assessment-execution value the result states, when it states one.
     fn stated_execution(&self) -> Option<AssessmentExecution>;
-    /// Whether the result is decisive: it carries a certificate, a
-    /// counterexample or a discharge on which a verdict rests.
-    fn is_decisive(&self) -> bool;
     /// The component subjects the result names.
     fn subjects(&self) -> &[CheckedNodeId];
     /// The premise lists the result retains, when it retains them.
@@ -234,16 +236,57 @@ pub const fn read_refinement_label(label: ItemLabel) -> LabelReading {
     }
 }
 
-/// Bind `request` to its subjects (FR-201).
+/// Bind `request` to the checked package's declarations (FR-030, FR-200): the
+/// fragment, subjects, assumption identities and source identities must each
+/// be declared by the package, and no guarantee of a declared cycle may be
+/// offered as an assumption (FR-203).
 ///
 /// # Errors
 ///
-/// [`DispositionRefusal::NoSubjects`] when the request names no subject.
+/// [`DispositionRefusal`] naming the absent, undeclared or offending node.
 pub fn bind<T: Clone>(
+    declarations: &Declarations,
     request: &AssumeGuaranteeRequest<T>,
 ) -> Result<AssumeGuaranteeBinding<T>, DispositionRefusal> {
+    if request.fragment.channels.is_empty() && request.fragment.roles.is_empty() {
+        return Err(DispositionRefusal::NoFragment);
+    }
+    for node in &request.fragment.channels {
+        if declarations.channel(node).is_none() {
+            return Err(DispositionRefusal::UndeclaredChannel(node.clone()));
+        }
+    }
+    for node in &request.fragment.roles {
+        if declarations.role(node).is_none() {
+            return Err(DispositionRefusal::UndeclaredRole(node.clone()));
+        }
+    }
     if request.subjects.is_empty() {
         return Err(DispositionRefusal::NoSubjects);
+    }
+    if let Some(node) = request
+        .subjects
+        .iter()
+        .find(|node| !declarations.declares(node))
+    {
+        return Err(DispositionRefusal::UndeclaredSubject(node.clone()));
+    }
+    if let Some(node) = request
+        .assumptions
+        .iter()
+        .find(|node| !declarations.declares(node))
+    {
+        return Err(DispositionRefusal::UndeclaredAssumption(node.clone()));
+    }
+    if let Some(node) = cycle_member(&request.cycles, &request.assumptions) {
+        return Err(DispositionRefusal::CycleGuaranteeAsAssumption(node));
+    }
+    if let Some(node) = request
+        .sources
+        .iter()
+        .find(|node| !declarations.declares(node))
+    {
+        return Err(DispositionRefusal::UndeclaredSource(node.clone()));
     }
     Ok(AssumeGuaranteeBinding {
         request: request.clone(),
@@ -251,17 +294,29 @@ pub fn bind<T: Clone>(
     })
 }
 
+/// The first of `offered` that is a guarantee of one of `cycles`.
+fn cycle_member(cycles: &[Vec<CheckedNodeId>], offered: &[CheckedNodeId]) -> Option<CheckedNodeId> {
+    offered
+        .iter()
+        .find(|node| cycles.iter().any(|cycle| cycle.contains(node)))
+        .cloned()
+}
+
 /// Settle one claim: bind it, take FR-290's candidate set from QSL's registry,
 /// send the claim to the one candidate, and carry what returns.
-pub fn dispatch<T, R>(
-    boundary: &mut ProviderBoundary<'_, AssumeGuaranteeBinding<T>, R>,
+pub fn dispatch<A, C, I, T, R>(
+    boundary: &mut ProviderBoundary<'_, Claim<A, C, I, T>, R>,
+    declarations: &Declarations,
     request: &AssumeGuaranteeRequest<T>,
 ) -> ProtocolOutcome<R, AssumeGuaranteeBinding<T>>
 where
+    A: Clone,
+    C: Clone,
+    I: Clone,
     T: Clone + PartialEq,
     R: AssumeGuaranteeResult<T>,
 {
-    let binding = match bind(request) {
+    let binding = match bind(declarations, request) {
         Ok(binding) => binding,
         Err(refusal) => return ProtocolOutcome::Refused(refusal),
     };
@@ -278,7 +333,7 @@ where
     let Some(provider) = boundary.provider_mut(&selected) else {
         return ProtocolOutcome::Refused(DispositionRefusal::NoProvider(selected));
     };
-    let claim = binding.clone();
+    let claim = Claim::AssumeGuarantee(binding.clone());
     let settlement = settle_claim(provider.as_mut(), &claim, binding);
     if let ClaimSettlement::Result { result, premises } = &settlement {
         if let Some(refusal) = carry_refusal(&premises.request, result) {
@@ -288,72 +343,109 @@ where
     ProtocolOutcome::Settled(settlement)
 }
 
-/// FR-201, FR-204, FR-030: a result is carried only when it was established
-/// for the request it is attributed to. Identities are compared by inclusion
-/// and the lists by equality; nothing is entailed, ordered or discharged.
+impl<T, R: AssumeGuaranteeResult<T>> ProtocolOutcome<R, AssumeGuaranteeBinding<T>> {
+    /// The reading of a carried result's label (FR-202). A composition label
+    /// reads through the owner tables and a refinement label into nothing;
+    /// the dispatcher has already refused a result whose stated execution
+    /// contradicts its label, so the reading is the disposition's own.
+    #[must_use]
+    pub fn label_reading(&self) -> Option<LabelReading> {
+        let Self::Settled(ClaimSettlement::Result { result, premises }) = self else {
+            return None;
+        };
+        Some(match premises.request.kind {
+            AssumeGuaranteeKind::Composition => {
+                read_composition_label(result.label(), result.stated_execution())
+            }
+            AssumeGuaranteeKind::Refinement => read_refinement_label(result.label()),
+        })
+    }
+}
+
+/// The labels on which a verdict rests: a decisive label needs a source
+/// identity to be attributed to (FR-030).
+const fn is_decisive(label: ItemLabel) -> bool {
+    matches!(label, ItemLabel::Proved | ItemLabel::Refuted)
+}
+
+/// The identities of `held` that `allowed` does not contain.
+fn extra(held: &[CheckedNodeId], allowed: &[CheckedNodeId]) -> Vec<CheckedNodeId> {
+    held.iter()
+        .filter(|identity| !allowed.contains(identity))
+        .cloned()
+        .collect()
+}
+
+/// FR-201, FR-202, FR-203, FR-204, FR-030: a result is carried only when it
+/// was established for the request it is attributed to. Identities are
+/// compared by inclusion and the lists by equality; nothing is entailed,
+/// ordered or discharged.
 fn carry_refusal<T: PartialEq, R: AssumeGuaranteeResult<T>>(
     request: &AssumeGuaranteeRequest<T>,
     result: &R,
 ) -> Option<DispositionRefusal> {
-    if result.is_decisive() && request.sources.is_empty() {
+    if is_decisive(result.label()) && request.sources.is_empty() {
         return Some(DispositionRefusal::NoSourceIdentity);
     }
-    if let Some(subject) = result
-        .subjects()
-        .iter()
-        .find(|subject| !request.subjects.contains(subject))
-    {
+    if request.kind == AssumeGuaranteeKind::Composition {
+        let reading = read_composition_label(result.label(), result.stated_execution());
+        if reading.truth.is_some()
+            && result.stated_execution().is_some()
+            && reading.execution != result.stated_execution()
+        {
+            return Some(DispositionRefusal::ContradictoryExecution(result.label()));
+        }
+    }
+    let foreign = extra(result.subjects(), &request.subjects);
+    if !foreign.is_empty() {
         return Some(DispositionRefusal::IdentityMismatch(
-            IdentityMismatch::Subject(subject.clone()),
+            IdentityMismatch::Subjects(foreign),
         ));
     }
-    if let Some(list) = result
-        .retained_premises()
-        .and_then(|retained| retained.first_difference(&request.premises))
-    {
-        return Some(DispositionRefusal::RetainedPremiseList(list));
+    match result.retained_premises() {
+        Some(retained) => {
+            if let Some(list) = retained.first_difference(&request.premises) {
+                return Some(DispositionRefusal::RetainedPremiseList(list));
+            }
+        }
+        None if request.kind == AssumeGuaranteeKind::Composition => {
+            return Some(DispositionRefusal::IdentityMismatch(
+                IdentityMismatch::AbsentPremiseLists,
+            ));
+        }
+        None => {}
     }
-    if request.kind != AssumeGuaranteeKind::Refinement {
-        return None;
-    }
-    match result.retained_assumptions() {
-        None => Some(DispositionRefusal::IdentityMismatch(
+    let retained = result.retained_assumptions();
+    if let Some(retained) = retained {
+        if let Some(node) = cycle_member(&request.cycles, retained) {
+            return Some(DispositionRefusal::CycleGuaranteeAsAssumption(node));
+        }
+        let stronger = extra(retained, &request.assumptions);
+        if !stronger.is_empty() {
+            return Some(DispositionRefusal::IdentityMismatch(
+                IdentityMismatch::Assumptions(stronger),
+            ));
+        }
+    } else {
+        return Some(DispositionRefusal::IdentityMismatch(
             IdentityMismatch::AbsentAssumptions,
-        )),
-        Some(retained) => retained
-            .iter()
-            .find(|identity| !request.assumptions.contains(identity))
-            .map(|identity| {
-                DispositionRefusal::IdentityMismatch(IdentityMismatch::Assumption(identity.clone()))
-            }),
+        ));
     }
+    None
 }
 
-/// What an `identity-mismatch` refusal names.
+/// What an `identity-mismatch` refusal names (FR-008's cause of that name).
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum IdentityMismatch {
-    /// The result names a component subject the request did not.
-    Subject(CheckedNodeId),
-    /// The result retains an assumption identity the request did not state:
-    /// it was established under stronger assumptions (FR-204).
-    Assumption(CheckedNodeId),
+    /// The result names component subjects the request did not; each is
+    /// listed.
+    Subjects(Vec<CheckedNodeId>),
+    /// The result retains assumption identities the request did not state: it
+    /// was established under stronger assumptions (FR-204); each is listed.
+    Assumptions(Vec<CheckedNodeId>),
     /// The result omits its retained assumption identities, which compare
     /// only to absence (FR-030-AC-4).
     AbsentAssumptions,
-}
-
-/// Settle every requested claim, in request order and independently of one
-/// another (FR-029).
-pub fn dispatch_claims<T, R>(
-    boundary: &mut ProviderBoundary<'_, AssumeGuaranteeBinding<T>, R>,
-    requests: &[AssumeGuaranteeRequest<T>],
-) -> Vec<ProtocolOutcome<R, AssumeGuaranteeBinding<T>>>
-where
-    T: Clone + PartialEq,
-    R: AssumeGuaranteeResult<T>,
-{
-    requests
-        .iter()
-        .map(|request| dispatch(boundary, request))
-        .collect()
+    /// The result omits its retained premise lists.
+    AbsentPremiseLists,
 }

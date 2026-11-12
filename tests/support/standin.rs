@@ -15,13 +15,16 @@ use qsl_foundation::witness::{
 };
 use qsl_foundation::BackendId;
 use qsl_replay::{
-    InconclusiveCause, SeparatingWitnessRecord, SettlementBasis, TracePosition, Truth,
+    InconclusiveCause, ItemLabel, SeparatingWitnessRecord, SettlementBasis, TracePosition, Truth,
 };
 use qsl_route::{BackendDescriptor, Candidate, Mode, ProviderOrigin};
 use qsl_semantics::check::Capability;
+use quire_contract_model::CheckedNodeId;
+use quire_protocol::assume_guarantee::{AssumeGuaranteeResult, PremiseLists};
+use quire_protocol::closure::AssessmentExecution;
 use quire_protocol::dispatch::{
-    BackendResult, Binding, ChannelPremise, Fragment, Premises, ProtocolClaimKind, ProtocolRequest,
-    ProviderBoundary,
+    BackendResult, Binding, ChannelPremise, Claim, Fragment, Premises, ProtocolClaimKind,
+    ProtocolRequest, ProviderBoundary,
 };
 use quire_protocol::disposition::{QslBoundary, QslReport};
 
@@ -38,7 +41,10 @@ pub struct Rest {
 pub type Assumptions = &'static str;
 pub type Req = ProtocolRequest<Assumptions, Rest, &'static str>;
 pub type Bind = Binding<Assumptions, Rest, &'static str>;
-pub type Boundary = ProviderBoundary<'static, Bind, Sentinel>;
+/// The unified claim a provider is asked about; these tests ask no
+/// composition or refinement, whose entries are therefore `()`.
+pub type Asked = Claim<Assumptions, Rest, &'static str, ()>;
+pub type Boundary = ProviderBoundary<'static, Asked, Sentinel>;
 
 /// The result a stand-in returns, with the parts the dispatcher reads.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -105,10 +111,31 @@ impl Standin {
     }
 }
 
-impl QslBoundary<Bind, Sentinel> for Standin {
-    fn report(&mut self, claim: &Bind) -> QslReport<Sentinel> {
-        self.calls.0.borrow_mut().push(claim.clone());
-        (self.answer)(claim)
+impl QslBoundary<Asked, Sentinel> for Standin {
+    fn report(&mut self, claim: &Asked) -> QslReport<Sentinel> {
+        let Claim::Protocol(bound) = claim else {
+            return QslReport::Failed(None);
+        };
+        self.calls.0.borrow_mut().push(bound.clone());
+        (self.answer)(bound)
+    }
+}
+
+impl AssumeGuaranteeResult<()> for Sentinel {
+    fn label(&self) -> ItemLabel {
+        ItemLabel::Declined
+    }
+    fn stated_execution(&self) -> Option<AssessmentExecution> {
+        None
+    }
+    fn subjects(&self) -> &[CheckedNodeId] {
+        &[]
+    }
+    fn retained_premises(&self) -> Option<&PremiseLists<()>> {
+        None
+    }
+    fn retained_assumptions(&self) -> Option<&[CheckedNodeId]> {
+        None
     }
 }
 

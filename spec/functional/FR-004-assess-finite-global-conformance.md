@@ -31,7 +31,7 @@ relationships:
     type: references
   - target: ix://agent-ix/quire-specification/FR-260
     type: references
-  - target: ix://agent-ix/quire-specification/FR-300
+  - target: ix://agent-ix/quire-specification/FR-479
     type: depends_on
 ---
 # FR-004: Assess finite global conformance
@@ -45,7 +45,7 @@ When any one of FR-026, FR-027, FR-028 and FR-041 is unsatisfied, the evaluator 
 
 A constructor-private version-2 linked protocol, the compensation snapshot
 derived from it, QSL strict version-two temporal request/result facts, bound
-QObs observation/authority views, the constructor-private FR-300 activation
+QObs observation/authority views, the constructor-private FR-479 activation
 bindings Protocol validates from those owner facts and its linked controls, the
 exact assessment request, independent decision-scope and
 surrounding-execution progress/closure facts, the Protocol-owned complete-global-
@@ -93,7 +93,7 @@ prerequisites and exact keys; timestamp, arrival, map and result-identity order
 authorize no work.
 
 The kernel SHALL derive each event-triggered FR-230 obligation only from a
-validated FR-300 binding whose qualified definition and declaration-local
+validated FR-479 binding whose qualified definition and declaration-local
 control belong to its linked graph. The Protocol activation boundary SHALL
 construct that binding only from the linked control plus QSL's strict v2
 request/result facts and QObs's authority-qualified subject. It SHALL retain
@@ -125,7 +125,7 @@ shared mapping the decomposition was derived from, not as a second definition.
 | Assessment-execution disposition | `FR-241-assessment-execution-disposition` | value |
 | Complete-global-conformance closure state | `FR-247-complete-global-conformance-closure-state` | value |
 | Admitted observation | `FR-260-admitted-observation` | derived under FR-296 |
-| Protocol-obligation activation binding | `FR-300-obligation-activation-binding` | value; sole event-triggered bridge |
+| Protocol-obligation activation binding | `FR-479-obligation-activation-binding` | value; sole event-triggered bridge |
 
 `FR-241`'s five members — `completed`, `refused`, `unsupported`,
 `resource-incomplete`, `failed` — are exactly the non-success causes this
@@ -143,7 +143,7 @@ those exact values; none retains the superseded gaps. FR-027 distinguishes a
 replayed delivery, a distinct delivery and a duplicate business effect through
 their accepted typed identities rather than through arrival position.
 
-QSpec main `316743b` adds FR-300, which fixes the previously missing mapping
+QSpec adds FR-479, which fixes the previously missing mapping
 from selected linked control and admitted trigger to a dynamic FR-230 instance.
 Protocol consumes that complete binding rather than deriving a runtime identity
 from a QSL table coordinate or an observation field.

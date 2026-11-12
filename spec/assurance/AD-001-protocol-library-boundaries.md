@@ -91,7 +91,7 @@ contract resolution
                                              |
 QObs runtime subjects/relationships --------+----> compensation
 QObs authority facts -----------------------+          |
-QSL native-temporal facts ------------------+----> FR-300 activation binding
+QSL native-temporal facts ------------------+----> FR-479 activation binding
                                                         |
                                                         v
                                                conformance kernel
@@ -261,7 +261,7 @@ source evaluator refusal or resource-incomplete outcome is retained without
 conversion. Test-only relation doubles remain crate-private and cannot enter a
 production Engine.
 
-Protocol's activation boundary derives each complete QSpec FR-300 binding from
+Protocol's activation boundary derives each complete QSpec FR-479 binding from
 one linked control, QObs's authority-qualified subject, and QSL's strict v2
 request/result facts. It validates the binding against the exact linked
 definition/control before its clause subject and semantic trigger derive an
