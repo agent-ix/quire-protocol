@@ -7,7 +7,7 @@
 //! (QSL FR-530, `quire-specification` FR-176, FR-177, FR-489). This module
 //! binds the claim to its component subjects and its four premise lists, asks
 //! the one backend FR-290 names through the same registry and provider
-//! boundary as FR-150 ([`ProviderBoundary`]), and carries what comes back
+//! boundary as FR-150 ([`ProviderBoundary`](crate::dispatch::ProviderBoundary)), and carries what comes back
 //! unchanged. It builds no composition graph, discharges no premise and
 //! evaluates no refinement relation.
 //!
@@ -330,7 +330,7 @@ fn cycle_member(cycles: &[Vec<CheckedNodeId>], offered: &[CheckedNodeId]) -> Opt
 }
 
 /// Settle one claim: bind it to its component packages, then take the steps
-/// every claim kind shares ([`settle_bound`]).
+/// every claim kind shares (`settle_bound`).
 pub fn dispatch<K, P, Q, T>(
     boundary: &mut ProviderBoundary<'_, K, Answer<P, Q>>,
     components: &[&Declarations],

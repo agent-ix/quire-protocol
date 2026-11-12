@@ -324,7 +324,7 @@ type Provider<'p, K, R> = Box<dyn QslBoundary<K, R> + 'p>;
 /// The provider boundary: QSL's registry, and the call into each backend
 /// registered in it. A caller supplies no callback per request. `K` is the
 /// claim a provider is asked about: a [`Binding`] for the protocol claims, an
-/// [`AssumeGuaranteeBinding`](crate::assume_guarantee::AssumeGuaranteeBinding)
+/// [`AssumeGuaranteeBinding`]
 /// for composition and refinement.
 pub struct ProviderBoundary<'p, K, R> {
     registry: Registry,
