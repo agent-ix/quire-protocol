@@ -8,7 +8,7 @@
 //! admitted `after` observation of that wait: the window does not exist until
 //! that observation is admitted. That observation is the one the record links
 //! to the wait's anchor node (QSL's checked await accessor) and workflow
-//! instance (QSpec FR-260-AC-5..9); a caller attributes nothing. The timeout branch is selected only
+//! instance (QSpec FR-260-AC-5, FR-260-AC-6, FR-260-AC-9); a caller attributes nothing. The timeout branch is selected only
 //! when the awaited scope's progress is `closed` through the deadline and the
 //! input completeness is `complete`, two separate owner facts that never stand
 //! in for each other (FR-028).
@@ -34,7 +34,7 @@ use crate::compensation::purity::PureAssessment;
 use crate::declarations::{AwaitDeclaration, Declarations};
 use crate::dynamics::{bind_occurrence, HistoryRefusal, ObservationRef};
 use crate::ids::WorkflowInstanceId;
-use crate::observation_link::{Basis, RoleMapping, Unlinked};
+use crate::observation_link::{Basis, Link, Unlinked};
 use crate::slot::SlotOutcome;
 
 /// Why a wait cannot be settled. Nothing is guessed or repaired.
@@ -63,6 +63,9 @@ pub enum WaitRefusal {
     /// workflow instance of the wait, so it is unavailable as the wait's
     /// `after` observation (QSpec FR-260-AC-5, FR-260-AC-6).
     ObservationUnlinked(Unlinked),
+    /// The subject key offered for the wait does not carry the waiting
+    /// workflow instance's identity.
+    SubjectNotInstance,
     /// A second observation was offered as the `after` event of one waiting
     /// instance.
     AmbiguousAnchor {
@@ -656,7 +659,7 @@ impl WaitAssessment {
 #[derive(Clone, Debug)]
 struct Anchoring {
     declaration: AwaitDeclaration,
-    mapping: RoleMapping,
+    link: Link,
     clock_identity: Box<str>,
     family: ClockFamily,
 }
@@ -689,7 +692,7 @@ impl Wait {
     /// pure-assessment witness: no business operation is reachable from any
     /// settlement path. The window opens when the `after` observation is
     /// admitted, on the QObs clock `clock_identity` in `family`; an
-    /// observation is that of `declaration`'s anchor when `mapping` resolves
+    /// observation is that of `declaration`'s anchor when the link's role mapping resolves
     /// its binding to the anchor node QSL publishes on the checked `await`.
     ///
     /// # Errors
@@ -700,10 +703,13 @@ impl Wait {
         _pure: PureAssessment,
         key: WaitKey,
         declaration: &AwaitDeclaration,
-        mapping: &RoleMapping,
+        link: &Link,
         clock_identity: &str,
         family: ClockFamily,
     ) -> Result<Self, WaitRefusal> {
+        if link.subject().identity().as_bytes() != key.workflow.identity_bytes() {
+            return Err(WaitRefusal::SubjectNotInstance);
+        }
         if declaration.control != key.branch {
             return Err(WaitRefusal::UndeclaredAwait {
                 control: key.branch,
@@ -713,7 +719,7 @@ impl Wait {
             key,
             anchoring: Anchoring {
                 declaration: declaration.clone(),
-                mapping: mapping.clone(),
+                link: link.clone(),
                 clock_identity: clock_identity.into(),
                 family,
             },
@@ -761,11 +767,7 @@ impl Wait {
         let contradiction = match fact.event {
             WaitEvent::After { anchor, basis } => {
                 basis
-                    .verify(
-                        &self.anchoring.mapping,
-                        &self.anchoring.declaration.anchor.target,
-                        self.key.workflow(),
-                    )
+                    .verify(&self.anchoring.link, &self.anchoring.declaration.anchor)
                     .map_err(WaitRefusal::ObservationUnlinked)?;
                 if let Some(first) = &self.anchored_by {
                     return Err(WaitRefusal::AmbiguousAnchor {
@@ -916,14 +918,14 @@ pub fn assess(
     pure: PureAssessment,
     key: WaitKey,
     declaration: &AwaitDeclaration,
-    mapping: &RoleMapping,
+    link: &Link,
     clock_identity: &str,
     family: ClockFamily,
     facts: &[WaitFact],
 ) -> Result<WaitAssessment, WaitRefusal> {
     let mut ordered = facts.to_vec();
     ordered.sort_by(|left, right| left.at.cmp(&right.at));
-    let mut wait = Wait::new(pure, key, declaration, mapping, clock_identity, family)?;
+    let mut wait = Wait::new(pure, key, declaration, link, clock_identity, family)?;
     for fact in ordered {
         wait.admit(fact)?;
     }

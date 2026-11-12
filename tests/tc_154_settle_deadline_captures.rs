@@ -25,7 +25,7 @@ use qsl_semantics::check::wire_id::WireGraph;
 use quire_contract_model::{CheckedNodeId, CheckedNodePathSegment, CheckedPackageReadLimits};
 use quire_exact::{FieldValue, Integer, Meter, NodeKey, Value, ValueType};
 use quire_observation::authority::{observation, TemporalBoundary};
-use quire_observation::{Anchor, ClockRange};
+use quire_observation::{Anchor, ClockRange, QualifiedSubject, SubjectIdentity, SubjectKind};
 use quire_protocol::captures::{bind_captures, CaptureFailure, CaptureSupply};
 use quire_protocol::checked_package::{admit, AdmittedHandoff, HandoffFiles};
 use quire_protocol::closure::{AssessmentExecution, TruthDisposition};
@@ -35,17 +35,19 @@ use quire_protocol::deadline::{
     assess, AfterAnchor, Branch, ClockFamily, Constraint, Contradiction, Deadline, Verdict, Wait,
     WaitAssessment, WaitFact, WaitKey, WaitRefusal,
 };
-use quire_protocol::declarations::{AwaitAnchorKind, AwaitDeclaration};
+use quire_protocol::declarations::AwaitDeclaration;
 use quire_protocol::dynamics::ObservationRef;
 use quire_protocol::ids::{EffectId, RoleInstanceId, WorkflowInstanceId};
-use quire_protocol::observation_link::{RoleMapping, Unlinked};
+use quire_protocol::observation_link::{Link, RoleMapping, Unlinked};
 use quire_protocol::slot::{evaluate, SlotOutcome};
 use quire_spec_language::checked_handoff::Corpus;
 
 use awaiting::Awaiting;
 use handoff::{join_budget, written};
 use limits::UNLIMITED;
-use observation_owner::{after_observation, scope_views, ScopeViews};
+use observation_owner::{
+    admitted_producer, after_observation, qualified_subject, scope_views, ScopeViews,
+};
 
 struct Surface(Vec<Capability>);
 
@@ -121,11 +123,18 @@ fn clock_of(tag: &str) -> String {
 
 /// The declared role mapping: the binding of the records tagged `tag` resolves
 /// to the node the checked await names as its anchor.
+/// The FR-287 subject key of the workflow instance the records tagged `tag`
+/// are of.
+fn subject(tag: &str) -> QualifiedSubject {
+    qualified_subject(&admitted_producer(), tag)
+}
+
+fn link(tag: &str) -> Link {
+    Link::new(mapping(tag), subject(tag))
+}
+
 fn mapping(tag: &str) -> RoleMapping {
-    RoleMapping::new().resolving(
-        &format!("binding:{tag}"),
-        [declaration().anchor.target.clone()],
-    )
+    RoleMapping::new().resolving(&format!("binding:{tag}"), [declaration().anchor.clone()])
 }
 
 /// The admitted `after` observation of a timestamped event at `instant`.
@@ -164,8 +173,7 @@ fn deadline() -> Deadline {
 }
 
 fn wait_in(family: ClockFamily, who: &str, declaration: &AwaitDeclaration, clock: &str) -> Wait {
-    Wait::new(pure(), key(who), declaration, &mapping(who), clock, family)
-        .expect("a declared await")
+    Wait::new(pure(), key(who), declaration, &link(who), clock, family).expect("a declared await")
 }
 
 fn wait_on(who: &str, declaration: &AwaitDeclaration, clock: &str) -> Wait {
@@ -226,7 +234,7 @@ fn settle_unanchored(who: &str, facts: &[WaitFact]) -> WaitAssessment {
         pure(),
         key(who),
         declaration(),
-        &mapping(who),
+        &link(who),
         &clock_of(who),
         ClockFamily::Timestamped,
         facts,
@@ -1018,70 +1026,105 @@ fn an_after_observation_against_an_earlier_progress_view_is_refused() {
     );
 }
 
-/// The anchor is the one QSL's checked await accessor publishes, and an
-/// `after` observation is admitted only when the declared role mapping
-/// resolves its binding to that target.
+/// The anchor is the target of the `after` that QSL's checked await accessor
+/// publishes on the `await` node.
 #[trace("TC-154", "FR-100-AC-23")]
 #[test]
-fn the_anchor_is_read_from_the_checked_await_and_linked_by_derivation() {
-    let anchor = &declaration().anchor;
-    assert_eq!(anchor.kind, AwaitAnchorKind::Event);
+fn the_anchor_is_read_from_the_checked_await() {
     assert!(
-        anchor.target.path.iter().any(|segment| matches!(
+        declaration().anchor.path.iter().any(|segment| matches!(
             segment,
             CheckedNodePathSegment::Name(name) if name.contains("Armed")
         )),
         "the await follows the Armed event: {:?}",
-        anchor.target
+        declaration().anchor
     );
-    let mut wait = wait_on(TAG, declaration(), &clock());
-    wait.admit(after_fact(1, 0))
-        .expect("a linked observation anchors");
-    assert!(wait.admit(after_fact(2, 5)).is_err());
 }
 
-/// An observation that does not link to the anchor node and the waiting
-/// instance is refused with its cause and leaves the wait untriggered.
+/// An observation is the `after` observation of a wait only when it links, by
+/// derivation, to the anchor node and the waiting instance. One that does not
+/// is refused with its cause and leaves the wait unaltered: a linked
+/// observation at the same position still anchors it.
 #[trace("TC-154", "FR-100-AC-24")]
 #[test]
 fn an_unlinked_observation_is_unavailable_as_the_after_observation() {
-    let offered = || after_fact(1, 0);
-    let refused = |mapping: &RoleMapping, who: &str| {
+    let other = "other";
+    let elsewhere = || vec![node("SomewhereElse")];
+    let binding = format!("binding:{other}");
+    let at_anchor = || vec![declaration().anchor.clone()];
+    let cases = [
+        (mapping(TAG), Unlinked::BindingUnresolved),
+        (
+            mapping(TAG).resolving(&binding, elsewhere()),
+            Unlinked::NotAnchorNode,
+        ),
+        (
+            mapping(TAG).resolving(&binding, at_anchor()),
+            Unlinked::OtherInstance,
+        ),
+    ];
+    for (mapping, cause) in cases {
         let mut wait = Wait::new(
             pure(),
-            key(who),
+            key(TAG),
             declaration(),
-            mapping,
+            &Link::new(mapping, subject(TAG)),
             &clock(),
             ClockFamily::Timestamped,
         )
         .expect("a declared await");
-        let error = wait.admit(offered()).err();
-        assert!(wait.current().is_none(), "the wait is unaltered");
-        error
-    };
-    let binding = format!("binding:{TAG}");
-    assert_eq!(
-        refused(&RoleMapping::new(), TAG),
-        Some(WaitRefusal::ObservationUnlinked(
-            Unlinked::BindingUnresolved
-        ))
+        assert_eq!(
+            wait.admit(after_fact_on(other, 1, 0)).err(),
+            Some(WaitRefusal::ObservationUnlinked(cause))
+        );
+        wait.admit(after_fact(1, 0))
+            .expect("the refused observation changed nothing");
+    }
+}
+
+/// The FR-287 subject key is the whole of the instance: the same identity
+/// bytes under another kind are another instance, and a subject that does not
+/// carry the waiting instance's identity keys no wait.
+#[trace("TC-154", "FR-100-AC-24")]
+#[test]
+fn the_subject_key_is_compared_whole() {
+    let producer = admitted_producer();
+    let kind = SubjectKind::new(b"ix://example/other-kind".to_vec()).expect("a kind");
+    let same_bytes = QualifiedSubject::new(
+        &producer,
+        kind.clone(),
+        SubjectIdentity::new(format!("order:{TAG}").into_bytes()).expect("an identity"),
     );
+    let mut wait = Wait::new(
+        pure(),
+        key(TAG),
+        declaration(),
+        &Link::new(mapping(TAG), same_bytes),
+        &clock(),
+        ClockFamily::Timestamped,
+    )
+    .expect("the identity bytes are the instance's");
     assert_eq!(
-        refused(
-            &RoleMapping::new().resolving(&binding, [node("SomewhereElse")]),
-            TAG
-        ),
-        Some(WaitRefusal::ObservationUnlinked(Unlinked::NotAnchorNode))
-    );
-    assert_eq!(
-        refused(&mapping(TAG), "another"),
+        wait.admit(after_fact(1, 0)).err(),
         Some(WaitRefusal::ObservationUnlinked(Unlinked::OtherInstance))
     );
-    // One binding may resolve to several nodes, the anchor among them.
-    let several = RoleMapping::new().resolving(&binding, [node("SomewhereElse")]);
-    let several = several.resolving(&binding, [declaration().anchor.target.clone()]);
-    assert_eq!(refused(&several, TAG), None);
+    let foreign = QualifiedSubject::new(
+        &producer,
+        kind,
+        SubjectIdentity::new(b"another".to_vec()).expect("an identity"),
+    );
+    assert_eq!(
+        Wait::new(
+            pure(),
+            key(TAG),
+            declaration(),
+            &Link::new(mapping(TAG), foreign),
+            &clock(),
+            ClockFamily::Timestamped,
+        )
+        .err(),
+        Some(WaitRefusal::SubjectNotInstance)
+    );
 }
 
 /// QSL's occurrence schema keys the wait: an undeclared control, a wrong
@@ -1097,7 +1140,7 @@ fn the_wait_is_keyed_through_qsl_s_occurrence_schema() {
             pure(),
             key(TAG),
             &elsewhere_declaration,
-            &mapping(TAG),
+            &link(TAG),
             &clock(),
             ClockFamily::Timestamped
         ),
