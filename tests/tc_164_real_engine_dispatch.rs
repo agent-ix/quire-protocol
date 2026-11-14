@@ -219,9 +219,7 @@ fn a_request_the_engine_refuses_is_not_a_result_and_settles_no_truth() {
     assert!(
         matches!(
             outcome,
-            ProtocolOutcome::Settled(ClaimSettlement::Disposition(
-                Disposition::Refused(_) | Disposition::Failed(_)
-            ))
+            ProtocolOutcome::Settled(ClaimSettlement::Disposition(Disposition::Refused(_)))
         ),
         "{outcome:?}"
     );

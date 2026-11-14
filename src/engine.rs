@@ -28,7 +28,7 @@ use qsl_route::{BackendDescriptor, ProviderOrigin, RegistrationRefusal};
 use quire_contract_model::CheckedPackageV2;
 use quire_exact::Cancel;
 
-use crate::dispatch::{Answer, BackendResult, Binding, Claim};
+use crate::dispatch::{Answer, BackendResult, Binding, Claim, ProtocolClaimKind};
 use crate::disposition::{QslBoundary, QslReport, UnsupportedCause};
 
 /// The request the caller states for one claim, in the engine's own request
@@ -151,16 +151,31 @@ impl<'p, S> QslEngine<'p, S> {
     }
 }
 
-/// A report QSL gives no result for.
+/// A report QSL gives no result for, with QSL's own diagnostic carried.
 fn without_result<R>(record: &AnalyzeRecord) -> QslReport<R> {
     match &record.settlement {
         Settlement::Disposed(Disposed {
             kind: DispositionKind::Unsupported,
+            diagnostic,
             ..
         }) => QslReport::Unsupported {
-            cause: UnsupportedCause::requested_capability(),
+            cause: diagnostic
+                .as_ref()
+                .map_or_else(UnsupportedCause::requested_capability, |found| {
+                    UnsupportedCause::RequestedCapability(found.code)
+                }),
             construct: None,
         },
+        // The request is refused for what the caller stated (an absent key
+        // member, FR-572), not a failure of the engine.
+        Settlement::Disposed(Disposed {
+            kind: DispositionKind::InvalidRequest,
+            diagnostic: Some(found),
+            ..
+        }) => QslReport::Refusal(found.code),
+        // A `Disposed` record holds no domain, so a requires-bound outcome
+        // cannot be rebuilt from it: it is reported as QSL's own diagnostic
+        // on a failure, never as a result.
         Settlement::Disposed(Disposed { diagnostic, .. }) => {
             QslReport::Failed(diagnostic.as_ref().map(|found| found.code))
         }
@@ -187,11 +202,15 @@ where
             };
         };
         let index = RequestIndex::new(0);
-        let item = match (self.supply)(binding) {
-            EngineRequest::Projection(request) => projection_item(index, self.package, *request),
-            EngineRequest::Realizability(request) => {
+        // The request the caller supplies must be the claim's own kind.
+        let item = match ((self.supply)(binding), binding.request.kind) {
+            (EngineRequest::Projection(request), ProtocolClaimKind::LocalProjection) => {
+                projection_item(index, self.package, *request)
+            }
+            (EngineRequest::Realizability(request), ProtocolClaimKind::Realizability) => {
                 realizability_item(index, self.package, *request)
             }
+            _ => return QslReport::Failed(None),
         };
         let mut records = analyze_items(&self.engines, vec![item], &self.cancel);
         let Some(record) = records.pop() else {
@@ -200,9 +219,8 @@ where
         if record.protocol_analysis.is_none() {
             return without_result(&record);
         }
-        match EngineResult::of(record) {
-            Some(result) => QslReport::Result(Answer::Protocol(result)),
-            None => QslReport::Failed(None),
-        }
+        EngineResult::of(record).map_or(QslReport::Failed(None), |result| {
+            QslReport::Result(Answer::Protocol(result))
+        })
     }
 }
