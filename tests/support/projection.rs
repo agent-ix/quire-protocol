@@ -11,6 +11,7 @@ use qsl_analyze::protocol_analysis::ProjectionRequest;
 use qsl_foundation::witness::ObservationIdentity;
 use qsl_replay::protocol_analysis::{AssessedRootDraft, ProjectionBoundsDraft, RunBudget};
 use qsl_route::ProviderOrigin;
+use quire_contract_model::CheckedNodeId;
 use quire_exact::{
     EffectiveId, NodeKey, ObjectId, ObjectReference, OriginalDeclarationKey, PathSegment,
     UniverseId,
@@ -20,6 +21,7 @@ use quire_protocol::dispatch::{
     ProtocolOutcome, ProtocolRequest, ProviderBoundary,
 };
 use quire_protocol::engine::{engine_descriptor, EngineRequest, EngineResult, QslEngine};
+use quire_protocol::link::LinkedProtocol;
 
 use super::dynamic::Dynamic;
 
@@ -77,16 +79,32 @@ pub fn assessed_root() -> AssessedRootDraft {
 
 /// The claim: project the global protocol onto the channels and roles named.
 pub fn claim(dynamic: &Dynamic) -> ProtocolRequest<(), (), ()> {
+    claim_of(
+        ProtocolClaimKind::LocalProjection,
+        dynamic.linked(),
+        dynamic.clause(),
+        |form, name| dynamic.named(form, name),
+    )
+}
+
+/// The claim of `kind` over the channels and roles of a linked protocol,
+/// each found by `named` from its form and declared name.
+pub fn claim_of(
+    kind: ProtocolClaimKind,
+    linked: &LinkedProtocol,
+    clause: &CheckedNodeId,
+    named: impl Fn(&str, &str) -> CheckedNodeId,
+) -> ProtocolRequest<(), (), ()> {
     let channels: Vec<_> = ["Order", "Pick", "Cancelled"]
         .iter()
-        .map(|name| dynamic.named("channel", name))
+        .map(|name| named("channel", name))
         .collect();
     let roles: Vec<_> = ["Buyer", "Seller", "Warehouse"]
         .iter()
-        .map(|name| dynamic.named("role", name))
+        .map(|name| named("role", name))
         .collect();
     ProtocolRequest {
-        kind: ProtocolClaimKind::LocalProjection,
+        kind,
         fragment: Fragment {
             channels: channels.clone(),
             roles: roles.clone(),
@@ -97,8 +115,7 @@ pub fn claim(dynamic: &Dynamic) -> ProtocolRequest<(), (), ()> {
             channels: channels
                 .into_iter()
                 .map(|node| {
-                    let declared = dynamic
-                        .linked()
+                    let declared = linked
                         .declarations()
                         .channel(&node)
                         .expect("a declared channel");
@@ -112,7 +129,7 @@ pub fn claim(dynamic: &Dynamic) -> ProtocolRequest<(), (), ()> {
                 .collect(),
             roles: roles.into_iter().map(|node| (node, ())).collect(),
         },
-        sources: vec![dynamic.clause().clone()],
+        sources: vec![clause.clone()],
     }
 }
 
