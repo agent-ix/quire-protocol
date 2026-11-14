@@ -1589,7 +1589,7 @@ fn a_refund_unanswered_by_its_deadline_is_compensated_by_a_retried_refund() {
     let events = registry
         .observe(
             pure(),
-            &[definition.clone()],
+            std::slice::from_ref(&definition),
             &ForwardFact::EstablishedEffect(order.clone()),
         )
         .expect("bounded registration");
