@@ -17,7 +17,7 @@ use qsl_semantics::check::Capability;
 use qsl_semantics::family::ClaimExtent;
 use quire_protocol::declarations::Ordering;
 use quire_protocol::dispatch::{
-    dispatch, dispatch_claims, ChannelPremise, ClaimDisposition, ClaimRequest, DispositionRefusal,
+    dispatch, dispatch_claims, ClaimDisposition, ClaimRequest, DispositionRefusal,
     ProtocolClaimKind, ProtocolOutcome,
 };
 use quire_protocol::disposition::{ClaimSettlement, Disposition, QslReport};
