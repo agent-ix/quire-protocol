@@ -55,7 +55,7 @@ Upstream admission already refuses a checked-package channel with a missing comp
 | ID | Criteria | Verification |
 | --- | --- | --- |
 | FR-151-AC-1 | Given a fragment with channels and roles, the stand-in backend's recorded call carries each channel's ordering and delivery premise and each role declaration equal to the checked package's, and the disposition retains the same premises. | Test (TC-161) |
-| FR-151-AC-2 | Given two requests that differ in exactly one component of one channel premise, their request identities and their disposition provenance differ. | Test (TC-161) |
+| FR-151-AC-2 | Given two requests that differ in exactly one role internality, their request identities and their disposition provenance differ. | Test (TC-161) |
 | FR-151-AC-3 | Given a request whose per-claim premise set omits one channel premise or one role internality of the fragment, that disposition is refused under FR-030 naming the absent premise, the stand-in records no call for that claim, and every independent disposition is unchanged. | Test (TC-161) |
 | FR-151-AC-4 | Given a requester premise set stating `external` for a role, the backend call carries `external` for it as stated and no premise implying that the role is fully observable. | Test (TC-161) |
 | FR-151-AC-5 | Given a stand-in that returns the `Inconclusive` verdict with a `BoundReached` `InconclusiveCause`, truth `pending` and basis `unsettled`, one that returns the same verdict with truth `satisfied`, and one that returns a requires-bound outcome, each disposition carries the outcome and the cause unchanged and holds neither truth `satisfied` nor truth `violated`, and the first holds truth `pending`. | Test (TC-161) |

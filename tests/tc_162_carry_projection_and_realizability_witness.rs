@@ -5,6 +5,8 @@
 mod support {
     pub mod dynamic;
     pub mod handoff;
+    pub mod projection;
+    pub mod realizability;
     pub mod standin;
 }
 
@@ -18,13 +20,18 @@ use quire_protocol::dispatch::{
 };
 use quire_protocol::disposition::ClaimSettlement;
 use support::dynamic::Dynamic;
+use support::realizability::refuted_record;
 use support::standin::{always, request, serve, witness, Boundary, Sentinel};
 
 const KIND: ProtocolClaimKind = ProtocolClaimKind::Realizability;
 
-fn decisive(dynamic: &Dynamic, truth: Truth, basis: SettlementBasis) -> Sentinel {
+/// A decisive result carrying the record QSL's engine writes for a refuted
+/// realizability result, and the witness that record holds.
+fn decisive(_: &Dynamic, truth: Truth, basis: SettlementBasis) -> Sentinel {
+    let (record, witness) = refuted_record();
     let mut result = Sentinel::new("decisive", truth, basis);
-    result.witness = Some(witness(dynamic, vec![ValuePathStep::Index(2)]));
+    result.witness = Some(witness);
+    result.record = Some(record);
     result
 }
 
@@ -96,13 +103,13 @@ fn a_non_minimal_witness_is_carried_with_every_step_in_order() {
     serve(
         &mut boundary,
         "backend",
-        &[Capability::Realizability],
+        &[Capability::LocalProjection],
         always(result),
     );
     let outcome = dispatch(
         &mut boundary,
         dynamic.linked().declarations(),
-        &request(&dynamic, KIND, &["Head"]),
+        &request(&dynamic, ProtocolClaimKind::LocalProjection, &["Head"]),
     );
     let ProtocolOutcome::Settled(ClaimSettlement::Result { result, .. }) = outcome else {
         panic!("{outcome:?}");
@@ -187,11 +194,14 @@ fn a_decisive_realizability_result_needs_a_positioned_witness_and_a_projection_d
     let dynamic = Dynamic::with("workflow", 3);
     let declarations = dynamic.linked().declarations();
     let bare = Sentinel::new("bare", Truth::Satisfied, SettlementBasis::DecisiveWitness);
-    let mut unpositioned = bare.clone();
+    // Each carries the record QSL wrote, but no positioned witness.
+    let mut recorded = bare.clone();
+    recorded.record = Some(refuted_record().0);
+    let mut unpositioned = recorded.clone();
     let mut record = witness(&dynamic, Vec::new());
     record.trace_position = None;
     unpositioned.witness = Some(record);
-    for result in [bare.clone(), unpositioned] {
+    for result in [recorded, unpositioned] {
         let mut boundary = Boundary::new();
         serve(
             &mut boundary,

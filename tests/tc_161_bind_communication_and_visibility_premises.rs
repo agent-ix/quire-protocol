@@ -24,7 +24,6 @@ use quire_protocol::disposition::{ClaimSettlement, Disposition, QslReport};
 use support::dynamic::Dynamic;
 use support::standin::{always, request, serve, Boundary, Sentinel};
 
-type Change = Box<dyn Fn(ChannelPremise) -> ChannelPremise>;
 
 const KIND: ProtocolClaimKind = ProtocolClaimKind::Realizability;
 
@@ -80,50 +79,26 @@ fn the_backend_receives_and_the_disposition_retains_the_premises_as_authored() {
 fn requests_differing_in_one_premise_component_differ_in_identity_and_provenance() {
     let dynamic = Dynamic::with("workflow", 3);
     let base = request(&dynamic, KIND, &["Head"]);
-    let head = dynamic.named("channel", "Head");
-    let declared = dynamic
-        .linked()
-        .declarations()
-        .channel(&head)
-        .expect("Head")
-        .clone();
-    let other_delivery = if declared.delivery == Delivery::AtMostOnce {
-        Delivery::AtLeastOnce
-    } else {
-        Delivery::AtMostOnce
-    };
-    let components: [Change; 2] = [
-        Box::new(|c| ChannelPremise {
-            ordering: Ordering::Unordered,
-            ..c
-        }),
-        Box::new(move |c| ChannelPremise {
-            delivery: other_delivery,
-            ..c
-        }),
-    ];
     let (mut boundary, _) = serving();
     let base_binding = match dispatch(&mut boundary, dynamic.linked().declarations(), &base) {
         ProtocolOutcome::Settled(ClaimSettlement::Result { premises, .. }) => premises,
         other => panic!("{other:?}"),
     };
     let mut retained = vec![base_binding];
-    for (index, change) in components.iter().enumerate() {
+    // The requester states a role's internality; the channel's components all
+    // come from the linked declaration.
+    for role in base.fragment.roles.clone() {
         let mut other = base.clone();
-        let premise = other.premises.channels.get_mut(&head).expect("premise");
-        *premise = change(premise.clone());
-        assert_ne!(base, other, "component {index}");
-        // Only the components the read view does not publish can differ from
-        // the package and still be bound (FR-151-AC-8 refuses the others).
-        if index < 3 {
-            let (mut boundary, _) = serving();
-            let settled = dispatch(&mut boundary, dynamic.linked().declarations(), &other);
-            let ProtocolOutcome::Settled(ClaimSettlement::Result { premises, .. }) = settled else {
-                panic!("{settled:?}");
-            };
-            assert_eq!(premises.request, other);
-            retained.push(premises);
-        }
+        let stated = other.premises.roles.get_mut(&role).expect("premise");
+        *stated = "another internality";
+        assert_ne!(base, other);
+        let (mut boundary, _) = serving();
+        let settled = dispatch(&mut boundary, dynamic.linked().declarations(), &other);
+        let ProtocolOutcome::Settled(ClaimSettlement::Result { premises, .. }) = settled else {
+            panic!("{settled:?}");
+        };
+        assert_eq!(premises.request, other);
+        retained.push(premises);
     }
     for (left, first) in retained.iter().enumerate() {
         for second in &retained[left + 1..] {

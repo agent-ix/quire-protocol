@@ -15,6 +15,7 @@ use qsl_foundation::witness::{
     ObservationIdentity, RuntimeValuePath, ValuePathStep, ValuePathSubject,
 };
 use qsl_foundation::BackendId;
+use qsl_replay::spine::ProtocolAnalysisRecord;
 use qsl_replay::{
     InconclusiveCause, SeparatingWitnessRecord, SettlementBasis, TracePosition, Truth,
 };
@@ -43,6 +44,7 @@ pub struct Sentinel {
     pub truth: Truth,
     pub basis: SettlementBasis,
     pub witness: Option<SeparatingWitnessRecord>,
+    pub record: Option<ProtocolAnalysisRecord>,
     pub inconclusive: Option<InconclusiveCause>,
     pub artifact: Option<&'static str>,
 }
@@ -54,6 +56,7 @@ impl Sentinel {
             truth,
             basis,
             witness: None,
+            record: None,
             inconclusive: None,
             artifact: None,
         }
@@ -69,6 +72,9 @@ impl BackendResult for Sentinel {
     }
     fn witness(&self) -> Option<&SeparatingWitnessRecord> {
         self.witness.as_ref()
+    }
+    fn run_record(&self) -> Option<&ProtocolAnalysisRecord> {
+        self.record.as_ref()
     }
     fn inconclusive(&self) -> Option<&InconclusiveCause> {
         self.inconclusive.as_ref()

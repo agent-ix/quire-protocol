@@ -21,6 +21,7 @@ use qsl_foundation::RequestIndex;
 use qsl_replay::protocol_analysis::{
     AnalysisOutcome, ProtocolAnalysisSettlement, RealizabilityCounterexample,
 };
+use qsl_replay::spine::ProtocolAnalysisRecord;
 use qsl_replay::{
     InconclusiveCause, SeparatingWitnessRecord, SettlementBasis, TerminalValue, Truth,
 };
@@ -58,14 +59,20 @@ pub fn engine_descriptor(origin: ProviderOrigin) -> Result<BackendDescriptor, Re
 pub struct EngineResult {
     record: Box<AnalyzeRecord>,
     settlement: ProtocolAnalysisSettlement,
+    run_record: Option<ProtocolAnalysisRecord>,
 }
 
 impl EngineResult {
     fn of(record: AnalyzeRecord) -> Option<Self> {
-        let settlement = record.protocol_analysis.as_deref()?.settlement();
+        let artifact = record.protocol_analysis.as_deref()?;
+        let settlement = artifact.settlement();
+        // QSL writes the record for every result it settles; a record it
+        // cannot write is carried as absent (FR-302-AC-4).
+        let run_record = artifact.record().ok();
         Some(Self {
             record: Box::new(record),
             settlement,
+            run_record,
         })
     }
 
@@ -79,6 +86,13 @@ impl EngineResult {
     #[must_use]
     pub fn artifact(&self) -> Option<&ProtocolAnalysisArtifact> {
         self.record.protocol_analysis.as_deref()
+    }
+
+    /// QSL's `native-run-result/2` protocol-analysis record of the result
+    /// (QSpec FR-352), as the engine wrote it.
+    #[must_use]
+    pub const fn run_record(&self) -> Option<&ProtocolAnalysisRecord> {
+        self.run_record.as_ref()
     }
 
     /// QSL's FR-573 settlement of the result.
@@ -116,6 +130,10 @@ impl BackendResult for EngineResult {
                 _ => None,
             },
         }
+    }
+
+    fn run_record(&self) -> Option<&ProtocolAnalysisRecord> {
+        self.run_record.as_ref()
     }
 
     fn inconclusive(&self) -> Option<&InconclusiveCause> {

@@ -134,6 +134,16 @@ pub enum Warning {
         /// The backend the request named, when it named one.
         backend: Option<BackendId>,
     },
+    /// The backend that served a decisive result returned no
+    /// `native-run-result/2` protocol-analysis record, so the witness the
+    /// claim needs cannot be imported (FR-302): the required capability
+    /// kind and the backend.
+    NoRunRecord {
+        /// The capability kind the claim required.
+        kind: Capability,
+        /// The backend that served it.
+        backend: BackendId,
+    },
 }
 
 /// An `unsupported` disposition (FR-241 `unsupported`): never false,

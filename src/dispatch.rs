@@ -19,6 +19,7 @@ use std::collections::BTreeMap;
 
 use qsl_foundation::BackendId;
 use qsl_package::protocol_view::Delivery;
+use qsl_replay::spine::ProtocolAnalysisRecord;
 use qsl_replay::{InconclusiveCause, ItemLabel, SeparatingWitnessRecord, SettlementBasis, Truth};
 use qsl_route::{BackendDescriptor, Candidate, CandidateOutcome, RegistrationRefusal, Registry};
 use qsl_semantics::check::Capability;
@@ -154,6 +155,11 @@ pub enum DispositionRefusal {
     /// A decisive `realizability` result carries no trace-position witness
     /// (FR-302).
     DecisiveWithoutWitness,
+    /// A result whose basis is not decisive carries a witness (FR-302).
+    WitnessWithoutDecisiveBasis,
+    /// The witness a result carries is not the one its `native-run-result/2`
+    /// protocol-analysis record holds, byte for byte (FR-302).
+    WitnessNotTheRecords,
     /// QSL's registry selected a backend that has no provider.
     NoProvider(BackendId),
     /// The provider answered with the other claim kind's result.
@@ -210,6 +216,10 @@ pub trait BackendResult {
     /// The separating-witness record the result carries, when it carries
     /// one.
     fn witness(&self) -> Option<&SeparatingWitnessRecord>;
+    /// The `native-run-result/2` protocol-analysis record the result's
+    /// witness is imported from (QSpec FR-352), or `None` when the backend
+    /// wrote none (FR-302).
+    fn run_record(&self) -> Option<&ProtocolAnalysisRecord>;
     /// QSL's `InconclusiveCause` when the result is its `Inconclusive`
     /// verdict.
     fn inconclusive(&self) -> Option<&InconclusiveCause>;
@@ -473,6 +483,33 @@ pub fn bind<A: Clone, I: Clone>(
     })
 }
 
+/// The contract version a result that carries a witness is produced under
+/// (FR-302-AC-5). A producer selects it explicitly; it is never inferred from
+/// the record.
+pub const WITNESS_RESULT_CONTRACT: &str = "quire.protocol.result/v1-draft.2";
+
+/// The contract version `result` is produced under: the witness-bearing
+/// version when it has a `native-run-result/2` record, and none otherwise.
+#[must_use]
+pub fn result_contract<R: BackendResult>(result: &R) -> Option<&'static str> {
+    result.run_record().map(|_| WITNESS_RESULT_CONTRACT)
+}
+
+/// Why a carried result is not settled as a result.
+pub(crate) enum Rejected {
+    /// The disposition is refused under FR-030.
+    Refused(DispositionRefusal),
+    /// The backend returned no `native-run-result/2` record for a decisive
+    /// result (FR-302-AC-4): the claim settles `unsupported`.
+    NoRunRecord,
+}
+
+impl From<DispositionRefusal> for Rejected {
+    fn from(refusal: DispositionRefusal) -> Self {
+        Self::Refused(refusal)
+    }
+}
+
 /// A boundary that is never asked a kind has no result of that kind.
 impl BackendResult for std::convert::Infallible {
     fn truth(&self) -> Truth {
@@ -482,6 +519,9 @@ impl BackendResult for std::convert::Infallible {
         match *self {}
     }
     fn witness(&self) -> Option<&SeparatingWitnessRecord> {
+        match *self {}
+    }
+    fn run_record(&self) -> Option<&ProtocolAnalysisRecord> {
         match *self {}
     }
     fn inconclusive(&self) -> Option<&InconclusiveCause> {
@@ -511,7 +551,7 @@ pub(crate) fn settle_bound<K, P, Q, R, B: Clone>(
     claim_of: impl FnOnce(&B) -> K,
     mark_selected: impl FnOnce(&mut B, BackendId),
     extract: impl FnOnce(Answer<P, Q>) -> Option<R>,
-    refuse: impl FnOnce(&R, &B) -> Option<DispositionRefusal>,
+    refuse: impl FnOnce(&R, &B) -> Option<Rejected>,
 ) -> ProtocolOutcome<R, B> {
     let (selected, mut binding) = match select(&boundary.registry, capability, requested, binding) {
         Ok(selected) => selected,
@@ -528,7 +568,20 @@ pub(crate) fn settle_bound<K, P, Q, R, B: Clone>(
                 return ProtocolOutcome::Refused(DispositionRefusal::WrongAnswerKind);
             };
             match refuse(&result, &premises) {
-                Some(refusal) => ProtocolOutcome::Refused(refusal),
+                Some(Rejected::Refused(refusal)) => ProtocolOutcome::Refused(refusal),
+                Some(Rejected::NoRunRecord) => {
+                    ProtocolOutcome::Settled(ClaimSettlement::Disposition(
+                        Disposition::Unsupported(UnsupportedDisposition {
+                            cause: UnsupportedCause::requested_capability(),
+                            construct: None,
+                            premises,
+                            warnings: vec![Warning::NoRunRecord {
+                                kind: capability,
+                                backend: selected,
+                            }],
+                        }),
+                    ))
+                }
                 None => ProtocolOutcome::Settled(ClaimSettlement::Result { result, premises }),
             }
         }
@@ -570,28 +623,38 @@ where
     )
 }
 
-/// FR-152: a decisive result is carried beside the source identities the
-/// disposition retains, and a decisive `realizability` result with its
-/// trace-position witness; without them it is refused. The witness is never
-/// read, normalised or reordered.
+/// FR-152, FR-302: a decisive result is carried beside the source identities
+/// the disposition retains, and a decisive `realizability` result with the
+/// trace-position witness its `native-run-result/2` record holds; without them
+/// it is refused, and without the record it settles `unsupported`. A result
+/// whose basis is not decisive carries no witness. The witness is compared with
+/// the record's, never read, normalised or reordered.
 fn carry_refusal<R: BackendResult>(
     kind: ProtocolClaimKind,
     result: &R,
     sources: &[CheckedNodeId],
-) -> Option<DispositionRefusal> {
+) -> Option<Rejected> {
     if !result.basis().is_decisive() {
-        return None;
+        return result
+            .witness()
+            .map(|_| DispositionRefusal::WitnessWithoutDecisiveBasis.into());
     }
     if sources.is_empty() {
-        return Some(DispositionRefusal::NoSourceIdentity);
+        return Some(DispositionRefusal::NoSourceIdentity.into());
     }
-    let positioned = result
+    if kind != ProtocolClaimKind::Realizability {
+        return None;
+    }
+    let Some(record) = result.run_record() else {
+        return Some(Rejected::NoRunRecord);
+    };
+    let Some(witness) = result
         .witness()
-        .is_some_and(|record| record.trace_position.is_some());
-    if kind == ProtocolClaimKind::Realizability && !positioned {
-        return Some(DispositionRefusal::DecisiveWithoutWitness);
-    }
-    None
+        .filter(|witness| witness.trace_position.is_some())
+    else {
+        return Some(DispositionRefusal::DecisiveWithoutWitness.into());
+    };
+    (!record.witness_is(witness)).then(|| DispositionRefusal::WitnessNotTheRecords.into())
 }
 
 /// Settle every requested claim, in request order and independently of one

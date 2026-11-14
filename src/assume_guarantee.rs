@@ -355,7 +355,7 @@ where
             Answer::AssumeGuarantee(result) => Some(result),
             Answer::Protocol(_) => None,
         },
-        |result, binding| carry_refusal(&binding.request, result),
+        |result, binding| carry_refusal(&binding.request, result).map(Into::into),
     )
 }
 

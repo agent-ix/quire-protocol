@@ -11,21 +11,21 @@ publish = false
 # QSL main, followed by branch; Cargo.lock holds the commit. `checked-handoff`
 # is the feature that publishes `Selection` (QSL FR-517), which the admission
 # compares an admitted package with.
-quire-spec-language = { git = "https://github.com/agent-ix/quire-spec-language", branch = "main", features = ["checked-handoff"] }
-qsl-foundation = { git = "https://github.com/agent-ix/quire-spec-language", branch = "main" }
+quire-spec-language = { git = "https://github.com/agent-ix/quire-spec-language", branch = "qsl-1961-s1-pa24-record", features = ["checked-handoff"] }
+qsl-foundation = { git = "https://github.com/agent-ix/quire-spec-language", branch = "qsl-1961-s1-pa24-record" }
 # The bytes-only identity and equality files (QSL FR-531, FR-533).
-qsl-package = { git = "https://github.com/agent-ix/quire-spec-language", branch = "main" }
+qsl-package = { git = "https://github.com/agent-ix/quire-spec-language", branch = "qsl-1961-s1-pa24-record" }
 # The checked-package evaluation entries (QSL FR-390, FR-520, FR-531, FR-533).
-qsl-eval = { git = "https://github.com/agent-ix/quire-spec-language", branch = "main" }
+qsl-eval = { git = "https://github.com/agent-ix/quire-spec-language", branch = "qsl-1961-s1-pa24-record" }
 # The channel overflow, loss selector and outstanding vocabulary (QSL FR-308,
 # FR-218) the declarations retain, and the wire graph that keys protocol nodes in tests.
-qsl-semantics = { git = "https://github.com/agent-ix/quire-spec-language", branch = "main" }
+qsl-semantics = { git = "https://github.com/agent-ix/quire-spec-language", branch = "qsl-1961-s1-pa24-record" }
 # The capability-backend registry and candidate sets (QSL FR-075, FR-290), the
 # truth and settlement-basis vocabulary and the separating-witness record.
-qsl-route = { git = "https://github.com/agent-ix/quire-spec-language", branch = "main" }
+qsl-route = { git = "https://github.com/agent-ix/quire-spec-language", branch = "qsl-1961-s1-pa24-record" }
 # The protocol analysis engine and its `analyze` item adapters (QSL ADR-036).
-qsl-analyze = { git = "https://github.com/agent-ix/quire-spec-language", branch = "main" }
-qsl-replay = { git = "https://github.com/agent-ix/quire-spec-language", branch = "main" }
+qsl-analyze = { git = "https://github.com/agent-ix/quire-spec-language", branch = "qsl-1961-s1-pa24-record" }
+qsl-replay = { git = "https://github.com/agent-ix/quire-spec-language", branch = "qsl-1961-s1-pa24-record" }
 quire-eval = { git = "https://github.com/agent-ix/quire-eval", branch = "main" }
 quire-exact = { git = "https://github.com/agent-ix/quire-exact", branch = "main" }
 quire-semantic-value = { git = "https://github.com/agent-ix/quire-semantic-value", branch = "main" }
@@ -46,8 +46,8 @@ quire-observation = { git = "https://github.com/agent-ix/quire-observation", bra
 ix-trace-rs = { git = "https://github.com/agent-ix/ix-trace-rs", branch = "main" }
 # QSL's public front end, which a realizability subject is built from in tests
 # (a `CheckedPackage` is QSL's in-process form; the handoff does not carry it).
-qsl-cst = { git = "https://github.com/agent-ix/quire-spec-language", branch = "main" }
-qsl-forms = { git = "https://github.com/agent-ix/quire-spec-language", branch = "main" }
+qsl-cst = { git = "https://github.com/agent-ix/quire-spec-language", branch = "qsl-1961-s1-pa24-record" }
+qsl-forms = { git = "https://github.com/agent-ix/quire-spec-language", branch = "qsl-1961-s1-pa24-record" }
 quire-checked = { git = "https://github.com/agent-ix/quire-eval", branch = "main" }
 serde_json = "=1.0.151"
 tempfile = "3"
