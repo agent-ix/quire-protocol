@@ -57,10 +57,10 @@ Run each living test named in the table. Each corpus row names the cells it back
 | Corpus | Cells | Run by | What is asserted |
 | --- | --- | --- | --- |
 | Finite replay | V1-PROT-025, V1-RUN-003 | TC-167; TC-008 | A finite observed history is assessed on the role, queue, join and loop axes, and a history rebuilt over a second compilation gives the same result (TC-167). TC-008 separately types the reproduction record; no test yet replays a serialized trace through it. |
-| Timed refund | V1-RUN-011, V1-PROT-019 | TC-154 | Inclusive deadline branches settle only on complete progress; captures bind once, in order. No end-to-end refund workflow runs: the cell is partial. |
-| Fan-out and join | V1-RUN-012, V1-PROT-010 | TC-053; TC-167 | Each join policy, threshold and `outstanding` rule is judged on an observed history; a run that breaks one axis fails on that axis only (TC-167). |
+| Timed refund | V1-RUN-011, V1-PROT-019 | TC-154; TC-170 | Inclusive deadline branches settle only on complete progress; captures bind once, in order. TC-170 runs a refund-shaped run on the generic deadline fixture: a timeout starts compensation and a response starts none; a failed attempt then a successful retry give one effect and no duplicate. |
+| Fan-out and join | V1-RUN-012, V1-PROT-010 | TC-053; TC-167; TC-170 | Each join policy, threshold and `outstanding` rule is judged on an observed history; a run that breaks one axis fails on that axis only (TC-167). |
 | Retry | V1-PROT-021, V1-PROT-023 | TC-003 (FR-022, FR-023) | The initial attempt counts, the authored retry bound admits exactly and one over refuses; attempts, effects and outcomes stay distinct. |
-| Compensation | V1-PROT-020, V1-PROT-022 | TC-003 (FR-019..FR-021) | Registration needs its matching effect and is replay-idempotent; commit and recovery orderings follow only the authored causal order. |
+| Compensation | V1-PROT-020, V1-PROT-022, V1-PROT-024 | TC-003 (FR-019..FR-021); TC-169 | Registration needs its matching effect and is replay-idempotent; commit and recovery orderings follow only the authored causal order. |
 | Dynamic roles | V1-PROT-012, V1-PROT-013 | TC-051, TC-052, TC-167 | Lifetime and population bound of a replicated role; queue capacity and overflow; a faulty run is judged on each axis separately. |
 | Projection | V1-PROT-027 | TC-164, TC-165 (IT-004) | QSL's linked engine decides it. |
 | Realizability | V1-PROT-028 | TC-166 | QSL's linked engine decides it over a subject built from QSL's public front end; the witness carrier is batch D (FR-302). |
@@ -72,4 +72,4 @@ Every corpus row passes. A cell with no row is a stated gap in the V1-PROT inven
 
 ## Dependencies
 
-The result-publication cells (V1-RUN-005, V1-RUN-006 as published) wait on Quoin #519 (IT-003). Composition and refinement wait on a QSL engine. The `v1-draft.2` witness carrier (FR-302) is batch D.
+The result-publication cells (V1-RUN-005, V1-RUN-006 as published) are blocked: Quoin #519 is closed, but the canonical result and scenario record it takes are retired here (FR-006, FR-007, FR-017). Global conformance (V1-PROT-026) is blocked the same way (FR-004). Composition and refinement wait on a QSL engine. The `v1-draft.2` witness carrier (FR-302) is batch D.

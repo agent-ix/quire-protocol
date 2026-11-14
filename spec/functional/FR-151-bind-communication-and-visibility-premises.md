@@ -26,7 +26,7 @@ When a `local-projection` or `realizability` claim is dispatched, the dispatcher
 
 The channel premise (sender, receiver, message type, ordering policy and delivery policy) of every channel and the role internality of every role in the claim's admitted fragment; and the per-claim premises the requester supplied (FR-030).
 
-QSL's read view of the checked package (`ix://agent-ix/quire-spec-language/ADR-017`, read through FR-044) publishes each channel's ordering and delivery policy and each role declaration. It does not yet publish a channel's sender, receiver and message type, nor a role's internality. Until QSL publishes them (FR-151-AC-7), the dispatcher forwards those components as the requester states them and verifies none against the checked package.
+QSL's read view of the checked package (`ix://agent-ix/quire-spec-language/ADR-017`, read through FR-044) publishes each channel's ordering and delivery policy and each role declaration. It publishes a channel's sender, receiver and message type (FR-151-AC-7) but not a role's internality. Until QSL publishes it (FR-151-AC-9), the dispatcher forwards the internality as the requester states it and verifies none against the checked package.
 
 ## Outputs
 
@@ -37,7 +37,7 @@ Upstream admission already refuses a checked-package channel with a missing comp
 ## Behavior
 
 - The dispatcher shall hand the backend each channel's ordering and delivery policy and each role declaration exactly as the checked package authors them.
-- The dispatcher shall hand the backend each component of the requester's premises that QSL's read view does not publish exactly as the requester stated it.
+- The dispatcher shall hand the backend each channel's sender, receiver and message type as the linked declaration carries them, and each component of the requester's premises that QSL's read view does not publish exactly as the requester stated it. `ChannelPremise::unread` holds nothing QSL publishes for a channel today; callers state `()`.
 - When the requester's ordering or delivery premise for a channel differs from the checked package's declaration of it, the dispatcher shall refuse that disposition under FR-030 naming the channel.
 - When the requester's premise differs from the checked package's declaration, the dispatcher shall invoke no backend for that claim.
 - The dispatcher shall retain on the disposition each premise it handed the backend.
@@ -59,7 +59,8 @@ Upstream admission already refuses a checked-package channel with a missing comp
 | FR-151-AC-4 | Given a requester premise set stating `external` for a role, the backend call carries `external` for it as stated and no premise implying that the role is fully observable. | Test (TC-161) |
 | FR-151-AC-5 | Given a stand-in that returns the `Inconclusive` verdict with a `BoundReached` `InconclusiveCause`, truth `pending` and basis `unsettled`, one that returns the same verdict with truth `satisfied`, and one that returns a requires-bound outcome, each disposition carries the outcome and the cause unchanged and holds neither truth `satisfied` nor truth `violated`, and the first holds truth `pending`. | Test (TC-161) |
 | FR-151-AC-6 | Given the request of FR-151-AC-3, the refused disposition holds neither truth `satisfied` nor truth `violated` and retains no value for the omitted premise, and the same request with the premise restored is sent to the stand-in with exactly the restored value. | Test (TC-161) |
-| FR-151-AC-7 | Given a fragment with channels and roles, the stand-in backend's recorded call carries each channel's sender, receiver and message type and each role internality equal to the checked package's, as QSL's read view publishes them. | Test (TC-161) |
+| FR-151-AC-7 | Given a fragment with channels, the stand-in backend's recorded call carries each channel's sender, receiver and message type equal to the checked package's, as QSL's read view publishes them. | Test (TC-168) |
+| FR-151-AC-9 | Given a fragment with roles, the stand-in backend's recorded call carries each role internality equal to the checked package's, as QSL's read view publishes it. | Blocked: QSpec FR-465 gives a role no internality member, and QSL's read view publishes none |
 | FR-151-AC-8 | Given a request whose ordering premise for a channel differs from the checked package's declaration, and a second whose delivery premise differs, each disposition is refused under FR-030 naming the channel, the stand-in records no call, and every independent disposition is unchanged. | Test (TC-161) |
 
 ## Adopted vocabulary

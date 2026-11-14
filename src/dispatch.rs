@@ -68,15 +68,16 @@ pub struct Fragment {
 
 /// One channel's premise as the requester states it (FR-151). The ordering
 /// and delivery are the components QSL's read view publishes, so they are
-/// typed and must equal the checked package's; the components it does not yet
-/// publish (sender, receiver, message type) are `C`, forwarded as stated.
+/// typed and must equal the checked package's. The sender, receiver and
+/// message type are the linked declaration's (QSL publishes them); `C` holds
+/// only what the view still does not publish, which is nothing for a channel.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ChannelPremise<C> {
     /// The ordering policy.
     pub ordering: Ordering,
     /// The delivery policy.
     pub delivery: Delivery,
-    /// The components the read view does not publish.
+    /// The components the read view does not publish; none for a channel today.
     pub unread: C,
 }
 

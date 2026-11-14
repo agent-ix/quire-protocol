@@ -910,6 +910,39 @@ impl AttemptLedger {
     pub const fn registration(&self) -> &Registration {
         &self.registration
     }
+
+    /// The business effects the admitted attempts established, in admission
+    /// order, deciding duplicates from effect identity alone.
+    ///
+    /// The effect the first establishing attempt names is retained as
+    /// established; a *distinct* effect a later attempt names claims the same
+    /// singleton occurrence and is retained as
+    /// [`EffectDisposition::Duplicate`]. An effect an attempt names again,
+    /// as a redelivered observation does, is retained once: a duplicate
+    /// delivery is not a duplicate business effect (QSpec FR-058). The result
+    /// holds at most one fact for each admitted attempt, so it is bounded by
+    /// the ledger. A registration whose effect is a declared finite
+    /// population of related effects is not modelled here.
+    #[must_use]
+    pub fn effects(&self) -> Vec<CompensationEffectFact> {
+        let mut seen = BTreeSet::new();
+        let mut retained = Vec::new();
+        for effect in self
+            .attempts
+            .iter()
+            .filter_map(|attempt| attempt.established_effect.as_ref())
+        {
+            if !seen.insert(effect) {
+                continue;
+            }
+            retained.push(CompensationEffectFact {
+                effect: effect.clone(),
+                registration: self.registration.identity.clone(),
+                disposition: (!retained.is_empty()).then_some(EffectDisposition::Duplicate),
+            });
+        }
+        retained
+    }
 }
 
 fn precheck_identity<T>(identity: &T, limit: usize) -> Result<(), ResourceRefusal>

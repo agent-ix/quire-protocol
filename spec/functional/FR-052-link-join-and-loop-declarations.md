@@ -1,6 +1,6 @@
 ---
 id: FR-052
-title: "Link join and loop declarations"
+title: "Link join, loop and choice declarations"
 type: FR
 relationships:
   - { target: ix://agent-ix/quire-protocol/US-001, type: implements }
@@ -11,11 +11,11 @@ relationships:
   - { target: ix://agent-ix/quire-protocol/FR-050, type: references }
   - { target: ix://agent-ix/quire-protocol/FR-051, type: references }
 ---
-# FR-052: Link join and loop declarations
+# FR-052: Link join, loop and choice declarations
 
 ## Description
 
-When the linked protocol is built from an admitted checked package, the library SHALL retain each authored join (its policy, its threshold and its outstanding-branch rule) and each authored loop (its iteration maximum and its declared invariant and variant) from the checked package, keyed to the control identities the checked package assigns.
+When the linked protocol is built from an admitted checked package, the library SHALL retain each authored join (its policy, its threshold and its outstanding-branch rule) each authored loop (its iteration maximum and its declared invariant and variant) and each authored choice (its owner and visible set) from the checked package, keyed to the control identities the checked package assigns.
 
 ## Inputs
 
@@ -23,7 +23,7 @@ An admitted checked package (FR-043) and the node id of a protocol clause.
 
 ## Outputs
 
-Per join: the control identity, the policy (`all`, `any`, `quorum(n)` or `predicate`), the threshold and the `outstanding` rule or its absence. Per loop: the control identity, the maximum, and the invariant and variant declarations as authored.
+Per join: the control identity, the policy (`all`, `any`, `quorum(n)` or `predicate`), the threshold and the `outstanding` rule or its absence. Per loop: the control identity, the maximum, and the invariant and variant declarations as authored. Per choice: the control identity, the owner node and the visible `expression` nodes in the order QSL's `choice_visibility` reads them.
 
 ## Behavior
 
@@ -33,6 +33,9 @@ Per join: the control identity, the policy (`all`, `any`, `quorum(n)` or `predic
 - The library shall carry a loop's invariant and variant declarations as references to the checked nodes.
 - The library shall not interpret them. Their discharge is not this library's (FR-059).
 - The library shall carry a join with no `outstanding` rule as having none.
+- The library shall carry a choice's owner and visible nodes as QSL's `choice_visibility` reads them.
+- The library shall not evaluate a choice's visible nodes.
+- A choice whose evidence QSL's accessor refuses refuses the link with that view refusal.
 
 ## Acceptance Criteria
 
@@ -41,6 +44,7 @@ Per join: the control identity, the policy (`all`, `any`, `quorum(n)` or `predic
 | FR-052-AC-1 | Over joins of each policy and a quorum threshold, the linked representation carries the control identity, policy and threshold equal to the checked package's. | Test (TC-050) |
 | FR-052-AC-2 | A `predicate` join and a join with no `outstanding` rule link successfully and are carried as declared, without evaluation and without a default rule. | Test (TC-050) |
 | FR-052-AC-3 | A loop with an invariant and a lexicographic variant links with both declarations referenced by checked node id, and linking performs no check of either. | Test (TC-050) |
+| FR-052-AC-4 | Over a `choice` control, the linked representation carries its control identity, the owner node and the visible `expression` nodes in the order QSL's `choice_visibility` reads them, without evaluating them. | Test (TC-168) |
 
 ## Dependencies
 

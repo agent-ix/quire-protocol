@@ -12,8 +12,8 @@
 //! stay references to their checked nodes.
 
 use qsl_package::protocol_view::{
-    await_anchor, control_operation, delivery, queue_capacity, ControlOperation, Delivery,
-    ProtocolView, QueueCapacity,
+    await_anchor, channel_endpoints, choice_visibility, control_operation, delivery,
+    queue_capacity, ControlOperation, Delivery, ProtocolView, QueueCapacity,
 };
 use qsl_package::{
     protocol_occurrence_schemas_from_read, ProtocolOccurrenceSchema, RoleReplication,
@@ -83,6 +83,13 @@ pub struct ChannelDeclaration {
     pub node: CheckedNodeId,
     /// The checked `queue` node of the channel.
     pub queue: CheckedNodeId,
+    /// The `role` node that sends, as QSL's `channel_endpoints` reads it.
+    pub sender: CheckedNodeId,
+    /// The `role` node that receives, as QSL's `channel_endpoints` reads it.
+    pub receiver: CheckedNodeId,
+    /// The type node of the message the channel carries, as QSL's
+    /// `channel_endpoints` reads it.
+    pub message_type: CheckedNodeId,
     /// The delivery premise, as QSL's `delivery` accessor reads it.
     pub delivery: Delivery,
     /// The authored ordering.
@@ -91,6 +98,21 @@ pub struct ChannelDeclaration {
     pub capacity: Capacity,
     /// The authored overflow policy; QSL's grammar requires one.
     pub overflow: ChannelOverflow,
+}
+
+/// One authored `choice`: who decides and what that role sees at the
+/// decision, as QSL's `choice_visibility` reads it.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ChoiceDeclaration {
+    /// The `choice` control node.
+    pub control: CheckedNodeId,
+    /// QSL's structural key of the control.
+    pub key: NodeKey,
+    /// The `protocol` or `role` node that owns the decision.
+    pub owner: CheckedNodeId,
+    /// The `expression` nodes whose values the owner sees, in the order the
+    /// node carries them.
+    pub visible: Vec<CheckedNodeId>,
 }
 
 /// A join's authored policy (QSpec FR-171).
@@ -182,6 +204,7 @@ pub struct Declarations {
     channels: Vec<ChannelDeclaration>,
     joins: Vec<JoinDeclaration>,
     loops: Vec<LoopDeclaration>,
+    choices: Vec<ChoiceDeclaration>,
     awaits: Vec<AwaitDeclaration>,
     schema: ProtocolOccurrenceSchema,
     clause: CheckedNodeId,
@@ -217,6 +240,20 @@ impl Declarations {
     #[must_use]
     pub fn loops(&self) -> &[LoopDeclaration] {
         &self.loops
+    }
+
+    /// The `choice` declarations.
+    #[must_use]
+    pub fn choices(&self) -> &[ChoiceDeclaration] {
+        &self.choices
+    }
+
+    /// The choice declaration at control `id`.
+    #[must_use]
+    pub fn choice(&self, id: &CheckedNodeId) -> Option<&ChoiceDeclaration> {
+        self.choices
+            .iter()
+            .find(|declaration| &declaration.control == id)
     }
 
     /// The `await` declarations.
@@ -306,6 +343,7 @@ impl Declarations {
             channels: Vec::new(),
             joins: Vec::new(),
             loops: Vec::new(),
+            choices: Vec::new(),
             awaits: Vec::new(),
             schema,
             clause: clause.clone(),
@@ -339,6 +377,15 @@ impl Declarations {
                 }
                 Ok(ControlOperation::Repeat) => {
                     declarations.loops.push(repeat(package, id, key_of(id)?)?);
+                }
+                Ok(ControlOperation::Choice) => {
+                    let evidence = choice_visibility(control).map_err(LinkRefusal::View)?;
+                    declarations.choices.push(ChoiceDeclaration {
+                        control: id.clone(),
+                        key: key_of(id)?,
+                        owner: evidence.owner.clone(),
+                        visible: evidence.visible.into_iter().cloned().collect(),
+                    });
                 }
                 Ok(ControlOperation::Await) => {
                     declarations
@@ -435,6 +482,7 @@ fn channel(
 ) -> Result<ChannelDeclaration, LinkRefusal> {
     let channel_node =
         node(package, id).ok_or_else(|| LinkRefusal::UnreadableNode { node: id.clone() })?;
+    let ends = channel_endpoints(channel_node).map_err(LinkRefusal::View)?;
     let ordering = ordering(id, member_of_node(package, id, "ordering")?)?;
     let delivery = delivery(channel_node).map_err(LinkRefusal::View)?;
     let queue = view
@@ -456,6 +504,9 @@ fn channel(
     Ok(ChannelDeclaration {
         node: id.clone(),
         queue: queue.clone(),
+        sender: ends.sender.clone(),
+        receiver: ends.receiver.clone(),
+        message_type: ends.message_type.clone(),
         delivery,
         ordering,
         capacity,

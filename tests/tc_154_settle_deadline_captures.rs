@@ -1545,3 +1545,111 @@ fn the_supplied_value_is_bound_not_a_local_result() {
     let supplied = bind(guard_outcome(Some(true)));
     assert!(is_boolean(supplied.occurrences()[0].value(), false));
 }
+
+// ---------------------------------------------------------------------------
+// V1-RUN-011: the timed-refund reference run, end to end (IT-005)
+// ---------------------------------------------------------------------------
+
+/// The order's refund is awaited to its deadline. With no response and
+/// progress closed complete the wait settles on its timeout branch and the
+/// order's established effect is compensated: one registration, a failed first
+/// refund attempt and a successful retry (two attempts, one established refund
+/// effect, no duplicate), and a third attempt refused by the authored bound. A
+/// response inside the deadline starts no compensation. The compensation
+/// starts only from the branch the wait settled on.
+#[trace("TC-170")]
+#[test]
+fn a_refund_unanswered_by_its_deadline_is_compensated_by_a_retried_refund() {
+    use quire_protocol::compensation::algebra::{
+        AttemptAdmission, AttemptFact, AttemptLedger, AttemptOutcome, Definition, ForwardFact,
+        Limits as AlgebraLimits, Registry,
+    };
+    use quire_protocol::ids::{AttemptId, DefinitionId};
+    use std::num::NonZeroU32;
+
+    let views = scope_views(TAG);
+    let closed = authority(&views, 2, Progress::Closed, Completeness::Complete);
+    let answered = settle(TAG, &[response(1, 29), closed.clone()]);
+    let unanswered = settle(TAG, &[closed]);
+    let order = EffectId::new(b"effect:order", "order established");
+    let definition = Definition {
+        identity: DefinitionId::new(b"definition:refund", "refund compensation"),
+        paired_forward_effect: order.clone(),
+        retry_bound: NonZeroU32::new(2),
+    };
+    let mut registry = Registry::default();
+    // The compensation starts only when the wait settled on its timeout.
+    let mut started = Vec::new();
+    for (wait, expect_timeout) in [(&answered, false), (&unanswered, true)] {
+        let timed_out = current(wait).branch() == Some(&Branch::Timeout);
+        assert_eq!(timed_out, expect_timeout);
+        if timed_out {
+            started = registry
+                .observe(
+                    pure(),
+                    std::slice::from_ref(&definition),
+                    &ForwardFact::EstablishedEffect(order.clone()),
+                )
+                .expect("bounded registration");
+        } else {
+            assert_eq!(registry.registrations().len(), 0, "a response starts none");
+        }
+    }
+    let [event] = started.as_slice() else {
+        panic!("one registration: {started:?}");
+    };
+    assert!(event.created);
+    let registration = event.registration.clone();
+    let replay = registry
+        .observe(
+            pure(),
+            &[definition],
+            &ForwardFact::EstablishedEffect(order),
+        )
+        .expect("bounded registration");
+    assert!(
+        !replay[0].created,
+        "a replay creates no second registration"
+    );
+
+    let refund = EffectId::new(b"effect:refund", "refund established");
+    let attempt = |name: &str, outcome, effect: Option<EffectId>| AttemptFact {
+        attempt: AttemptId::new(name.as_bytes(), name),
+        registration: registration.identity.clone(),
+        established_effect: effect,
+        outcome: Some(outcome),
+    };
+    let mut ledger =
+        AttemptLedger::new(registration.clone(), AlgebraLimits::owner_max()).expect("ledger");
+    assert!(matches!(
+        ledger.admit(pure(), attempt("attempt:1", AttemptOutcome::Failed, None)),
+        AttemptAdmission::Admitted { position: 1, .. }
+    ));
+    assert!(matches!(
+        ledger.admit(
+            pure(),
+            attempt(
+                "attempt:2",
+                AttemptOutcome::Successful,
+                Some(refund.clone())
+            )
+        ),
+        AttemptAdmission::Admitted { position: 2, .. }
+    ));
+    assert!(matches!(
+        ledger.admit(
+            pure(),
+            attempt("attempt:3", AttemptOutcome::Successful, None)
+        ),
+        AttemptAdmission::RetryBoundExceeded { .. }
+    ));
+    assert_eq!(ledger.attempts().len(), 2, "both attempts are retained");
+    let effects = ledger.effects();
+    assert_eq!(
+        effects.len(),
+        1,
+        "the retried refund established one effect"
+    );
+    assert_eq!(effects[0].effect, refund);
+    assert_eq!(effects[0].disposition, None);
+}
