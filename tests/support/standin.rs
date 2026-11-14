@@ -28,20 +28,12 @@ use quire_protocol::disposition::{QslBoundary, QslReport};
 
 use super::dynamic::Dynamic;
 
-/// The channel components QSL's read view does not publish yet.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Rest {
-    pub sender: &'static str,
-    pub receiver: &'static str,
-    pub message_type: &'static str,
-}
-
 pub type Assumptions = &'static str;
-pub type Req = ProtocolRequest<Assumptions, Rest, &'static str>;
-pub type Bind = Binding<Assumptions, Rest, &'static str>;
+pub type Req = ProtocolRequest<Assumptions, &'static str>;
+pub type Bind = Binding<Assumptions, &'static str>;
 /// The unified claim a provider is asked about; these tests ask no
 /// composition or refinement, whose entries are therefore `()`.
-pub type Asked = Claim<Assumptions, Rest, &'static str, ()>;
+pub type Asked = Claim<Assumptions, &'static str, ()>;
 pub type Boundary = ProviderBoundary<'static, Asked, Answer<Sentinel, Infallible>>;
 
 /// The result a stand-in returns, with the parts the dispatcher reads.
@@ -156,14 +148,6 @@ pub fn always(result: Sentinel) -> Reply {
     Box::new(move |_| QslReport::Result(result.clone()))
 }
 
-pub fn rest() -> Rest {
-    Rest {
-        sender: "S",
-        receiver: "R",
-        message_type: "Notice",
-    }
-}
-
 /// A request over the fragment of the channels `channels` and roles `S`, `R`,
 /// with every premise supplied.
 pub fn request(dynamic: &Dynamic, kind: ProtocolClaimKind, channels: &[&str]) -> Req {
@@ -192,7 +176,6 @@ pub fn request(dynamic: &Dynamic, kind: ProtocolClaimKind, channels: &[&str]) ->
                     let premise = ChannelPremise {
                         ordering: declared.ordering.clone(),
                         delivery: declared.delivery,
-                        unread: rest(),
                     };
                     (node, premise)
                 })

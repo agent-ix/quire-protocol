@@ -27,7 +27,7 @@ Per channel: the checked node id, the sender and receiver role nodes, the messag
 ## Behavior
 
 - The library shall obtain the sender, receiver and message type through QSL's `channel_endpoints` accessor and carry them as the checked nodes it names.
-- A channel whose ends QSL's accessor refuses refuses the link with that view refusal.
+- A package whose channel ends are no references is refused by Contract IR's reader at admission (FR-043), so it is never linked; the link carries QSL's view refusal for the same case as a typed error.
 - The library shall obtain the delivery premise and capacity through QSL's `delivery` and `queue_capacity` accessors wherever they own the value (FR-044).
 - The library shall keep a symbolic capacity as the authored expression.
 - The library shall not evaluate it to a number.
@@ -43,6 +43,7 @@ Per channel: the checked node id, the sender and receiver role nodes, the messag
 | FR-051-AC-2 | A symbolic capacity is carried as its authored expression, and no linked field holds a number derived from it. | Test (TC-050) |
 | FR-051-AC-3 | Over channels authoring `block`, `reject` and `loss` with each of `head`, `tail` and `new`, each linked channel's overflow policy is the authored one, and no channel is linked without one. | Test (TC-050) |
 | FR-051-AC-4 | Over channels of distinct senders, receivers and message types, each linked channel carries its sender role, receiver role and message type node exactly as QSL's `channel_endpoints` reads them, and two channels of different message types carry different type nodes. | Test (TC-168) |
+| FR-051-AC-5 | Given a package whose channel `from` is a text literal instead of a role reference, Contract IR's reader refuses it as a malformed wire, so no channel with unreadable ends is linked. | Test (TC-171) |
 
 ## Dependencies
 

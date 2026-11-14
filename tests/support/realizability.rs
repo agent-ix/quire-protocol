@@ -185,6 +185,7 @@ fn channel(name: &str, from: &str, to: &str, carries: &str) -> String {
 
 /// One fixture: both package forms and the model's documents.
 pub struct Realizability {
+    document: Vec<u8>,
     checked: CheckedPackage,
     admitted: Box<CheckedPackageV2>,
     packages: PackageInput,
@@ -265,6 +266,7 @@ impl Realizability {
             .clone();
         let linked = link(&admitted, &clause).expect("the protocol links");
         Self {
+            document: document.clone(),
             clause,
             linked,
             checked,
@@ -276,6 +278,25 @@ impl Realizability {
                 identity: "s0".to_owned(),
             }],
         }
+    }
+
+    /// The package emitted again with `mutate` applied to its wire JSON, read
+    /// by Contract IR's reader.
+    pub fn read_mutated(&self, mutate: impl FnOnce(&mut Json)) -> CheckedPackageDispatchResult {
+        let emission = qsl_package::emit_checked(&self.checked, EmitLimits::new(1 << 32))
+            .expect("the protocol package emits");
+        let mut evidence = emission.evidence().clone();
+        evidence
+            .insert_domain_package_document(PACKAGE, self.document.as_slice())
+            .expect("fresh domain evidence");
+        let mut wire: Json =
+            serde_json::from_slice(emission.package().bytes()).expect("the package is JSON");
+        mutate(&mut wire);
+        quire_contract_model::read_checked_package(
+            &serde_json::to_vec(&wire).expect("JSON bytes"),
+            CheckedPackageReadLimits::bounded(),
+            &evidence,
+        )
     }
 
     /// The admitted package, the request's own form.

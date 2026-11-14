@@ -139,7 +139,7 @@ fn a_decisive_result_with_no_source_identity_is_refused_alone() {
             ClaimRequest::Protocol(bound.clone()),
         ],
     );
-    let alone: Vec<ClaimDisposition<&str, _, _, _, _, _, _>> = dispatch_claims(
+    let alone: Vec<ClaimDisposition<&str, _, _, _, _, _>> = dispatch_claims(
         &mut boundary,
         declarations,
         &[],

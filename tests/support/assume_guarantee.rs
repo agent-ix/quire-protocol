@@ -32,10 +32,10 @@ pub type Bind = AssumeGuaranteeBinding<Entry>;
 pub type Req = AssumeGuaranteeRequest<Entry>;
 /// The unified claim a provider is asked about; these tests ask no
 /// projection or realizability, whose components are therefore `()`.
-pub type Asked = Claim<(), (), (), Entry>;
+pub type Asked = Claim<(), (), Entry>;
 pub type Boundary = ProviderBoundary<'static, Asked, Answer<Infallible, Out>>;
-pub type Claims = ClaimRequest<&'static str, (), (), (), Entry>;
-pub type Settled = ClaimDisposition<&'static str, (), (), (), Entry, Infallible, Out>;
+pub type Claims = ClaimRequest<&'static str, (), (), Entry>;
+pub type Settled = ClaimDisposition<&'static str, (), (), Entry, Infallible, Out>;
 
 /// The result a stand-in returns: opaque artifacts the dispatcher must carry
 /// and the parts it reads.

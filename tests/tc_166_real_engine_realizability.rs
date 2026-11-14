@@ -28,7 +28,7 @@ use support::realizability::Realizability;
 fn settle(fixture: &Realizability) -> EngineResult {
     let mut boundary: ProviderBoundary<'_, Asked, Answer<EngineResult, Infallible>> =
         ProviderBoundary::new();
-    let engine = QslEngine::new(fixture.package(), |_: &Binding<(), (), ()>| {
+    let engine = QslEngine::new(fixture.package(), |_: &Binding<(), ()>| {
         EngineRequest::Realizability(Box::new(fixture.request()))
     })
     .expect("QSL's linked engines register");

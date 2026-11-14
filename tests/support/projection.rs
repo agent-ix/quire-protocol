@@ -25,7 +25,7 @@ use quire_protocol::link::LinkedProtocol;
 
 use super::dynamic::Dynamic;
 
-pub type Asked = Claim<(), (), (), ()>;
+pub type Asked = Claim<(), (), ()>;
 pub type Boundary<'p> = ProviderBoundary<'p, Asked, Answer<EngineResult, Infallible>>;
 
 pub const RECORDS: &str = "record Ack { ok: Boolean; }\nrecord Note { ok: Boolean; }\n\
@@ -78,7 +78,7 @@ pub fn assessed_root() -> AssessedRootDraft {
 }
 
 /// The claim: project the global protocol onto the channels and roles named.
-pub fn claim(dynamic: &Dynamic) -> ProtocolRequest<(), (), ()> {
+pub fn claim(dynamic: &Dynamic) -> ProtocolRequest<(), ()> {
     claim_of(
         ProtocolClaimKind::LocalProjection,
         dynamic.linked(),
@@ -94,7 +94,7 @@ pub fn claim_of(
     linked: &LinkedProtocol,
     clause: &CheckedNodeId,
     named: impl Fn(&str, &str) -> CheckedNodeId,
-) -> ProtocolRequest<(), (), ()> {
+) -> ProtocolRequest<(), ()> {
     let channels: Vec<_> = ["Order", "Pick", "Cancelled"]
         .iter()
         .map(|name| named("channel", name))
@@ -122,7 +122,6 @@ pub fn claim_of(
                     let premise = ChannelPremise {
                         ordering: declared.ordering.clone(),
                         delivery: declared.delivery,
-                        unread: (),
                     };
                     (node, premise)
                 })
@@ -141,7 +140,7 @@ pub fn boundary<'p>(
     profile: &'static str,
 ) -> Boundary<'p> {
     let mut boundary = Boundary::new();
-    let engine = QslEngine::new(dynamic.package(), move |_: &Binding<(), (), ()>| {
+    let engine = QslEngine::new(dynamic.package(), move |_: &Binding<(), ()>| {
         EngineRequest::Projection(Box::new(ProjectionRequest {
             protocol: dynamic.clause().clone(),
             definition_key: Some("ix://test/Flow".to_owned()),
@@ -168,7 +167,7 @@ pub fn settle(
     dynamic: &Dynamic,
     role: &'static str,
     profile: &'static str,
-) -> ProtocolOutcome<EngineResult, Binding<(), (), ()>> {
+) -> ProtocolOutcome<EngineResult, Binding<(), ()>> {
     let mut boundary = boundary(dynamic, role, profile);
     dispatch(
         &mut boundary,

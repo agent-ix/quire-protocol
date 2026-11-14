@@ -22,9 +22,9 @@ use quire_protocol::dispatch::{
 };
 use quire_protocol::disposition::{ClaimSettlement, Disposition, QslReport};
 use support::dynamic::Dynamic;
-use support::standin::{always, request, rest, serve, Boundary, Rest, Sentinel};
+use support::standin::{always, request, serve, Boundary, Sentinel};
 
-type Change = Box<dyn Fn(ChannelPremise<Rest>) -> ChannelPremise<Rest>>;
+type Change = Box<dyn Fn(ChannelPremise) -> ChannelPremise>;
 
 const KIND: ProtocolClaimKind = ProtocolClaimKind::Realizability;
 
@@ -92,28 +92,7 @@ fn requests_differing_in_one_premise_component_differ_in_identity_and_provenance
     } else {
         Delivery::AtMostOnce
     };
-    let components: [Change; 5] = [
-        Box::new(|c| ChannelPremise {
-            unread: Rest {
-                sender: "other",
-                ..c.unread
-            },
-            ..c
-        }),
-        Box::new(|c| ChannelPremise {
-            unread: Rest {
-                receiver: "other",
-                ..c.unread
-            },
-            ..c
-        }),
-        Box::new(|c| ChannelPremise {
-            unread: Rest {
-                message_type: "other",
-                ..c.unread
-            },
-            ..c
-        }),
+    let components: [Change; 2] = [
         Box::new(|c| ChannelPremise {
             ordering: Ordering::Unordered,
             ..c
@@ -299,13 +278,7 @@ fn a_refused_disposition_holds_no_decided_truth_and_the_restored_premise_is_sent
     assert_eq!(calls.len(), 0);
 
     let mut restored = omitted;
-    let value = ChannelPremise {
-        unread: Rest {
-            sender: "restored-sender",
-            ..rest()
-        },
-        ..complete.premises.channels[&head].clone()
-    };
+    let value = complete.premises.channels[&head].clone();
     restored
         .premises
         .channels

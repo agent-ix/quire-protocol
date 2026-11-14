@@ -35,7 +35,7 @@ Per join: the control identity, the policy (`all`, `any`, `quorum(n)` or `predic
 - The library shall carry a join with no `outstanding` rule as having none.
 - The library shall carry a choice's owner and visible nodes as QSL's `choice_visibility` reads them.
 - The library shall not evaluate a choice's visible nodes.
-- A choice whose evidence QSL's accessor refuses refuses the link with that view refusal.
+- A package whose choice owner is no reference is refused by Contract IR's reader at admission (FR-043), so it is never linked; the link carries QSL's view refusal for the same case as a typed error.
 
 ## Acceptance Criteria
 
@@ -45,6 +45,7 @@ Per join: the control identity, the policy (`all`, `any`, `quorum(n)` or `predic
 | FR-052-AC-2 | A `predicate` join and a join with no `outstanding` rule link successfully and are carried as declared, without evaluation and without a default rule. | Test (TC-050) |
 | FR-052-AC-3 | A loop with an invariant and a lexicographic variant links with both declarations referenced by checked node id, and linking performs no check of either. | Test (TC-050) |
 | FR-052-AC-4 | Over a `choice` control, the linked representation carries its control identity, the owner node and the visible `expression` nodes in the order QSL's `choice_visibility` reads them, without evaluating them. | Test (TC-168) |
+| FR-052-AC-5 | Given a package whose choice `owner` is a text literal instead of a role reference, Contract IR's reader refuses it as a malformed wire, so no choice with unreadable evidence is linked. | Test (TC-171) |
 
 ## Dependencies
 

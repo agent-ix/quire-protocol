@@ -188,12 +188,11 @@ fn without_result<R>(record: &AnalyzeRecord) -> QslReport<R> {
     }
 }
 
-impl<'p, A, C, I, T, Q, S> QslBoundary<Claim<A, C, I, T>, Answer<EngineResult, Q>>
-    for QslEngine<'p, S>
+impl<'p, A, I, T, Q, S> QslBoundary<Claim<A, I, T>, Answer<EngineResult, Q>> for QslEngine<'p, S>
 where
-    S: FnMut(&Binding<A, C, I>) -> EngineRequest<'p>,
+    S: FnMut(&Binding<A, I>) -> EngineRequest<'p>,
 {
-    fn report(&mut self, claim: &Claim<A, C, I, T>) -> QslReport<Answer<EngineResult, Q>> {
+    fn report(&mut self, claim: &Claim<A, I, T>) -> QslReport<Answer<EngineResult, Q>> {
         let Claim::Protocol(binding) = claim else {
             // Composition and refinement are not this engine's kinds.
             return QslReport::Unsupported {

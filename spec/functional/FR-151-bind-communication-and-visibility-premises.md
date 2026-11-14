@@ -24,7 +24,7 @@ When a `local-projection` or `realizability` claim is dispatched, the dispatcher
 
 ## Inputs
 
-The channel premise (sender, receiver, message type, ordering policy and delivery policy) of every channel and the role internality of every role in the claim's admitted fragment; and the per-claim premises the requester supplied (FR-030).
+The channel premise (ordering policy and delivery policy, which the requester states; sender, receiver and message type, which the linked declaration carries) of every channel and the role internality of every role in the claim's admitted fragment; and the per-claim premises the requester supplied (FR-030).
 
 QSL's read view of the checked package (`ix://agent-ix/quire-spec-language/ADR-017`, read through FR-044) publishes each channel's ordering and delivery policy and each role declaration. It publishes a channel's sender, receiver and message type (FR-151-AC-7) but not a role's internality. Until QSL publishes it (FR-151-AC-9), the dispatcher forwards the internality as the requester states it and verifies none against the checked package.
 
@@ -37,7 +37,8 @@ Upstream admission already refuses a checked-package channel with a missing comp
 ## Behavior
 
 - The dispatcher shall hand the backend each channel's ordering and delivery policy and each role declaration exactly as the checked package authors them.
-- The dispatcher shall hand the backend each channel's sender, receiver and message type as the linked declaration carries them, and each component of the requester's premises that QSL's read view does not publish exactly as the requester stated it. `ChannelPremise::unread` holds nothing QSL publishes for a channel today; callers state `()`.
+- The dispatcher shall hand the backend each channel's sender, receiver and message type as the linked declaration carries them; the requester states none of them.
+- The dispatcher shall hand the backend each role internality exactly as the requester stated it, until QSL publishes it (FR-151-AC-9).
 - When the requester's ordering or delivery premise for a channel differs from the checked package's declaration of it, the dispatcher shall refuse that disposition under FR-030 naming the channel.
 - When the requester's premise differs from the checked package's declaration, the dispatcher shall invoke no backend for that claim.
 - The dispatcher shall retain on the disposition each premise it handed the backend.
@@ -67,7 +68,7 @@ Upstream admission already refuses a checked-package channel with a missing comp
 
 | Noun | Upstream object | Identity kind |
 | --- | --- | --- |
-| Channel premise (five components) | `ix://agent-ix/quire-specification/FR-216` | value |
+| Channel premise (ordering, delivery; the ends and message type are the linked declaration's) | `ix://agent-ix/quire-specification/FR-216` | value |
 | Role internality | `ix://agent-ix/quire-specification/FR-217` | value |
 | Truth disposition | `ix://agent-ix/quire-specification/FR-242` | value |
 | Settlement basis | `ix://agent-ix/quire-specification/FR-243` | value |

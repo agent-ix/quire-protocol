@@ -69,30 +69,28 @@ pub struct Fragment {
 /// One channel's premise as the requester states it (FR-151). The ordering
 /// and delivery are the components QSL's read view publishes, so they are
 /// typed and must equal the checked package's. The sender, receiver and
-/// message type are the linked declaration's (QSL publishes them); `C` holds
-/// only what the view still does not publish, which is nothing for a channel.
+/// message type are the linked declaration's (QSL publishes them), so the
+/// requester states none of them.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ChannelPremise<C> {
+pub struct ChannelPremise {
     /// The ordering policy.
     pub ordering: Ordering,
     /// The delivery policy.
     pub delivery: Delivery,
-    /// The components the read view does not publish; none for a channel today.
-    pub unread: C,
 }
 
 /// The per-claim premises the requester supplied, keyed by the channel or role
-/// they are the premise of (FR-151). `C` is a channel's unread components and
-/// `I` one role internality, as the requester states them.
+/// they are the premise of (FR-151). `I` is one role internality, as the
+/// requester states it.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Premises<C, I> {
+pub struct Premises<I> {
     /// The premise of each channel.
-    pub channels: BTreeMap<CheckedNodeId, ChannelPremise<C>>,
+    pub channels: BTreeMap<CheckedNodeId, ChannelPremise>,
     /// The internality of each role.
     pub roles: BTreeMap<CheckedNodeId, I>,
 }
 
-impl<C, I> Default for Premises<C, I> {
+impl<I> Default for Premises<I> {
     fn default() -> Self {
         Self {
             channels: BTreeMap::new(),
@@ -103,7 +101,7 @@ impl<C, I> Default for Premises<C, I> {
 
 /// One requested `local-projection` or `realizability` claim.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ProtocolRequest<A, C, I> {
+pub struct ProtocolRequest<A, I> {
     /// The claim kind.
     pub kind: ProtocolClaimKind,
     /// The admitted fragment.
@@ -113,7 +111,7 @@ pub struct ProtocolRequest<A, C, I> {
     /// The assumptions, as the requester states them.
     pub assumptions: A,
     /// The per-claim premises.
-    pub premises: Premises<C, I>,
+    pub premises: Premises<I>,
     /// The source identities the disposition retains (FR-030).
     pub sources: Vec<CheckedNodeId>,
 }
@@ -122,9 +120,9 @@ pub struct ProtocolRequest<A, C, I> {
 /// the request exactly as made, with the channel and role declarations the
 /// checked package authors for the fragment.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Binding<A, C, I> {
+pub struct Binding<A, I> {
     /// The request, unchanged.
-    pub request: ProtocolRequest<A, C, I>,
+    pub request: ProtocolRequest<A, I>,
     /// The backend the claim was selected against, once FR-290 selects one.
     pub selected: Option<BackendId>,
     /// The checked package's declaration of each channel of the fragment, in
@@ -265,11 +263,11 @@ impl<R: BackendResult, B> ProtocolOutcome<R, B> {
 /// computed (FR-004) and this dispatcher carries untouched, or a protocol
 /// claim.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum ClaimRequest<G, A, C, I, T> {
+pub enum ClaimRequest<G, A, I, T> {
     /// `global-conformance`, with its result.
     GlobalConformance(G),
     /// `local-projection` or `realizability`.
-    Protocol(ProtocolRequest<A, C, I>),
+    Protocol(ProtocolRequest<A, I>),
     /// `composition` or `refinement` (FR-200).
     AssumeGuarantee(AssumeGuaranteeRequest<T>),
 }
@@ -279,11 +277,11 @@ pub enum ClaimRequest<G, A, C, I, T> {
 // settlement the caller matches on.
 #[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum ClaimDisposition<G, A, C, I, T, P, Q> {
+pub enum ClaimDisposition<G, A, I, T, P, Q> {
     /// The global conformance result, unchanged.
     GlobalConformance(G),
     /// The protocol claim's settlement.
-    Protocol(ProtocolOutcome<P, Binding<A, C, I>>),
+    Protocol(ProtocolOutcome<P, Binding<A, I>>),
     /// The composition or refinement claim's settlement.
     AssumeGuarantee(ProtocolOutcome<Q, AssumeGuaranteeBinding<T>>),
 }
@@ -291,20 +289,20 @@ pub enum ClaimDisposition<G, A, C, I, T, P, Q> {
 /// The claim a registered provider is asked about: one boundary, registry and
 /// dispatch path serve every claim kind (FR-200).
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum Claim<A, C, I, T> {
+pub enum Claim<A, I, T> {
     /// A `local-projection` or `realizability` claim.
-    Protocol(Binding<A, C, I>),
+    Protocol(Binding<A, I>),
     /// A `composition` or `refinement` claim.
     AssumeGuarantee(AssumeGuaranteeBinding<T>),
 }
 
-impl<A, C, I, T> From<Binding<A, C, I>> for Claim<A, C, I, T> {
-    fn from(binding: Binding<A, C, I>) -> Self {
+impl<A, I, T> From<Binding<A, I>> for Claim<A, I, T> {
+    fn from(binding: Binding<A, I>) -> Self {
         Self::Protocol(binding)
     }
 }
 
-impl<A, C, I, T> From<AssumeGuaranteeBinding<T>> for Claim<A, C, I, T> {
+impl<A, I, T> From<AssumeGuaranteeBinding<T>> for Claim<A, I, T> {
     fn from(binding: AssumeGuaranteeBinding<T>) -> Self {
         Self::AssumeGuarantee(binding)
     }
@@ -438,10 +436,10 @@ pub(crate) fn select<R, B>(
 ///
 /// [`DispositionRefusal`] naming the absent or undeclared component; no
 /// default, inferred or sampled premise is supplied.
-pub fn bind<A: Clone, C: Clone, I: Clone>(
+pub fn bind<A: Clone, I: Clone>(
     declarations: &Declarations,
-    request: &ProtocolRequest<A, C, I>,
-) -> Result<Binding<A, C, I>, DispositionRefusal> {
+    request: &ProtocolRequest<A, I>,
+) -> Result<Binding<A, I>, DispositionRefusal> {
     let mut channels = Vec::with_capacity(request.fragment.channels.len());
     for node in &request.fragment.channels {
         let declared = declarations
@@ -543,15 +541,14 @@ pub(crate) fn settle_bound<K, P, Q, R, B: Clone>(
 /// Settle one claim: bind its premises, take FR-290's candidate set from
 /// QSL's registry, send the claim to the one candidate, and carry what
 /// returns.
-pub fn dispatch<K, A, C, I, P, Q>(
+pub fn dispatch<K, A, I, P, Q>(
     boundary: &mut ProviderBoundary<'_, K, Answer<P, Q>>,
     declarations: &Declarations,
-    request: &ProtocolRequest<A, C, I>,
-) -> ProtocolOutcome<P, Binding<A, C, I>>
+    request: &ProtocolRequest<A, I>,
+) -> ProtocolOutcome<P, Binding<A, I>>
 where
-    K: From<Binding<A, C, I>>,
+    K: From<Binding<A, I>>,
     A: Clone,
-    C: Clone,
     I: Clone,
     P: BackendResult,
 {
@@ -599,17 +596,16 @@ fn carry_refusal<R: BackendResult>(
 
 /// Settle every requested claim, in request order and independently of one
 /// another (FR-029). Global conformance results pass through untouched.
-pub fn dispatch_claims<K, G, A, C, I, T, P, Q>(
+pub fn dispatch_claims<K, G, A, I, T, P, Q>(
     boundary: &mut ProviderBoundary<'_, K, Answer<P, Q>>,
     declarations: &Declarations,
     components: &[&Declarations],
-    requests: &[ClaimRequest<G, A, C, I, T>],
-) -> Vec<ClaimDisposition<G, A, C, I, T, P, Q>>
+    requests: &[ClaimRequest<G, A, I, T>],
+) -> Vec<ClaimDisposition<G, A, I, T, P, Q>>
 where
-    K: From<Binding<A, C, I>> + From<AssumeGuaranteeBinding<T>>,
+    K: From<Binding<A, I>> + From<AssumeGuaranteeBinding<T>>,
     G: Clone,
     A: Clone,
-    C: Clone,
     I: Clone,
     T: Clone + PartialEq,
     P: BackendResult,
