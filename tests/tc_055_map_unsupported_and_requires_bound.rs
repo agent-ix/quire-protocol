@@ -19,8 +19,8 @@ use qsl_eval::simulation::RequiresBound;
 use qsl_foundation::bound::{DomainKey, DomainKind};
 use qsl_semantics::family::ClaimExtent;
 use quire_protocol::disposition::{
-    settle_claims, ClaimSettlement, Construct, Disposition, QslBoundary, QslReport,
-    UnsupportedCause, UnsupportedDisposition,
+    settle_claims, AssessmentUnsupported, ClaimSettlement, Construct, Disposition, QslBoundary,
+    QslReport, UnsupportedCause, UnsupportedDisposition,
 };
 use support::dynamic::Dynamic;
 
@@ -62,11 +62,6 @@ fn each_adr_listed_cause_is_carried_by_its_qsl_name_with_the_constructs_node() {
     let construct = dynamic.construct(&dynamic.named("channel", "Symbolic"));
     let causes = [
         Unsupported::SymbolicCapacity,
-        Unsupported::JoinPredicate,
-        Unsupported::UnruledOutstanding,
-        Unsupported::ActivationOnEachTemplate,
-        Unsupported::Capture,
-        Unsupported::UnorderedLossSelector,
         Unsupported::UnenumerableRecord,
     ];
     for cause in causes {
@@ -113,7 +108,7 @@ fn an_unsupported_claim_leaves_every_other_claim_exactly_as_it_was() {
             answers.insert(
                 "second",
                 unsupported(
-                    UnsupportedCause::Construct(Unsupported::JoinPredicate),
+                    UnsupportedCause::Assessment(AssessmentUnsupported::JoinPredicate),
                     &construct,
                 ),
             );
@@ -185,7 +180,7 @@ fn symbolic_capacity_and_predicate_joins_hold_no_derived_number_or_truth_value()
     assert!(matches!(
         joins.as_slice(),
         [JoinOutcome::Unsupported {
-            cause: UnsupportedCause::Construct(Unsupported::JoinPredicate),
+            cause: UnsupportedCause::Assessment(AssessmentUnsupported::JoinPredicate),
             ..
         }]
     ));
@@ -203,7 +198,7 @@ fn an_unrecognised_cause_is_retained_unchanged_and_mapped_to_no_known_cause() {
     // It equals no cause QSL defines, including the requested-capability one.
     for known in [
         UnsupportedCause::Construct(Unsupported::SymbolicCapacity),
-        UnsupportedCause::Construct(Unsupported::JoinPredicate),
+        UnsupportedCause::Assessment(AssessmentUnsupported::JoinPredicate),
         UnsupportedCause::requested_capability(),
     ] {
         assert_ne!(cause, known);

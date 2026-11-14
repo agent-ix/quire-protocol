@@ -36,7 +36,7 @@ use quire_exact::{Integer, NodeKey};
 use crate::declarations::{
     Capacity, ChannelDeclaration, Declarations, JoinPolicy, Ordering, RoleDeclaration,
 };
-use crate::disposition::{Construct, UnsupportedCause};
+use crate::disposition::{AssessmentUnsupported, Construct, UnsupportedCause};
 use crate::ids::{MessageId, RoleInstanceId, WorkflowInstanceId};
 
 /// Why a history cannot be assessed against a linked protocol. The history
@@ -538,16 +538,18 @@ pub fn assess_channels(
 
 /// The literal capacity QSL steps, or the `Unsupported` cause for a channel it
 /// does not.
-fn steppable_capacity(channel: &ChannelDeclaration) -> Result<u64, Unsupported> {
+fn steppable_capacity(channel: &ChannelDeclaration) -> Result<u64, UnsupportedCause> {
     let Capacity::Literal(capacity) = channel.capacity else {
-        return Err(Unsupported::SymbolicCapacity);
+        return Err(UnsupportedCause::Construct(Unsupported::SymbolicCapacity));
     };
     let loses_ordered = matches!(
         channel.overflow,
         ChannelOverflow::Loss(LossSelector::Head | LossSelector::Tail)
     );
     if channel.ordering == Ordering::Unordered && loses_ordered {
-        return Err(Unsupported::UnorderedLossSelector);
+        return Err(UnsupportedCause::Assessment(
+            AssessmentUnsupported::UnorderedLossSelector,
+        ));
     }
     Ok(capacity)
 }
@@ -575,7 +577,7 @@ fn assess_channel(
         Err(cause) => {
             return ChannelOutcome::Unsupported {
                 channel: channel.node.clone(),
-                cause: UnsupportedCause::Construct(cause),
+                cause,
                 construct: construct(&channel.node),
             }
         }
@@ -897,18 +899,11 @@ pub fn assess_joins(
     for ((index, workflow, _), mut occurrence) in occurrences {
         let ordinals = &occurrence[0].repeat_ordinals;
         let declaration = &declarations.joins()[index];
-        let unsupported = match (&declaration.policy, declaration.outstanding) {
-            (JoinPolicy::Predicate(_), _) => Some(Unsupported::JoinPredicate),
-            (JoinPolicy::Any | JoinPolicy::Quorum(_), None) => {
-                Some(Unsupported::UnruledOutstanding)
-            }
-            _ => None,
-        };
-        if let Some(cause) = unsupported {
+        if matches!(declaration.policy, JoinPolicy::Predicate(_)) {
             outcomes.push(JoinOutcome::Unsupported {
                 workflow: workflow.clone(),
                 repeat_ordinals: ordinals.clone(),
-                cause: UnsupportedCause::Construct(cause),
+                cause: UnsupportedCause::Assessment(AssessmentUnsupported::JoinPredicate),
                 construct: construct(&declaration.control),
             });
             continue;

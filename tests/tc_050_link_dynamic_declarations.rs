@@ -283,7 +283,7 @@ fn each_join_policy_and_threshold_is_linked_with_its_control() {
 
 #[test]
 #[trace("TC-050", "FR-052-AC-2")]
-fn a_predicate_join_and_an_unruled_join_link_as_declared() {
+fn a_predicate_join_and_an_all_join_with_no_rule_link_as_declared() {
     let dynamic = Dynamic::with("workflow", 3);
     let predicate = join_of(&dynamic, "Predicate");
     let JoinPolicy::Predicate(function) = &predicate.policy else {
@@ -294,10 +294,11 @@ fn a_predicate_join_and_an_unruled_join_link_as_declared() {
         "the function node, unevaluated"
     );
     assert_eq!(predicate.threshold(), None);
-    assert_eq!(predicate.outstanding, None);
-    for name in ["AnyUnruled", "QuorumUnruled", "AllUnruled"] {
-        assert_eq!(join_of(&dynamic, name).outstanding, None, "{name}");
-    }
+    assert!(
+        predicate.outstanding.is_some(),
+        "QSL refuses an unruled predicate join"
+    );
+    assert_eq!(join_of(&dynamic, "AllUnruled").outstanding, None);
 }
 
 #[test]

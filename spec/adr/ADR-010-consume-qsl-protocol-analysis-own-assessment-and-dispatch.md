@@ -193,7 +193,7 @@ does no QSL-side work.
 | --- | --- | --- | --- |
 | G1 | No decision procedure for `local-projection`: role-local projection with send/receive correspondence, queue order and merge visibility | Only vocabulary, applicability and routing exist; an unserved request settles `unsupported_projection` / `unsupported-requested-capability` | TL-10 |
 | G2 | No decision procedure for `realizability`: local-history strategy game, realizable/unrealizable witnesses, non-conclusive outcome on missing premises | Same as G1 | TL-10 |
-| G3 | `join predicate(...)` is not stepped (`Unsupported::JoinPredicate`), and a join that may leave branches running with no `outstanding` rule is refused (`Unsupported::UnruledOutstanding`) | `qsl-eval/src/simulation/protocol/program.rs` | TL-11 |
+| G3 | `join predicate(...)` was not stepped and a join with no `outstanding` rule was refused (both closed in QSL by QSL-1885 and QSL-1891; this library still does not assess a predicate join) | `qsl-eval/src/simulation/protocol/program.rs` | TL-11 |
 | G4 | Symbolic channel capacity is not stepped (`Unsupported::SymbolicCapacity`); only literal capacity is | Same file | TL-11 |
 | G5 | No discharge of a `repeat`'s `invariant` and `variant` (lexicographic variants included) was found. They parse and lower into the checked package, but a search of `qsl-analyze`, `qsl-eval`, `qsl-replay` and `qsl-route` found no engine that proves them | `qsl-forms/src/protocol_control.rs`, `qsl-semantics/.../controls.rs` | TL-11 |
 | G6 | Declared least-fixed-point cycles: the composition planner computes no fixed point and discharges a cycle only from a `fixed-point` slot holding a proved result. No producer of that result was found | `qsl-replay/src/planner/compose.rs` | TL-9 |

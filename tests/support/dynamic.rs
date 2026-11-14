@@ -59,8 +59,6 @@ protocol Flow using p over (input: M::Workflow) on origin {{
     {all}
     {any_continue}
     {quorum_cancel}
-    {any_unruled}
-    {quorum_unruled}
     {all_unruled}
     {predicate}
     repeat Bounded by S visible () max 3 invariant {{ true }} variant {{ 1 }} while {{ false }} sequence BoundedBody {{ event Tick by S as (tick: M::Notice) {{ true }}; }} exhausted sequence BoundedOut {{ }}
@@ -76,10 +74,8 @@ protocol Flow using p over (input: M::Workflow) on origin {{
         all = parallel("JoinAll", "all [a,b,c] outstanding continue"),
         any_continue = parallel("AnyContinue", "any [a,b,c] outstanding continue"),
         quorum_cancel = parallel("QuorumCancel", "quorum(2) [a,b,c] outstanding cancel"),
-        any_unruled = parallel("AnyUnruled", "any [a,b,c]"),
-        quorum_unruled = parallel("QuorumUnruled", "quorum(2) [a,b,c]"),
         all_unruled = parallel("AllUnruled", "all [a,b,c]"),
-        predicate = parallel("Predicate", "predicate(both) [a,b,c]"),
+        predicate = parallel("Predicate", "predicate(both) [a,b,c] outstanding continue"),
         inner_join = parallel("InnerJoin", "all [a,b,c] outstanding continue"),
     )
 }
@@ -105,6 +101,19 @@ fn model() -> Vec<u8> {
             "inputIdentities": [format!("{package}/workers")],
         }},
     }]);
+    // A third object type, so a protocol can declare three static roles: one
+    // role for each model type (the link refuses two roles on one authority).
+    let types = model["types"].as_array_mut().expect("types");
+    let workflow = types
+        .iter()
+        .find(|found| found["identity"] == format!("{package}/Workflow"))
+        .expect("the Workflow type")
+        .clone();
+    let depot = workflow
+        .to_string()
+        .replace("/Workflow", "/Depot")
+        .replace("Workflow", "Depot");
+    types.push(serde_json::from_str(&depot).expect("the Depot type"));
     serde_json::to_vec(&model).expect("model bytes")
 }
 
@@ -131,8 +140,20 @@ impl Dynamic {
         let holder = tempfile::tempdir().expect("temporary directory");
         let model_path: PathBuf = holder.path().join("model.semantic-ir.json");
         std::fs::write(&model_path, model()).expect("model file");
+        Self::over_text(&source(lifetime, max, bag_loss), holder, model_path)
+    }
+
+    /// The package of the QSL unit `text`, compiled over the recipe model.
+    pub fn from_source(text: &str) -> Self {
+        let holder = tempfile::tempdir().expect("temporary directory");
+        let model_path: PathBuf = holder.path().join("model.semantic-ir.json");
+        std::fs::write(&model_path, model()).expect("model file");
+        Self::over_text(text, holder, model_path)
+    }
+
+    fn over_text(text: &str, holder: tempfile::TempDir, model_path: PathBuf) -> Self {
         let source_path = holder.path().join("unit.native");
-        std::fs::write(&source_path, source(lifetime, max, bag_loss)).expect("source file");
+        std::fs::write(&source_path, text).expect("source file");
         let mut asked = request("event_position", Corpus::None);
         asked.emit.source = source_path;
         asked.emit.models = vec![model_path];

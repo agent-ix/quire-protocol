@@ -11,7 +11,7 @@ use ix_trace_rs::trace;
 use qsl_eval::simulation::protocol::Unsupported;
 use qsl_package::protocol_view::Delivery;
 use qsl_semantics::check::{ChannelOverflow, LossSelector};
-use quire_protocol::disposition::UnsupportedCause;
+use quire_protocol::disposition::{AssessmentUnsupported, UnsupportedCause};
 use quire_protocol::dynamics::{
     assess_channels, ChannelAssessment, ChannelEvent, ChannelFact, ChannelOutcome, OverflowOutcome,
     PremiseBreach, QueueViolation,
@@ -351,7 +351,7 @@ fn an_unordered_channel_has_no_order_violation_and_a_head_or_tail_loss_is_unsupp
         };
         assert_eq!(
             cause,
-            UnsupportedCause::Construct(Unsupported::UnorderedLossSelector)
+            UnsupportedCause::Assessment(AssessmentUnsupported::UnorderedLossSelector)
         );
     }
 }

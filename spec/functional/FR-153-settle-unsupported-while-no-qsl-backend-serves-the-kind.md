@@ -54,6 +54,7 @@ One `unsupported` disposition (FR-241) per such claim, carrying QSL's cause `uns
 | FR-153-AC-5 | Given a stand-in that serves only `refinement`, a `local-projection` claim and a `realizability` claim settle `unsupported` and the stand-in records no call for them. | Test (TC-163) |
 | FR-153-AC-6 | Given the request of FR-153-AC-1 run again byte-identically after a stand-in serving `local-projection` is registered, the `local-projection` disposition equals the stand-in's result and the `realizability` disposition is still `unsupported`. | Test (TC-163) |
 | FR-153-AC-7 | Given an empty registry, each unsupported disposition retains the request's exact fragment, backend, assumptions, premises and source identities equal to the request's, and its result, witness and projected-artifact fields are absent. | Test (TC-163) |
+| FR-153-AC-8 | Given QSL's `protocol-analysis` engine registered and a `local-projection` request the engine refuses, the dispatch returns no result and holds neither truth `satisfied` nor `violated`. | Test (TC-164) |
 
 ## Adopted vocabulary
 

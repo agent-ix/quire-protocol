@@ -59,7 +59,7 @@ Per join occurrence: the set of observed completed branches, whether the join se
 | FR-055-AC-2 | Over an `any` join, settlement after the first completed branch reports no violation, and settlement with none completed reports a join violation. | Test (TC-053) |
 | FR-055-AC-3 | Over a `quorum(n)` join, histories with n-1, n and n+1 distinct completed branches report a violation only for n-1; a branch counted twice in the history is counted once. | Test (TC-053) |
 | FR-055-AC-4 | Over joins authored `outstanding continue` and `outstanding cancel`, a history whose outstanding branches behave as authored reports none, and one whose branches behave otherwise reports an outstanding violation. | Test (TC-053) |
-| FR-055-AC-5 | Over a `predicate` join and over an `any` and a `quorum(n)` join with no `outstanding` rule, the assessment returns the FR-057 disposition and reports neither a settled nor an unsettled join. | Test (TC-053) |
+| FR-055-AC-5 | Over a `predicate` join, the assessment returns the FR-057 disposition and reports neither a settled nor an unsettled join. | Test (TC-053) |
 | FR-055-AC-6 | Over an `all` join with no `outstanding` rule, a history settling with every branch complete reports no violation and no outstanding branch, and a history settling with a branch missing reports a join violation. | Test (TC-053) |
 | FR-055-AC-7 | A fact naming a branch label the join does not list refuses the history with the join and label named. | Test (TC-053) |
 | FR-055-AC-8 | Over a join inside a `repeat`, histories settling in two iterations are two occurrences, each judged alone, and an ordinal outside the repeat's maximum or a missing ordinal refuses the history. | Test (TC-053) |
