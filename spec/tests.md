@@ -270,8 +270,8 @@ Non-functional totals across these 8 rows: 53 acceptance criteria, of which 19 c
 | IT-001 version 2 | Native compiler version 2 artifact to protocol library | FR-001-AC-5, FR-002-AC-5, FR-009, FR-013-AC-4, FR-017, NFR-002, NFR-005, NFR-007 | ⛔ Retired — the IT-001/IT-002 procedures were deleted in QSL-1549 stage 1; FR-047-AC-3 owns their replacement on recipe R. |
 | IT-002 | Observation and temporal facts to protocol evaluator/result | FR-003, FR-004, FR-006, FR-009, FR-017, FR-026, FR-041, NFR-002, NFR-005 | ⛔ Retired — the IT-001/IT-002 procedures were deleted in QSL-1549 stage 1; FR-047-AC-3 owns their replacement on recipe R. |
 | IT-004 | Projection claims through QSL's linked protocol analysis engine | FR-150 | ✅ Implemented — TC-164 and TC-165 run it for `local-projection` and TC-166 for `realizability`; `composition` and `refinement` have no linked QSL engine. |
-| IT-005 | Reference workflow corpora over the Protocol-owned cells | FR-050..FR-056, FR-100, FR-019..FR-023 | ✅ Implemented — each corpus names the living tests that run it; the timed-refund end-to-end example and the correlated-workflow cells are not covered (V1-PROT inventory). |
 | IT-003 | Protocol result through Engineering Assurance, E02, and Quoin | FR-006, FR-007, FR-009, FR-014, FR-017, FR-039, FR-040, NFR-002, NFR-003, NFR-005 | ⛔ Unexecutable — Engineering Assurance and the exact qverify E02 consumer graph are delivered, but Quoin has no Protocol scenario-record intake, so all owed scenarios score zero rather than passing. |
+| IT-005 | Reference workflow corpora over the Protocol-owned cells | FR-019..FR-023, FR-050..FR-056, FR-100 | ✅ Implemented — each corpus names the living tests that run it; the timed-refund end-to-end example and the correlated-workflow cells are not covered (V1-PROT inventory). |
 
 Owed integration scenarios: 32 across the three integration tests (IT-001 10,
 IT-002 12, IT-003 10). The IT-001 and IT-002 procedures and their tests were
@@ -326,7 +326,7 @@ a coverage claim in this matrix.
 | TC-164 | Dispatch local-projection claims to QSL's protocol analysis engine | Property | P0 | FR-150, FR-153 | ✅ Implemented — its tests carry FR-150-AC-12, FR-150-AC-13 and FR-153-AC-8. |
 | TC-165 | Qualify local-projection over a workflow corpus on QSL's linked engine | Integration | P0 | FR-150 | ✅ Implemented — its tests carry FR-150-AC-14 and FR-150-AC-15; IT-004 is its procedure. |
 | TC-166 | Dispatch realizability claims to QSL's protocol analysis engine | Property | P0 | FR-150 | ✅ Implemented — its tests carry FR-150-AC-16 and FR-150-AC-17. |
-| TC-167 | Assess a finite reference workflow history on every dynamic axis | Integration | P0 | FR-050..FR-056 | ✅ Implemented — three tests: a conforming run, a faulty run judged per axis, and a replay giving the same result; IT-005 is its procedure. |
+| TC-167 | Assess a finite reference workflow history on every dynamic axis | Integration | P0 | FR-053..FR-056 | ✅ Implemented — four tests: a conforming run, a faulty run, a run breaking one axis only, and a rebuilt history giving the same result; IT-005 is its procedure. |
 | TC-200 | Dispatch composition claims to QSL's composition backend | Property | P0 | FR-200 | ✅ Implemented — its tests carry every FR-200 criterion, against a stand-in; no linked QSL engine serves the kinds. |
 | TC-201 | Bind composition dispositions to their premise lists and component subjects | Property | P0 | FR-201 | ✅ Implemented — its tests carry every FR-201 criterion, against a stand-in; no linked QSL engine serves the kinds. |
 | TC-202 | Carry composition and refinement results without reinterpretation | Property | P0 | FR-202 | ✅ Implemented — its tests carry every FR-202 criterion, against a stand-in; no linked QSL engine serves the kinds. |
@@ -342,35 +342,35 @@ Each Protocol-owned cell of `quire-specification/docs/v1-capability-inventory.md
 | V1-PROT-001 finite roles | FR-050 (TC-050) | Backed |
 | V1-PROT-002 role instances | FR-053 (TC-051) | Backed |
 | V1-PROT-003 role binding | FR-044 (TC-150) | Backed for role authority; no test of endpoint binding |
-| V1-PROT-004 typed messages | FR-051 (TC-050) | Backed |
-| V1-PROT-005 channels | FR-051 (TC-050) | Backed |
+| V1-PROT-004 typed messages | FR-051 (TC-050) covers capacity, ordering, delivery and overflow only | Gap: message and payload types have no living test (FR-151-AC-7) |
+| V1-PROT-005 channels | FR-051 (TC-050) | Partial: a channel's sender and receiver have no living test (FR-151-AC-7) |
 | V1-PROT-006 send, receipt, message, delivery, attempt identities | FR-023 (TC-003); FR-054 (TC-052); FR-018 (TC-017) | Backed in parts; no single identity-separation test |
 | V1-PROT-007 business correlation | none | Gap: no living test |
 | V1-PROT-008 sequence | FR-044 (TC-150) | Backed |
-| V1-PROT-009 choice | FR-019 (TC-003) | Backed |
+| V1-PROT-009 choice | FR-019-AC-2 (TC-003) refuses swapped choice-visibility evidence only | Gap: composing an owned labeled choice has no living test |
 | V1-PROT-010 parallel and join | FR-052, FR-055 (TC-050, TC-053, TC-167) | Backed |
 | V1-PROT-011 bounded iteration | FR-056 (TC-054, TC-167) | Backed |
 | V1-PROT-012 dynamic roles | FR-053 (TC-051, TC-167) | Backed |
 | V1-PROT-013 queues | FR-054 (TC-052, TC-167) | Backed for finite capacity; symbolic capacity is typed unsupported (TC-055) |
 | V1-PROT-014 invariants and termination | FR-058, FR-059 (TC-054, TC-055) | Partial: undischarged and requires-bound carried; QSL owns the proof |
 | V1-PROT-015 causal edges | FR-044 (TC-150); FR-021 (TC-003) | Backed |
-| V1-PROT-016 choice visibility | FR-019 (TC-003); FR-151 (TC-161) | Backed |
+| V1-PROT-016 choice visibility | FR-019-AC-2 (TC-003); FR-151 (TC-161) | Partial: FR-151 runs against a stand-in and AC-7 has no test |
 | V1-PROT-017 delivery premises | FR-051, FR-054 (TC-050, TC-052); FR-151 (TC-161) | Backed |
-| V1-PROT-018 state guards, temporal obligations | FR-045 (TC-151), FR-046 (TC-152) | Partial: 8 criteria without a living test |
+| V1-PROT-018 state guards, temporal obligations | FR-045 (TC-151), FR-046 (TC-152) | Partial: 5 criteria without a living test (FR-045 AC-2, AC-5, AC-7; FR-046 AC-5, AC-7) |
 | V1-PROT-019 captures, timeout branches | FR-100, FR-101 (TC-154) | Backed |
 | V1-PROT-020 compensation registration | FR-020 (TC-003) | Backed |
 | V1-PROT-021 effect, attempt, retry identities | FR-022, FR-023 (TC-003) | Backed |
 | V1-PROT-022 commit and recovery | FR-021 (TC-003) | Backed |
 | V1-PROT-023 outcome distinctions | FR-023 (TC-003) | Backed |
 | V1-PROT-024 duplicate business effects | none (FR-024 retired) | Gap: no living test |
-| V1-PROT-025 finite replay | TC-167; TC-008 | Backed for the dynamic axes; the replay of a whole protocol result is retired with FR-006 |
+| V1-PROT-025 finite replay | TC-167; TC-008 | Partial: a rebuilt history gives the same dynamic-axis result; no test replays a serialized trace, and the whole-result replay is retired with FR-006 |
 | V1-PROT-026 global conformance | passthrough only (TC-165 AC-15) | Gap: FR-006 retired, no successor |
 | V1-PROT-027 projection | FR-150 (TC-164, TC-165) | Backed on QSL's engine |
 | V1-PROT-028 realizability | FR-150 (TC-166) | Backed on QSL's engine; witness carrier FR-302 is batch D |
 | V1-PROT-029 composition | FR-200..FR-204 (TC-200..TC-204) | Stand-in; no linked QSL engine |
 | V1-PROT-030 refinement | FR-200..FR-204; FR-301 | Stand-in; no linked QSL engine; FR-301 has no tagged test |
 | V1-PROT-031 no external effects | FR-025 (TC-003, TC-009) | Backed |
-| V1-RUN-003 protocol replay | TC-167; TC-050..TC-056 | Backed for the dynamic axes |
+| V1-RUN-003 protocol replay | TC-167; TC-050..TC-055 | Partial: the dynamic axes only |
 | V1-RUN-005, V1-RUN-006 independent axes | FR-014 (TC-011); TC-055, TC-154, TC-163 | Partial; publication waits on Quoin #519 (IT-003) |
 | V1-RUN-009 related workflow instances | none | Gap: no living test |
 | V1-RUN-011 timed refund | FR-100, FR-101 (TC-154) | Partial: no end-to-end refund example |

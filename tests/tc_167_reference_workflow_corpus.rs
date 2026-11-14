@@ -27,7 +27,7 @@ struct Run {
 }
 
 /// What the assessment says of a run, on each axis.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct Verdict {
     max_live: u64,
     within_bound: Option<bool>,
@@ -193,14 +193,59 @@ fn a_faulty_run_is_judged_on_each_axis_separately() {
     );
 }
 
+/// Each run breaks exactly one axis; the other three must hold.
 #[test]
 #[trace("TC-167")]
-fn replaying_the_same_finite_history_gives_the_same_result() {
+fn a_fault_on_one_axis_leaves_the_other_axes_holding() {
     let dynamic = Dynamic::with("workflow", 3);
-    for history in [
-        run(&dynamic, 2, 2, &["a", "b", "c"], 3),
-        run(&dynamic, 4, 3, &["a", "b"], 4),
-    ] {
-        assert_eq!(assess(&dynamic, &history), assess(&dynamic, &history));
+    let holds = assess(&dynamic, &run(&dynamic, 2, 2, &["a", "b", "c"], 3));
+    let cases = [
+        (
+            run(&dynamic, 4, 2, &["a", "b", "c"], 3),
+            Verdict {
+                max_live: 4,
+                within_bound: Some(false),
+                ..holds
+            },
+        ),
+        (
+            run(&dynamic, 2, 3, &["a", "b", "c"], 3),
+            Verdict {
+                channel_violations: 1,
+                within_capacity: false,
+                ..holds
+            },
+        ),
+        (
+            run(&dynamic, 2, 2, &["a", "b"], 3),
+            Verdict {
+                join_permitted: Some(false),
+                ..holds
+            },
+        ),
+        (
+            run(&dynamic, 2, 2, &["a", "b", "c"], 4),
+            Verdict {
+                loop_iterations: 4,
+                loop_within_maximum: Some(false),
+                ..holds
+            },
+        ),
+    ];
+    for (history, expected) in cases {
+        assert_eq!(assess(&dynamic, &history), expected);
     }
+}
+
+/// A history rebuilt from nothing, over a second compilation of the same
+/// choreography, is assessed to the same result.
+#[test]
+#[trace("TC-167")]
+fn a_rebuilt_history_over_a_fresh_compilation_gives_the_same_result() {
+    let build = || {
+        let dynamic = Dynamic::with("workflow", 3);
+        let history = run(&dynamic, 4, 3, &["a", "b"], 4);
+        assess(&dynamic, &history)
+    };
+    assert_eq!(build(), build());
 }
