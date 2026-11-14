@@ -30,9 +30,10 @@ One `unsupported` disposition (FR-029) that carries the QSL cause name unchanged
 ## Behavior
 
 - The library shall carry the QSL cause name unchanged.
-- When the assessment of an observed history meets a construct for which QSL would report an `Unsupported` cause, QSL having reported none for that history, the library shall return the same disposition carrying the name of that QSL `Unsupported` variant (`SymbolicCapacity`, `JoinPredicate`, `UnruledOutstanding`, `UnorderedLossSelector`, `ActivationOnEachTemplate`, `Capture` or the other variants QSL defines).
+- When the assessment of an observed history meets a construct for which QSL would report an `Unsupported` cause, QSL having reported none for that history, the library shall return the same disposition carrying the name of that QSL `Unsupported` variant (`SymbolicCapacity` or the other variants QSL defines).
+- When the assessment of an observed history meets a `join predicate(..)` or an `unordered` channel whose overflow loses its `head` or `tail`, which QSL steps and this library's assessment does not, the library shall return an `unsupported` disposition whose cause is the library's own assessment cause (`JoinPredicate`, `UnorderedLossSelector`), with no QSL `Unsupported` variant behind it (ADR-010: QSL owns the engines).
 - When a discharge or other claim is requested that no QSL engine serves, the library shall carry QSL's `unsupported-requested-capability` cause as the name.
-- The library shall define no second name for it. The causes ADR-010 records for the extension are symbolic capacity, join predicate, a join with no `outstanding` rule, `activation on each` with a compensation template, a protocol capture, an `unordered` channel with a `head` or `tail` loss selector, and a step binder of an unenumerable record type.
+- The library shall define no second name for it. The QSL causes ADR-010 records for the extension that QSL still reports are symbolic capacity and a step binder of an unenumerable record type; QSL steps the others, and refuses a non-`all` join with no `outstanding` rule at admission.
 - The library shall report no `unsupported` disposition as false, satisfied, conformant or successful.
 - The library shall derive no result from it.
 - The library shall leave every other claim's disposition and every independently supported result unchanged (FR-029).

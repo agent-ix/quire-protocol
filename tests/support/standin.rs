@@ -207,8 +207,10 @@ pub fn request(dynamic: &Dynamic, kind: ProtocolClaimKind, channels: &[&str]) ->
 pub fn witness(dynamic: &Dynamic, steps: Vec<ValuePathStep>) -> SeparatingWitnessRecord {
     let occurrence = OccurrenceKey::generated(dynamic.key(dynamic.clause()));
     SeparatingWitnessRecord {
-        quantifier: occurrence.clone(),
-        deciding_element: quire_exact::Value::Integer(quire_exact::Integer::from(600_i64)),
+        quantifier: Some(occurrence.clone()),
+        deciding_element: qsl_replay::DecidingElement::Value(quire_exact::Value::Integer(
+            quire_exact::Integer::from(600_i64),
+        )),
         index: Some(2),
         value_path: RuntimeValuePath {
             observation: ObservationIdentity {

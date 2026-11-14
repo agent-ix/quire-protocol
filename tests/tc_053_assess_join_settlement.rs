@@ -8,12 +8,11 @@ mod support {
 }
 
 use ix_trace_rs::trace;
-use qsl_eval::simulation::protocol::Unsupported;
 use qsl_package::OccurrenceKeyError;
 use qsl_semantics::check::CheckedOutstanding;
 use quire_exact::Integer;
 use quire_protocol::declarations::JoinPolicy;
-use quire_protocol::disposition::UnsupportedCause;
+use quire_protocol::disposition::{AssessmentUnsupported, UnsupportedCause};
 use quire_protocol::dynamics::{
     assess_joins, BranchOutcome, HistoryRefusal, JoinAssessment, JoinEvent, JoinFact, JoinOutcome,
     JoinViolation,
@@ -201,13 +200,9 @@ fn outstanding_branches_are_judged_against_the_authored_rule() {
 
 #[test]
 #[trace("TC-053", "FR-055-AC-5")]
-fn a_predicate_or_unruled_any_or_quorum_join_is_unsupported_and_neither_settled_nor_not() {
+fn a_predicate_join_is_unsupported_and_neither_settled_nor_not() {
     let dynamic = Dynamic::with("workflow", 3);
-    let cases = [
-        ("Predicate", Unsupported::JoinPredicate),
-        ("AnyUnruled", Unsupported::UnruledOutstanding),
-        ("QuorumUnruled", Unsupported::UnruledOutstanding),
-    ];
+    let cases = [("Predicate", AssessmentUnsupported::JoinPredicate)];
     for (join, expected) in cases {
         let facts = history(
             &dynamic,
@@ -222,7 +217,7 @@ fn a_predicate_or_unruled_any_or_quorum_join_is_unsupported_and_neither_settled_
         else {
             panic!("{join}: {result:?}");
         };
-        assert_eq!(*cause, UnsupportedCause::Construct(expected), "{join}");
+        assert_eq!(*cause, UnsupportedCause::Assessment(expected), "{join}");
         assert_eq!(construct.node, dynamic.named("control", join));
     }
 }

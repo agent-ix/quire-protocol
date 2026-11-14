@@ -64,6 +64,8 @@ One disposition per requested claim (FR-029), carrying the backend's result, ref
 | FR-150-AC-9 | Given the same two stand-ins, a request naming one of them sends the claim to that stand-in only, and the result is identical under every registration order. | Test (TC-160) |
 | FR-150-AC-10 | Given a request naming no backend and one stand-in serving the claim kind, the disposition records that stand-in as the backend selected, and a disposition settled without a selected backend records none. | Test (TC-160) |
 | FR-150-AC-11 | Given a second provider registered for a backend identity that already has one, the registration is refused and the first provider is the one called. | Test (TC-160) |
+| FR-150-AC-12 | Given QSL's own `protocol-analysis` engine registered under QSL's descriptor, with no stand-in, a `local-projection` claim over a checked protocol is decided by that engine: a sound projection settles truth `satisfied` and a refuted one truth `violated`, each carrying QSL's result and the selected backend `protocol-analysis`. | Test (TC-164) |
+| FR-150-AC-13 | Given the same registration, the separating-witness record of a refuted `local-projection` result equals the record QSL's counterexample holds, unchanged. | Test (TC-164) |
 
 ## Adopted vocabulary
 

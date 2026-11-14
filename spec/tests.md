@@ -215,10 +215,10 @@ in Domain Object Coverage instead.
 | FR-059 | FR-059-AC-1..AC-4 | TC-054 (AC-1..AC-4) | ✅ Implemented — all 4 criteria have living traced tests; `Undischarged` is the only status. |
 | FR-100 | FR-100-AC-1..AC-24 | TC-154 | ✅ Implemented — closes V1-PROT-019 timeout branches; the owner facts are QObs progress and completeness views and QSL's slot outcome. |
 | FR-101 | FR-101-AC-1..AC-5 | TC-154 (AC-1..AC-5) | ✅ Implemented — all 5 criteria have living traced tests; closes V1-PROT-019 captures; the values are QSL's slot outcomes, bound without evaluation. |
-| FR-150 | FR-150-AC-1..AC-11 | TC-160 (AC-1..AC-11) | ✅ Implemented — all 11 criteria have living traced tests against a stand-in registered at the provider boundary under a descriptor QSL's registry accepts; a live QSL backend is not required. |
+| FR-150 | FR-150-AC-1..AC-13 | TC-160 (AC-1..AC-11); TC-164 (AC-12, AC-13) | ✅ Implemented — AC-1..AC-11 have living traced tests against a stand-in registered at the provider boundary; AC-12 and AC-13 run QSL's real `protocol-analysis` engine for `local-projection`. `realizability` has no real-engine test: its request needs a QSL `ProtocolSubject`, which the checked handoff does not carry. |
 | FR-151 | FR-151-AC-1..AC-8 | TC-161 (AC-1..AC-6, AC-8); no living test for AC-7 | 🚧 Partial — 7 of 8 criteria have living traced tests; AC-7 awaits QSL's read view (`ix://agent-ix/quire-spec-language/ADR-017`) publishing a channel's sender, receiver and message type and a role's internality. |
 | FR-152 | FR-152-AC-1..AC-7 | TC-162 (AC-1..AC-5, AC-7); no living test for AC-6 | 🚧 Partial — 6 of 7 criteria have living traced tests; AC-6 awaits quire-specification's FR-249 derived-artifact identity rule and FR-062 `resultId` rule (`ix://agent-ix/quire-specification/FR-249`, `ix://agent-ix/quire-specification/FR-062`). |
-| FR-153 | FR-153-AC-1..AC-7 | TC-163 (AC-1..AC-7) | ✅ Implemented — all 7 criteria have living traced tests with no backend and with a later-registered stand-in. |
+| FR-153 | FR-153-AC-1..AC-8 | TC-163 (AC-1..AC-7); TC-164 (AC-8) | ✅ Implemented — AC-1..AC-7 have living traced tests with no backend and with a later-registered stand-in; AC-8 runs QSL's real engine. |
 | FR-200 | FR-200-AC-1..AC-6 | TC-200 (AC-1..AC-6) | 🚧 Planned — spec only (ADR-010); binds all 6 criteria; awaits the implementation. |
 | FR-201 | FR-201-AC-1..AC-6 | TC-201 (AC-1..AC-6) | 🚧 Planned — spec only (ADR-010); binds all 6 criteria; awaits the implementation. |
 | FR-202 | FR-202-AC-1..AC-7 | TC-202 (AC-1..AC-7) | 🚧 Planned — spec only (ADR-010); binds all 7 criteria; awaits the implementation. |
@@ -321,6 +321,7 @@ a coverage claim in this matrix.
 | TC-161 | Bind communication and visibility premises | Property | P0 | FR-151 | 🚧 Partial — its tests carry FR-151-AC-1..AC-6 and AC-8; AC-7 is untagged. |
 | TC-162 | Carry a projection or realizability witness joined to the linked graph | Property | P0 | FR-152 | 🚧 Partial — its tests carry FR-152-AC-1..AC-5 and AC-7; AC-6 is untagged. |
 | TC-163 | Settle projection and realizability claims unsupported while no backend serves the kind | Property | P0 | FR-153 | ✅ Implemented — its tests carry every criterion of the row above. |
+| TC-164 | Dispatch local-projection claims to QSL's protocol analysis engine | Property | P0 | FR-150, FR-153 | ✅ Implemented — its tests carry FR-150-AC-12, FR-150-AC-13 and FR-153-AC-8. |
 | TC-200 | Dispatch composition claims to QSL's composition backend | Property | P0 | FR-200 | 🚧 Planned — binds all 6 FR-200 criteria; awaits the implementation (ADR-010). |
 | TC-201 | Bind composition dispositions to their premise lists and component subjects | Property | P0 | FR-201 | 🚧 Planned — binds all 6 FR-201 criteria; awaits the implementation (ADR-010). |
 | TC-202 | Carry composition and refinement results without reinterpretation | Property | P0 | FR-202 | 🚧 Planned — binds all 7 FR-202 criteria; awaits the implementation (ADR-010). |

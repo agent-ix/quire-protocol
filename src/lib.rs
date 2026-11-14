@@ -52,6 +52,8 @@ pub mod dispatch;
 pub mod disposition;
 /// Assessment of an observed history against those declarations.
 pub mod dynamics;
+/// QSL's protocol analysis engine as the provider behind the dispatch boundary (FR-150..153).
+pub mod engine;
 pub mod evidence;
 /// Protocol identity newtypes. Owner chunk: C-07.
 pub mod ids;

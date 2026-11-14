@@ -58,6 +58,10 @@ impl Construct {
 pub enum UnsupportedCause {
     /// A construct QSL's protocol system does not step, as QSL reported it.
     Construct(Unsupported),
+    /// A construct QSL steps but this library's own assessment of an observed
+    /// history does not (ADR-010: QSL owns the engines). No QSL `Unsupported`
+    /// variant stands behind it.
+    Assessment(AssessmentUnsupported),
     /// A claim or discharge no QSL engine serves, with QSL's own catalog code
     /// for it.
     RequestedCapability(CatalogCode),
@@ -67,13 +71,31 @@ pub enum UnsupportedCause {
     Unrecognised(RetainedBytes),
 }
 
+/// A construct this library's assessment of an observed history does not
+/// assess, although QSL steps it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum AssessmentUnsupported {
+    /// A `join predicate(..)`: the predicate is QSL's to evaluate.
+    JoinPredicate,
+    /// An unordered channel whose overflow loses its head or tail: QSL steps
+    /// it over a send-ordered queue this library does not reconstruct.
+    UnorderedLossSelector,
+}
+
 impl PartialEq for UnsupportedCause {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Self::Construct(left), Self::Construct(right)) => left == right,
+            (Self::Assessment(left), Self::Assessment(right)) => left == right,
             (Self::RequestedCapability(left), Self::RequestedCapability(right)) => left == right,
             (Self::Unrecognised(left), Self::Unrecognised(right)) => left == right,
-            (Self::Construct(_) | Self::RequestedCapability(_) | Self::Unrecognised(_), _) => false,
+            (
+                Self::Construct(_)
+                | Self::Assessment(_)
+                | Self::RequestedCapability(_)
+                | Self::Unrecognised(_),
+                _,
+            ) => false,
         }
     }
 }

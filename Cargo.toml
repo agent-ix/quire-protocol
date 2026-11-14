@@ -23,6 +23,8 @@ qsl-semantics = { git = "https://github.com/agent-ix/quire-spec-language", branc
 # The capability-backend registry and candidate sets (QSL FR-075, FR-290), the
 # truth and settlement-basis vocabulary and the separating-witness record.
 qsl-route = { git = "https://github.com/agent-ix/quire-spec-language", branch = "main" }
+# The protocol analysis engine and its `analyze` item adapters (QSL ADR-036).
+qsl-analyze = { git = "https://github.com/agent-ix/quire-spec-language", branch = "main" }
 qsl-replay = { git = "https://github.com/agent-ix/quire-spec-language", branch = "main" }
 quire-eval = { git = "https://github.com/agent-ix/quire-eval", branch = "main" }
 quire-exact = { git = "https://github.com/agent-ix/quire-exact", branch = "main" }
