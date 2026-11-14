@@ -41,6 +41,7 @@ Per join: the control identity, the policy (`all`, `any`, `quorum(n)` or `predic
 | FR-052-AC-1 | Over joins of each policy and a quorum threshold, the linked representation carries the control identity, policy and threshold equal to the checked package's. | Test (TC-050) |
 | FR-052-AC-2 | A `predicate` join and a join with no `outstanding` rule link successfully and are carried as declared, without evaluation and without a default rule. | Test (TC-050) |
 | FR-052-AC-3 | A loop with an invariant and a lexicographic variant links with both declarations referenced by checked node id, and linking performs no check of either. | Test (TC-050) |
+| FR-052-AC-4 | Over a `choice` control, the linked representation carries its control identity, the owner node and the visible `expression` nodes in the order QSL's `choice_visibility` reads them, without evaluating them. | Test (TC-168) |
 
 ## Dependencies
 

@@ -727,6 +727,34 @@ pub struct CompensationEffectFact {
     pub disposition: Option<EffectDisposition>,
 }
 
+/// Retain the effects observed for one registration, deciding duplicate
+/// business effects from effect identity alone.
+///
+/// The first established effect is retained as established. A further
+/// *distinct* effect identity claims the same singleton occurrence and is
+/// retained as [`EffectDisposition::Duplicate`]. The same identity observed
+/// again, as a redelivery of one effect's observation does, is retained once:
+/// a duplicate delivery is not a duplicate business effect (QSpec FR-058).
+#[must_use]
+pub fn retain_effects(
+    registration: &RegistrationId,
+    observed: impl IntoIterator<Item = EffectId>,
+) -> Vec<CompensationEffectFact> {
+    let mut retained: Vec<CompensationEffectFact> = Vec::new();
+    for effect in observed {
+        if retained.iter().any(|fact| fact.effect == effect) {
+            continue;
+        }
+        let disposition = (!retained.is_empty()).then_some(EffectDisposition::Duplicate);
+        retained.push(CompensationEffectFact {
+            effect,
+            registration: registration.clone(),
+            disposition,
+        });
+    }
+    retained
+}
+
 /// Aggregate recovery-relation outcome for one registration.
 ///
 /// This is separate from an attempt outcome even though the owner admits the
