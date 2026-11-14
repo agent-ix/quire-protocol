@@ -283,18 +283,19 @@ impl Realizability {
         &self.admitted
     }
 
-    /// The node of the declaration whose name ends in `last`.
-    pub fn named(&self, last: &str) -> CheckedNodeId {
+    /// The node of form `form` whose declared name ends in `last`.
+    pub fn named(&self, form: &str, last: &str) -> CheckedNodeId {
         self.admitted
             .resolved_graph()
             .nodes
             .iter()
             .find(|node| {
-                node.declaration.as_ref().is_some_and(|declaration| {
-                    declaration.qualified_name.last().map(|segment| &**segment) == Some(last)
-                })
+                &*node.semantic_form == form
+                    && node.declaration.as_ref().is_some_and(|declaration| {
+                        declaration.qualified_name.last().map(|segment| &**segment) == Some(last)
+                    })
             })
-            .unwrap_or_else(|| panic!("a node named {last}"))
+            .unwrap_or_else(|| panic!("no {form} named {last}"))
             .node_id
             .clone()
     }
@@ -319,8 +320,11 @@ impl Realizability {
                     normalization: ModelNormalizationLimits::default(),
                     snapshots: &self.snapshots,
                     initial: self.initial.clone(),
-                    universes: [("cells", vec!["c".to_owned()]), ("shops", Vec::new()),
-                        ("depots", Vec::new())]
+                    universes: [
+                        ("cells", vec!["c".to_owned()]),
+                        ("shops", Vec::new()),
+                        ("depots", Vec::new()),
+                    ]
                     .into_iter()
                     .map(|(name, keys)| PopulationUniverse {
                         population: key(name),
@@ -352,7 +356,7 @@ impl Realizability {
                 .graph()
                 .protocol("Flow")
                 .map(|found| ResolvedMemory::resolve(found, &[]).expect("no selection resolves"))
-                .unwrap_or_default(),
+                .expect("the protocol Flow"),
         }
     }
 

@@ -20,8 +20,8 @@ use quire_protocol::dispatch::{
     dispatch, Answer, Binding, ChannelPremise, Claim, Fragment, Premises, ProtocolClaimKind,
     ProtocolOutcome, ProtocolRequest, ProviderBoundary,
 };
-use quire_protocol::link::LinkedProtocol;
 use quire_protocol::engine::{engine_descriptor, EngineRequest, EngineResult, QslEngine};
+use quire_protocol::link::LinkedProtocol;
 
 use super::dynamic::Dynamic;
 

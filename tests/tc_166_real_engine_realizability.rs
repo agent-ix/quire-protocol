@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! TC-166: `realizability` claims dispatched to QSL's real `protocol-analysis`
-//! engine, with no stand-in (FR-150, FR-152, TL-387 AC1).
+//! engine, with no stand-in (FR-150, TL-387 AC1).
 
 mod support {
     pub mod dynamic;
@@ -42,7 +42,7 @@ fn settle(fixture: &Realizability) -> EngineResult {
         ProtocolClaimKind::Realizability,
         fixture.linked(),
         fixture.clause(),
-        |_, name| fixture.named(name),
+        |form, name| fixture.named(form, name),
     );
     match dispatch(&mut boundary, fixture.linked().declarations(), &asked) {
         ProtocolOutcome::Settled(ClaimSettlement::Result { result, premises }) => {
