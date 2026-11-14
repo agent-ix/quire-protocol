@@ -44,13 +44,13 @@ The disposition carrying the backend's witness, counterexample or projected loca
 
 | ID | Criteria | Verification |
 | --- | --- | --- |
-| FR-152-AC-1 | Given a stand-in returning a `realizability` result settled `decisive-witness`, the disposition carries the trace-position witness per FR-302 byte-for-byte and retains the claim's source identities. | Test (TC-162) |
+| FR-152-AC-1 | Given a stand-in returning a `realizability` result settled `decisive-witness`, with the `native-run-result/2` protocol-analysis record QSL's engine writes, the disposition carries the trace-position witness per FR-302 byte-for-byte and retains the claim's source identities. | Test (TC-162) |
 | FR-152-AC-2 | Given a stand-in returning a `realizability` result settled `decisive-counterexample`, the disposition carries the trace-position witness byte-for-byte and retains the claim's source identities. | Test (TC-162) |
-| FR-152-AC-3 | Given a stand-in returning a deliberately non-minimal witness, the disposition carries it byte-for-byte, with no step dropped, merged or reordered. | Test (TC-162) |
+| FR-152-AC-3 | Given a stand-in returning a `local-projection` result with a deliberately non-minimal witness, the disposition carries it byte-for-byte, with no step dropped, merged or reordered. | Test (TC-162) |
 | FR-152-AC-4 | Given a decisive request whose disposition retains no source identity, that disposition is refused under FR-030, and every independent disposition is unchanged. | Test (TC-162) |
 | FR-152-AC-5 | Given a stand-in returning a projected local artifact for a `local-projection` claim, the disposition carries it unchanged. | Test (TC-162) |
 | FR-152-AC-6 | Given a projected local artifact whose identity disagrees with the one derived from its selected tuple, that disposition is refused as FR-030-AC-5 requires. | Test (TC-162) |
-| FR-152-AC-7 | Given a stand-in returning a decisive `realizability` result with no witness, and a second whose witness record has no trace position, each disposition is refused under FR-030, and a decisive `local-projection` result with no witness is carried unchanged. | Test (TC-162) |
+| FR-152-AC-7 | Given a stand-in returning a decisive `realizability` result with its record but no witness, and a second whose witness record has no trace position, each disposition is refused under FR-030, and a decisive `local-projection` result with no witness is carried unchanged. | Test (TC-162) |
 
 ## Adopted vocabulary
 

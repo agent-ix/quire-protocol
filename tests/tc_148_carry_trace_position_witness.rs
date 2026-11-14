@@ -134,9 +134,11 @@ fn a_witness_that_is_not_the_records_is_refused_not_repaired() {
     display.index = Some(0);
     changed.push(display);
     let mut quantified = held.clone();
-    quantified.quantifier = Some(qsl_foundation::source::provenance::OccurrenceKey::generated(
-        Dynamic::with("workflow", 3).key(Dynamic::with("workflow", 3).clause()),
-    ));
+    quantified.quantifier = Some(
+        qsl_foundation::source::provenance::OccurrenceKey::generated(
+            Dynamic::with("workflow", 3).key(Dynamic::with("workflow", 3).clause()),
+        ),
+    );
     changed.push(quantified);
     for witness in changed {
         assert_eq!(

@@ -24,7 +24,6 @@ use quire_protocol::disposition::{ClaimSettlement, Disposition, QslReport};
 use support::dynamic::Dynamic;
 use support::standin::{always, request, serve, Boundary, Sentinel};
 
-
 const KIND: ProtocolClaimKind = ProtocolClaimKind::Realizability;
 
 fn sentinel() -> Sentinel {

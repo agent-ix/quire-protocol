@@ -26,7 +26,7 @@ Evaluate a realizability and a refinement claim each settled
 witness's components (deciding element identity, index, value path, trace
 position) in turn, and separately substitute a default for a component the
 admitted record leaves absent. Separately evaluate a decisive settlement whose
-analysis backend produces no `native-run-result/2` record.
+analysis backend writes no `native-run-result/2` protocol-analysis record, and QSL's own engine's refutation, which does.
 
 ## Expected Results
 
