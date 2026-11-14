@@ -66,6 +66,8 @@ One disposition per requested claim (FR-029), carrying the backend's result, ref
 | FR-150-AC-11 | Given a second provider registered for a backend identity that already has one, the registration is refused and the first provider is the one called. | Test (TC-160) |
 | FR-150-AC-12 | Given QSL's own `protocol-analysis` engine registered under QSL's descriptor, with no stand-in, a `local-projection` claim over a checked protocol is decided by that engine: a sound projection settles truth `satisfied` and a refuted one truth `violated`, each carrying QSL's result and the selected backend `protocol-analysis`. | Test (TC-164) |
 | FR-150-AC-13 | Given the same registration, the separating-witness record of a refuted `local-projection` result equals the record QSL's counterexample holds, unchanged. | Test (TC-164) |
+| FR-150-AC-14 | Given QSL's linked engine registered and a corpus of three-role workflows, projecting onto each role settles the truth the engine decides for it: a workflow whose branches the warehouse can tell apart or merge satisfies for every role, and one whose branches it cannot tell apart is refuted for the warehouse only. | Test (TC-165) |
+| FR-150-AC-15 | Given the same registration and a request of one `local-projection` claim and one `global-conformance` result, the global result is returned unchanged beside the engine's projection result. | Test (TC-165) |
 
 ## Adopted vocabulary
 
