@@ -12,8 +12,8 @@ use std::num::NonZeroU32;
 
 use ix_trace_rs::trace;
 use quire_protocol::compensation::algebra::{
-    retain_effects, AttemptAdmission, AttemptFact, AttemptLedger, AttemptOutcome, Definition,
-    EffectDisposition, ForwardFact, Limits as AlgebraLimits, Registry,
+    AttemptAdmission, AttemptFact, AttemptLedger, AttemptOutcome, Definition, EffectDisposition,
+    ForwardFact, Limits as AlgebraLimits, Registry,
 };
 use quire_protocol::compensation::purity::{CapabilityInventory, PureAssessment};
 use quire_protocol::dynamics::{assess_joins, JoinEvent, JoinFact, JoinOutcome};
@@ -119,8 +119,9 @@ fn a_fan_out_whose_join_cannot_settle_compensates_each_completed_branch() {
         assert!(matches!(last, AttemptAdmission::Admitted { .. }));
         admitted += 1;
         assert_eq!(ledger.attempts().len(), admitted);
-        let effects = retain_effects(&registration.identity, [undone.clone(), undone]);
+        let effects = ledger.effects();
         assert_eq!(effects.len(), 1);
+        assert_eq!(effects[0].effect, undone);
         assert_ne!(effects[0].disposition, Some(EffectDisposition::Duplicate));
     }
 }

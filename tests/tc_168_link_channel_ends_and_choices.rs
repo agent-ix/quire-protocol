@@ -12,7 +12,7 @@ mod support {
 }
 
 use ix_trace_rs::trace;
-use qsl_package::protocol_view::channel_endpoints;
+use qsl_package::protocol_view::{channel_endpoints, choice_visibility};
 use qsl_replay::{SettlementBasis, Truth};
 use qsl_semantics::check::Capability;
 use quire_protocol::dispatch::{dispatch, ProtocolClaimKind};
@@ -62,8 +62,23 @@ fn a_linked_choice_carries_its_owner_and_visible_set() {
         panic!("one choice: {:?}", declarations.choices());
     };
     assert_eq!(choice.owner, dynamic.named("role", "Seller"));
+    let graph_node = dynamic
+        .package()
+        .graph()
+        .nodes
+        .iter()
+        .find(|candidate| candidate.node_id == choice.control)
+        .expect("the choice node");
+    let evidence = choice_visibility(graph_node).expect("QSL reads the choice");
+    assert_eq!(&choice.control, evidence.choice);
+    assert_eq!(&choice.owner, evidence.owner);
     assert_eq!(choice.visible.len(), 1);
-    assert_eq!(declarations.choice(&choice.control), Some(choice));
+    assert_eq!(
+        choice.visible.iter().collect::<Vec<_>>(),
+        evidence.visible,
+        "the visible nodes, in QSL's order"
+    );
+    assert_eq!(choice.key, dynamic.key(&choice.control));
 }
 
 #[test]
@@ -97,6 +112,15 @@ fn the_backend_receives_each_channels_ends_and_message_type_as_linked() {
         assert_eq!(call.channels[index].sender, linked.sender);
         assert_eq!(call.channels[index].receiver, linked.receiver);
         assert_eq!(call.channels[index].message_type, linked.message_type);
+        let graph_node = dynamic
+            .package()
+            .graph()
+            .nodes
+            .iter()
+            .find(|candidate| &candidate.node_id == node)
+            .expect("the channel node");
+        let ends = channel_endpoints(graph_node).expect("QSL reads the ends");
+        assert_eq!(&call.channels[index].message_type, ends.message_type);
     }
     assert_eq!(
         call.channels[0].sender,

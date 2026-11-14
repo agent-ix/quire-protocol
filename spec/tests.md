@@ -345,19 +345,19 @@ Each Protocol-owned cell of `quire-specification/docs/v1-capability-inventory.md
 | V1-PROT-001 finite roles | FR-050 (TC-050) | Backed |
 | V1-PROT-002 role instances | FR-053 (TC-051) | Backed |
 | V1-PROT-003 role binding | FR-044 (TC-150) | Backed for role authority; no test of endpoint binding |
-| V1-PROT-004 typed messages | FR-051-AC-4 (TC-168) | Backed: a channel's message type is read from QSL's view |
+| V1-PROT-004 typed messages | FR-051-AC-4 (TC-168) | Partial: a channel's message type node is linked from QSL's view; no test of a payload's own type |
 | V1-PROT-005 channels | FR-051 (TC-050, TC-168); FR-151-AC-7 (TC-168) | Backed |
 | V1-PROT-006 send, receipt, message, delivery, attempt identities | FR-023 (TC-003); FR-054 (TC-052); FR-018 (TC-017) | Backed in parts; no single identity-separation test |
-| V1-PROT-007 business correlation | quire-observation TC-005 (`tests/admission.rs`): resolved, missing, conflicting and ambiguous relationships; the link here needs the whole FR-287 subject key (TC-154) | Backed across repositories; correlation is QObs's (FR-111) |
+| V1-PROT-007 business correlation | quire-observation TC-005 (`tests/admission.rs`): resolved, missing, conflicting and ambiguous relationships; the link here needs the whole FR-287 subject key (TC-154) | Backed across repositories; correlation is QSpec's FR-111, implemented in quire-observation |
 | V1-PROT-008 sequence | FR-044 (TC-150) | Backed |
-| V1-PROT-009 choice | FR-052-AC-4 (TC-168) | Backed: a choice's owner and visible set are linked as QSL reads them |
+| V1-PROT-009 choice | FR-052-AC-4 (TC-168) | Partial: owner and visible set are linked; branch labels and composition have no living test |
 | V1-PROT-010 parallel and join | FR-052, FR-055 (TC-050, TC-053, TC-167) | Backed |
 | V1-PROT-011 bounded iteration | FR-056 (TC-054, TC-167) | Backed |
 | V1-PROT-012 dynamic roles | FR-053 (TC-051, TC-167) | Backed |
 | V1-PROT-013 queues | FR-054 (TC-052, TC-167) | Backed for finite capacity; symbolic capacity is typed unsupported (TC-055) |
 | V1-PROT-014 invariants and termination | FR-058, FR-059 (TC-054, TC-055) | Partial: undischarged and requires-bound carried; QSL owns the proof |
 | V1-PROT-015 causal edges | FR-044 (TC-150); FR-021 (TC-003) | Backed |
-| V1-PROT-016 choice visibility | FR-052-AC-4 (TC-168); FR-019-AC-2 (TC-003); FR-151 (TC-161) | Backed for the choice owner and visible set; role internality (FR-151-AC-9) is blocked on QSpec |
+| V1-PROT-016 choice visibility | FR-052-AC-4 (TC-168); FR-019-AC-2 (TC-003); FR-151 (TC-161) | Partial: the visible set is carried, not enforced per affected role; role internality (FR-151-AC-9) is blocked on QSpec |
 | V1-PROT-017 delivery premises | FR-051, FR-054 (TC-050, TC-052); FR-151 (TC-161) | Backed |
 | V1-PROT-018 state guards, temporal obligations | FR-045 (TC-151), FR-046 (TC-152) | Partial: 5 criteria without a living test (FR-045 AC-2, AC-5, AC-7; FR-046 AC-5, AC-7) |
 | V1-PROT-019 captures, timeout branches | FR-100, FR-101 (TC-154) | Backed |
@@ -365,7 +365,7 @@ Each Protocol-owned cell of `quire-specification/docs/v1-capability-inventory.md
 | V1-PROT-021 effect, attempt, retry identities | FR-022, FR-023 (TC-003) | Backed |
 | V1-PROT-022 commit and recovery | FR-021 (TC-003) | Backed |
 | V1-PROT-023 outcome distinctions | FR-023 (TC-003) | Backed |
-| V1-PROT-024 duplicate business effects | FR-023-AC-6 (TC-169) | Backed |
+| V1-PROT-024 duplicate business effects | FR-023-AC-6 (TC-169) | Backed for a singleton effect; a declared population of related effects is not modelled |
 | V1-PROT-025 finite replay | TC-167; TC-008 | Partial: a rebuilt history gives the same dynamic-axis result; no test replays a serialized trace, and the whole-result replay is retired with FR-006 |
 | V1-PROT-026 global conformance | passthrough only (TC-165 AC-15) | Blocked: FR-004 composes FR-026, FR-027, FR-028 and FR-041, all retired with the evaluator (QSL-1549) and with no successor requirement, so nothing here produces a global-conformance result to test |
 | V1-PROT-027 projection | FR-150 (TC-164, TC-165) | Backed on QSL's engine |
@@ -374,9 +374,9 @@ Each Protocol-owned cell of `quire-specification/docs/v1-capability-inventory.md
 | V1-PROT-030 refinement | FR-200..FR-204; FR-301 | Stand-in; no linked QSL engine; FR-301 has no tagged test |
 | V1-PROT-031 no external effects | FR-025 (TC-003, TC-009) | Backed |
 | V1-RUN-003 protocol replay | TC-167; TC-050..TC-055 | Partial: the dynamic axes only |
-| V1-RUN-005, V1-RUN-006 independent axes | FR-014 (TC-011); TC-055, TC-154, TC-163 | Partial. Quoin #519 is closed and its intake (`quoin.protocol-scenario-intake/v1`, quoin-evidence) accepts a scenario record for IT-001..IT-003, but the canonical result (FR-006, FR-007) and the scenario record (FR-017) it carries are retired here with no successor, so there is no Protocol value to hand over |
+| V1-RUN-005, V1-RUN-006 independent axes | FR-014 (TC-011); TC-055, TC-154, TC-163 | Partial, and blocked for publication. Quoin #519 is closed and its intake (`quoin.protocol-scenario-intake/v1`, quoin-evidence) accepts a scenario record for IT-001..IT-003, but the canonical result (FR-006, FR-007) and the scenario record (FR-017) it carries are retired here with no successor, so there is no Protocol value to hand over |
 | V1-RUN-009 related workflow instances | quire-observation TC-005 (order and shipment relationships); TC-154 (a wait links only the instance whose whole subject key matches) | Partial: no payment-attempt or refund relationship test |
-| V1-RUN-011 timed refund | TC-170 (in `tests/tc_154_settle_deadline_captures.rs`); FR-100, FR-101 | Backed: timeout, compensation, retried refund |
+| V1-RUN-011 timed refund | TC-170 (in `tests/tc_154_settle_deadline_captures.rs`); FR-100, FR-101 | Backed on the generic deadline fixture: a timeout starts compensation, a response starts none; failed then successful refund attempt, one effect |
 | V1-RUN-012 compensated fan-out and join | TC-170 (`tests/tc_170_compensated_fan_out_join_run.rs`) | Backed: unsettled join, per-branch compensation, retried undo |
 
 ## Test Execution Summary

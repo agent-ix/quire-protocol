@@ -37,7 +37,7 @@ Upstream admission already refuses a checked-package channel with a missing comp
 ## Behavior
 
 - The dispatcher shall hand the backend each channel's ordering and delivery policy and each role declaration exactly as the checked package authors them.
-- The dispatcher shall hand the backend each component of the requester's premises that QSL's read view does not publish exactly as the requester stated it.
+- The dispatcher shall hand the backend each channel's sender, receiver and message type as the linked declaration carries them, and each component of the requester's premises that QSL's read view does not publish exactly as the requester stated it. `ChannelPremise::unread` holds nothing QSL publishes for a channel today; callers state `()`.
 - When the requester's ordering or delivery premise for a channel differs from the checked package's declaration of it, the dispatcher shall refuse that disposition under FR-030 naming the channel.
 - When the requester's premise differs from the checked package's declaration, the dispatcher shall invoke no backend for that claim.
 - The dispatcher shall retain on the disposition each premise it handed the backend.

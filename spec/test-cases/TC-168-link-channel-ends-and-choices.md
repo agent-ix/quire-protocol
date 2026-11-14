@@ -5,6 +5,10 @@ type: TC
 relationships:
   - target: ix://agent-ix/quire-protocol/FR-051
     type: verifies
+  - target: ix://agent-ix/quire-protocol/FR-052
+    type: verifies
+  - target: ix://agent-ix/quire-protocol/FR-151
+    type: verifies
 ---
 # TC-168: Link channel ends and choices from QSL's read view
 

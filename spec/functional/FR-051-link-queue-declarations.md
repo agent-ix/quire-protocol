@@ -22,10 +22,12 @@ An admitted checked package (FR-043) and the node id of a protocol clause.
 
 ## Outputs
 
-Per channel: the checked node id, the delivery premise, the ordering (`fifo` with its key, or `unordered`), the capacity as a literal or as a symbolic expression, and the overflow policy (`block`, `reject`, or `loss` with its selector), always present.
+Per channel: the checked node id, the sender and receiver role nodes, the message type node, the delivery premise, the ordering (`fifo` with its key, or `unordered`), the capacity as a literal or as a symbolic expression, and the overflow policy (`block`, `reject`, or `loss` with its selector), always present.
 
 ## Behavior
 
+- The library shall obtain the sender, receiver and message type through QSL's `channel_endpoints` accessor and carry them as the checked nodes it names.
+- A channel whose ends QSL's accessor refuses refuses the link with that view refusal.
 - The library shall obtain the delivery premise and capacity through QSL's `delivery` and `queue_capacity` accessors wherever they own the value (FR-044).
 - The library shall keep a symbolic capacity as the authored expression.
 - The library shall not evaluate it to a number.

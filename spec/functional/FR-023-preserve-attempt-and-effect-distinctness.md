@@ -68,7 +68,7 @@ under [FR-024](./FR-024-decide-recovery-only-by-authored-relation.md).
 | FR-023-AC-3 | An attempt identity compares unequal to every effect identity, and a transport status, trace identifier, repeated delivery or equal payload establishes neither. | Test (TC-003) |
 | FR-023-AC-4 | A successful send, receive, delivery, attempt or compensating-operation invocation establishes no compensation effect. | Test (TC-003) |
 | FR-023-AC-5 | An attempt whose outcome is unestablished carries an absent outcome and receives no default member, and every reported outcome matches an exact `FR-236` label with no alias spelling accepted. | Test (TC-003) |
-| FR-023-AC-6 | Given the effects observed for one registration, the first established effect is retained as established and each further distinct effect identity as a duplicate business effect, while the same effect identity observed again is retained once, so a duplicate delivery never creates a duplicate effect. | Test (TC-169) |
+| FR-023-AC-6 | Given a registration's attempt ledger, the effect the first establishing attempt names is retained as established and each further distinct effect identity an attempt names as a duplicate business effect (the registration's effect being one singleton occurrence), while an effect an attempt names again is retained once, so a duplicate delivery never creates a duplicate effect and the facts are bounded by the admitted attempts. | Test (TC-169) |
 
 ## Adopted vocabulary
 
