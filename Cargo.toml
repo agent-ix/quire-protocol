@@ -44,6 +44,11 @@ sha2 = "=0.10.9"
 # The owner's static-bundle test fixture (tc_003_compensation).
 quire-observation = { git = "https://github.com/agent-ix/quire-observation", branch = "main", features = ["test-support"] }
 ix-trace-rs = { git = "https://github.com/agent-ix/ix-trace-rs", branch = "main" }
+# QSL's public front end, which a realizability subject is built from in tests
+# (a `CheckedPackage` is QSL's in-process form; the handoff does not carry it).
+qsl-cst = { git = "https://github.com/agent-ix/quire-spec-language", branch = "main" }
+qsl-forms = { git = "https://github.com/agent-ix/quire-spec-language", branch = "main" }
+quire-checked = { git = "https://github.com/agent-ix/quire-eval", branch = "main" }
 serde_json = "=1.0.151"
 tempfile = "3"
 

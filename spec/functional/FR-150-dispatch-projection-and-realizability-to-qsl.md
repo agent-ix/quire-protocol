@@ -68,6 +68,8 @@ One disposition per requested claim (FR-029), carrying the backend's result, ref
 | FR-150-AC-13 | Given the same registration, the separating-witness record of a refuted `local-projection` result equals the record QSL's counterexample holds, unchanged. | Test (TC-164) |
 | FR-150-AC-14 | Given QSL's linked engine registered and a corpus of three-role workflows, projecting onto each role settles the truth the engine decides for it: a workflow whose branches the warehouse can tell apart or merge satisfies for every role, and one whose branches it cannot tell apart is refuted for the warehouse only. | Test (TC-165) |
 | FR-150-AC-15 | Given the same registration and a request of one `local-projection` claim and one `global-conformance` result, the global result is returned unchanged beside the engine's projection result. | Test (TC-165) |
+| FR-150-AC-16 | Given QSL's linked engine registered and a `realizability` claim over a checked protocol whose branches every role can tell apart, the engine decides it: truth `satisfied`, basis `closed-scope`, QSL's result carried and the selected backend `protocol-analysis`. | Test (TC-166) |
+| FR-150-AC-17 | Given the same registration and a protocol with a hidden choice, the claim settles truth `violated` with basis `decisive-counterexample`, and the result's separating-witness record equals the one QSL's indistinguishable-histories counterexample holds, unchanged. | Test (TC-166) |
 
 ## Adopted vocabulary
 
